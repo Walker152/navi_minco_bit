@@ -1,0 +1,11 @@
+# Goal
+geometry_msgs/Point target_position
+float32 desired_speed
+---
+# Result
+float32 navigation_time
+uint32 error_code
+---
+# Feedback
+geometry_msgs/Point current_position
+float32 progress

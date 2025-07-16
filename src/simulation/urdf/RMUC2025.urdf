@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<robot name="RMUC2025">
+  <!-- 地图主连接 -->
+  <link name="map">
+    <visual>
+      <geometry>
+        <mesh filename="/home/rm/learn_ws/src/simulation/meshes/40RMUC.stl" scale="1 1 1" />
+      </geometry>
+      <material name="gray">
+        <color rgba="0.8 0.8 0.8 1.0" />
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="/home/rm/learn_ws/src/simulation/meshes/40RMUC.stl" scale="1 1 1" />
+      </geometry>
+    </collision>
+    <!-- 静态物体需要大质量值 -->
+    <inertial>
+      <mass value="1e6" />  <!-- 100,000 kg -->
+      <inertia ixx="1e6" ixy="0" ixz="0" iyy="1e6" iyz="0" izz="1e6" />
+    </inertial>
+  </link>
+
+  <!-- Gazebo专用设置 -->
+  <gazebo reference="map">
+    <!-- 标记为静态物体，优化性能 -->
+    <static>true</static>
+    <!-- 禁用自碰撞检测 -->
+    <selfCollide>false</selfCollide>
+    <!-- 设置表面材质 -->
+    <material>Gazebo/FlatBlack</material>
+  </gazebo>
+
+  <!-- 与世界坐标系的固定连接 -->
+  <link name="world">
+    <collision>
+         <geometry>
+           <box size="0.00001 0.00001 0.00001"/>
+         </geometry>
+    </collision>
+     <inertial>
+        <mass value="1" />
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1" />
+      </inertial>
+  </link>
+  <joint name="world_to_map" type="fixed">
+    <parent link="world" />
+    <child link="map" />
+    <origin xyz="0 0 0.01" rpy="0 0 0" />
+  </joint>
+</robot>
