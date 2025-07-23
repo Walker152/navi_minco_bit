@@ -1,0 +1,9 @@
+/home/rm/2025-sentry-navi/build/simulation/CMakeFiles/uninstall.dir
+/home/rm/2025-sentry-navi/build/simulation/CMakeFiles/simulation_uninstall.dir
+/home/rm/2025-sentry-navi/build/simulation/CMakeFiles/test.dir
+/home/rm/2025-sentry-navi/build/simulation/CMakeFiles/edit_cache.dir
+/home/rm/2025-sentry-navi/build/simulation/CMakeFiles/rebuild_cache.dir
+/home/rm/2025-sentry-navi/build/simulation/CMakeFiles/list_install_components.dir
+/home/rm/2025-sentry-navi/build/simulation/CMakeFiles/install.dir
+/home/rm/2025-sentry-navi/build/simulation/CMakeFiles/install/local.dir
+/home/rm/2025-sentry-navi/build/simulation/CMakeFiles/install/strip.dir

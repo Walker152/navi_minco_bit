@@ -1,0 +1,7 @@
+./build
+./install
+./log
+.vscode
+.DS_Store
+*.pyc
+__pycache__/
