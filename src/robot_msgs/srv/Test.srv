@@ -1,7 +1,0 @@
-# Request
-string request_data
----
-# Response
-bool success
-string state
-float32 battery_level
