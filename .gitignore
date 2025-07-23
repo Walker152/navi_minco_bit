@@ -1,7 +1,8 @@
-./build
-./install
-./log
-.vscode
+build/
+install/
+log/
+.vscode/
+.idea/
 .DS_Store
-*.pyc
 __pycache__/
+*.pyc
