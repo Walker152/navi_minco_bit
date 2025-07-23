@@ -1,1 +1,0 @@
-/home/rm/2025-sentry-navi/src/simulation/launch/display_robot.launch.py
