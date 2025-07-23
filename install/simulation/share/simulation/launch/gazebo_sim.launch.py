@@ -1,1 +1,0 @@
-/home/rm/2025-sentry-navi/src/simulation/launch/gazebo_sim.launch.py
