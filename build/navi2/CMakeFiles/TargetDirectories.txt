@@ -1,0 +1,9 @@
+/home/rm/2025-sentry-navi/build/navi2/CMakeFiles/uninstall.dir
+/home/rm/2025-sentry-navi/build/navi2/CMakeFiles/navi2_uninstall.dir
+/home/rm/2025-sentry-navi/build/navi2/CMakeFiles/test.dir
+/home/rm/2025-sentry-navi/build/navi2/CMakeFiles/edit_cache.dir
+/home/rm/2025-sentry-navi/build/navi2/CMakeFiles/rebuild_cache.dir
+/home/rm/2025-sentry-navi/build/navi2/CMakeFiles/list_install_components.dir
+/home/rm/2025-sentry-navi/build/navi2/CMakeFiles/install.dir
+/home/rm/2025-sentry-navi/build/navi2/CMakeFiles/install/local.dir
+/home/rm/2025-sentry-navi/build/navi2/CMakeFiles/install/strip.dir

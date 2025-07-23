@@ -1,0 +1,44 @@
+running egg_info
+creating ../../build/application/application.egg-info
+writing ../../build/application/application.egg-info/PKG-INFO
+writing dependency_links to ../../build/application/application.egg-info/dependency_links.txt
+writing entry points to ../../build/application/application.egg-info/entry_points.txt
+writing requirements to ../../build/application/application.egg-info/requires.txt
+writing top-level names to ../../build/application/application.egg-info/top_level.txt
+writing manifest file '../../build/application/application.egg-info/SOURCES.txt'
+reading manifest file '../../build/application/application.egg-info/SOURCES.txt'
+writing manifest file '../../build/application/application.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/rm/2025-sentry-navi/build/application/build
+creating /home/rm/2025-sentry-navi/build/application/build/lib
+creating /home/rm/2025-sentry-navi/build/application/build/lib/fishbot_application
+copying fishbot_application/get_robot_pose.py -> /home/rm/2025-sentry-navi/build/application/build/lib/fishbot_application
+copying fishbot_application/__init__.py -> /home/rm/2025-sentry-navi/build/application/build/lib/fishbot_application
+copying fishbot_application/init_robot_pose.py -> /home/rm/2025-sentry-navi/build/application/build/lib/fishbot_application
+copying fishbot_application/nav_to_pose.py -> /home/rm/2025-sentry-navi/build/application/build/lib/fishbot_application
+copying fishbot_application/waypoint_follower.py -> /home/rm/2025-sentry-navi/build/application/build/lib/fishbot_application
+running install
+running install_lib
+creating /home/rm/2025-sentry-navi/install/application/lib/python3.10/site-packages/fishbot_application
+copying /home/rm/2025-sentry-navi/build/application/build/lib/fishbot_application/get_robot_pose.py -> /home/rm/2025-sentry-navi/install/application/lib/python3.10/site-packages/fishbot_application
+copying /home/rm/2025-sentry-navi/build/application/build/lib/fishbot_application/__init__.py -> /home/rm/2025-sentry-navi/install/application/lib/python3.10/site-packages/fishbot_application
+copying /home/rm/2025-sentry-navi/build/application/build/lib/fishbot_application/init_robot_pose.py -> /home/rm/2025-sentry-navi/install/application/lib/python3.10/site-packages/fishbot_application
+copying /home/rm/2025-sentry-navi/build/application/build/lib/fishbot_application/nav_to_pose.py -> /home/rm/2025-sentry-navi/install/application/lib/python3.10/site-packages/fishbot_application
+copying /home/rm/2025-sentry-navi/build/application/build/lib/fishbot_application/waypoint_follower.py -> /home/rm/2025-sentry-navi/install/application/lib/python3.10/site-packages/fishbot_application
+byte-compiling /home/rm/2025-sentry-navi/install/application/lib/python3.10/site-packages/fishbot_application/get_robot_pose.py to get_robot_pose.cpython-310.pyc
+byte-compiling /home/rm/2025-sentry-navi/install/application/lib/python3.10/site-packages/fishbot_application/__init__.py to __init__.cpython-310.pyc
+byte-compiling /home/rm/2025-sentry-navi/install/application/lib/python3.10/site-packages/fishbot_application/init_robot_pose.py to init_robot_pose.cpython-310.pyc
+byte-compiling /home/rm/2025-sentry-navi/install/application/lib/python3.10/site-packages/fishbot_application/nav_to_pose.py to nav_to_pose.cpython-310.pyc
+byte-compiling /home/rm/2025-sentry-navi/install/application/lib/python3.10/site-packages/fishbot_application/waypoint_follower.py to waypoint_follower.cpython-310.pyc
+running install_data
+creating /home/rm/2025-sentry-navi/install/application/share/ament_index
+creating /home/rm/2025-sentry-navi/install/application/share/ament_index/resource_index
+creating /home/rm/2025-sentry-navi/install/application/share/ament_index/resource_index/packages
+copying resource/application -> /home/rm/2025-sentry-navi/install/application/share/ament_index/resource_index/packages
+copying package.xml -> /home/rm/2025-sentry-navi/install/application/share/application
+running install_egg_info
+Copying ../../build/application/application.egg-info to /home/rm/2025-sentry-navi/install/application/lib/python3.10/site-packages/application-0.0.0-py3.10.egg-info
+running install_scripts
+Installing init_robot_pose script to /home/rm/2025-sentry-navi/install/application/lib/fishbot_application
+writing list of installed files to '/home/rm/2025-sentry-navi/build/application/install.log'

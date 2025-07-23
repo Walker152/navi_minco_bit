@@ -1,0 +1,57 @@
+[0.244s] Invoking command in '/home/rm/2025-sentry-navi/build/navi2': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /home/rm/2025-sentry-navi/src/navi2 -DCMAKE_INSTALL_PREFIX=/home/rm/2025-sentry-navi/install/navi2
+[0.288s] -- The C compiler identification is GNU 11.4.0
+[0.338s] -- The CXX compiler identification is GNU 11.4.0
+[0.344s] -- Detecting C compiler ABI info
+[0.399s] -- Detecting C compiler ABI info - done
+[0.403s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.403s] -- Detecting C compile features
+[0.404s] -- Detecting C compile features - done
+[0.406s] -- Detecting CXX compiler ABI info
+[0.472s] -- Detecting CXX compiler ABI info - done
+[0.479s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.479s] -- Detecting CXX compile features
+[0.480s] -- Detecting CXX compile features - done
+[0.482s] -- Found ament_cmake: 1.3.11 (/opt/ros/humble/share/ament_cmake/cmake)
+[0.610s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[0.700s] -- Found ament_lint_auto: 0.12.12 (/opt/ros/humble/share/ament_lint_auto/cmake)
+[0.771s] -- Added test 'flake8' to check Python code syntax and style conventions
+[0.772s] -- Added test 'lint_cmake' to check CMake code style
+[0.772s] -- Added test 'pep257' to check Python code against some of the docstring style conventions in PEP 257
+[0.774s] -- Added test 'xmllint' to check XML markup files
+[0.775s] -- Configuring done
+[0.777s] -- Generating done
+[0.779s] -- Build files have been written to: /home/rm/2025-sentry-navi/build/navi2
+[0.789s] Invoked command in '/home/rm/2025-sentry-navi/build/navi2' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /home/rm/2025-sentry-navi/src/navi2 -DCMAKE_INSTALL_PREFIX=/home/rm/2025-sentry-navi/install/navi2
+[0.790s] Invoking command in '/home/rm/2025-sentry-navi/build/navi2': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --build /home/rm/2025-sentry-navi/build/navi2 -- -j20 -l20
+[0.819s] Invoked command in '/home/rm/2025-sentry-navi/build/navi2' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --build /home/rm/2025-sentry-navi/build/navi2 -- -j20 -l20
+[0.820s] Invoking command in '/home/rm/2025-sentry-navi/build/navi2': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --install /home/rm/2025-sentry-navi/build/navi2
+[0.826s] -- Install configuration: ""
+[0.826s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/launch
+[0.826s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/launch/bringup_launch.py
+[0.826s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/launch/navigation2.launch.py
+[0.826s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/maps
+[0.826s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/maps/roommm.pgm
+[0.826s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/maps/roommm.yaml
+[0.826s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/maps/room.pgm
+[0.827s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/maps/room.yaml
+[0.827s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/config
+[0.827s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/config/origin.yaml
+[0.827s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/config/navi.rviz
+[0.827s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/config/nav2_params.yaml
+[0.827s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/config/READMD.MD
+[0.827s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/ament_index/resource_index/package_run_dependencies/navi2
+[0.827s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/ament_index/resource_index/parent_prefix_path/navi2
+[0.827s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/environment/ament_prefix_path.sh
+[0.827s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/environment/ament_prefix_path.dsv
+[0.827s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/environment/path.sh
+[0.828s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/environment/path.dsv
+[0.828s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/local_setup.bash
+[0.828s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/local_setup.sh
+[0.828s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/local_setup.zsh
+[0.828s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/local_setup.dsv
+[0.828s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/package.dsv
+[0.828s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/ament_index/resource_index/packages/navi2
+[0.828s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/cmake/navi2Config.cmake
+[0.829s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/cmake/navi2Config-version.cmake
+[0.829s] -- Installing: /home/rm/2025-sentry-navi/install/navi2/share/navi2/package.xml
+[0.829s] Invoked command in '/home/rm/2025-sentry-navi/build/navi2' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --install /home/rm/2025-sentry-navi/build/navi2

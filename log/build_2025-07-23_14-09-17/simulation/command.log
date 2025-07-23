@@ -1,0 +1,6 @@
+Invoking command in '/home/rm/2025-sentry-navi/build/simulation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /home/rm/2025-sentry-navi/src/simulation -DCMAKE_INSTALL_PREFIX=/home/rm/2025-sentry-navi/install/simulation
+Invoked command in '/home/rm/2025-sentry-navi/build/simulation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /home/rm/2025-sentry-navi/src/simulation -DCMAKE_INSTALL_PREFIX=/home/rm/2025-sentry-navi/install/simulation
+Invoking command in '/home/rm/2025-sentry-navi/build/simulation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --build /home/rm/2025-sentry-navi/build/simulation -- -j20 -l20
+Invoked command in '/home/rm/2025-sentry-navi/build/simulation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --build /home/rm/2025-sentry-navi/build/simulation -- -j20 -l20
+Invoking command in '/home/rm/2025-sentry-navi/build/simulation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --install /home/rm/2025-sentry-navi/build/simulation
+Invoked command in '/home/rm/2025-sentry-navi/build/simulation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --install /home/rm/2025-sentry-navi/build/simulation

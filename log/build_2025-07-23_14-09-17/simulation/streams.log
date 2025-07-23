@@ -1,0 +1,76 @@
+[0.243s] Invoking command in '/home/rm/2025-sentry-navi/build/simulation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /home/rm/2025-sentry-navi/src/simulation -DCMAKE_INSTALL_PREFIX=/home/rm/2025-sentry-navi/install/simulation
+[0.287s] -- The C compiler identification is GNU 11.4.0
+[0.323s] -- The CXX compiler identification is GNU 11.4.0
+[0.329s] -- Detecting C compiler ABI info
+[0.383s] -- Detecting C compiler ABI info - done
+[0.387s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.387s] -- Detecting C compile features
+[0.388s] -- Detecting C compile features - done
+[0.389s] -- Detecting CXX compiler ABI info
+[0.450s] -- Detecting CXX compiler ABI info - done
+[0.454s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.455s] -- Detecting CXX compile features
+[0.455s] -- Detecting CXX compile features - done
+[0.456s] -- Found ament_cmake: 1.3.11 (/opt/ros/humble/share/ament_cmake/cmake)
+[0.586s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[0.671s] -- Found ament_lint_auto: 0.12.12 (/opt/ros/humble/share/ament_lint_auto/cmake)
+[0.738s] -- Added test 'flake8' to check Python code syntax and style conventions
+[0.739s] -- Added test 'lint_cmake' to check CMake code style
+[0.739s] -- Added test 'pep257' to check Python code against some of the docstring style conventions in PEP 257
+[0.740s] -- Added test 'xmllint' to check XML markup files
+[0.741s] -- Configuring done
+[0.742s] -- Generating done
+[0.743s] -- Build files have been written to: /home/rm/2025-sentry-navi/build/simulation
+[0.745s] Invoked command in '/home/rm/2025-sentry-navi/build/simulation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /home/rm/2025-sentry-navi/src/simulation -DCMAKE_INSTALL_PREFIX=/home/rm/2025-sentry-navi/install/simulation
+[0.747s] Invoking command in '/home/rm/2025-sentry-navi/build/simulation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --build /home/rm/2025-sentry-navi/build/simulation -- -j20 -l20
+[0.776s] Invoked command in '/home/rm/2025-sentry-navi/build/simulation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --build /home/rm/2025-sentry-navi/build/simulation -- -j20 -l20
+[0.784s] Invoking command in '/home/rm/2025-sentry-navi/build/simulation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --install /home/rm/2025-sentry-navi/build/simulation
+[0.790s] -- Install configuration: ""
+[0.790s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/launch
+[0.790s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/launch/display_robot.launch.py
+[0.790s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/launch/gazebo_sim.launch.py
+[0.790s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf
+[0.790s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/first_robot.pdf
+[0.791s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/first_robot.urdf.xacro
+[0.791s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/first_robot.gv
+[0.791s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/first_robot.urdf
+[0.791s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot
+[0.791s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/sensor
+[0.791s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/sensor/laser.urdf.xacro
+[0.791s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/sensor/camera.urdf.xacro
+[0.791s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/sensor/imu.urdf.xacro
+[0.791s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/fishbot.urdf.xacro
+[0.791s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/fishbot.ros2_control.xacro
+[0.791s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/actuator
+[0.791s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/actuator/wheel.urdf.xacro
+[0.792s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/actuator/caster.urdf.xacro
+[0.792s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/base.urdf.xacro
+[0.792s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/common_inertia.xacro
+[0.792s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/plugins
+[0.792s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/plugins/gazebo_sensor_plugin.xacro
+[0.792s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/urdf/fishbot/plugins/gazebo_control_plugin.xacro
+[0.792s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/config
+[0.792s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/config/rviz
+[0.792s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/config/rviz/dispaly_model.rviz
+[0.792s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/config/fishbot_ros2_controller.yaml
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/world
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/world/custom_room.world
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/world/room
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/world/room/model.sdf
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/world/room/model.config
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/ament_index/resource_index/package_run_dependencies/simulation
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/ament_index/resource_index/parent_prefix_path/simulation
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/environment/ament_prefix_path.sh
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/environment/ament_prefix_path.dsv
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/environment/path.sh
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/environment/path.dsv
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/local_setup.bash
+[0.793s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/local_setup.sh
+[0.794s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/local_setup.zsh
+[0.794s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/local_setup.dsv
+[0.794s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/package.dsv
+[0.794s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/ament_index/resource_index/packages/simulation
+[0.794s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/cmake/simulationConfig.cmake
+[0.794s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/cmake/simulationConfig-version.cmake
+[0.794s] -- Installing: /home/rm/2025-sentry-navi/install/simulation/share/simulation/package.xml
+[0.796s] Invoked command in '/home/rm/2025-sentry-navi/build/simulation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake --install /home/rm/2025-sentry-navi/build/simulation
