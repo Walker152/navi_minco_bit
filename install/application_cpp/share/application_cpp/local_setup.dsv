@@ -1,2 +1,1 @@
-source;share/application_cpp/environment/ament_prefix_path.sh
-source;share/application_cpp/environment/path.sh
+/home/rm/2025-sentry-navi/build/application_cpp/ament_cmake_environment_hooks/local_setup.dsv
