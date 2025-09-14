@@ -12,7 +12,9 @@
 # 编译说明
 navi2_bringup
 ```shell
-sudo apt install ros-humble-nav*  ros-humble-spatio-temporal-voxel-layer*
+sudo apt install ros-humble-nav*  
+sudo apt install ros-humble-spatio-temporal-voxel-layer*
+sudo apt install ros-humble-openvdb-vendor*
 ```
 communication
 ```shell
