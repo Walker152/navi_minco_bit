@@ -9,3 +9,16 @@
 ## 待确定
 1. ROS2 Navigation2 自带 BT-Tree，通信协议是否需要修改
 
+# 编译说明
+navi2_bringup
+```shell
+sudo apt install ros-humble-nav*  ros-humble-spatio-temporal-voxel-layer*
+```
+communication
+```shell
+git clone https://github.com/libevent/libevent 
+cd libevent
+mkdir build && cd build
+cmake .. && make -j16
+sudo make install
+```
