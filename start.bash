@@ -3,8 +3,8 @@ source ./install/setup.bash
 # sleep 25s # 等待mid360仿真启动
 
 # 真实机器人启动
-gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_MID360_launch.py ; exec bash"
-sleep 0.5s
+# gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_MID360_launch.py ; exec bash"
+# sleep 0.5s
 source ~/slam_ws/install/setup.bash
 gnome-terminal -- bash -c "ros2 launch fast_lio mapping.launch.py ; exec bash"
 sleep 0.5s
