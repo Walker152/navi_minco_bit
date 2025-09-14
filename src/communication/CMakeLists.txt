@@ -1,81 +1,92 @@
-# cmake_minimum_required(VERSION 3.0.2)
-# project(communication)
-# set(CMAKE_CXX_STANDARD 17)
-# set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+cmake_minimum_required(VERSION 3.5)
+project(communication)
 
-# set(EXE_NAME sentry)
+# 设置 C++ 标准
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# # file(GLOB_RECURSE source CONFIGURE_DEPENDS
-# #   src/behavier_tree_com.cpp
-# #   src/main.cpp
-# # )
+set(EXE_NAME sentry)
 
-# set(source
-#     src/behavier_tree_com.cpp
-#     src/main.cpp
-#     /home/rm/sentry/src/communication/RM_encoder/communication.cpp
-# )
+# 源文件列表
+set(source
+  src/behavier_tree_com.cpp
+  src/main.cpp
+  src/communication.cpp
+)
 
-# add_definitions(-DREFEREE_DEBUG=0)
-# add_definitions(-DSEND_DEBUG=0)
-# ## Compile as C++11, supported in ROS Kinetic and newer
-# # add_compile_options(-std=c++11)
+# 查找 ROS2 和系统依赖包
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(robots_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(Threads REQUIRED)
+find_package(Libevent REQUIRED)
+find_package(fmt REQUIRED)
 
-# find_package(catkin REQUIRED COMPONENTS
-#   geometry_msgs
-#   move_base_msgs
-#   nav_msgs
-#   robots_msgs
-#   roscpp
-#   rospy
-#   serial
-#   std_msgs
-#   )
+# include 目录
+include_directories(
+  include
+  src/communication/RM_encoder
+  ${EIGEN3_INCLUDE_DIRS}
+  ${CERES_INCLUDE_DIRS}
+  my-utils/MyUtils
+  3rdparty/serial/include # 添加serial头文件路径
+)
 
-# find_package(Threads)
-# set(Libevent_DIR "/usr/local/lib/cmake/libevent")
-# find_package(Libevent REQUIRED)
+file(GLOB_RECURSE DIR_SRCS src/communication/RM_encoder/*.cpp)
 
+add_executable(${EXE_NAME}
+  ${source}
+  ${DIR_SRCS}
+)
 
-# catkin_package(
-#  INCLUDE_DIRS include
-# #  LIBRARIES communication
-#  CATKIN_DEPENDS geometry_msgs move_base_msgs nav_msgs robots_msgs roscpp rospy serial std_msgs
-# #  DEPENDS system_lib
-# )
+if(${PROJECT_NAME}_EXPORTED_TARGETS)
+  add_dependencies(${EXE_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+endif()
 
-# ###########
-# ## Build ##
-# ###########
+# 添加子目录（3rdparty库）
+add_subdirectory(3rdparty/plog-1.1.10)
+add_subdirectory(3rdparty/sheriffos)
+add_subdirectory(3rdparty/serial)
 
-# include_directories(
-#     include
-#     ${catkin_INCLUDE_DIRS}
-#     ${EIGEN3_INCLUDE_DIRS}
-#     ${CERES_INCLUDE_DIRS}
-#     my-utils/MyUtils
-#     src/communication/RM_encoder
-# )
+# 链接库
+target_link_libraries(${EXE_NAME}
+  ${CMAKE_THREAD_LIBS_INIT}
+  libevent::core
+  libevent::pthreads
+  fmt::fmt
+  plog
+  sheriff_os
+  serial
+)
 
-# AUX_SOURCE_DIRECTORY(src/communication/RM_encoder DIR_SRCS)
+ament_target_dependencies(${EXE_NAME}
+  rclcpp
+  geometry_msgs
+  tf2_geometry_msgs
+  nav_msgs
+  robots_msgs
+  std_msgs
+  tf2
+  tf2_ros
+)
 
-# add_executable(${EXE_NAME} ${source} ${DIR_SRCS})
+install(TARGETS ${EXE_NAME}
+  DESTINATION lib/${PROJECT_NAME}
+)
 
-# add_dependencies(${EXE_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+install(DIRECTORY include/
+  DESTINATION include/
+)
 
-# target_link_libraries(${EXE_NAME} 
-#   ${catkin_LIBRARIES}
-#   ${CMAKE_THREAD_LIBS_INIT}
-#   libevent::core
-#   libevent::pthreads
-# )
-
-# # Add third-party libraries
-# add_subdirectory(3rdparty/fmt)
-# target_link_libraries(${EXE_NAME} fmt)
-
-# add_subdirectory(3rdparty/plog-1.1.10)
-# target_link_libraries(${EXE_NAME} plog)
-
-# add_subdirectory(3rdparty/sheriffos)
-# target_link_libraries(${EXE_NAME} sheriff_os)
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}/
+)
+# 声明为ament包
+ament_package()

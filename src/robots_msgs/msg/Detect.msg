@@ -15,5 +15,3 @@ float32 target_z
 float32 yaw
 float32 pitch
 
-
-

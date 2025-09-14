@@ -1,43 +1,40 @@
-# project(robots_msgs)
-# cmake_minimum_required(VERSION 3.1)
-# set(CMAKE_CXX_STANDARD 14)
-# set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR})
-# find_package(catkin REQUIRED COMPONENTS
-#         std_msgs
-#         nav_msgs
-#         geometry_msgs
-#         message_generation
-#         )
+cmake_minimum_required(VERSION 3.8)
+project(robots_msgs)
 
+# Use C++14
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 
-# # message
-# add_message_files(
-#         DIRECTORY msg 
-#         FILES
-#   NavStatus.msg
-#   Detect.msg
-#   Nav.msg
-# )
+# Find required packages
+find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
-# add_message_files(
-#         DIRECTORY msg_send
-#         FILES
-#   Chassis.msg
-#   MotorSpeed.msg
-# )
+# Declare ROS2 message, service, and action files
+set(msg_files
+  "msg/Detect.msg"
+  "msg/Nav.msg"
+  "msg/NavStatus.msg"
+  "msg/Radar.msg"
+  "msg_send/Chassis.msg"
+  "msg_send/MotorSpeed.msg"
+)
 
-# add_service_files(
-#         DIRECTORY srv
-#         FILES
-#   Trans.srv
-# )
+set(srv_files
+  "srv/Trans.srv"
+)
 
-# # dependencies
-# generate_messages(
-#         DEPENDENCIES
-#         std_msgs
-#         geometry_msgs
-#         nav_msgs
-# )
+# Generate interfaces
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${msg_files}
+  ${srv_files}
+  DEPENDENCIES std_msgs geometry_msgs nav_msgs
+)
 
-# catkin_package(CATKIN_DEPENDS std_msgs geometry_msgs nav_msgs message_runtime)
+# Export dependencies
+ament_export_dependencies(rosidl_default_runtime)
+
+ament_package()

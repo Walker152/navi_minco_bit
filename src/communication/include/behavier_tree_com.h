@@ -1,42 +1,37 @@
 #pragma once
-#include <geometry_msgs/Twist.h>
-#include <robots_msgs/Chassis.h>
-#include <std_msgs/UInt8MultiArray.h>
-#include <nav_msgs/Odometry.h>
-#include <ros/ros.h>
-#include <serial/serial.h>
-#include <sheriffos/util/enum_name.h>
-#include <time.h>
-#include <iostream>
-#include "utils.h"
-#include "tf/tf.h"
-#include "../RM_encoder/communication.hpp"
+#include <memory>
 #include <optional>
-class BehavierTreeCom
+#include "rclcpp/rclcpp.hpp"
+#include "geometry_msgs/msg/twist.hpp"
+#include "nav_msgs/msg/odometry.hpp"
+#include "robots_msgs/msg/chassis.hpp"
+#include <serial/serial.h>
+#include "sheriffos/util/enum_name.h"
+#include "utils.h"
+#include "tf2/LinearMath/Transform.h"
+#include "../../RM_encoder/communication.hpp"
+// 单例类 BehavierTreeCom，封装了底盘控制与里程计相关通信接口
+class BehavierTreeCom : public rclcpp::Node
 {
 private:
-  BehavierTreeCom() {};
+  BehavierTreeCom() : rclcpp::Node("behavier_tree_com_node") {};
 
 public:
   static BehavierTreeCom &getInstance()
   {
-    static BehavierTreeCom ins;
-    return ins;
+    static BehavierTreeCom instance;
+    return instance;
   }
-  ~BehavierTreeCom() {};
+  ~BehavierTreeCom() = default;
   void Init();
 
 private:
-  void sendChassisCtrlCB(const geometry_msgs::TwistConstPtr &velPtr);
-  void odomCB(const nav_msgs::OdometryConstPtr &odomPtr)
-  {
-    odom = *odomPtr;
-  }
-
-  ros::Subscriber chassis_sender;
-  ros::Subscriber odom_sub;
-  ros::Subscriber chassis_yaw_sub;
-
-  geometry_msgs::Twist cmd_vel;
-  nav_msgs::Odometry odom;
+  void sendChassisCtrlCB(const geometry_msgs::msg::Twist::ConstSharedPtr &velPtr);
+  void odomCB(const nav_msgs::msg::Odometry::ConstSharedPtr &odomPtr);
+  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr chassis_sender_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  // 订阅yaw轴信息?
+  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr chassis_yaw_sub_;
+  geometry_msgs::msg::Twist cmd_vel_;
+  nav_msgs::msg::Odometry odom_;
 };
