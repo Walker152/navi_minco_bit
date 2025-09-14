@@ -1,32 +1,44 @@
-#include <../include/behavier_tree_com.h>
-#include <fmt/core.h>
-#include <plog/Initializers/RollingFileInitializer.h>
+#include "../include/behavier_tree_com.h"
 #include <plog/Log.h>
+#include "tf2/LinearMath/Transform.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+
 void BehavierTreeCom::Init()
 {
-  ros::NodeHandle nh2;
+  cmd_vel_.linear.x = 0.0;
+  cmd_vel_.linear.y = 0.0;
+  chassis_sender_ = this->create_subscription<geometry_msgs::msg::Twist>(
+      "/cmd_vel", 1,
+      std::bind(&BehavierTreeCom::sendChassisCtrlCB, this, std::placeholders::_1));
+  odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+      "/aft_mapped_to_init", 1,
+      std::bind(&BehavierTreeCom::odomCB, this, std::placeholders::_1));
 
-  cmd_vel.linear.x = 0.;
-  cmd_vel.linear.y = 0.;
-
-  chassis_sender = nh2.subscribe<geometry_msgs::Twist>("/cmd_vel", 1, &BehavierTreeCom::sendChassisCtrlCB, this);
-  odom_sub = nh2.subscribe<nav_msgs::Odometry>("/aft_mapped_to_init", 1, &BehavierTreeCom::odomCB, this);
+  RCLCPP_INFO(this->get_logger(), "\nGot /cmd_vel message");
 }
 
-void BehavierTreeCom::sendChassisCtrlCB(const geometry_msgs::TwistConstPtr &velPtr)
+void BehavierTreeCom::odomCB(const nav_msgs::msg::Odometry::ConstSharedPtr &odomPtr)
 {
-  cmd_vel = *velPtr;
-  float vx_mps = cmd_vel.linear.x;
-  float vy_mps = cmd_vel.linear.y;
-  float vw_rpm = 3.14 * 2;
-  float current_yaw = tf::getYaw(odom.pose.pose.orientation) * 180 / M_PI;
-  if (isnan(current_yaw))
-  {
-    current_yaw = 0;
-  }
+  this->odom_ = *odomPtr;
+}
 
-  ChassisTarget target(vx_mps, vy_mps, vw_rpm, odom.pose.pose.position.x, odom.pose.pose.position.y, current_yaw);
-  ROS_INFO("x:%.2f,y:%.2f,w:%.2f,yaw:%.2f", vx_mps, vy_mps, vw_rpm, current_yaw);
+void BehavierTreeCom::sendChassisCtrlCB(const geometry_msgs::msg::Twist::ConstSharedPtr &velPtr)
+{
+  cmd_vel_ = *velPtr;
+
+  float vx_mps = cmd_vel_.linear.x;
+  float vy_mps = cmd_vel_.linear.y;
+  float vw_rpm = 3.14;
+  tf2::Quaternion q;
+  tf2::fromMsg(odom_.pose.pose.orientation, q);
+  double roll, pitch, yaw;
+  tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+  float current_yaw = static_cast<float>(yaw * 180.0 / M_PI);
+
+  ChassisTarget target(vx_mps, vy_mps, vw_rpm,
+                       odom_.pose.pose.position.x, odom_.pose.pose.position.y, current_yaw);
+
   Communication::send2stm32(target);
-  ROS_INFO("success to send message to stm32!");
+  RCLCPP_INFO(this->get_logger(), "success to send message to stm32!");
+
 }

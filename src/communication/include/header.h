@@ -1,7 +1,6 @@
- 
 #ifndef __HEADER_H__
 #define __HEADER_H__
- 
+//////////////C/C++//////////////
 #include <stdio.h>
 #include <numeric>
 #include <algorithm>

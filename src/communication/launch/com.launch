@@ -1,3 +1,0 @@
-<launch>
-    <node pkg="communication" type="sentry" name="sentry" respawn="true" output="screen" />
-</launch>

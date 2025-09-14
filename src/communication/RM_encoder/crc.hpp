@@ -35,145 +35,157 @@ const unsigned char CRC8_TAB[ 256 ] = {
     0xd7, 0x89, 0x6b, 0x35 };
 
 /**
- * @brief :  根据数据计算出CRC8校准的数据
- * @param : pchMessage：需要较准的数组指针  dwLength：数据长度
- * @retval:  None
- * @note  :  None
+ * @brief 计算输入数据的CRC8校验码
+ * @param pchMessage 输入数据指针
+ * @param dwLength 输入数据长度
+ * @param ucCRC8 初始CRC8值，通常是0xFF
+ * @return 计算得到的CRC8校验码
+ *
+ * 该函数基于CRC8查找表迭代设计，适合于流式数据校验，通过异或和查表计算校验值
  */
-
-unsigned char CRC_GetCRC8CheckSum( unsigned char *pchMessage,
-                                   unsigned int dwLength, char ucCRC8 )
+unsigned char CRC_GetCRC8CheckSum(unsigned char *pchMessage,
+                                  unsigned int dwLength, char ucCRC8)
 {
-    unsigned char ucIndex = 0;
-    while ( dwLength-- )
+    unsigned char ucIndex = 0; // 查表索引
+
+    while (dwLength--)
     {
-        ucIndex = ucCRC8 ^ ( *pchMessage++ );
-        ucCRC8 = CRC8_TAB[ ucIndex ];
+        // 使用当前CRC值与数据字节异或得到查表索引
+        ucIndex = ucCRC8 ^ (*pchMessage++);
+        // 利用查表获取新的CRC值
+        ucCRC8 = CRC8_TAB[ucIndex];
     }
+
     return ucCRC8;
 }
 
 /**
- * @brief    append CRC8 to the end of data
- * @param    pchMessage    Data to CRC and append
- * @param    dwLength    Stream length = Data + checksum
- * @retvel    None
+ * @brief 在数据末尾添加CRC8校验码
+ * @param pchMessage 数据缓冲区（包含预留空间放校验码）
+ * @param dwLength 缓冲区总长度（数据+校验码位数）
+ * 
+ * 该函数计算前dwLength-1字节数据的CRC8，结果写入最后1字节
  */
-void CRC_AppendCRC8CheckSum( unsigned char *pchMessage, unsigned int dwLength )
+void CRC_AppendCRC8CheckSum(unsigned char *pchMessage, unsigned int dwLength)
 {
     unsigned char ucCRC = 0;
-    if ( ( pchMessage == 0 ) || ( dwLength <= 2 ) )
+
+    // 参数校验，指针不能为空，且数据长度至少大于2（至少有1字节数据+1字节校验码）
+    if ((pchMessage == nullptr) || (dwLength <= 2))
         return;
-    ucCRC = CRC_GetCRC8CheckSum( ( unsigned char * ) pchMessage, dwLength - 1,
-                                 CRC8_INIT );
-    pchMessage[ dwLength - 1 ] = ucCRC;
+
+    // 计算CRC8校验码，初始值为CRC8_INIT
+    ucCRC = CRC_GetCRC8CheckSum(pchMessage, dwLength - 1, CRC8_INIT);
+
+    // 将计算得到的CRC8码写到数据末尾（最后一个字节）
+    pchMessage[dwLength - 1] = ucCRC;
 }
 
-// CRC16部分
-uint16_t CRC16_INIT = 0xffff;
-const uint16_t CRC16_Table[ 256 ] = {
-    0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf, 0x8c48,
-    0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7, 0x1081, 0x0108,
-    0x3393, 0x221a, 0x56a5, 0x472c, 0x75b7, 0x643e, 0x9cc9, 0x8d40, 0xbfdb,
-    0xae52, 0xdaed, 0xcb64, 0xf9ff, 0xe876, 0x2102, 0x308b, 0x0210, 0x1399,
-    0x6726, 0x76af, 0x4434, 0x55bd, 0xad4a, 0xbcc3, 0x8e58, 0x9fd1, 0xeb6e,
-    0xfae7, 0xc87c, 0xd9f5, 0x3183, 0x200a, 0x1291, 0x0318, 0x77a7, 0x662e,
-    0x54b5, 0x453c, 0xbdcb, 0xac42, 0x9ed9, 0x8f50, 0xfbef, 0xea66, 0xd8fd,
-    0xc974, 0x4204, 0x538d, 0x6116, 0x709f, 0x0420, 0x15a9, 0x2732, 0x36bb,
-    0xce4c, 0xdfc5, 0xed5e, 0xfcd7, 0x8868, 0x99e1, 0xab7a, 0xbaf3, 0x5285,
-    0x430c, 0x7197, 0x601e, 0x14a1, 0x0528, 0x37b3, 0x263a, 0xdecd, 0xcf44,
-    0xfddf, 0xec56, 0x98e9, 0x8960, 0xbbfb, 0xaa72, 0x6306, 0x728f, 0x4014,
-    0x519d, 0x2522, 0x34ab, 0x0630, 0x17b9, 0xef4e, 0xfec7, 0xcc5c, 0xddd5,
-    0xa96a, 0xb8e3, 0x8a78, 0x9bf1, 0x7387, 0x620e, 0x5095, 0x411c, 0x35a3,
-    0x242a, 0x16b1, 0x0738, 0xffcf, 0xee46, 0xdcdd, 0xcd54, 0xb9eb, 0xa862,
-    0x9af9, 0x8b70, 0x8408, 0x9581, 0xa71a, 0xb693, 0xc22c, 0xd3a5, 0xe13e,
-    0xf0b7, 0x0840, 0x19c9, 0x2b52, 0x3adb, 0x4e64, 0x5fed, 0x6d76, 0x7cff,
-    0x9489, 0x8500, 0xb79b, 0xa612, 0xd2ad, 0xc324, 0xf1bf, 0xe036, 0x18c1,
-    0x0948, 0x3bd3, 0x2a5a, 0x5ee5, 0x4f6c, 0x7df7, 0x6c7e, 0xa50a, 0xb483,
-    0x8618, 0x9791, 0xe32e, 0xf2a7, 0xc03c, 0xd1b5, 0x2942, 0x38cb, 0x0a50,
-    0x1bd9, 0x6f66, 0x7eef, 0x4c74, 0x5dfd, 0xb58b, 0xa402, 0x9699, 0x8710,
-    0xf3af, 0xe226, 0xd0bd, 0xc134, 0x39c3, 0x284a, 0x1ad1, 0x0b58, 0x7fe7,
-    0x6e6e, 0x5cf5, 0x4d7c, 0xc60c, 0xd785, 0xe51e, 0xf497, 0x8028, 0x91a1,
-    0xa33a, 0xb2b3, 0x4a44, 0x5bcd, 0x6956, 0x78df, 0x0c60, 0x1de9, 0x2f72,
-    0x3efb, 0xd68d, 0xc704, 0xf59f, 0xe416, 0x90a9, 0x8120, 0xb3bb, 0xa232,
-    0x5ac5, 0x4b4c, 0x79d7, 0x685e, 0x1ce1, 0x0d68, 0x3ff3, 0x2e7a, 0xe70e,
-    0xf687, 0xc41c, 0xd595, 0xa12a, 0xb0a3, 0x8238, 0x93b1, 0x6b46, 0x7acf,
-    0x4854, 0x59dd, 0x2d62, 0x3ceb, 0x0e70, 0x1ff9, 0xf78f, 0xe606, 0xd49d,
-    0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330, 0x7bc7, 0x6a4e, 0x58d5, 0x495c,
-    0x3de3, 0x2c6a, 0x1ef1, 0x0f78 };
+// ------------------------------------------------------
+// CRC16相关函数
+// ------------------------------------------------------
 
 /**
- * @brief :  根据数据计算出CRC16校准的数据
- * @param :  pchMessage：需要较准的数组指针  dwLength：数据长度
- * @retval:  None
- * @note  :  None
+ * @brief 计算输入数据的CRC16校验码
+ * @param pchMessage 输入数据指针
+ * @param dwLength 输入数据长度
+ * @param wCRC 初始CRC16值，通常为0xFFFF
+ * @return 计算得到的CRC16校验码（16位无符号整数）
+ *
+ * 该函数通常依赖预先计算好的CRC16查找表，参数wCRC允许多段数据连续计算保持状态
+ * 若使用不同的CRC16算法，CRC16_Table应替换为对应多项式的表
  */
-uint16_t CRC_GetCRC16CheckSum( uint8_t *pchMessage, uint32_t dwLength,
-                               uint16_t wCRC )
+uint16_t CRC_GetCRC16CheckSum(uint8_t *pchMessage, uint32_t dwLength, uint16_t wCRC)
 {
-    uint8_t chData;
-    if ( pchMessage == NULL )
-        return 0xffff;
-    while ( dwLength-- )
+    uint8_t chData = 0;
+
+    if (pchMessage == nullptr)
+        return 0xffff;  // 输入空指针，返回0xFFFF作为错误标志或无效CRC
+
+    while (dwLength--)
     {
-        chData = *pchMessage++;
-        ( wCRC ) =
-            ( ( uint16_t ) ( wCRC ) >> 8 ) ^
-            CRC16_Table[ ( ( uint16_t ) ( wCRC ) ^ ( uint16_t ) ( chData ) ) &
-                         0x00ff ];
+        chData = *pchMessage++; // 当前数据字节
+        // 先将CRC高8位右移，之后与低8位异或当前字节后查表，得到新CRC值
+        wCRC = (wCRC >> 8) ^
+               CRC16_Table[((wCRC ^ chData) & 0x00ff)];
     }
+
     return wCRC;
 }
 
 /**
- * @brief    append CRC16 to the end of data
- * @param    pchMessage    Data to CRC and append
- * @param    dwLength    Stream length = Data + checksum
- * @retvel    None
+ * @brief 在数据末尾添加CRC16校验码
+ * @param pchMessage 数据缓冲区（包括预留空间用于CRC16 2字节）
+ * @param dwLength 缓冲区总长度（数据长度+2字节CRC）
+ *
+ * 计算前dwLength-2字节数据的CRC16，结果写入最后2字节
  */
-void CRC_AppendCRC16CheckSum( uint8_t *pchMessage, uint32_t dwLength )
+void CRC_AppendCRC16CheckSum(uint8_t *pchMessage, uint32_t dwLength)
 {
     uint16_t wCRC = 0;
-    if ( ( pchMessage == NULL ) || ( dwLength <= 2 ) )
+
+    // 参数校验，指针不能为空，且长度至少大于2（至少有1字节数据+2字节CRC）
+    if ((pchMessage == nullptr) || (dwLength <= 2))
         return;
-    wCRC = CRC_GetCRC16CheckSum( ( unsigned char * ) pchMessage, dwLength - 2,
-                                 CRC16_INIT );
-    pchMessage[ dwLength - 2 ] = ( uint8_t ) ( wCRC & 0x00ff );
-    pchMessage[ dwLength - 1 ] = ( uint8_t ) ( ( wCRC >> 8 ) & 0x00ff );
+
+    // 计算CRC16校验码，使用全局CRC16_INIT初始值
+    wCRC = CRC_GetCRC16CheckSum(pchMessage, dwLength - 2, CRC16_INIT);
+
+    // 校验码低8位放倒数第二个字节
+    pchMessage[dwLength - 2] = static_cast<uint8_t>(wCRC & 0x00ff);
+    // 校验码高8位放最后一个字节
+    pchMessage[dwLength - 1] = static_cast<uint8_t>((wCRC >> 8) & 0x00ff);
 }
 
 } // namespace __detail
 
-/**
- * @brief    CRC16 Verify function
- * @param    pchMessage    Data to Verify
- * @param    dwLength    Stream length = Data + checksum
- * @retvel    0    Don't match
- *            1    Match
- */
-unsigned int CRC_VerifyCRC8CheckSum( unsigned char *pchMessage,
-                                     unsigned int dwLength )
-{
-    unsigned char ucExpected = 0;
-    if ( ( pchMessage == 0 ) || ( dwLength <= 2 ) )
-        return 0;
-    ucExpected = CRC_GetCRC8CheckSum( pchMessage, dwLength - 1, CRC8_INIT );
-    return ( ucExpected == pchMessage[ dwLength - 1 ] );
-}
+// ------------------------------------------------------
+// CRC8校验验证函数
+// ------------------------------------------------------
 
 /**
- * @brief    CRC16 Verify function
- * @param    pchMessage    Data to Verify
- * @param    dwLength    Stream length = Data + checksum
- * @retvel    0    Don't match
- *            1    Match
+ * @brief 校验数据末尾CRC8是否匹配
+ * @param pchMessage 待校验数据（包括数据+1字节CRC）
+ * @param dwLength 数据长度（包含CRC字节）
+ * @return 1匹配成功 0不匹配
+ *
+ * 逻辑：重新计算前（dwLength-1）个字节CRC8，判断是否与最后一个字节相等
  */
-uint32_t CRC_VerifyCRC16CheckSum( uint8_t *pchMessage, uint32_t dwLength )
+unsigned int CRC_VerifyCRC8CheckSum(unsigned char *pchMessage, unsigned int dwLength)
+{
+    unsigned char ucExpected = 0;
+
+    if ((pchMessage == nullptr) || (dwLength <= 2))
+        return 0; // 输入非法，直接判定不匹配
+
+    ucExpected = __detail::CRC_GetCRC8CheckSum(pchMessage, dwLength - 1, __detail::CRC8_INIT);
+
+    return (ucExpected == pchMessage[dwLength - 1]) ? 1 : 0;
+}
+
+// ------------------------------------------------------
+// CRC16校验验证函数
+// ------------------------------------------------------
+
+/**
+ * @brief 校验数据末尾CRC16是否匹配
+ * @param pchMessage 待校验数据（包括数据+2字节CRC）
+ * @param dwLength 数据长度（包含CRC字节）
+ * @return 1匹配成功 0不匹配
+ *
+ * 逻辑：重新计算前（dwLength-2）个字节CRC16，
+ *       判断低8位是否等于倒数第二字节，且高8位是否等于倒数第一个字节
+ */
+uint32_t CRC_VerifyCRC16CheckSum(uint8_t *pchMessage, uint32_t dwLength)
 {
     uint16_t wExpected = 0;
-    if ( ( pchMessage == NULL ) || ( dwLength <= 2 ) )
-        return 0;
-    wExpected = CRC_GetCRC16CheckSum( pchMessage, dwLength - 2, CRC16_INIT );
-    return ( ( wExpected & 0xff ) == pchMessage[ dwLength - 2 ] &&
-             ( ( wExpected >> 8 ) & 0xff ) == pchMessage[ dwLength - 1 ] );
+
+    if ((pchMessage == nullptr) || (dwLength <= 2))
+        return 0; // 输入非法，直接判定不匹配
+
+    wExpected = __detail::CRC_GetCRC16CheckSum(pchMessage, dwLength - 2, __detail::CRC16_INIT);
+
+    // 比较计算得到的校验码和数据中附带的校验码是否一致
+    return ((wExpected & 0xff) == pchMessage[dwLength - 2]) &&
+           (((wExpected >> 8) & 0xff) == pchMessage[dwLength - 1]) ? 1 : 0;
 }

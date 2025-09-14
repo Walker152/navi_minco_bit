@@ -1,10 +1,8 @@
 Detect detect_msg
 int8 trans_type
 ---
-
 float32 tiny_gimbal_aim_yaw
 float32 tiny_gimbal_aim_pitch
-
 float32 body_x
 float32 body_y
 float32 body_z
