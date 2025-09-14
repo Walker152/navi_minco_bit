@@ -4,7 +4,6 @@ import launch_ros
 from ament_index_python.packages import get_package_share_directory
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
-
 def generate_launch_description():
     # 获取与拼接默认路径
     fishbot_navigation2_dir = get_package_share_directory(
@@ -20,7 +19,7 @@ def generate_launch_description():
     map_yaml_path = launch.substitutions.LaunchConfiguration(
         'map', default=os.path.join(fishbot_navigation2_dir, 'maps', 'roommm.yaml'))
     nav2_param_path = launch.substitutions.LaunchConfiguration(
-        'params_file', default=os.path.join(fishbot_navigation2_dir, 'config', 'origin.yaml'))
+        'params_file', default=os.path.join(fishbot_navigation2_dir, 'params', 'sentry.yaml'))
 
     return launch.LaunchDescription([
         # 声明新的 Launch 参数
