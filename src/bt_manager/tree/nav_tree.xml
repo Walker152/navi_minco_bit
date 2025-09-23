@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Fallback>
+      <!-- 紧急撤退模式（最高优先级） -->
+      <Sequence name="EmergencyRetreat">
+        <CheckRetreatCondition name="CheckRetreatCondition" 
+                   health_threshold="50" 
+                   outpost_destroyed="false"/>
+        <SetHomeCoordinate name="SetHomeCoordinate" 
+                coordinate_type="safe_zone"/>
+        <PublishNavigationGoal name="PublishNavigationGoal"/>
+      </Sequence>
+      
+      <!-- 战场响应模式 -->
+      <Sequence name="BattlefieldResponse">
+        <CheckFortBonusActive name="CheckFortBonusActive" 
+                   bonus_active="false"/>
+        <SetBonusCoordinate name="SetBonusCoordinate" 
+                coordinate_type="fort_bonus_zone"/>
+        <PublishNavigationGoal name="PublishNavigationGoal"/>
+      </Sequence>
+      
+      <!-- 进攻策略选择 -->
+      <Fallback name="OffensiveStrategies">
+        <!-- 锁定追击模式（最高进攻优先级） -->
+        <Sequence name="TargetPursuit">
+          <CheckTargetLocked name="CheckTargetLocked" 
+                     target_valid="false" 
+                     target_in_range="true"/>
+          <SetTargetCoordinate name="SetTargetCoordinate" 
+                  use_prediction="true"/>
+          <PublishNavigationGoal name="PublishNavigationGoal"/>
+        </Sequence>
+        
+        <!-- 区域巡检模式 -->
+        <Sequence name="AreaInspection">
+          <SelectInspectionArea name="SelectInspectionArea" 
+                  strategy="priority_based"/>
+          <SetAreaCoordinate name="SetAreaCoordinate" 
+                  area_type="inspection"/>
+          <PublishNavigationGoal name="PublishNavigationGoal"/>
+        </Sequence>
+        
+        <!-- 常规巡逻模式（默认） -->
+        <Sequence name="RegularPatrol">
+          <SelectPatrolPoint name="SelectPatrolPoint" 
+                  patrol_route="default"/>
+          <PublishNavigationGoal name="PublishNavigationGoal"/>
+        </Sequence>
+      </Fallback>
+    </Fallback>
+  </BehaviorTree>
+</root>
