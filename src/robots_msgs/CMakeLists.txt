@@ -18,9 +18,7 @@ set(msg_files
   "msg/Detect.msg"
   "msg/Nav.msg"
   "msg/NavStatus.msg"
-  "msg/Radar.msg"
-  "msg_send/Chassis.msg"
-  "msg_send/MotorSpeed.msg"
+  "msg/EventStatus.msg"
 )
 
 set(srv_files
