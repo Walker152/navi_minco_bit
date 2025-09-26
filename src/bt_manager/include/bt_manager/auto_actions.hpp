@@ -2,19 +2,13 @@
 
 #include <behaviortree_cpp_v3/action_node.h>
 #include "bt_manager/blackboard.hpp"
+#include "bt_manager/ros_interface.hpp"
+#include "nav_zone.hpp"
+
+#include <geometry_msgs/msg/pose.hpp>
 
 namespace Sentry_BT
 {
-
-class SetHomeCoordinate : public BT::SyncActionNode
-{
-public:
-  SetHomeCoordinate(const std::string& name, const BT::NodeConfiguration& config);
-  
-  static BT::PortsList providedPorts();
-  BT::NodeStatus tick() override;
-};
-
 class PublishNavigationGoal : public BT::SyncActionNode
 {
 public:
@@ -24,11 +18,11 @@ public:
   BT::NodeStatus tick() override;
 };
 
-class SetBonusCoordinate : public BT::SyncActionNode
+class SetCoordinate : public BT::SyncActionNode
 {
 public:
-  SetBonusCoordinate(const std::string& name, const BT::NodeConfiguration& config);
-  
+  SetCoordinate(const std::string& name, const BT::NodeConfiguration& config);
+
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
 };
@@ -42,24 +36,6 @@ public:
   BT::NodeStatus tick() override;
 };
 
-class SelectInspectionArea : public BT::SyncActionNode
-{
-public:
-  SelectInspectionArea(const std::string& name, const BT::NodeConfiguration& config);
-  
-  static BT::PortsList providedPorts();
-  BT::NodeStatus tick() override;
-};
-
-class SetAreaCoordinate : public BT::SyncActionNode
-{
-public:
-  SetAreaCoordinate(const std::string& name, const BT::NodeConfiguration& config);
-  
-  static BT::PortsList providedPorts();
-  BT::NodeStatus tick() override;
-};
-
 class SelectPatrolPoint : public BT::SyncActionNode
 {
 public:
@@ -67,6 +43,17 @@ public:
   
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+};
+
+class WaitUntilStopped : public BT::StatefulActionNode
+{
+public:
+  WaitUntilStopped(const std::string& name, const BT::NodeConfiguration& config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus onStart() override;
+  BT::NodeStatus onRunning() override;
+  void onHalted() override;
 };
 
 }  // namespace Sentry_BT

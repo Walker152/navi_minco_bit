@@ -14,13 +14,21 @@ find_package(nav_msgs REQUIRED)
 find_package(robots_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
-find_package(behaiviortree_cpp_v3 REQUIRED)
+find_package(behaviortree_cpp_v3 REQUIRED)
+find_package(nav2_msgs REQUIRED)
 
 include_directories(
   include
 )
 
-add_executable(bt_manager_node src/bt_manager_node.cpp src/blackboard.cpp)
+add_executable(bt_manager_node 
+  src/bt_manager.cpp 
+  src/ros_interface.cpp 
+  src/auto_actions.cpp 
+  src/auto_conditions.cpp
+  src/nav_zone.cpp
+  src/main.cpp
+  )
 
 ament_target_dependencies(bt_manager_node
   rclcpp
@@ -31,6 +39,7 @@ ament_target_dependencies(bt_manager_node
   tf2
   tf2_ros
   behaviortree_cpp_v3
+  nav2_msgs
 )
 
 install(TARGETS
