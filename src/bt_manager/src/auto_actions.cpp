@@ -1,35 +1,10 @@
-#include "bt_manager/blackboard.hpp"
-#include "bt_manager/auto_conditions.hpp"
 #include "bt_manager/auto_actions.hpp"
+#include "nav_zone.hpp"
+#include "bt_manager/blackboard.hpp"
+#include <string>
 
 namespace Sentry_BT
 {
-// ------------------- SetHomeCoordinate -------------------
-SetHomeCoordinate::SetHomeCoordinate(const std::string & name, const BT::NodeConfiguration & config)
-: BT::SyncActionNode(name, config)
-{
-}
-
-BT::PortsList SetHomeCoordinate::providedPorts()
-{
-  return { BT::InputPort<geometry_msgs::msg::Pose>("home_coordinate") };
-}   
-
-BT::NodeStatus SetHomeCoordinate::tick()
-{
-  // 从黑板获取家坐标
-  auto home_coord = getInput<geometry_msgs::msg::Pose>("home_coordinate");
-  if (!home_coord)
-  {
-    throw BT::RuntimeError("missing required input [home_coordinate]: ", home_coord.error());
-  }
-
-  // 将家坐标设置到黑板
-  auto blackboard = Sentry_BT::Blackboard().getBTBlackboard();
-  blackboard->set("home_coordinate", home_coord.value());
-
-  return BT::NodeStatus::SUCCESS;
-}
 
 // ------------------- PublishNavigationGoal -------------------
 PublishNavigationGoal::PublishNavigationGoal(const std::string & name, const BT::NodeConfiguration & config)
@@ -39,49 +14,63 @@ PublishNavigationGoal::PublishNavigationGoal(const std::string & name, const BT:
 
 BT::PortsList PublishNavigationGoal::providedPorts()
 {
-  return { BT::InputPort<geometry_msgs::msg::Pose>("navigation_goal") };
+  return {}; 
 }
 
 BT::NodeStatus PublishNavigationGoal::tick()
 {
-  // 从黑板获取导航目标
-  auto nav_goal = getInput<geometry_msgs::msg::Pose>("navigation_goal");
-  if (!nav_goal)
+  auto blackboard = config().blackboard;
+  auto nav_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal");
+  // if (!nav_goal)
+  // {
+  //   RCLCPP_ERROR(rclcpp::get_logger("PublishNavigationGoal"), "missing nav_goal on blackboard");
+  //   return BT::NodeStatus::FAILURE;
+  // }
+
+  // 发布目标点
+  auto ros_interface_ptr = blackboard->get<std::shared_ptr<ros_interface>>("ros_interface");
+  if (!ros_interface_ptr)
   {
-    throw BT::RuntimeError("missing required input [navigation_goal]: ", nav_goal.error());
+    throw BT::RuntimeError("missing ros_interface on blackboard");
   }
-
-  // 将导航目标设置到黑板
-  auto blackboard = Sentry_BT::Blackboard().getBTBlackboard();
-  blackboard->set("navigation_goal", nav_goal.value());
-
-  return BT::NodeStatus::SUCCESS;
+  bool success = ros_interface_ptr->publishNavigationGoal(nav_goal);
+  if (success)
+  {
+    std::cout << "Published navigation goal: (" << nav_goal.x << ", " << nav_goal.y << ")" << std::endl;
+  }
+  
+  return success ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
-// ------------------- SetBonusCoordinate -------------------
-SetBonusCoordinate::SetBonusCoordinate(const std::string & name, const BT::NodeConfiguration & config)
+// ------------------- SetCoordinate -------------------
+SetCoordinate::SetCoordinate(const std::string & name, const BT::NodeConfiguration & config)
 : BT::SyncActionNode(name, config)
 {
 }
 
-BT::PortsList SetBonusCoordinate::providedPorts()
+BT::PortsList SetCoordinate::providedPorts()
 {
-  return { BT::InputPort<geometry_msgs::msg::Pose>("bonus_coordinate") };
+  return { 
+    BT::InputPort<int>("goal") // 全局导航点索引
+  };
 }
 
-BT::NodeStatus SetBonusCoordinate::tick()
+BT::NodeStatus SetCoordinate::tick()
 {
-  // 从黑板获取据点坐标
-  auto bonus_coord = getInput<geometry_msgs::msg::Pose>("bonus_coordinate");
-  if (!bonus_coord)
+  auto goal_index = getInput<int>("goal");
+
+  if (goal_index.value() < 0 || goal_index.value() >= static_cast<int>(nav_points.size()))
   {
-    throw BT::RuntimeError("missing required input [bonus_coordinate]: ", bonus_coord.error());
+    // throw BT::RuntimeError("invalid goal index: ", (char)goal_index.value());
   }
 
-  // 将据点坐标设置到黑板
-  auto blackboard = Sentry_BT::Blackboard().getBTBlackboard();
-  blackboard->set("bonus_coordinate", bonus_coord.value());
-
+  std::vector<std::string> goal_names = {"HOME", "BONUS", "OUTPOST"};
+  Sentry_BT::Point2D point = nav_points[goal_index.value()];
+  
+  auto blackboard = config().blackboard;
+  blackboard->set("nav_goal", point);
+  std::cout << "Set navigation goal to " << goal_names[goal_index.value()] 
+            << ": (" << point.x << ", " << point.y << ")" << std::endl;
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -98,103 +87,16 @@ BT::PortsList SetTargetCoordinate::providedPorts()
 
 BT::NodeStatus SetTargetCoordinate::tick()
 {
-  // 从黑板获取目标坐标
-  auto target_coord = getInput<geometry_msgs::msg::Pose>("target_coordinate");
-  if (!target_coord)
-  {
-    throw BT::RuntimeError("missing required input [target_coordinate]: ", target_coord.error());
-  }
+  auto blackboard = config().blackboard;
+  auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_coordinate");
 
-  // 将目标坐标设置到黑板
-  auto blackboard = Sentry_BT::Blackboard().getBTBlackboard();
-  blackboard->set("target_coordinate", target_coord.value());
-
-  return BT::NodeStatus::SUCCESS;
-}
-
-// ------------------- SelectInspectionArea -------------------
-SelectInspectionArea::SelectInspectionArea(const std::string & name, const BT::NodeConfiguration & config)
-: BT::SyncActionNode(name, config)
-{
-}
-
-BT::PortsList SelectInspectionArea::providedPorts()
-{
-  return { BT::InputPort<int>("patrol_index"),
-           BT::InputPort<double>("last_inspection_time"),
-           BT::InputPort<double>("inspection_interval"),
-           BT::InputPort<std::vector<geometry_msgs::msg::Pose>>("inspection_areas") };
-}
-
-BT::NodeStatus SelectInspectionArea::tick()
-{
-  // 从黑板获取巡逻点索引、上次巡检时间、巡检间隔和巡检区域列表
-  auto patrol_index = getInput<int>("patrol_index");
-  auto last_inspection_time = getInput<double>("last_inspection_time");
-  auto inspection_interval = getInput<double>("inspection_interval");
-  auto inspection_areas = getInput<std::vector<geometry_msgs::msg::Pose>>("inspection_areas");
-
-  if (!patrol_index)
-  {
-    throw BT::RuntimeError("missing required input [patrol_index]: ", patrol_index.error());
-  }
-  if (!last_inspection_time)
-  {
-    throw BT::RuntimeError("missing required input [last_inspection_time]: ", last_inspection_time.error());
-  }
-  if (!inspection_interval)
-  {
-    throw BT::RuntimeError("missing required input [inspection_interval]: ", inspection_interval.error());
-  }
-  if (!inspection_areas)
-  {
-    throw BT::RuntimeError("missing required input [inspection_areas]: ", inspection_areas.error());
-  }
-
-  // 检查是否需要切换巡检区域
-  double current_time = static_cast<double>(std::time(nullptr));
-  if (current_time - last_inspection_time.value() >= inspection_interval.value())
-  {
-    int next_index = (patrol_index.value() + 1) % inspection_areas.value().size();
-
-    // 将新的巡逻点索引和巡检区域设置到黑板
-    auto blackboard = Sentry_BT::Blackboard().getBTBlackboard();
-    blackboard->set("patrol_index", next_index);
-    blackboard->set("inspection_area", inspection_areas.value()[next_index]);
-    blackboard->set("last_inspection_time", current_time);
-
-    return BT::NodeStatus::SUCCESS;
-  }
-  else
-  {
-    return BT::NodeStatus::FAILURE;   
-  }
-}
-
-// ------------------- SetAreaCoordinate -------------------
-SetAreaCoordinate::SetAreaCoordinate(const std::string & name, const BT::NodeConfiguration & config)
-: BT::SyncActionNode(name, config)
-{
-}
-
-BT::PortsList SetAreaCoordinate::providedPorts()
-{
-  return { BT::InputPort<geometry_msgs::msg::Pose>("area_coordinate") };
-}   
-
-BT::NodeStatus SetAreaCoordinate::tick()
-{
-  // 从黑板获取区域坐标
-  auto area_coord = getInput<geometry_msgs::msg::Pose>("area_coordinate");
-  if (!area_coord)
-  {
-    throw BT::RuntimeError("missing required input [area_coordinate]: ", area_coord.error());
-  }
-
-  // 将区域坐标设置到黑板
-  auto blackboard = Sentry_BT::Blackboard().getBTBlackboard();
-  blackboard->set("area_coordinate", area_coord.value());
-
+  Sentry_BT::Point2D point;
+  point.x = target_pose.position.x;
+  point.y = target_pose.position.y;
+  
+  // 将目标点设置到黑板
+  blackboard->set("nav_goal", point);
+  std::cout << "Set target coordinate to: (" << point.x << ", " << point.y << ")" << std::endl;
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -206,36 +108,92 @@ SelectPatrolPoint::SelectPatrolPoint(const std::string & name, const BT::NodeCon
 
 BT::PortsList SelectPatrolPoint::providedPorts()
 {
-  return { BT::InputPort<int>("patrol_index"),
-           BT::InputPort<std::vector<geometry_msgs::msg::Pose>>("patrol_points") };
+  return {}; 
 }
 
 BT::NodeStatus SelectPatrolPoint::tick()
 {
-  // 从黑板获取巡逻点索引和巡逻点列表
-  auto patrol_index = getInput<int>("patrol_index");
-  auto patrol_points = getInput<std::vector<geometry_msgs::msg::Pose>>("patrol_points");
-
-  if (!patrol_index)
-  {
-    throw BT::RuntimeError("missing required input [patrol_index]: ", patrol_index.error());
+  auto blackboard = config().blackboard;
+  
+  // 获取当前巡逻索引
+  int current_index = 0;
+  if (auto index = blackboard->get<int>("patrol_index")) {
+    current_index = index;
+  } else {
+    blackboard->set("patrol_index", current_index);
   }
-  if (!patrol_points)
+  
+  // 获取前哨站状态决定使用哪种巡逻路线
+  auto outpost_destroyed = blackboard->get<bool>("outpost_destroyed");
+  std::vector<Sentry_BT::Point2D> patrol_points = 
+    outpost_destroyed ? Sentry_BT::patrol_points_attack : Sentry_BT::patrol_points_normal;
+  
+  // 检查索引有效性
+  if (current_index >= static_cast<int>(patrol_points.size()))
   {
-    throw BT::RuntimeError("missing required input [patrol_points]: ", patrol_points.error());
+    current_index = 0;
+    blackboard->set("patrol_index", current_index);
   }
-
-  // 检查巡逻点索引是否有效
-  if (patrol_index.value() < 0 || patrol_index.value() >= static_cast<int>(patrol_points.value().size()))
-  {
-    throw BT::RuntimeError("invalid patrol_index: ", patrol_index.value());
-  }
-
-  // 将选中的巡逻点设置到黑板
-  auto blackboard = Sentry_BT::Blackboard().getBTBlackboard();
-  blackboard->set("patrol_point", patrol_points.value()[patrol_index.value()]);
-
+  
+  Sentry_BT::Point2D selected_point = patrol_points[current_index];
+  
+  int next_index = (current_index + 1) % patrol_points.size();
+  blackboard->set("patrol_index", next_index);
+  blackboard->set("nav_goal", selected_point);
+  
+  std::cout << "Selected patrol point " << current_index 
+            << ": (" << selected_point.x << ", " << selected_point.y << ")" << std::endl;
   return BT::NodeStatus::SUCCESS;
 }
 
+// ------------------- WaitUntilStopped -------------------
+WaitUntilStopped::WaitUntilStopped(const std::string & name, const BT::NodeConfiguration & config)
+: BT::StatefulActionNode(name, config)
+{
+}
+
+BT::PortsList WaitUntilStopped::providedPorts()
+{
+  return{};
+}
+
+BT::NodeStatus WaitUntilStopped::onStart()
+{
+  auto blackboard = config().blackboard;
+  // 检查导航状态
+  auto nav_status = blackboard->get<int>("nav_status");
+  
+  // 如果导航已经停止，直接返回成功
+  if (nav_status == Sentry_BT::NavStatus::IDLE || 
+      nav_status == Sentry_BT::NavStatus::FAILURE)
+  {
+    return BT::NodeStatus::SUCCESS;
+  }
+  
+  // 否则继续等待
+  return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus WaitUntilStopped::onRunning()
+{
+  auto blackboard = config().blackboard;
+  // 检查导航状态
+  auto nav_status = blackboard->get<int>("nav_status");
+  
+  std::cout << "Current navigation status: " << current_nav_status[nav_status] << std::endl;
+  // 如果导航已经停止，返回成功
+  if (nav_status == Sentry_BT::NavStatus::IDLE || 
+      nav_status == Sentry_BT::NavStatus::FAILURE)
+  {
+    return BT::NodeStatus::SUCCESS;
+  }
+  
+  // 否则继续等待
+  return BT::NodeStatus::RUNNING;
+}
+
+void WaitUntilStopped::onHalted()
+{
+  // 无需特殊处理
+}
 }  // namespace Sentry_BT

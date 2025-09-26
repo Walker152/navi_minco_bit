@@ -3,28 +3,27 @@
 namespace Sentry_BT
 {
     BTManager::BTManager()
-    : blackboard_(std::make_shared<Blackboard>())
     {
     }
 
-    bool BTManager::initialize(const std::string & xml_file_path)
+    bool BTManager::initialize(const std::string & xml_file_path, std::shared_ptr<BT::Blackboard> blackboard)
     {
         // 注册自定义节点
         factory_.registerNodeType<CheckRetreatCondition>("CheckRetreatCondition");
         factory_.registerNodeType<CheckFortBonusActive>("CheckFortBonusActive");
         factory_.registerNodeType<CheckTargetLocked>("CheckTargetLocked");
-        factory_.registerNodeType<SetHomeCoordinate>("SetHomeCoordinate");
         factory_.registerNodeType<PublishNavigationGoal>("PublishNavigationGoal");
-        factory_.registerNodeType<SetBonusCoordinate>("SetBonusCoordinate");
-        factory_.registerNodeType<SetTargetCoordinate>("SetTargetCoordinate");
-        factory_.registerNodeType<SelectInspectionArea>("SelectInspectionArea");
-        factory_.registerNodeType<SetAreaCoordinate>("SetAreaCoordinate");
         factory_.registerNodeType<SelectPatrolPoint>("SelectPatrolPoint");
+        factory_.registerNodeType<SetTargetCoordinate>("SetTargetCoordinate");
+        factory_.registerNodeType<CheckNavStatus>("CheckNavStatus");
+        factory_.registerNodeType<CheckIfRetreating>("CheckIfRetreating");
+        factory_.registerNodeType<SetCoordinate>("SetCoordinate");
+        factory_.registerNodeType<WaitUntilStopped>("WaitUntilStopped");
 
         // 创建行为树
         try
         {
-            tree_ = factory_.createTreeFromFile(xml_file_path, blackboard_->getBTBlackboard());
+            tree_ = factory_.createTreeFromFile(xml_file_path, blackboard);
         }
         catch (const std::exception & e)
         {
@@ -37,16 +36,11 @@ namespace Sentry_BT
 
     void BTManager::execute()
     {
-        tree_.rootNode()->executeTick();
+        tree_.tickRoot();
     }
 
     BT::NodeStatus BTManager::getStatus() const
     {
         return tree_.rootNode()->status();
-    }
-
-    std::shared_ptr<Blackboard> BTManager::getBlackboard()
-    {
-        return blackboard_;
     }
 }  // namespace Sentry_BT

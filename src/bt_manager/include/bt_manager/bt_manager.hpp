@@ -7,6 +7,7 @@
 #include "bt_manager/blackboard.hpp"
 #include "bt_manager/auto_conditions.hpp"
 #include "bt_manager/auto_actions.hpp"
+#include <behaviortree_cpp_v3/loggers/bt_zmq_publisher.h>
 
 namespace Sentry_BT
 {
@@ -18,7 +19,7 @@ public:
   ~BTManager() = default;
   
   // 初始化行为树
-  bool initialize(const std::string& xml_file_path);
+  bool initialize(const std::string& xml_file_path, std::shared_ptr<BT::Blackboard> blackboard);
   
   // 执行行为树
   void execute();
@@ -26,13 +27,9 @@ public:
   // 获取行为树状态
   BT::NodeStatus getStatus() const;
   
-  // 获取黑板
-  std::shared_ptr<Blackboard> getBlackboard();
-  
 private:
   BT::BehaviorTreeFactory factory_;
   BT::Tree tree_;
-  std::shared_ptr<Blackboard> blackboard_;
 };
 
 }  // namespace Sentry_BT
