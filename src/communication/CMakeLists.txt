@@ -1,92 +1,88 @@
-cmake_minimum_required(VERSION 3.5)
-project(communication)
+cmake_minimum_required(VERSION 3.8)
+project(com)
 
-# 设置 C++ 标准
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-set(EXE_NAME sentry)
-
-# 源文件列表
-set(source
-  src/behavier_tree_com.cpp
-  src/main.cpp
-  src/communication.cpp
-)
-
-# 查找 ROS2 和系统依赖包
-find_package(tf2_geometry_msgs REQUIRED)
-find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(geometry_msgs REQUIRED)
-find_package(nav_msgs REQUIRED)
-find_package(robots_msgs REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(tf2 REQUIRED)
-find_package(tf2_ros REQUIRED)
-find_package(Threads REQUIRED)
-find_package(Libevent REQUIRED)
-find_package(fmt REQUIRED)
-
-# include 目录
-include_directories(
-  include
-  src/communication/RM_encoder
-  ${EIGEN3_INCLUDE_DIRS}
-  ${CERES_INCLUDE_DIRS}
-  my-utils/MyUtils
-  3rdparty/serial/include # 添加serial头文件路径
-)
-
-file(GLOB_RECURSE DIR_SRCS src/communication/RM_encoder/*.cpp)
-
-add_executable(${EXE_NAME}
-  ${source}
-  ${DIR_SRCS}
-)
-
-if(${PROJECT_NAME}_EXPORTED_TARGETS)
-  add_dependencies(${EXE_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS})
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+  set(CMAKE_CXX_EXTENSIONS OFF) # 禁用编译器扩展
+  add_compile_options(-Wall -Wextra -Wpedantic)
+  set(CMAKE_BUILD_TYPE "Release")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -std=c++17")
 endif()
 
-# 添加子目录（3rdparty库）
-add_subdirectory(3rdparty/plog-1.1.10)
-add_subdirectory(3rdparty/sheriffos)
-add_subdirectory(3rdparty/serial)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# 链接库
-target_link_libraries(${EXE_NAME}
-  ${CMAKE_THREAD_LIBS_INIT}
-  libevent::core
-  libevent::pthreads
-  fmt::fmt
-  plog
-  sheriff_os
-  serial
+# 开了就全是报错，谁研究的communication呢
+# add_definitions(-Wall -Werror)
+
+## Find catkin macros and libraries
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(robot_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED) 
+find_package(tf2 REQUIRED)
+find_package(fmt REQUIRED)
+
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBEVENT REQUIRED libevent)
+
+###########
+## Build ##
+###########
+
+include_directories(
+  include
 )
 
-ament_target_dependencies(${EXE_NAME}
+## Declare a cpp library
+add_library(${PROJECT_NAME}_core
+  src/${PROJECT_NAME}_handle.cpp
+  src/${PROJECT_NAME}.cpp
+)
+
+ament_target_dependencies(${PROJECT_NAME}_core
   rclcpp
-  geometry_msgs
-  tf2_geometry_msgs
-  nav_msgs
-  robots_msgs
   std_msgs
-  tf2
-  tf2_ros
+  robot_msgs
+  geometry_msgs
+  nav_msgs
+  tf2_geometry_msgs
+)
+target_link_libraries(${PROJECT_NAME}_core
+  fmt::fmt
+  tf2::tf2
+  tf2_ros::tf2_ros
+  event
+  pthread
+  ${LIBEVENT_LIBRARIES}
+  event_pthreads 
 )
 
-install(TARGETS ${EXE_NAME}
+## Declare cpp executables
+add_executable(${PROJECT_NAME}
+  src/main.cpp
+)
+target_link_libraries(${PROJECT_NAME} ${PROJECT_NAME}_core )
+
+#############
+## Install ##
+#############
+
+# Mark executables and/or libraries for installation
+install(
+  TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_core
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY include/
-  DESTINATION include/
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
 )
 
-install(DIRECTORY
-  launch
-  DESTINATION share/${PROJECT_NAME}/
-)
-# 声明为ament包
+
 ament_package()
