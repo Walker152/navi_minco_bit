@@ -13,7 +13,7 @@
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
-  <depend>robots_msgs</depend>
+  <depend>robot_msgs</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
   <depend>behaiviortree_cpp_v3</depend>

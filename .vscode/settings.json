@@ -1,0 +1,25 @@
+{
+    "editor.tabSize": 2,
+    "editor.rulers": [
+        100
+    ],
+    "ros.distro": "humble",
+    "search.exclude": {
+        "**/build": true,
+        "**/install": true,
+        "**/log": true
+    },
+
+    "C_Cpp.codeAnalysis.clangTidy.enabled": true,
+    "[cpp]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+        "editor.formatOnSave": true
+    },
+
+    "clangd.path": "/usr/bin/clangd",
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}",
+        "--background-index",
+        "--header-insertion=never"
+    ]
+}

@@ -7,9 +7,9 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> blackboard_ptr)
   blackboard_(blackboard_ptr)
 {
     // 订阅事件状态话题
-    event_sub = this->create_subscription<robots_msgs::msg::EventStatus>(
+    event_sub = this->create_subscription<robot_msgs::msg::EventStatus>(
         "/sentry/event_status", 10,
-        [this](const robots_msgs::msg::EventStatus::SharedPtr msg) {
+        [this](const robot_msgs::msg::EventStatus::SharedPtr msg) {
             this->eventCallback(msg);
         });
         
@@ -28,7 +28,7 @@ ros_interface::~ros_interface()
 {   
 }
 
-void ros_interface::eventCallback(const robots_msgs::msg::EventStatus::SharedPtr msg)
+void ros_interface::eventCallback(const robot_msgs::msg::EventStatus::SharedPtr msg)
 {
     // 更新黑板中的数据
     blackboard_->set("health", msg->self_health);
@@ -78,6 +78,7 @@ bool ros_interface::publishNavigationGoal(const Sentry_BT::Point2D & goal)
       [this](rclcpp_action::ClientGoalHandle<nav2_msgs::action::NavigateToPose>::SharedPtr goal_handle,
           const std::shared_ptr<const nav2_msgs::action::NavigateToPose::Feedback> feedback) {
         (void)goal_handle; 
+        (void)feedback;
         // RCLCPP_INFO(this->get_logger(), "反馈剩余距离:%f", feedback->distance_remaining);
       };
       
