@@ -66,7 +66,6 @@ BT::PortsList CheckTargetLocked::providedPorts()
 {
   return { 
     BT::InputPort<bool>("target_valid"),
-    BT::InputPort<bool>("target_in_range")
   };
 }
 
@@ -74,13 +73,23 @@ BT::NodeStatus CheckTargetLocked::tick()
 {
   auto blackboard = config().blackboard;
   
-  auto target_valid = blackboard->get<bool>("target_valid");
-  auto target_in_range = blackboard->get<bool>("target_in_range");
+  auto target_armor_id = blackboard->get<int>("target_armor_id");
+  auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
 
-  // 检查目标是否有效且在范围内
-  if (target_valid && target_in_range)
+  if (target_armor_id == Sentry_BT::RobotID::Engineer)
   {
-    return BT::NodeStatus::SUCCESS;   
+    return BT::NodeStatus::FAILURE; 
+  }
+  
+  Sentry_BT::Area_Square highland_area = {{6.7, 2.0}, {13.0, -1.8}};
+  Sentry_BT::Area_Square enemy_outpost_area = {{8.5, 4.5}, {11.5, 2.8}};
+  Sentry_BT::Area_Square own_outpost_area = {{8.5, -2.7}, {11.5, -4.2}};
+
+  if (highland_area.contains({target_pose.position.x, target_pose.position.y}) || 
+      enemy_outpost_area.contains({target_pose.position.x, target_pose.position.y}) ||
+      own_outpost_area.contains({target_pose.position.x, target_pose.position.y}))
+  {
+    return BT::NodeStatus::SUCCESS; 
   }
   
   return BT::NodeStatus::FAILURE;
