@@ -60,6 +60,8 @@ namespace ns_com
     PacketHeader header(ENUM_PACKET_ARMOR_DATA, sizeof(PacketHeader) + sizeof(_ChassisTarget));
     header.packet_type = static_cast<uint8_t>(ENUM_PACKET_NAV_DATA);
     //
+    header.start1 = 0xa5;
+    header.start2 = 0x5a;
     header.from = static_cast<uint8_t>(ArmEnum::ENUM_ARM_SENTRY);
     header.setTo(ArmEnum::ENUM_ARM_SLAVE_COMPUTER);
     header.setDataLen(sizeof(data_packet));
