@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>communication</name>
+  <name>com</name>
   <version>0.0.0</version>
   <description>The communication package</description>
 
@@ -13,15 +13,13 @@
   <!-- 运行和编译时依赖 -->
   <depend>rclcpp</depend>
   <depend>geometry_msgs</depend>
-  <depend>move_base_msgs</depend>
   <depend>nav_msgs</depend>
-  <depend>robots_msgs</depend>
+  <depend>robot_msgs</depend>
   <depend>serial</depend>
   <depend>std_msgs</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
   <depend>tf2_geometry_msgs</depend>
-  <exec_depend>ros2launch</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
