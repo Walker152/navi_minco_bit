@@ -18,3 +18,4 @@ start.bash
 cmake-build-*/
 build-*/
 .vscode/
+.cache
