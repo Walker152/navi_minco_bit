@@ -1,0 +1,61 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+# 缩进设置
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+
+# 大括号风格
+BreakBeforeBraces: Allman
+Cpp11BracedListStyle: true
+
+# 访问修饰符
+AccessModifierOffset: -2
+IndentAccessModifiers: false
+
+# 命名空间
+NamespaceIndentation: All
+
+# 函数和构造函数
+BreakConstructorInitializers: BeforeComma
+ConstructorInitializerIndentWidth: 2
+AllowShortFunctionsOnASingleLine: Empty
+AlwaysBreakAfterReturnType: None
+
+# 参数和参数列表
+BinPackParameters: false
+BinPackArguments: false
+AlignAfterOpenBracket: Align
+
+# 行长度
+ColumnLimit: 120
+
+# 空格设置
+SpaceBeforeParens: Never
+SpaceAfterCStyleCast: false
+SpaceBeforeAssignmentOperators: true
+SpaceInEmptyParentheses: false
+
+# 注释
+ReflowComments: true
+SpacesBeforeTrailingComments: 2
+
+# 包含头文件
+SortIncludes: true
+IncludeBlocks: Preserve
+
+# 其他设置
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Empty
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+
+# 指针和引用对齐
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# 初始化列表
+BreakBeforeInheritanceComma: true

@@ -28,12 +28,12 @@ namespace Sentry_BT
     class ros_interface: public rclcpp::Node
     {
     private:
-        rclcpp::Subscription<robots_msgs::msg::EventStatus>::SharedPtr event_sub;
+        rclcpp::Subscription<robot_msgs::msg::EventStatus>::SharedPtr event_sub;
         rclcpp_action::Client<nav2_msgs::action::NavigateToPose>::SharedPtr nav_client_;
         std::shared_ptr<Blackboard> blackboard_;
 
         int nav_status_;
-        void eventCallback(const robots_msgs::msg::EventStatus::SharedPtr msg);
+        void eventCallback(const robot_msgs::msg::EventStatus::SharedPtr msg);
         
     public:
         ros_interface(std::shared_ptr<Blackboard> blackboard_ptr);

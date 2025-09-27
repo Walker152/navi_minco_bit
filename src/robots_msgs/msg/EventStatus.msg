@@ -1,4 +1,0 @@
-bool own_outpost_destroyed
-bool buff_active
-float32 self_health
-robots_msgs/Detect enemy_detected
