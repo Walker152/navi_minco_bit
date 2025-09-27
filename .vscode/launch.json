@@ -1,0 +1,94 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "(gdb) ROS2 node",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/install/${input:package}/lib/${input:package}/${input:program}",
+      "args": [],
+      "preLaunchTask": "source-humble",
+      "envFile": "${workspaceFolder}/local_humble_ws.env",
+      "stopAtEntry": true,
+      "cwd": "${workspaceFolder}",
+      "environment": [
+        {
+          "name": "LD_LIBRARY_PATH",
+          "value": "${workspaceFolder}/install/${input:package}/lib:${env:LD_LIBRARY_PATH}"
+        }
+      ],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ],
+    },
+    {
+        "name": "ROS: Attach",
+        "type": "ros",
+        "request": "attach"
+    },
+    {
+        "name": "ROS: Debug launch",
+        "type": "ros",
+        "request": "debug_launch",
+        "target": "${file}"
+    },
+    {
+        "name": "Python: Current File",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${file}",
+        "console": "integratedTerminal"
+    },
+    {
+        "name": "Python: ROS2 current file",
+        "type": "debugpy",
+        "preLaunchTask": "source-humble",
+        "envFile": "${workspaceFolder}/local_humble_ws.env",
+        "request": "launch",
+        "program": "${file}",
+        "console": "integratedTerminal"
+    },
+    {
+        "name": "Python: ROS2 launch test",
+        "type": "debugpy",
+        "request": "launch",
+        "preLaunchTask": "source-humble",
+        "envFile": "${workspaceFolder}/local_humble_ws.env",
+        "program": "/opt/ros/humble/bin/launch_test",
+        "args": ["${file}"],
+        "console": "integratedTerminal"
+    },
+    {
+      "name": "[Debug Launch] keywords",
+      "type": "ros",
+      "request": "launch",
+      "target": "${workspaceFolder}/src/your_pacakage/launch/your_launch_file.py",
+      "arguments": [
+        "use_sim_time:=True",
+      ]
+    },
+  ],
+  "inputs": [
+  {
+    "id": "package",
+    "type": "promptString",
+    "description": "Package name",
+    "default": "demo_nodes_cpp"
+  },
+  {
+    "id": "program",
+    "type": "promptString",
+    "description": "Program name",
+    "default": "talker"
+  }
+]
+}
