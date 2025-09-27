@@ -17,3 +17,4 @@ start.bash
 *.egg-info/
 cmake-build-*/
 build-*/
+.vscode/
