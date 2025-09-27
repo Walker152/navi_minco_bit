@@ -56,4 +56,12 @@ public:
   void onHalted() override;
 };
 
+class Wait : public BT::SyncActionNode
+{
+public:
+  Wait(const std::string& name, const BT::NodeConfiguration& config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
 }  // namespace Sentry_BT

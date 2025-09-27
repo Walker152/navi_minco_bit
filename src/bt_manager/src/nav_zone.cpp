@@ -2,24 +2,24 @@
 
 namespace Sentry_BT {
 std::vector<Point2D> nav_points = {
-    {0.0, 0.0},   // HOME
+    {-1.8, -4.7},   // HOME
     {5.0, 5.0},   // BONUS
-    {10.0, 10.0}  // OUTPOST
+    {10.3, 4.0}  // OUTPOST
 };
 
 std::vector<Point2D> patrol_points_normal = {
-    {0.0, 0.0},
-    {2.0, 2.0},
-    {3.0, 3.0},
-    {1.0, 1.0},
-    {2.0, 2.0},
-    {3.0, 3.0}
+    {11.6, 5.0},
+    {12.5, 1.0},
+    {12.4, -2.4},
+    {10.5, -4.0},
+    {7.4, -1.0},
+    {8.4, 3.5}
 };
 
 std::vector<Point2D> patrol_points_attack = {
-    {6.0, 6.0},
-    {7.0, 7.0},
-    {8.0, 8.0}
+    {11.2, 4.5},
+    {12.8, -0.1},
+    {11.5, -3.8}
 };
 
 std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};

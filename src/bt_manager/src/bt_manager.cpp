@@ -19,6 +19,7 @@ namespace Sentry_BT
         factory_.registerNodeType<CheckIfRetreating>("CheckIfRetreating");
         factory_.registerNodeType<SetCoordinate>("SetCoordinate");
         factory_.registerNodeType<WaitUntilStopped>("WaitUntilStopped");
+        factory_.registerNodeType<Wait>("Wait");
 
         // 创建行为树
         try

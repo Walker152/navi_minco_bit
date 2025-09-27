@@ -28,6 +28,7 @@
         
         <!-- 常规巡逻模式（循环巡逻点） -->
         <Sequence name="RegularPatrol">
+          <Wait name="InitialWait" milliseconds="5000"/>
           <CheckIfRetreating name="CheckIfRetreating"/>
           <CheckNavStatus name="CheckNavStatus" />
           <SelectPatrolPoint name="SelectPatrolPoint" />

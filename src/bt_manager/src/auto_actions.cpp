@@ -88,7 +88,7 @@ BT::PortsList SetTargetCoordinate::providedPorts()
 BT::NodeStatus SetTargetCoordinate::tick()
 {
   auto blackboard = config().blackboard;
-  auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_coordinate");
+  auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
 
   Sentry_BT::Point2D point;
   point.x = target_pose.position.x;
@@ -96,7 +96,7 @@ BT::NodeStatus SetTargetCoordinate::tick()
   
   // 将目标点设置到黑板
   blackboard->set("nav_goal", point);
-  std::cout << "Set target coordinate to: (" << point.x << ", " << point.y << ")" << std::endl;
+  std::cout << "Set target pose to: (" << point.x << ", " << point.y << ")" << std::endl;
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -195,5 +195,24 @@ BT::NodeStatus WaitUntilStopped::onRunning()
 void WaitUntilStopped::onHalted()
 {
   // 无需特殊处理
+}
+
+// ------------------- Wait -------------------
+Wait::Wait(const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
+
+BT::PortsList Wait::providedPorts()
+{
+  return { BT::InputPort<int>("milliseconds") };
+}
+
+BT::NodeStatus Wait::tick()
+{
+  auto wait_time = getInput<int>("milliseconds");
+  
+  std::this_thread::sleep_for(std::chrono::milliseconds(wait_time.value()));
+  return BT::NodeStatus::SUCCESS;
 }
 }  // namespace Sentry_BT

@@ -6,6 +6,8 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> blackboard_ptr)
 : Node("ros_interface_node"),
   blackboard_(blackboard_ptr)
 {
+    // 发布静态变换
+
     // 订阅事件状态话题
     event_sub = this->create_subscription<robots_msgs::msg::EventStatus>(
         "/sentry/event_status", 10,
@@ -38,10 +40,13 @@ void ros_interface::eventCallback(const robots_msgs::msg::EventStatus::SharedPtr
     
     // 更新目标位置
     if (msg->enemy_detected.is_get) {
-        geometry_msgs::msg::Pose target_pose;
-        target_pose.position.x = msg->enemy_detected.position.x;
-        target_pose.position.y = msg->enemy_detected.position.y;
-        target_pose.position.z = msg->enemy_detected.position.z;
+        geometry_msgs::msg::Pose target_pose_in, target_pose;
+        target_pose_in.position.x = msg->enemy_detected.position.x;
+        target_pose_in.position.y = msg->enemy_detected.position.y;
+        target_pose_in.position.z = msg->enemy_detected.position.z;
+        TransformPose(target_pose_in, target_pose);
+        target_pose.orientation.w = 1.0; // 设置默认朝向
+        blackboard_->set("target_armor_id", msg->enemy_detected.armor_id);
         blackboard_->set("target_pose", target_pose);
     }
     
@@ -101,5 +106,27 @@ bool ros_interface::publishNavigationGoal(const Sentry_BT::Point2D & goal)
   // 发送导航目标点
   nav_client_->async_send_goal(goal_msg, send_goal_options);
   return true;
+}
+
+bool ros_interface::TransformPose(const geometry_msgs::msg::Pose & input_pose, geometry_msgs::msg::Pose & output_pose)
+{
+    try
+    {
+      tf2_ros::Buffer tf_buffer(this->get_clock());
+      tf2_ros::TransformListener tf_listener(tf_buffer);
+      geometry_msgs::msg::TransformStamped transform_stamped;
+      transform_stamped = tf_buffer.lookupTransform("base_link", "gimbal", tf2::TimePointZero, tf2::durationFromSec(1.0));
+      tf2::doTransform(input_pose, output_pose, transform_stamped);
+      RCLCPP_INFO(this->get_logger(), "坐标转换成功: (%.2f, %.2f) -> (%.2f, %.2f)", 
+                  input_pose.position.x, input_pose.position.y,
+                  output_pose.position.x, output_pose.position.y);
+    }
+    catch(const std::exception& e)
+    {
+      std::cerr << e.what() << '\n';
+    }
+    
+    output_pose = input_pose;
+    return true;
 }
 } // namespace Sentry_BT

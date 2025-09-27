@@ -14,6 +14,7 @@ find_package(nav_msgs REQUIRED)
 find_package(robots_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 find_package(behaviortree_cpp_v3 REQUIRED)
 find_package(nav2_msgs REQUIRED)
 
@@ -38,6 +39,7 @@ ament_target_dependencies(bt_manager_node
   robots_msgs
   tf2
   tf2_ros
+  tf2_geometry_msgs
   behaviortree_cpp_v3
   nav2_msgs
 )
@@ -45,6 +47,10 @@ ament_target_dependencies(bt_manager_node
 install(TARGETS
   bt_manager_node
   DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)

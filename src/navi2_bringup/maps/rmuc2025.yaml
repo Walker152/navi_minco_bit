@@ -1,0 +1,8 @@
+image: ./rmuc2025.pgm
+resolution: 0.050000
+# x 距离边界4m，偏置0.5m
+# y 距离边界7m，偏置1m
+origin: [-4.56, -7.8, -0] # x,y,yaw
+negate: 0
+occupied_thresh: 0.60
+free_thresh: 0.196
