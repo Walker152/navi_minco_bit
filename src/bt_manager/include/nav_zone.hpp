@@ -19,8 +19,12 @@ namespace Sentry_BT
 
         bool contains(const Point2D & point) const
         {
-            return (point.x >= top_left.x && point.x <= bottom_right.x &&
-                    point.y >= top_left.y && point.y <= bottom_right.y);
+            double min_x = std::min(top_left.x, bottom_right.x);
+            double max_x = std::max(top_left.x, bottom_right.x);
+            double min_y = std::min(top_left.y, bottom_right.y);
+            double max_y = std::max(top_left.y, bottom_right.y);
+            return (point.x >= min_x && point.x <= max_x &&
+                    point.y >= min_y && point.y <= max_y);
         }
     };
     
