@@ -11,20 +11,49 @@ CompileFlags:
     - "-I${workspaceFolder}/src"
     - "-I${workspaceFolder}/install/robot_msgs/include"
     - "-I/opt/ros/humble/include"
-    # - "-I/opt/ros/humble/share"
   Remove: "-W*"
-  
+
 Index:
   Background: Build
-  
+
 Diagnostics:
   ClangTidy:
     Add: 
       - performance-*
       - modernize-*
     Remove: modernize-use-trailing-return-type
-    
+
 InlayHints:
   Enabled: Yes
   ParameterNames: Yes
   DeducedTypes: Yes
+
+# CompileFlags:
+#   Add: 
+#     - "-std=c++17"
+#     - "-I/usr/include/c++/13"
+#     - "-I/usr/include/x86_64-linux-gnu/c++/13"
+#     - "-I/usr/include/c++/13/backward"
+#     - "-I/usr/lib/gcc/x86_64-linux-gnu/13/include"
+#     - "-I/usr/local/include"
+#     - "-I/usr/include/x86_64-linux-gnu"
+#     - "-I/usr/include"
+#     - "-I${workspaceFolder}/src"
+#     - "-I${workspaceFolder}/install/robot_msgs/include"
+#     - "-I/opt/ros/jazzy/include"
+#   Remove: "-W*"
+  
+# Index:
+#   Background: Build
+  
+# Diagnostics:
+#   ClangTidy:
+#     Add: 
+#       - performance-*
+#       - modernize-*
+#     Remove: modernize-use-trailing-return-type
+    
+# InlayHints:
+#   Enabled: Yes
+#   ParameterNames: Yes
+#   DeducedTypes: Yes
