@@ -12,7 +12,6 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# 开了就全是报错，谁研究的communication呢
 # add_definitions(-Wall -Werror)
 
 ## Find catkin macros and libraries

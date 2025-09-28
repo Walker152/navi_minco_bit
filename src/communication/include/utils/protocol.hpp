@@ -10,6 +10,7 @@
 
 // 数据包-包头结构体
 struct PacketHeader {
+  // 
   uint8_t start1 = 0xa5;           // 起始符1，固定0xA5
   uint8_t start2 = 0x5a;           // 起始符2，固定0x5A
   uint8_t from = ENUM_ARM_SENTRY;  // 发送方ID
@@ -18,6 +19,7 @@ struct PacketHeader {
   uint8_t data_len;                // 数据段长度，单位为字节
   uint16_t checksum;               // 校验和，计算包头+数据区
   // 包头构造函数
+  // ？？？
   PacketHeader(PacketTypeEnum p_type, uint8_t _data_len)
       : start1(),
         start2(),
