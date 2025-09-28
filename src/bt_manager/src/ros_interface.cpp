@@ -33,10 +33,10 @@ ros_interface::~ros_interface()
 void ros_interface::eventCallback(const robot_msgs::msg::EventStatus::SharedPtr msg)
 {
     // 更新黑板中的数据
-    blackboard_->set("health", msg->self_health);
-    blackboard_->set("outpost_destroyed", msg->own_outpost_destroyed);
-    blackboard_->set("bonus_active", msg->buff_active);
-    blackboard_->set("target_valid", msg->enemy_detected.is_get);
+    blackboard_->set<float>("health", msg->self_health);
+    blackboard_->set<bool>("outpost_destroyed", msg->own_outpost_destroyed);
+    blackboard_->set<bool>("bonus_active", msg->buff_active);
+    blackboard_->set<bool>("target_valid", msg->enemy_detected.is_get);
     
     // 更新目标位置
     if (msg->enemy_detected.is_get) {
@@ -46,8 +46,8 @@ void ros_interface::eventCallback(const robot_msgs::msg::EventStatus::SharedPtr 
         target_pose_in.position.z = msg->enemy_detected.position.z;
         TransformPose(target_pose_in, target_pose);
         target_pose.orientation.w = 1.0; // 设置默认朝向
-        blackboard_->set("target_armor_id", msg->enemy_detected.armor_id);
-        blackboard_->set("target_pose", target_pose);
+        blackboard_->set<int>("target_armor_id", msg->enemy_detected.armor_id);
+        blackboard_->set<geometry_msgs::msg::Pose>("target_pose", target_pose);
     }
     
     RCLCPP_INFO(this->get_logger(), "EventStatus received: health=%.2f, outpost=%s, buff=%s, target_locked=%s",
@@ -109,25 +109,27 @@ bool ros_interface::publishNavigationGoal(const Sentry_BT::Point2D & goal)
   return true;
 }
 
-bool ros_interface::TransformPose(const geometry_msgs::msg::Pose & input_pose, geometry_msgs::msg::Pose & output_pose)
+bool ros_interface::TransformPose(const geometry_msgs::msg::Pose & input_pose, 
+                                 geometry_msgs::msg::Pose & output_pose)
 {
-    try
+    // 创建TransformUtils实例
+    auto transform_utils = std::make_shared<Sentry_BT::TransformUtils>();
+    
+    // 执行坐标转换
+    bool success = transform_utils->transformPoseToBaseLink(input_pose, output_pose);
+    
+    if (success)
     {
-      tf2_ros::Buffer tf_buffer(this->get_clock());
-      tf2_ros::TransformListener tf_listener(tf_buffer);
-      geometry_msgs::msg::TransformStamped transform_stamped;
-      transform_stamped = tf_buffer.lookupTransform("base_link", "gimbal", tf2::TimePointZero, tf2::durationFromSec(1.0));
-      tf2::doTransform(input_pose, output_pose, transform_stamped);
-      RCLCPP_INFO(this->get_logger(), "坐标转换成功: (%.2f, %.2f) -> (%.2f, %.2f)", 
-                  input_pose.position.x, input_pose.position.y,
-                  output_pose.position.x, output_pose.position.y);
+        RCLCPP_INFO(this->get_logger(), "坐标转换成功: (%.2f, %.2f) -> (%.2f, %.2f)", 
+                    input_pose.position.x, input_pose.position.y,
+                    output_pose.position.x, output_pose.position.y);
     }
-    catch(const std::exception& e)
+    else
     {
-      std::cerr << e.what() << '\n';
+        RCLCPP_ERROR(this->get_logger(), "坐标转换失败");
+        output_pose = input_pose; // 失败时返回原始坐标
     }
     
-    output_pose = input_pose;
-    return true;
+    return success;
 }
 } // namespace Sentry_BT
