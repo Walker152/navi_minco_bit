@@ -84,5 +84,37 @@ struct _ChassisTarget
 };
 using ChassisTarget = struct _ChassisTarget;
 
+struct _Event_Status
+{
+  float self_health;          // 自身健康值，范围0-100
+  bool own_outpost_destroyed; // 我方前哨被摧毁标志
+  bool buff_active;           // buff是否激活标志
+  struct
+  {
+    bool is_get;              // 是否检测到敌人
+    struct
+    {
+      float x;                // 敌人位置x坐标
+      float y;                // 敌人位置y坐标
+      float z;                // 敌人位置z坐标
+    } position;
+    int armor_id;             // 敌人装甲板ID
+  } enemy_detected;
+
+  _Event_Status(float _self_health, bool _own_outpost_destroyed,
+                bool _buff_active, bool _is_get, float _x, float _y,
+                float _z, int _armor_id)
+      : self_health(_self_health),
+        own_outpost_destroyed(_own_outpost_destroyed),
+        buff_active(_buff_active)
+  {
+    enemy_detected.is_get = _is_get;
+    enemy_detected.position.x = _x;
+    enemy_detected.position.y = _y;
+    enemy_detected.position.z = _z;
+    enemy_detected.armor_id = _armor_id;
+  }
+};
+using EventStatus = struct _Event_Status;
 #pragma pack(push, 1)
 #pragma pack(pop)

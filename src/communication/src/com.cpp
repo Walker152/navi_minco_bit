@@ -54,10 +54,10 @@ namespace ns_com
   // 发送底盘目标数据包到STM32,依靠两个函数
   // send2stm32 与 __send2stm32
   // 构造数据包包头
-  int Communication::send2stm32(const _ChassisTarget& data_packet)
+  int Communication::send2stm32(const ChassisTarget& data_packet)
   {
     // 设置数据包头
-    PacketHeader header(ENUM_PACKET_ARMOR_DATA, sizeof(PacketHeader) + sizeof(_ChassisTarget));
+    PacketHeader header(ENUM_PACKET_ARMOR_DATA, sizeof(PacketHeader) + sizeof(ChassisTarget));
     header.packet_type = static_cast<uint8_t>(ENUM_PACKET_NAV_DATA);
     // ？
     header.start1 = 0xa5;
@@ -135,6 +135,12 @@ namespace ns_com
           nav_publish(nav_data);
           break;
         }
+        case ENUM_PACKET_GAMESTATUS_DATA:
+        {
+          const EventStatus* event_status = (const EventStatus*)(buf + sizeof(PacketHeader));
+          game_status_publish(event_status);
+          break;
+        }
         case ENUM_PACKET_UNDEFINED:
         {
           const RefereeInfo* referee_info = (const RefereeInfo*)(buf + sizeof(PacketHeader));
@@ -192,6 +198,30 @@ namespace ns_com
     // TO DO
     (void)msg;
     pub->publish(referee_data);
+  }
+
+  void Communication::game_status_publish(const EventStatus* msg) {
+    static std::shared_ptr<rclcpp::Node> node;
+    static std::shared_ptr<rclcpp::Publisher<robot_msgs::msg::EventStatus>> pub;
+    static std::once_flag flag;
+    std::call_once(flag,
+                   []()
+                   {
+                     node = rclcpp::Node::make_shared("event_status_publisher_node");
+                     pub = node->create_publisher<robot_msgs::msg::EventStatus>("/sentry/event_status", 10);
+                   });
+
+    robot_msgs::msg::EventStatus event_status;
+    event_status.self_health = msg->self_health;
+    event_status.own_outpost_destroyed = msg->own_outpost_destroyed;
+    event_status.buff_active = msg->buff_active;
+    event_status.enemy_detected.is_get = msg->enemy_detected.is_get;
+    event_status.enemy_detected.position.x = msg->enemy_detected.position.x;
+    event_status.enemy_detected.position.y = msg->enemy_detected.position.y;
+    event_status.enemy_detected.position.z = msg->enemy_detected.position.z;
+    event_status.enemy_detected.armor_id = msg->enemy_detected.armor_id;
+    event_status.header.stamp = rclcpp::Clock().now();
+    pub->publish(event_status);
   }
 
 }  // namespace ns_com

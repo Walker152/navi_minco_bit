@@ -125,6 +125,7 @@ static inline char* packet(PacketHeader* packet_header, const char* data,
 static inline bool check(const char *data, const size_t data_len, cal_checksum_cb cb = nullptr)
 {
     // 将字节流解释为包头结构体指针，方便访问字段
+    static uint16_t dummy_checksum = 0;
     PacketHeader *header = (PacketHeader *)data;
 
     // 判断包头中的数据长度是否和实际去除包头长度相等，不等直接丢弃
@@ -150,8 +151,15 @@ static inline bool check(const char *data, const size_t data_len, cal_checksum_c
     // 核心校验逻辑
     // 将传输校验和左移1位并截断16位，与计算校验和比较是否相等
     // 若不等，校验失败
-    if (((checksum << 1) & 0xffff) != my_checksum)
-        return false;
-
+    // if (((checksum << 1) & 0xffff) != my_checksum)
+    // {
+    //   return false;
+    // }
+    if (checksum != dummy_checksum)
+    {
+      dummy_checksum = my_checksum;
+      return false;
+    }
+    dummy_checksum = my_checksum;
     return true;
 }
