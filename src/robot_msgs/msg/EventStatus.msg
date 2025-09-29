@@ -1,3 +1,4 @@
+std_msgs/Header header
 bool own_outpost_destroyed
 bool buff_active
 float32 self_health

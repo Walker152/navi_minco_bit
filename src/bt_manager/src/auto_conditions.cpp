@@ -75,11 +75,18 @@ BT::NodeStatus CheckTargetLocked::tick()
   
   auto target_armor_id = blackboard->get<int>("target_armor_id");
   auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
+  auto target_valid = blackboard->get<bool>("target_valid");
   std::cout << "Target armor ID: " << target_armor_id << std::endl;
   std::cout << "Target position: (" 
             << target_pose.position.x << ", " 
             << target_pose.position.y << ", " 
             << target_pose.position.z << ")" << std::endl;
+  
+  // 检查目标是否有效
+  if (!target_valid)
+  {
+    return BT::NodeStatus::FAILURE;
+  }
   if (target_armor_id == Sentry_BT::RobotID::Engineer)
   {
     return BT::NodeStatus::FAILURE; 
@@ -93,6 +100,7 @@ BT::NodeStatus CheckTargetLocked::tick()
       enemy_outpost_area.contains({target_pose.position.x, target_pose.position.y}) ||
       own_outpost_area.contains({target_pose.position.x, target_pose.position.y}))
   {
+    blackboard->set("target_valid", false);
     return BT::NodeStatus::SUCCESS; 
   }
   std::cout << "Target out of effective area: (" 
