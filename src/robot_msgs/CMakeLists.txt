@@ -31,6 +31,7 @@ set(msg_files
   "msg/Referee.msg"
   "msg/Detect.msg"
   "msg/EventStatus.msg"
+  "msg/TeamPos.msg"
 )
 
 # set(srv_files

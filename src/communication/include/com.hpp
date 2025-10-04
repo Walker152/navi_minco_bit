@@ -18,6 +18,7 @@
 
 #include "robot_msgs/msg/nav.hpp"
 #include "robot_msgs/msg/referee.hpp"
+#include "robot_msgs/msg/event_status.hpp"
 #include <fmt/core.h>
 #include <rclcpp/rclcpp.hpp>
 
@@ -35,7 +36,7 @@ namespace ns_com
     static void init();
 
     // 发送底盘目标数据包到STM32
-    static int send2stm32(const _ChassisTarget& data_packet);
+    static int send2stm32(const ChassisTarget& data_packet);
 
   private:
     // fd管理器
@@ -65,11 +66,15 @@ namespace ns_com
     // STM32串口数据读取回调
     static void stm32_read_cb(ByteArray arr);
 
+    // TODO 模板类型特化
     // 导航数据发布
     static void nav_publish(const NavRes* msg);
 
     // 裁判系统数据发布
     static void referee_publish(const RefereeInfo* msg);
+
+    // 战场信息数据发布
+    static void game_status_publish(const EventStatus* msg);
   };
 
 }  // namespace ns_com

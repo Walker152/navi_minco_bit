@@ -1,26 +1,19 @@
 {
-    "configurations": [
-        {
-            "browse": {
-                "databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db",
-                "limitSymbolsToIncludedHeaders": false
-            },
-            "includePath": [
-                "/home/alioth/2025-sentry-navi/install/communication/include/**",
-                "/opt/ros/humble/include/**",
-                "/home/alioth/2025-sentry-navi/src/bt_manager/include/**",
-                "/home/alioth/2025-sentry-navi/src/communication/include/**",
-                "/home/alioth/2025-sentry-navi/src/local_planner/include/**",
-                "/usr/include/**",
-                "/home/alioth/2025-sentry-navi/src/robot_msgs/include/**",
-                "${workspaceFolder}/build/robot_msgs/rosidl_generator_cpp"
-            ],
-            "name": "ros2",
-            "intelliSenseMode": "gcc-x64",
-            "compilerPath": "/usr/bin/gcc",
-            "cStandard": "gnu11",
-            "cppStandard": "c++17"
-        }
-    ],
-    "version": 4
+  "configurations": [
+    {
+      "name": "Linux",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "/opt/ros/humble/include/**",
+        "/usr/include/**"
+      ],
+      "defines": [],
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "c11",
+      "cppStandard": "c++17",
+      "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+    }
+  ],
+  "version": 4
 }

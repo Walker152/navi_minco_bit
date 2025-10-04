@@ -37,12 +37,15 @@ namespace ns_com
     double roll, pitch, yaw;
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
     auto current_yaw = static_cast<float>(yaw * 180.0 / M_PI);
-    // 构造数据包
-    // ChassisTarget target(1, 2, 3, 4, 5, 6);
-    ChassisTarget target(vx_mps, vy_mps, vw_rpm, current_yaw, gimbal_yaw_.data, odom_.pose.pose.position.y);
+    // 构造数据包 - Test
+    // ChassisTarget target(1, 2, 3, 4, 5, 6,7);
+
+    ChassisTarget target(vx_mps, vy_mps, vw_rpm, odom_.pose.pose.position.x,odom_.pose.pose.position.y, current_yaw, gimbal_yaw_.data);
+
     // 发送数据包
     com_.send2stm32(target);
-    RCLCPP_INFO(this->get_logger(), "success to send message to stm32!");
+    // std::cout << "vx: " << vx_mps << " vy: " << vy_mps << std::endl;
+    std::cout << "current_yaw: " << current_yaw << " gimbal_yaw: " << gimbal_yaw_.data << std::endl;
   }
 
   void BehavierTreeCom::odomCB(const nav_msgs::msg::Odometry::ConstSharedPtr& odomPtr)

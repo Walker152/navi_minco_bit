@@ -37,6 +37,7 @@ BT::NodeStatus PublishNavigationGoal::tick()
   if (success)
   {
     std::cout << "Published navigation goal: (" << nav_goal.x << ", " << nav_goal.y << ")" << std::endl;
+    std::cout << "-----------------------------------" << std::endl;
   }
   
   return success ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
@@ -57,6 +58,7 @@ BT::PortsList SetCoordinate::providedPorts()
 
 BT::NodeStatus SetCoordinate::tick()
 {
+  std::cout << "---------- SetCoordinate ----------" << std::endl;
   auto goal_index = getInput<int>("goal");
 
   if (goal_index.value() < 0 || goal_index.value() >= static_cast<int>(nav_points.size()))
@@ -71,6 +73,7 @@ BT::NodeStatus SetCoordinate::tick()
   blackboard->set("nav_goal", point);
   std::cout << "Set navigation goal to " << goal_names[goal_index.value()] 
             << ": (" << point.x << ", " << point.y << ")" << std::endl;
+  std::cout << "-----------------------------------" << std::endl;
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -87,6 +90,7 @@ BT::PortsList SetTargetCoordinate::providedPorts()
 
 BT::NodeStatus SetTargetCoordinate::tick()
 {
+  std::cout << "---------- SetTargetCoordinate ----------" << std::endl;
   auto blackboard = config().blackboard;
   auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
 
@@ -114,7 +118,8 @@ BT::PortsList SelectPatrolPoint::providedPorts()
 BT::NodeStatus SelectPatrolPoint::tick()
 {
   auto blackboard = config().blackboard;
-  
+
+  std::cout << "---------- SelectPatrolPoint ----------" << std::endl;
   // 获取当前巡逻索引
   int current_index = 0;
   if (auto index = blackboard->get<int>("patrol_index")) {
