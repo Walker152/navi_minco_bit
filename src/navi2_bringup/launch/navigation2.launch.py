@@ -6,21 +6,21 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
     # 获取与拼接默认路径
-    fishbot_navigation2_dir = get_package_share_directory(
+    DreamChaser_dir = get_package_share_directory(
         'navi2')
     # 官方包
     nav2_bringup_dir = get_package_share_directory('nav2_bringup')
     rviz_config_dir = os.path.join(
-        nav2_bringup_dir, 'rviz', 'nav2_default_view.rviz')
+        DreamChaser_dir,'config', 'our.rviz')
     
     # 创建 Launch 配置
     use_sim_time = launch.substitutions.LaunchConfiguration(
         'use_sim_time', default='False')
     map_yaml_path = launch.substitutions.LaunchConfiguration(
-        'map', default=os.path.join(fishbot_navigation2_dir, 'maps', 'rmuc2025.yaml'))
+        'map', default=os.path.join(DreamChaser_dir, 'maps', 'rmuc2025.yaml'))
     nav2_param_path = launch.substitutions.LaunchConfiguration(
-        'params_file', default=os.path.join(fishbot_navigation2_dir, 'params', 'sentry2.yaml'))
-        # 'params_file', default=os.path.join(fishbot_navigation2_dir, 'params', 'sentry.yaml'))
+        'params_file', default=os.path.join(DreamChaser_dir, 'params', 'sentry2.yaml'))
+        # 'params_file', default=os.path.join(DreamChaser_dir, 'params', 'sentry.yaml'))
 
     return launch.LaunchDescription([
         # 静态TF: map -> camera_init

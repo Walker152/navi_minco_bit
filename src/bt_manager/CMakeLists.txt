@@ -74,7 +74,7 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY launch
+install(DIRECTORY launch tree
   DESTINATION share/${PROJECT_NAME}
 )
 
