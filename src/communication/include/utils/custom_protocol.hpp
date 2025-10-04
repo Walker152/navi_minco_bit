@@ -35,12 +35,13 @@ enum _ArmEnum
   ENUM_ARM_BASE = 11,           // 基地
   ENUM_ARM_OUTPOST = 12,        // 前哨
   ENUM_ARM_UNDEFINED = 13,      // 未定义兵种
-  ENUM_ARM_ALL = 0xff  // 所有兵种，通常用于广播或全体标识
+  ENUM_ARM_ALL = 0xff           // 所有兵种，通常用于广播或全体标识
 };
 using ArmEnum = enum _ArmEnum;
+#pragma pack(push, 1)  // 设置内存对齐格式为1个字节
 // 1.
 // STM32to导航数据
-struct _NavRes
+struct __attribute__((packed, aligned(1))) _NavRes
 {
   float x;
   float y;
@@ -49,16 +50,18 @@ struct _NavRes
 
   // 带参构造函数，便于初始化结构体成员值
   _NavRes(float _x, float _y, float _yaw, bool _is_reach)
-      : x(_x), y(_y), yaw(_yaw), is_reach(_is_reach)
+    : x(_x)
+    , y(_y)
+    , yaw(_yaw)
+    , is_reach(_is_reach)
   {
   }
 };
 using NavRes = struct _NavRes;
 // 2.
 // 接收转发裁判系统信息
-struct _RefereeInfo
+struct __attribute__((packed, aligned(1))) _RefereeInfo
 {
-  
 };
 using RefereeInfo = struct _RefereeInfo;
 // 3.
@@ -67,22 +70,68 @@ struct _ChassisTarget
   float vx_mps;       // 前进方向速度(m/s)
   float vy_mps;       // 左侧方向速度(m/s)
   float vw_rpm;       // 小陀螺速度(rpm)
+  float current_x;    // 当前x位置(m)
+  float current_y;    // 当前y位置(m)
   float current_yaw;  // 当前朝向角(rad)
   float gimbal_yaw;   // 期望云台角
-  float current_y;    // 当前y位置(m)
 
-  _ChassisTarget(float _vx_mps, float _vy_mps, float _vw_rpm,
-                 float _current_yaw, float _gimbal_yaw, float _current_y)
-      : vx_mps(_vx_mps),
-        vy_mps(_vy_mps),
-        vw_rpm(_vw_rpm),
-        current_yaw(_current_yaw),
-        gimbal_yaw(_gimbal_yaw),
-        current_y(_current_y)
+  _ChassisTarget(float _vx_mps,
+                 float _vy_mps,
+                 float _vw_rpm,
+                 float _current_x,
+                 float _current_y,
+                 float _current_yaw,
+                 float _gimbal_yaw)
+    : vx_mps(_vx_mps)
+    , vy_mps(_vy_mps)
+    , vw_rpm(_vw_rpm)
+    , current_x(_current_x)
+    , current_y(_current_y)
+    , current_yaw(_current_yaw)
+    , gimbal_yaw(_gimbal_yaw)
   {
   }
 };
 using ChassisTarget = struct _ChassisTarget;
 
-#pragma pack(push, 1)
+struct __attribute__((packed, aligned(1))) _Event_Status
+{
+  uint16_t self_health;        // 自身健康值，范围0-400
+  bool own_outpost_destroyed;  // 我方前哨被摧毁标志
+  bool buff_active;            // buff是否激活标志
+  bool is_get;                 // 是否检测到敌人
+  float x;                     // 敌人位置x坐标
+  float y;                     // 敌人位置y坐标
+  float z;                     // 敌人位置z坐标
+  uint8_t armor_id;            // 敌人装甲板ID
+
+  float team_position[5][2];
+
+  _Event_Status(float _self_health,
+                bool _own_outpost_destroyed,
+                bool _buff_active,
+                bool _is_get,
+                float _x,
+                float _y,
+                float _z,
+                int _armor_id)
+    : self_health(_self_health)
+    , own_outpost_destroyed(_own_outpost_destroyed)
+    , buff_active(_buff_active)
+  {
+    is_get = _is_get;
+    x = _x;
+    y = _y;
+    z = _z;
+    armor_id = _armor_id;
+    memset(team_position, 0, sizeof(team_position));
+    for(int i = 0; i < 5; ++i)
+    {
+      team_position[i][0] = 0;
+      team_position[i][1] = 0;
+    }
+  }
+};
+
+using EventStatus = struct _Event_Status;
 #pragma pack(pop)

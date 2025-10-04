@@ -19,7 +19,8 @@ def generate_launch_description():
     map_yaml_path = launch.substitutions.LaunchConfiguration(
         'map', default=os.path.join(fishbot_navigation2_dir, 'maps', 'rmuc2025.yaml'))
     nav2_param_path = launch.substitutions.LaunchConfiguration(
-        'params_file', default=os.path.join(fishbot_navigation2_dir, 'params', 'sentry.yaml'))
+        'params_file', default=os.path.join(fishbot_navigation2_dir, 'params', 'sentry2.yaml'))
+        # 'params_file', default=os.path.join(fishbot_navigation2_dir, 'params', 'sentry.yaml'))
 
     return launch.LaunchDescription([
         # 静态TF: map -> camera_init
@@ -30,20 +31,20 @@ def generate_launch_description():
             arguments=['0', '0', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
-        # 静态TF: camera_init -> body
-        launch_ros.actions.Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_tf_camera_init_to_body',
-            arguments=['0', '0', '0', '0', '0', '0', 'camera_init', 'body'],
-            output='screen'),
+        # # 静态TF: camera_init -> body
+        # launch_ros.actions.Node(
+        #     package='tf2_ros',
+        #     executable='static_transform_publisher',
+        #     name='static_tf_camera_init_to_body',
+        #     arguments=['0', '0', '0', '0', '0', '0', 'camera_init', 'body'],
+        #     output='screen'),
 
         # 静态TF: body -> base_link
         launch_ros.actions.Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name='static_tf_body_to_base_link',
-            arguments=['0', '0', '0', '0', '0', '0', 'body', 'base_link'],
+            arguments=['0', '0.15', '0', '0', '0', '0', 'body', 'base_link'],
             output='screen'),
         # 声明新的 Launch 参数
         launch.actions.DeclareLaunchArgument('use_sim_time', default_value=use_sim_time,
