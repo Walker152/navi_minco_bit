@@ -19,6 +19,7 @@ int main(int argc, char const *argv[])
     Sentry_BT::BTManager bt_manager;
 
     auto pkg_share_dir = ament_index_cpp::get_package_share_directory("bt_manager");
+    std::cout << "Package share directory: " << pkg_share_dir << std::endl;
     std::string xml_file_path = pkg_share_dir + "/tree/nav_tree.xml";
   
     if (!bt_manager.initialize(xml_file_path, bt_blackboard))
