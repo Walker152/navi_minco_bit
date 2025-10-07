@@ -30,7 +30,7 @@ namespace ns_com
     //
     geometry_msgs::msg::Twist cmd_vel_;
     nav_msgs::msg::Odometry odom_;
-    std_msgs::msg::Float32 gimbal_yaw_;
+    std_msgs::msg::Float32 gimbal_yaw_ ;
     // 数据链路层
     Communication com_;
   };

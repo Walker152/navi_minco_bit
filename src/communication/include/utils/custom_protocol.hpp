@@ -74,6 +74,7 @@ struct _ChassisTarget
   float current_y;    // 当前y位置(m)
   float current_yaw;  // 当前朝向角(rad)
   float gimbal_yaw;   // 期望云台角
+  uint8_t is_use_mid360;
 
   _ChassisTarget(float _vx_mps,
                  float _vy_mps,
@@ -81,7 +82,10 @@ struct _ChassisTarget
                  float _current_x,
                  float _current_y,
                  float _current_yaw,
-                 float _gimbal_yaw)
+                 float _gimbal_yaw,
+                uint8_t _is_use_mid360
+                
+                )
     : vx_mps(_vx_mps)
     , vy_mps(_vy_mps)
     , vw_rpm(_vw_rpm)
@@ -89,6 +93,7 @@ struct _ChassisTarget
     , current_y(_current_y)
     , current_yaw(_current_yaw)
     , gimbal_yaw(_gimbal_yaw)
+    , is_use_mid360(_is_use_mid360)
   {
   }
 };
@@ -97,6 +102,7 @@ using ChassisTarget = struct _ChassisTarget;
 struct __attribute__((packed, aligned(1))) _Event_Status
 {
   uint16_t self_health;        // 自身健康值，范围0-400
+  uint16_t num_shoot;
   bool own_outpost_destroyed;  // 我方前哨被摧毁标志
   bool buff_active;            // buff是否激活标志
   bool is_get;                 // 是否检测到敌人
@@ -107,7 +113,9 @@ struct __attribute__((packed, aligned(1))) _Event_Status
 
   float team_position[5][2];
 
+
   _Event_Status(float _self_health,
+                uint16_t _num_shoot,
                 bool _own_outpost_destroyed,
                 bool _buff_active,
                 bool _is_get,
@@ -116,6 +124,7 @@ struct __attribute__((packed, aligned(1))) _Event_Status
                 float _z,
                 int _armor_id)
     : self_health(_self_health)
+    , num_shoot(_num_shoot)
     , own_outpost_destroyed(_own_outpost_destroyed)
     , buff_active(_buff_active)
   {

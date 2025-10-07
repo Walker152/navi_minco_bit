@@ -29,7 +29,8 @@ namespace ns_com
 
     float vx_mps = cmd_vel_.linear.x;
     float vy_mps = cmd_vel_.linear.y;
-    float vw_rpm = 3.14;
+    float vw_rpm = 60;
+    // float vw_rpm = 30;
     // 计算雷达 yaw
     // 计算当前 yaw 发给 current_yaw
     tf2::Quaternion q;
@@ -39,13 +40,24 @@ namespace ns_com
     auto current_yaw = static_cast<float>(yaw * 180.0 / M_PI);
     // 构造数据包 - Test
     // ChassisTarget target(1, 2, 3, 4, 5, 6,7);
-
-    ChassisTarget target(vx_mps, vy_mps, vw_rpm, odom_.pose.pose.position.x,odom_.pose.pose.position.y, current_yaw, gimbal_yaw_.data);
+    if(std::sqrt(vx_mps * vx_mps + vy_mps * vy_mps) <= 0.5)
+    {
+      vw_rpm = 0;
+    }
+    ChassisTarget target(vx_mps,
+                         vy_mps,
+                         vw_rpm,
+                         odom_.pose.pose.position.x,
+                         odom_.pose.pose.position.y,
+                         current_yaw,
+                         gimbal_yaw_.data,
+                         0);
 
     // 发送数据包
     com_.send2stm32(target);
     // std::cout << "vx: " << vx_mps << " vy: " << vy_mps << std::endl;
-    std::cout << "current_yaw: " << current_yaw << " gimbal_yaw: " << gimbal_yaw_.data << std::endl;
+    // std::cout << "current_yaw: " << current_yaw << " gimbal_yaw: " << gimbal_yaw_.data << std::endl;
+    std::cout << "vx: " << vx_mps << " vy: " << vy_mps << "  vw:" << vw_rpm << std::endl;
   }
 
   void BehavierTreeCom::odomCB(const nav_msgs::msg::Odometry::ConstSharedPtr& odomPtr)
