@@ -33,7 +33,7 @@ ros_interface::~ros_interface()
 void ros_interface::eventCallback(const robot_msgs::msg::EventStatus::SharedPtr msg)
 {
     // 更新黑板中的数据
-    blackboard_->set<float>("health", msg->self_health);
+    blackboard_->set<float>("health", ((int)msg->self_health)/4.0);
     blackboard_->set<bool>("outpost_destroyed", msg->own_outpost_destroyed);
     blackboard_->set<bool>("bonus_active", msg->buff_active);
     blackboard_->set<bool>("target_valid", msg->enemy_detected.is_get);
@@ -46,7 +46,7 @@ void ros_interface::eventCallback(const robot_msgs::msg::EventStatus::SharedPtr 
         target_pose_in.position.z = msg->enemy_detected.position.z;
         TransformPose(target_pose_in, target_pose);
         target_pose.orientation.w = 1.0; // 设置默认朝向
-        blackboard_->set<int>("target_armor_id", msg->enemy_detected.armor_id);
+        blackboard_->set<int>("target_armor_id", (int)msg->enemy_detected.armor_id);
         blackboard_->set<geometry_msgs::msg::Pose>("target_pose", target_pose);
     }
     

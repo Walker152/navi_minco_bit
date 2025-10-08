@@ -3,21 +3,23 @@
     "editor.rulers": [
         100
     ],
-    "python.analysis.extraPaths": [
-        "/home/alioth/2025-sentry-navi/install/robots_msgs/local/lib/python3.10/dist-packages",
-        "/home/alioth/2025-sentry-navi/install/application/lib/python3.10/site-packages",
-        "/opt/intel/openvino/python",
-        "/opt/intel/openvino/python/python3",
-        "/opt/ros/humble/lib/python3.10/site-packages",
-        "/opt/ros/humble/local/lib/python3.10/dist-packages"
-    ],
-    "python.autoComplete.extraPaths": [
-        "/home/alioth/2025-sentry-navi/install/robots_msgs/local/lib/python3.10/dist-packages",
-        "/home/alioth/2025-sentry-navi/install/robot_msgs/local/lib/python3.10/dist-packages",
-        "/home/alioth/2025-sentry-navi/install/application/lib/python3.10/site-packages",
-        "/opt/intel/openvino/python",
-        "/opt/intel/openvino/python/python3",
-        "/opt/ros/humble/lib/python3.10/site-packages",
-        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    "ros.distro": "humble",
+    "search.exclude": {
+        "**/build": true,
+        "**/install": true,
+        "**/log": true
+    },
+
+    "C_Cpp.codeAnalysis.clangTidy.enabled": true,
+    "[cpp]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+        "editor.formatOnSave": true
+    },
+
+    "clangd.path": "/usr/bin/clangd",
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}",
+        "--background-index",
+        "--header-insertion=never"
     ]
 }

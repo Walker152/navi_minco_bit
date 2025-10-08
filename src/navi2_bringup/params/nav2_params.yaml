@@ -43,7 +43,7 @@ bt_navigator:
   ros__parameters:
     use_sim_time: True
     global_frame: map
-    robot_base_frame: base_link
+    robot_base_frame: "aft_mapped"
     odom_topic: /odom
     bt_loop_duration: 10
     default_server_timeout: 20
@@ -111,6 +111,7 @@ bt_navigator_navigate_to_pose_rclcpp_node:
 
 controller_server:
   ros__parameters:
+    robot_base_frame:""
     use_sim_time: True
     controller_frequency: 20.0
     min_x_velocity_threshold: 0.001

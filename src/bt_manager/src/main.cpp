@@ -2,6 +2,7 @@
 #include "bt_manager/ros_interface.hpp"
 #include <rclcpp/rclcpp.hpp>
 #include <thread>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
 int main(int argc, char const *argv[])
 {
@@ -16,7 +17,11 @@ int main(int argc, char const *argv[])
     bt_blackboard->set("ros_interface", ros_interface_node);
 
     Sentry_BT::BTManager bt_manager;
-    std::string xml_file_path = "/home/alioth/2025-sentry-navi/src/bt_manager/tree/nav_tree.xml";
+
+    auto pkg_share_dir = ament_index_cpp::get_package_share_directory("bt_manager");
+    std::cout << "Package share directory: " << pkg_share_dir << std::endl;
+    std::string xml_file_path = pkg_share_dir + "/tree/nav_tree.xml";
+  
     if (!bt_manager.initialize(xml_file_path, bt_blackboard))
     {
         RCLCPP_ERROR(bt_node->get_logger(), "Failed to initialize BTManager with XML file: %s", xml_file_path.c_str());

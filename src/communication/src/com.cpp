@@ -59,7 +59,7 @@ namespace ns_com
     // 设置数据包头
     PacketHeader header(ENUM_PACKET_ARMOR_DATA, sizeof(PacketHeader) + sizeof(ChassisTarget));
     header.packet_type = static_cast<uint8_t>(ENUM_PACKET_NAV_DATA);
-    // ？
+    //
     header.start1 = 0xa5;
     header.start2 = 0x5a;
     header.from = static_cast<uint8_t>(ArmEnum::ENUM_ARM_SENTRY);
@@ -97,6 +97,14 @@ namespace ns_com
         return;
 
       char* buf = (char*)stm32_recv_buffer.get();
+      // fmt::print("stm32_recv_buffer size: {}\n", stm32_recv_buffer.size());
+      // // print buffer in hex
+      // fmt::print("Buffer: ");
+      // for(size_t i = 0; i < stm32_recv_buffer.size(); ++i)
+      // {
+      //   fmt::print("{:02X} ", (uint8_t)buf[i]);
+      // }
+      // fmt::print("\n");
       int start_idx = -1;
       for(size_t i = 0; i + 1 < stm32_recv_buffer.size(); ++i)
       {
@@ -118,14 +126,20 @@ namespace ns_com
         buf = (char*)stm32_recv_buffer.get();
       }
       if(stm32_recv_buffer.size() < sizeof(PacketHeader))
+      {
         return;
-
+      }
       PacketHeader* header = (PacketHeader*)buf;
-      int full_len = sizeof(PacketHeader) + header->data_len;
+      size_t full_len = sizeof(PacketHeader) + header->data_len;
+
       if(stm32_recv_buffer.size() < full_len)
+      {
         return;
+      }
       if(check(buf, full_len))
       {
+        // std::cout << "[COM] Received packet type: " << std::dec << (int)header->packet_type
+        //           << ", length: " << std::dec << (int)header->data_len << std::endl;
         switch(header->packet_type)
         {
         // 校验通过
@@ -133,18 +147,30 @@ namespace ns_com
         {
           const NavRes* nav_data = (const NavRes*)(buf + sizeof(PacketHeader));
           nav_publish(nav_data);
+          // fmt::print("[SUCCESS] Reveive Nav Goal\n");
           break;
         }
+
         case ENUM_PACKET_GAMESTATUS_DATA:
         {
           const EventStatus* event_status = (const EventStatus*)(buf + sizeof(PacketHeader));
+          // fmt::print("Event Status: self_health={}, own_outpost_destroyed={}, buff_active={}, "
+          //            "enemy_detected.is_get={}, enemy_detected.position=({}, {}, {}), enemy_detected.armor_id={}\n",
+          //            event_status->self_health,
+          //            event_status->own_outpost_destroyed,
+          //            event_status->buff_active,
+          //            event_status->is_get,
+          //            event_status->x,
+          //            event_status->y,
+          //            event_status->z,
+          //            event_status->armor_id);
+          // fmt::print("Team Positions:\n");
+          // for(int i = 0; i < 5; ++i)
+          // {
+          //   fmt::print("  Robot {}: (x={}, y={})\n", i + 1, event_status->team_position[i][0], event_status->team_position[i][1]);
+          // }
           game_status_publish(event_status);
-          break;
-        }
-        case ENUM_PACKET_UNDEFINED:
-        {
-          const RefereeInfo* referee_info = (const RefereeInfo*)(buf + sizeof(PacketHeader));
-          referee_publish(referee_info);
+          // fmt::print("[SUCCESS] Reveive GameStatus Data\n");
           break;
         }
         default:
@@ -153,7 +179,7 @@ namespace ns_com
       }
       else
       {
-        fmt::print(stderr, "[COM] Warning: Checksum incorrect\n");
+        //  fmt::print(stderr, "[COM] 警告: 校验和错误 (包类型: {})\n", header->packet_type);
       }
       stm32_recv_buffer = stm32_recv_buffer.sub(full_len);
     }
@@ -200,28 +226,45 @@ namespace ns_com
     pub->publish(referee_data);
   }
 
-  void Communication::game_status_publish(const EventStatus* msg) {
+  void Communication::game_status_publish(const EventStatus* msg)
+  {
     static std::shared_ptr<rclcpp::Node> node;
     static std::shared_ptr<rclcpp::Publisher<robot_msgs::msg::EventStatus>> pub;
+    static std::shared_ptr<rclcpp::Publisher<robot_msgs::msg::Referee>> pub_team_position;
+
     static std::once_flag flag;
     std::call_once(flag,
                    []()
                    {
                      node = rclcpp::Node::make_shared("event_status_publisher_node");
                      pub = node->create_publisher<robot_msgs::msg::EventStatus>("/sentry/event_status", 10);
+                     pub_team_position = node->create_publisher<robot_msgs::msg::Referee>("/sentry/team_position", 10);
                    });
 
     robot_msgs::msg::EventStatus event_status;
     event_status.self_health = msg->self_health;
     event_status.own_outpost_destroyed = msg->own_outpost_destroyed;
     event_status.buff_active = msg->buff_active;
-    event_status.enemy_detected.is_get = msg->enemy_detected.is_get;
-    event_status.enemy_detected.position.x = msg->enemy_detected.position.x;
-    event_status.enemy_detected.position.y = msg->enemy_detected.position.y;
-    event_status.enemy_detected.position.z = msg->enemy_detected.position.z;
-    event_status.enemy_detected.armor_id = msg->enemy_detected.armor_id;
+    event_status.enemy_detected.is_get = msg->is_get;
+    event_status.enemy_detected.position.x = msg->x;
+    event_status.enemy_detected.position.y = msg->y;
+    event_status.enemy_detected.position.z = msg->z;
+    event_status.enemy_detected.armor_id = msg->armor_id;
+    // ADD Delay ？？
     event_status.header.stamp = rclcpp::Clock().now();
     pub->publish(event_status);
+    // publish team position
+    robot_msgs::msg::Referee team_position_msg;
+    for(int i = 0; i < 5; ++i)
+    {
+      robot_msgs::msg::TeamPos team_pos;
+      // team_position 是 float[5][2] 数组，[i][0] 是 x坐标，[i][1] 是 y坐标
+      team_pos.x = msg->team_position[i][0];
+      team_pos.y = msg->team_position[i][1];
+      team_position_msg.team.push_back(team_pos);
+    }
+    team_position_msg.header.stamp = rclcpp::Clock().now();
+    pub_team_position->publish(team_position_msg);
   }
 
 }  // namespace ns_com
