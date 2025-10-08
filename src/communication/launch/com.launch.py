@@ -6,7 +6,7 @@ def generate_launch_description():
         Node(
             package='com',
             executable='com',
-            name='com_sentry',
+            name='com_sentry12',
             output='screen',
             respawn=True
         )

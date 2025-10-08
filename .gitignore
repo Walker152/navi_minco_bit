@@ -5,5 +5,7 @@ log/
 __pycache__/
 *.pyc
 *.tar.gz
+*.egg-info/
+cmake-build-*/
+build-*/
 .cache
-.vscode

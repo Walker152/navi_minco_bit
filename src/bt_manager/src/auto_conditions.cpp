@@ -21,6 +21,7 @@ BT::PortsList CheckRetreatCondition::providedPorts()
 
 BT::NodeStatus CheckRetreatCondition::tick()
 {
+  std::cout << "---------- CheckRetreatCondition ----------" << std::endl;
   auto blackboard = config().blackboard;
   // 从XML获取健康阈值和恢复阈值
   auto health_threshold_ = getInput<float>("health_threshold");
@@ -34,7 +35,7 @@ BT::NodeStatus CheckRetreatCondition::tick()
 
   auto health = blackboard->get<float>("health");
   auto current_mode = blackboard->get<int>("current_mode");
-
+  std::cout << "Current mode: " << current_mode << ", Health: " << health << std::endl;
   // 如果已经在撤退模式，检查是否应该继续撤退
   if (current_mode == Sentry_BT::NavMode::RETREAT) 
   {
@@ -71,6 +72,7 @@ BT::PortsList CheckTargetLocked::providedPorts()
 
 BT::NodeStatus CheckTargetLocked::tick()
 {
+  std::cout << "---------- CheckTargetLocked ----------" << std::endl;
   auto blackboard = config().blackboard;
   
   auto target_armor_id = blackboard->get<int>("target_armor_id");
@@ -100,7 +102,8 @@ BT::NodeStatus CheckTargetLocked::tick()
       enemy_outpost_area.contains({target_pose.position.x, target_pose.position.y}) ||
       own_outpost_area.contains({target_pose.position.x, target_pose.position.y}))
   {
-    blackboard->set("target_valid", false);
+    blackboard->set<bool>("target_valid", false);
+    blackboard->set<int>("current_mode", Sentry_BT::NavMode::ATTACK);
     return BT::NodeStatus::SUCCESS; 
   }
   std::cout << "Target out of effective area: (" 
@@ -121,6 +124,7 @@ BT::PortsList CheckFortBonusActive::providedPorts()
 
 BT::NodeStatus CheckFortBonusActive::tick()
 {
+  std::cout << "---------- CheckFortBonusActive ----------" << std::endl;
   auto blackboard = config().blackboard;
   
   auto bonus_active = blackboard->get<bool>("bonus_active");
@@ -142,6 +146,7 @@ BT::PortsList CheckNavStatus::providedPorts()
 
 BT::NodeStatus CheckNavStatus::tick()
 {
+  std::cout << "---------- CheckNavStatus ----------" << std::endl;
   auto blackboard = config().blackboard;
   // 从黑板获取导航状态
   auto nav_status = blackboard->get<int>("nav_status");
@@ -169,6 +174,7 @@ BT::PortsList CheckIfRetreating::providedPorts()
 
 BT::NodeStatus CheckIfRetreating::tick()
 {
+  std::cout << "---------- CheckIfRetreating ----------" << std::endl;
   auto blackboard = config().blackboard;
 
   // 从黑板获取当前模式

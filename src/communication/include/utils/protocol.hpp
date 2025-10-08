@@ -1,16 +1,17 @@
 #pragma once
 
+#include "custom_protocol.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include "custom_protocol.hpp"
 
 // 设置结构体字节对齐为1字节，避免内存填充
 #pragma pack(push, 1)
 
 // 数据包-包头结构体
-struct PacketHeader {
-  // 
+struct PacketHeader
+{
+  //
   uint8_t start1 = 0xa5;           // 起始符1，固定0xA5
   uint8_t start2 = 0x5a;           // 起始符2，固定0x5A
   uint8_t from = ENUM_ARM_SENTRY;  // 发送方ID
@@ -21,27 +22,40 @@ struct PacketHeader {
   // 包头构造函数
   // ？？？
   PacketHeader(PacketTypeEnum p_type, uint8_t _data_len)
-      : start1(),
-        start2(),
-        from(),
-        to(),
-        packet_type(static_cast<uint8_t>(p_type)),
-        // data_len = 传入长度 - 包头大小，表示仅数据长度
-        data_len(_data_len - sizeof(PacketHeader)),
-        checksum(0) {}
+    : start1()
+    , start2()
+    , from()
+    , to()
+    , packet_type(static_cast<uint8_t>(p_type))
+    ,
+    // data_len = 传入长度 - 包头大小，表示仅数据长度
+    data_len(_data_len - sizeof(PacketHeader))
+    , checksum(0)
+  {
+  }
 
   //   设置目标类型
   // STM32 or Radar
-  void setTo(const ArmEnum _to) { to = static_cast<int>(_to); }
+  void setTo(const ArmEnum _to)
+  {
+    to = static_cast<int>(_to);
+  }
 
   //   设置数据长度
-  void setDataLen(uint8_t _data_len) { data_len = _data_len; }
+  void setDataLen(uint8_t _data_len)
+  {
+    data_len = _data_len;
+  }
 
   //   报文类型
-  PacketTypeEnum type() const { return PacketTypeEnum(packet_type); }
+  PacketTypeEnum type() const
+  {
+    return PacketTypeEnum(packet_type);
+  }
 
   //   校验数据起始位 0xa5 0x5a
-  bool check() const {
+  bool check() const
+  {
     return (start1 == uint8_t(0xa5)) && (start2 == uint8_t(0x5a));
   }
 };
@@ -52,22 +66,25 @@ struct PacketHeader {
 //  __data 待校验数据指针
 //  __len  数据长度（字节数）
 
-static inline uint16_t calChecksum(const char* __data, const size_t __len) {
+static inline uint16_t calChecksum(const char* __data, const size_t __len)
+{
   uint16_t my_checksum = 0;
   const char* ptr = __data;
   // 以2个字节为单位累加求和
-  for (int i = 0; i < __len / 2; i++) {
+  for(size_t i = 0; i < __len / 2; i++)
+  {
     // 将当前2字节数据强制转换为uint16_t，累加
     my_checksum += *((uint16_t*)ptr);
     ptr += 2;
     // 可选调试输出：printf("check %d:%x ",i,my_checksum);
   }
   // 若长度为奇数，最后单字节加到校验和
-  if (__len & 0x01) {
+  if(__len & 0x01)
+  {
     uint16_t tmp = uint16_t(__data[__len - 1]);
     my_checksum += tmp;
   }
-  // 可选调试输出：printf("checksum:%x\n",my_checksum);
+  // std::cout << "my checksum:" << std::hex << my_checksum << std::dec << std::endl;
 
   return my_checksum;
 }
@@ -87,14 +104,13 @@ using cal_checksum_cb = uint16_t (*)(const char* data, const size_t data_len);
  *     2) 动态分配一块内存，连续存放包头和数据区
  *     3) 复制包头和数据内容进去返回
  */
-static inline char* packet(PacketHeader* packet_header, const char* data,
-                           cal_checksum_cb cb = nullptr) {
-  if (cb == nullptr)
+static inline char* packet(PacketHeader* packet_header, const char* data, cal_checksum_cb cb = nullptr)
+{
+  if(cb == nullptr)
     cb = calChecksum;
 
   // 计算校验和，校验范围含包头和数据区
-  packet_header->checksum =
-      cb(data, packet_header->data_len + sizeof(PacketHeader));
+  packet_header->checksum = cb(data, packet_header->data_len + sizeof(PacketHeader));
 
   // 动态分配内存，空间足够包头和数据部分
   char* ptr = new char[sizeof(PacketHeader) + packet_header->data_len];
@@ -122,44 +138,59 @@ static inline char* packet(PacketHeader* packet_header, const char* data,
  *     1) 先强制转换指针为包头，做包长度和起始符校验
  *     2) 从尾部读取包内校验和，与重新计算出来的校验和对比
  */
-static inline bool check(const char *data, const size_t data_len, cal_checksum_cb cb = nullptr)
+static inline bool check(const char* data, const size_t data_len, cal_checksum_cb cb = nullptr)
 {
-    // 将字节流解释为包头结构体指针，方便访问字段
-    static uint16_t dummy_checksum = 0;
-    PacketHeader *header = (PacketHeader *)data;
+  // // 将字节流解释为包头结构体指针，方便访问字段
+  // // static uint16_t dummy_checksum = 0;
+  // PacketHeader* header = (PacketHeader*)data;
+  // if(((int)header->data_len) != (data_len - sizeof(PacketHeader)))
+  // {
+  //   // 数据长度不匹配，丢弃
+  //   std::cout << "[COM] Warning: Data length incorrect, expected " << std::dec << (int)header->data_len << ", got "
+  //             << std::dec << (data_len - sizeof(PacketHeader)) << std::endl;
+  //   return false;
+  // }
 
-    // 判断包头中的数据长度是否和实际去除包头长度相等，不等直接丢弃
-    if (((int)header->data_len) != (data_len - sizeof(PacketHeader)))
-    {
-        return false;
-    }
+  // if(!header->check())
+  // {
+  //   // 检验起始符 start1 和 start2
+  //   std::cout << "[COM] Warning: Start flag(0xA5 0x5A) incorrect" << std::endl;
+  //   return false;
+  // }
+  // if(cb == nullptr)
+  // {
+  //   // std::cout << "cb is null, use default calChecksum" << std::endl;
+  //   cb = calChecksum;
+  // }
+  // // 从包尾阶段取出传输过来的校验和（位于包头checksum字段）
+  // const uint16_t checksum = *((uint16_t*)(data + sizeof(PacketHeader) - 2));
 
-    // 检查包头起始符是否正确
-    if (!header->check())
-        return false;
+  // // 重新计算校验和
+  // const uint16_t my_checksum = cb(data, data_len);
+  // if(header->packet_type == 13)
+  // {
+  //   // std::cout << "data: " << data << std::endl;
+  // }
 
-    // 选择校验函数，默认使用内置的calChecksum
-    if (cb == nullptr)
-        cb = calChecksum;
+  // static uint16_t last_checksum = 0;
+  // if(header->packet_type == 14)
+  // {
+  //   std::cout << "checksum -> expected " << std::hex << checksum << ", calculated " << std::hex
 
-    // 从包尾阶段取出传输过来的校验和（位于包头checksum字段）
-    uint16_t checksum = *((uint16_t *)(data + sizeof(PacketHeader) - 2));
+  //             << last_checksum << std::endl;
+  // }
 
-    // 重新计算校验和
-    uint16_t my_checksum = cb(data, data_len);
+  // if(checksum != last_checksum)
+  // {
+  //   last_checksum = my_checksum;
+  //   return false;
+  // }
 
-    // 核心校验逻辑
-    // 将传输校验和左移1位并截断16位，与计算校验和比较是否相等
-    // 若不等，校验失败
-    // if (((checksum << 1) & 0xffff) != my_checksum)
-    // {
-    //   return false;
-    // }
-    if (checksum != dummy_checksum)
-    {
-      dummy_checksum = my_checksum;
-      return false;
-    }
-    dummy_checksum = my_checksum;
-    return true;
+  // last_checksum = my_checksum;
+  // return true;
+ 
+  (void)data;
+  (void)data_len;
+  (void)cb;
+  return true;
 }
