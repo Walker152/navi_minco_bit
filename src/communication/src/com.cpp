@@ -167,7 +167,8 @@ namespace ns_com
           // fmt::print("Team Positions:\n");
           // for(int i = 0; i < 5; ++i)
           // {
-          //   fmt::print("  Robot {}: (x={}, y={})\n", i + 1, event_status->team_position[i][0], event_status->team_position[i][1]);
+          //   fmt::print("  Robot {}: (x={}, y={})\n", i + 1, event_status->team_position[i][0],
+          //   event_status->team_position[i][1]);
           // }
           game_status_publish(event_status);
           // fmt::print("[SUCCESS] Reveive GameStatus Data\n");
@@ -231,6 +232,7 @@ namespace ns_com
     static std::shared_ptr<rclcpp::Node> node;
     static std::shared_ptr<rclcpp::Publisher<robot_msgs::msg::EventStatus>> pub;
     static std::shared_ptr<rclcpp::Publisher<robot_msgs::msg::Referee>> pub_team_position;
+    static std::shared_ptr<rclcpp::Publisher<std_msgs::msg::Float32>> gimbal_yaw_pub;
 
     static std::once_flag flag;
     std::call_once(flag,
@@ -239,20 +241,23 @@ namespace ns_com
                      node = rclcpp::Node::make_shared("event_status_publisher_node");
                      pub = node->create_publisher<robot_msgs::msg::EventStatus>("/sentry/event_status", 10);
                      pub_team_position = node->create_publisher<robot_msgs::msg::Referee>("/sentry/team_position", 10);
+                     gimbal_yaw_pub = node->create_publisher<std_msgs::msg::Float32>("/sentry/gimbal_yaw", 10);
                    });
-
+    std::cout << "gimbal:" << msg->gimbal_yaw << "+" << msg->game_status << std::endl;
     robot_msgs::msg::EventStatus event_status;
     event_status.self_health = msg->self_health;
     event_status.own_outpost_destroyed = msg->own_outpost_destroyed;
+    event_status.enemy_outpost_health = msg->enemy_outpost_health;
     event_status.buff_active = msg->buff_active;
     event_status.enemy_detected.is_get = msg->is_get;
     event_status.enemy_detected.position.x = msg->x;
     event_status.enemy_detected.position.y = msg->y;
     event_status.enemy_detected.position.z = msg->z;
     event_status.enemy_detected.armor_id = msg->armor_id;
+    event_status.game_status = msg->game_status;
     // ADD Delay ？？
     event_status.header.stamp = rclcpp::Clock().now();
-    pub->publish(event_status);
+    // pub->publish(event_status);
     // publish team position
     robot_msgs::msg::Referee team_position_msg;
     for(int i = 0; i < 5; ++i)
@@ -265,6 +270,10 @@ namespace ns_com
     }
     team_position_msg.header.stamp = rclcpp::Clock().now();
     pub_team_position->publish(team_position_msg);
+
+    std_msgs::msg::Float32 gimbal_yaw;
+    gimbal_yaw.data = msg->gimbal_yaw;
+    gimbal_yaw_pub->publish(gimbal_yaw);
   }
 
 }  // namespace ns_com

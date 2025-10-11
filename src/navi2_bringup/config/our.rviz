@@ -83,7 +83,7 @@ Visualization Manager:
         camera_init:
           Value: true
         gimbal:
-          Value: false
+          Value: true
         map:
           Value: false
       Marker Scale: 1

@@ -18,7 +18,8 @@ namespace ns_com
         "/aft_mapped_to_init", 1, [this](const nav_msgs::msg::Odometry::ConstSharedPtr& msg) { this->odomCB(msg); });
     gimbal_yaw_sub_ = this->create_subscription<std_msgs::msg::Float32>(
         "/gimbal_yaw", 1, [this](const std_msgs::msg::Float32::ConstSharedPtr& msg) { this->desiredYawCB(msg); });
-
+    outpost_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+        "/sentry/outpost_status", 1, [this](const std_msgs::msg::Bool::ConstSharedPtr& msg) { this->outpostCB(msg); });
     RCLCPP_INFO(this->get_logger(), "\nGot /cmd_vel message");
   }
 
@@ -29,7 +30,9 @@ namespace ns_com
 
     float vx_mps = cmd_vel_.linear.x;
     float vy_mps = cmd_vel_.linear.y;
-    float vw_rpm = 60;
+    float vw_rpm = 90;
+    float current_x = odom_.pose.pose.position.x;
+    float current_y = odom_.pose.pose.position.y;
     // float vw_rpm = 30;
     // 计算雷达 yaw
     // 计算当前 yaw 发给 current_yaw
@@ -40,10 +43,11 @@ namespace ns_com
     auto current_yaw = static_cast<float>(yaw * 180.0 / M_PI);
     // 构造数据包 - Test
     // ChassisTarget target(1, 2, 3, 4, 5, 6,7);
-    if(std::sqrt(vx_mps * vx_mps + vy_mps * vy_mps) <= 0.5)
+    if(std::sqrt(current_x * current_x + current_y * current_y) < 0.3)
     {
       vw_rpm = 0;
     }
+
     ChassisTarget target(vx_mps,
                          vy_mps,
                          vw_rpm,
@@ -51,13 +55,15 @@ namespace ns_com
                          odom_.pose.pose.position.y,
                          current_yaw,
                          gimbal_yaw_.data,
-                         0);
+                         0,
+                         outpost_status_);
 
     // 发送数据包
     com_.send2stm32(target);
     // std::cout << "vx: " << vx_mps << " vy: " << vy_mps << std::endl;
     // std::cout << "current_yaw: " << current_yaw << " gimbal_yaw: " << gimbal_yaw_.data << std::endl;
     std::cout << "vx: " << vx_mps << " vy: " << vy_mps << "  vw:" << vw_rpm << std::endl;
+    std::cout << "is_aim_outpost: " << (outpost_status_ ? "true" : "false") << std::endl;
   }
 
   void BehavierTreeCom::odomCB(const nav_msgs::msg::Odometry::ConstSharedPtr& odomPtr)
@@ -70,4 +76,8 @@ namespace ns_com
     gimbal_yaw_ = *yawPtr;
   }
 
+  void BehavierTreeCom::outpostCB(const std_msgs::msg::Bool::ConstSharedPtr& outpostPtr)
+  {
+    outpost_status_ = outpostPtr->data;
+  }
 }  // namespace ns_com
