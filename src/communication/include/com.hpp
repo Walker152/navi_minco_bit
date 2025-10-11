@@ -19,6 +19,7 @@
 #include "robot_msgs/msg/nav.hpp"
 #include "robot_msgs/msg/referee.hpp"
 #include "robot_msgs/msg/event_status.hpp"
+#include <std_msgs/msg/float32.hpp>
 #include <fmt/core.h>
 #include <rclcpp/rclcpp.hpp>
 
