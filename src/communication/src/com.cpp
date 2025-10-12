@@ -257,7 +257,7 @@ namespace ns_com
     event_status.game_status = msg->game_status;
     // ADD Delay ？？
     event_status.header.stamp = rclcpp::Clock().now();
-    // pub->publish(event_status);
+    pub->publish(event_status);
     // publish team position
     robot_msgs::msg::Referee team_position_msg;
     for(int i = 0; i < 5; ++i)

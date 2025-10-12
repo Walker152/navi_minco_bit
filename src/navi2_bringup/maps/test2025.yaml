@@ -1,6 +1,6 @@
 image: ./test2025.pgm
 resolution: 0.010000
-origin: [-25.600000, -5.000000, 0]
+origin: [-33.600000, -3.000000, 0]
 # origin: [-25.600000, -6.000000, 1.57]
 negate: 0
 occupied_thresh: 0.65

@@ -1,6 +1,6 @@
 
 
-# MID360
+# # MID360
 source ~/ws_livox/install/setup.bash
 sleep 1s
 gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_MID360_launch.py ; exec bash"
