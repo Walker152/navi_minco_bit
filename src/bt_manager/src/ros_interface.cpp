@@ -13,7 +13,7 @@ namespace Sentry_BT
         [this](const robot_msgs::msg::EventStatus::SharedPtr msg) { this->eventCallback(msg); });
 
     odom_sub = this->create_subscription<nav_msgs::msg::Odometry>("/odom",
-                                                                10,
+                                                                  10,
                                                                   [this](const nav_msgs::msg::Odometry::SharedPtr msg)
                                                                   {
                                                                     // 更新当前位置
@@ -49,7 +49,7 @@ namespace Sentry_BT
   void ros_interface::eventCallback(const robot_msgs::msg::EventStatus::SharedPtr msg)
   {
     // 更新黑板中的数据
-    blackboard_->set<float>("health", ((int)msg->self_health) / 4.0);
+    blackboard_->set<float>("health", ((int)msg->self_health));
     blackboard_->set<bool>("own_outpost_destroyed", msg->own_outpost_destroyed);
     blackboard_->set<int>("enemy_outpost_health", msg->enemy_outpost_health);
     blackboard_->set<bool>("bonus_active", msg->buff_active);
@@ -59,12 +59,14 @@ namespace Sentry_BT
     if(msg->enemy_detected.is_get)
     {
       geometry_msgs::msg::Pose target_pose_in, target_pose;
-      target_pose_in.position.x = msg->enemy_detected.position.x;
-      target_pose_in.position.y = msg->enemy_detected.position.y;
-      target_pose_in.position.z = msg->enemy_detected.position.z;
+      target_pose_in.position.x = (msg->enemy_detected.position.x) / 1000.0;  // 转换为米
+      target_pose_in.position.y = (msg->enemy_detected.position.y) / 1000.0;
+      target_pose_in.position.z = (msg->enemy_detected.position.z) / 1000.0;
       TransformPose(target_pose_in, target_pose);
       target_pose.orientation.w = 1.0;  // 设置默认朝向
       blackboard_->set<int>("target_armor_id", (int)msg->enemy_detected.armor_id);
+      // RCLCPP_INFO(this->get_logger(), "发送敌人id: %d", (int)msg->enemy_detected.armor_id);
+      //  std::cout << "Target armor ID formal: " << (int)msg->enemy_detected.armor_id << std::endl;
       blackboard_->set<geometry_msgs::msg::Pose>("target_pose", target_pose);
     }
 
@@ -149,20 +151,20 @@ namespace Sentry_BT
     // 执行坐标转换
     bool success = transform_utils->transformPoseToBaseLink(input_pose, output_pose);
 
-    if(success)
-    {
-      RCLCPP_INFO(this->get_logger(),
-                  "坐标转换成功: (%.2f, %.2f) -> (%.2f, %.2f)",
-                  input_pose.position.x,
-                  input_pose.position.y,
-                  output_pose.position.x,
-                  output_pose.position.y);
-    }
-    else
-    {
-      RCLCPP_ERROR(this->get_logger(), "坐标转换失败");
-      output_pose = input_pose;  // 失败时返回原始坐标
-    }
+    // if(success)
+    // {
+    //   RCLCPP_INFO(this->get_logger(),
+    //               "坐标转换成功: (%.2f, %.2f) -> (%.2f, %.2f)",
+    //               input_pose.position.x,
+    //               input_pose.position.y,
+    //               output_pose.position.x,
+    //               output_pose.position.y);
+    // }
+    // else
+    // {
+    //   RCLCPP_ERROR(this->get_logger(), "坐标转换失败");
+    //   output_pose = input_pose;  // 失败时返回原始坐标
+    // }
 
     return success;
   }

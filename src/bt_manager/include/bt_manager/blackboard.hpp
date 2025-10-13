@@ -20,7 +20,7 @@ namespace Sentry_BT
       blackboard_ = BT::Blackboard::create();
 
       // 初始化黑板变量
-      blackboard_->set("health", 400.0f);                                   // 初始生命值
+      blackboard_->set("health", 350.0f);                                   // 初始生命值
       blackboard_->set("my_outpost_destroyed", false);                      // 前哨站状态
       blackboard_->set("enemy_outpost_health", 1500);                       // 敌方前哨站状态
       blackboard_->set("target_valid", false);                              // 目标锁定状态
