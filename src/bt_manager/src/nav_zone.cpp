@@ -3,16 +3,17 @@
 namespace Sentry_BT
 {
   std::vector<Point2D> nav_points = {
-      {-0, 0},  // HOME
-      // {-1.8, -4.7},   // HOME
+      //{-1.8, -4.7},   // HOME
+      {-2.5, -5.5},  //HOME
       {5.0, 5.0},  // BONUS
+      //{-3, 5.5}
       {9.8, 3.0}  // OUTPOST
-      //{1.0, 3.2} //TEST  
+      //{1.0, 3.2} //TEST  -
   };
 
   std::vector<Point2D> patrol_points_normal = {
       //{1.0, 3.2} //TEST  
-      
+      //{-2.5, -5.5},
       {2, -2.0},
       {10.3, 4.0},
       {10.5, -4.0},

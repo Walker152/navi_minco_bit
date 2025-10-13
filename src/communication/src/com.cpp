@@ -230,7 +230,7 @@ namespace ns_com
   void Communication::game_status_publish(const EventStatus* msg)
   {
     static std::shared_ptr<rclcpp::Node> node;
-    static std::shared_ptr<rclcpp::Publisher<robot_msgs::msg::EventStatus>> pub;
+    static std::shared_ptr<rclcpp::Publisher<robot_msgs::msg::EventStatus>>  pub;
     static std::shared_ptr<rclcpp::Publisher<robot_msgs::msg::Referee>> pub_team_position;
     static std::shared_ptr<rclcpp::Publisher<std_msgs::msg::Float32>> gimbal_yaw_pub;
 
@@ -246,6 +246,7 @@ namespace ns_com
     std::cout << "gimbal:" << msg->gimbal_yaw << "+" << msg->game_status << std::endl;
     robot_msgs::msg::EventStatus event_status;
     event_status.self_health = msg->self_health;
+    std::cout << "self_health:" << event_status.self_health << std::endl;
     event_status.own_outpost_destroyed = msg->own_outpost_destroyed;
     event_status.enemy_outpost_health = msg->enemy_outpost_health;
     event_status.buff_active = msg->buff_active;
