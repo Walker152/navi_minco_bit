@@ -30,7 +30,8 @@ namespace ns_com
 
     float vx_mps = cmd_vel_.linear.x;
     float vy_mps = cmd_vel_.linear.y;
-    float vw_rpm = 90;
+    float vw_rpm = 0;
+    // float vw_rpm = 90;
     float current_x = odom_.pose.pose.position.x;
     float current_y = odom_.pose.pose.position.y;
     // float vw_rpm = 30;
@@ -43,11 +44,11 @@ namespace ns_com
     auto current_yaw = static_cast<float>(yaw * 180.0 / M_PI);
     // 构造数据包 - Test
     // ChassisTarget target(1, 2, 3, 4, 5, 6,7);
-    if(std::sqrt((current_x-(-2.5)) * (current_x-(-2.5)) + (current_y-(-5.5)) * (current_y-(-5.5))) < 0.3)
+    if(std::sqrt((current_x-(0.0)) * (current_x-(0.0)) + (current_y-(-6.0)) * (current_y-(-6.0))) < 0.3)
     {
       vw_rpm = 0;
     }
-    if(current_x > 5 && current_x < 8 && current_y > -4.5 && current_y < -3)
+    if(current_x > 5.5 && current_x < 8.5 && current_y > -6.0 && current_y < -4.5)
     {
       vw_rpm = 0;
     }
