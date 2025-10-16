@@ -56,7 +56,7 @@ int main(int argc, char** argv)
               << ", enemy: " << (msg.enemy_detected.is_get ? "true" : "false")
               << ", outpost: " << (msg.own_outpost_destroyed ? "true" : "false")
               << ", enemy_outpost_health: " << msg.enemy_outpost_health << std::endl;
-    count++;
+    count += 5;
     RCLCPP_INFO(node->get_logger(), "Published test EventStatus");
     rclcpp::spin_some(node);
     rate.sleep();

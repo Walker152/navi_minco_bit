@@ -93,7 +93,7 @@ namespace Sentry_BT
 
     Sentry_BT::Area_Square highland_area = {{6.7, 2.0}, {13.0, -1.8}};
     Sentry_BT::Area_Square enemy_outpost_area = {{8.5, 4.5}, {11.5, 2.8}};
-    Sentry_BT::Area_Square own_outpost_area = {{8.5, -2.7}, {11.5, -4.2}};
+    Sentry_BT::Area_Square own_outpost_area = {{8.5, -2.7}, {11.5, -4.2}};//待修改
 
     if(highland_area.contains({target_pose.position.x, target_pose.position.y}) ||
        enemy_outpost_area.contains({target_pose.position.x, target_pose.position.y}) ||

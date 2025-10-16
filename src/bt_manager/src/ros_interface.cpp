@@ -9,11 +9,11 @@ namespace Sentry_BT
     // 订阅事件状态话题
     event_sub = this->create_subscription<robot_msgs::msg::EventStatus>(
         "/sentry/event_status",
-        10,
+        1,
         [this](const robot_msgs::msg::EventStatus::SharedPtr msg) { this->eventCallback(msg); });
 
     odom_sub = this->create_subscription<nav_msgs::msg::Odometry>("/odom",
-                                                                  10,
+                                                                  1,
                                                                   [this](const nav_msgs::msg::Odometry::SharedPtr msg)
                                                                   {
                                                                     // 更新当前位置
@@ -22,13 +22,14 @@ namespace Sentry_BT
 
     // 定时发布前哨站状态
     timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(500),
+        std::chrono::milliseconds(100),
         [this]()
         {
           auto current_mode = blackboard_->get<int>("current_mode");
           std_msgs::msg::Bool outpost_msg;
+          /*std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) < 1.0*/
           if(current_mode == Sentry_BT::NavMode::RESPONSE &&
-             std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) < 1.0)
+             current_pose_.position.x > 10.2 && current_pose_.position.x < 14.4 && current_pose_.position.y > -1.0 && current_pose_.position.y < 3.0)
           {
             outpost_msg.data = true;
             outpost_pub->publish(outpost_msg);
