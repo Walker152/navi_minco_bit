@@ -1,5 +1,3 @@
-
-
 # # MID360
 source ~/ws_livox/install/setup.bash
 sleep 1s
@@ -18,6 +16,10 @@ gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bas
 sleep 0.5s
 # COM
 gnome-terminal -- bash -c "ros2 launch com com.launch.py; exec bash"
-sleep 0.5s
+sleep 3s
+
+# gnome-terminal -- bash -c "cd /home/rm/rosbag && ros2 bag record --all; exec bash"
+
+
 
 # tODESK

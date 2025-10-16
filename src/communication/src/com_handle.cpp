@@ -34,6 +34,8 @@ namespace ns_com
     // float vw_rpm = 90;
     float current_x = odom_.pose.pose.position.x;
     float current_y = odom_.pose.pose.position.y;
+    float current_z = odom_.pose.pose.position.z;
+    (void)current_z;
     // float vw_rpm = 30;
     // 计算雷达 yaw
     // 计算当前 yaw 发给 current_yaw
@@ -44,11 +46,11 @@ namespace ns_com
     auto current_yaw = static_cast<float>(yaw * 180.0 / M_PI);
     // 构造数据包 - Test
     // ChassisTarget target(1, 2, 3, 4, 5, 6,7);
-    if(std::sqrt((current_x-(0.0)) * (current_x-(0.0)) + (current_y-(-6.0)) * (current_y-(-6.0))) < 0.3)
+    if(current_x > 8.0)
     {
-      vw_rpm = 0;
+      vw_rpm = 90;
     }
-    if(current_x > 5.5 && current_x < 8.5 && current_y > -6.0 && current_y < -4.5)
+    if(std::sqrt((current_x - (0.0)) * (current_x - (0.0)) + (current_y - (-6.5)) * (current_y - (-6.5))) < 1.0)
     {
       vw_rpm = 0;
     }

@@ -113,7 +113,7 @@ controller_server:
       transform_tolerance: 0.1
       min_max_sum_error: 1.0
       # 前瞻点 2m
-      lookahead_dist: 0.10
+      lookahead_dist: 0.20
       use_velocity_scaled_lookahead_dist: true # 根据速度调整前瞻点距离
       lookahead_time: 1.0
       min_lookahead_dist: 0.5

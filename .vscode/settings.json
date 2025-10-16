@@ -21,5 +21,6 @@
         "--compile-commands-dir=${workspaceFolder}",
         "--background-index",
         "--header-insertion=never"
-    ]
+    ],
+    "cmake.sourceDirectory": "/home/rm/sentry/src/bt_manager"
 }
