@@ -27,9 +27,10 @@ namespace Sentry_BT
         {
           auto current_mode = blackboard_->get<int>("current_mode");
           std_msgs::msg::Bool outpost_msg;
-          /*std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) < 1.0*/
+          /*current_mode == Sentry_BT::NavMode::RESPONSE &&
+             current_pose_.position.x > 10.2 && current_pose_.position.x < 14.4 && current_pose_.position.y > -1.0 && current_pose_.position.y < 3.0*/
           if(current_mode == Sentry_BT::NavMode::RESPONSE &&
-             current_pose_.position.x > 10.2 && current_pose_.position.x < 14.4 && current_pose_.position.y > -1.0 && current_pose_.position.y < 3.0)
+             std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) < 1.0)
           {
             outpost_msg.data = true;
             outpost_pub->publish(outpost_msg);
@@ -50,14 +51,15 @@ namespace Sentry_BT
   void ros_interface::eventCallback(const robot_msgs::msg::EventStatus::SharedPtr msg)
   {
     // 更新黑板中的数据
-    blackboard_->set<float>("health", ((int)msg->self_health));
+    blackboard_->set<float>("health", ((int)msg->self_health / 4));
     blackboard_->set<bool>("own_outpost_destroyed", msg->own_outpost_destroyed);
     blackboard_->set<int>("enemy_outpost_health", msg->enemy_outpost_health);
     blackboard_->set<bool>("bonus_active", msg->buff_active);
     blackboard_->set<bool>("target_valid", msg->enemy_detected.is_get);
-
+   
     // 更新目标位置
-    if(msg->enemy_detected.is_get)
+    // if(msg->enemy_detected.is_get)
+    if(false)
     {
       geometry_msgs::msg::Pose target_pose_in, target_pose;
       target_pose_in.position.x = (msg->enemy_detected.position.x) / 1000.0;  // 转换为米

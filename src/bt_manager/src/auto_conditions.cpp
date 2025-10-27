@@ -93,7 +93,7 @@ namespace Sentry_BT
 
     Sentry_BT::Area_Square highland_area = {{6.7, 2.0}, {13.0, -1.8}};
     Sentry_BT::Area_Square enemy_outpost_area = {{8.5, 4.5}, {11.5, 2.8}};
-    Sentry_BT::Area_Square own_outpost_area = {{8.5, -2.7}, {11.5, -4.2}};//待修改
+    Sentry_BT::Area_Square own_outpost_area = {{8.5, -2.7}, {11.5, -4.2}};  //待修改
 
     if(highland_area.contains({target_pose.position.x, target_pose.position.y}) ||
        enemy_outpost_area.contains({target_pose.position.x, target_pose.position.y}) ||
@@ -127,7 +127,7 @@ namespace Sentry_BT
     auto enemy_outpost_health = blackboard->get<int>("enemy_outpost_health");
     std::cout << "Enemy outpost health: " << enemy_outpost_health << std::endl;
     // 如果前哨站还在，切换到响应模式
-    if(enemy_outpost_health > 0)
+    if(enemy_outpost_health >= 0)
     {
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::RESPONSE);
       std::cout << "Enemy outpost health: " << enemy_outpost_health << std::endl;
@@ -157,7 +157,7 @@ namespace Sentry_BT
 
     std::cout << "Current navigation status: " << current_nav_status[nav_status] << std::endl;
     // 只有当导航空闲或失败时，才允许选择新的巡逻点
-    if(nav_status == Sentry_BT::NavStatus::IDLE)
+    if(nav_status == Sentry_BT::NavStatus::IDLE || nav_status == Sentry_BT::NavStatus::FAILURE)
     {
       return BT::NodeStatus::SUCCESS;
     }

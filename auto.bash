@@ -1,1 +1,1 @@
-gnome-terminal -- bash -c "bash ~/sentry/start.bash; exec bash"
+gnome-terminal -- bash -c "bash ~/sentry/start.bash; exec bash"·
