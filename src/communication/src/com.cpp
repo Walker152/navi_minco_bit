@@ -245,9 +245,9 @@ namespace ns_com
                    });
     std::cout << "gimbal:" << msg->gimbal_yaw << "+" << msg->game_status << std::endl;
     robot_msgs::msg::EventStatus event_status;
-    std::cout << "self_health:" << event_status.self_health << std::endl;
     event_status.own_outpost_destroyed = msg->own_outpost_destroyed;
-    event_status.enemy_outpost_health = msg->enemy_outpost_health;
+    event_status.enemy_outpost_health = 1000;
+    // event_status.enemy_outpost_health = msg->enemy_outpost_health;
     event_status.buff_active = msg->buff_active;
     event_status.enemy_detected.is_get = msg->is_get;
     event_status.enemy_detected.position.x = msg->x;
@@ -256,9 +256,10 @@ namespace ns_com
     event_status.enemy_detected.armor_id = msg->armor_id;
     event_status.game_status = msg->game_status;
     event_status.self_health = msg->self_health;
+    std::cout << "self_health:" << event_status.self_health << std::endl;
     if(msg->num_shoot < 50)
     {
-     event_status.self_health = 50;
+      event_status.self_health = 50;
     }
     // ADD Delay ？？
     event_status.header.stamp = rclcpp::Clock().now();

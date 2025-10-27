@@ -115,6 +115,7 @@ struct __attribute__((packed, aligned(1))) _Event_Status
   uint8_t armor_id;            // 敌人装甲板ID
   
   float team_position[5][2];
+  // 
   bool game_status;
   float gimbal_yaw;
 

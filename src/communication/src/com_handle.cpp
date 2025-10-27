@@ -54,6 +54,10 @@ namespace ns_com
     {
       vw_rpm = 0;
     }
+    if(std::sqrt((current_x - (12.2)) * (current_x - (12.2)) + (current_y - (0.65)) * (current_y - (0.65))) < 1.0)
+    {
+      outpost_status_ = true;
+    }
     ChassisTarget target(vx_mps,
                          vy_mps,
                          vw_rpm,

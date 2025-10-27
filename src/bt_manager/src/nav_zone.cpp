@@ -3,7 +3,7 @@
 namespace Sentry_BT
 {
   std::vector<Point2D> nav_points = {
-      {0.0, -6.0},  //HOME
+      {0.0, -6.25},  //HOME
       {5.5, 3.5},  // BONUS
       //{-3, 5.5}
       {12.2, 0.65}  // OUTPOST
@@ -18,20 +18,20 @@ namespace Sentry_BT
       {14.0, 4.91},
       {19.2, 5.10},
       {14.1, 4.77},
-      {8.9, -0.02},
+      {8.9, -0.2},
       {10.7, -4.8}
       
   };
 
   std::vector<int> patrol_points_milliseconds = {
       10000,
-      2000,
+      500,
       500,
       10000,
-      2000,
-      12000,
-      2000,
       500,
+      12000,
+      500,
+      12000,
       500
   };
 

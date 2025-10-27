@@ -6,9 +6,9 @@ bt_navigator:
     odom_topic: /aft_mapped_to_init
     bt_loop_duration: 10
     # 行为树超时时间，秒
-    default_server_timeout: 1000
+    default_server_timeout: 50
     # 毫秒
-    wait_for_service_timeout: 1000
+    wait_for_service_timeout: 5000
     # 'default_nav_through_poses_bt_xml' and 'default_nav_to_pose_bt_xml' are use defaults:
     # nav2_bt_navigator/navigate_to_pose_w_replanning_and_recovery.xml
     # nav2_bt_navigator/navigate_through_poses_w_replanning_and_recovery.xml
@@ -113,7 +113,7 @@ controller_server:
       transform_tolerance: 0.1
       min_max_sum_error: 1.0
       # 前瞻点 2m
-      lookahead_dist: 0.20
+      lookahead_dist: 0.5
       use_velocity_scaled_lookahead_dist: true # 根据速度调整前瞻点距离
       lookahead_time: 1.0
       min_lookahead_dist: 0.5
@@ -198,8 +198,8 @@ local_costmap:
 global_costmap:
   global_costmap:
     ros__parameters:
-      update_frequency: 50.0
-      publish_frequency: 50.0
+      update_frequency: 20.0
+      publish_frequency: 20.0
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: False
