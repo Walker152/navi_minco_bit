@@ -9,10 +9,10 @@
         <WaitUntilStopped name="WaitUntilHome" />
       </Sequence>
       
-      <!-- 前哨站打击模式 -->
-      <Sequence name="OutpostResponse">
+      <!-- 战场响应模式 -->
+      <Sequence name="BattlefieldResponse">
         <CheckIfRetreating name="CheckIfRetreating"/>
-        <CheckOutpostRemained name="CheckOutpostRemained" />
+        <CheckFortBonusActive name="CheckFortBonusActive" />
         <SetCoordinate name="SetResponseCoordinate" goal="2" />
         <PublishNavigationGoal name="PublishResponseGoal" />
       </Sequence>
@@ -34,7 +34,6 @@
           <SelectPatrolPoint name="SelectPatrolPoint" />
           <PublishNavigationGoal name="PublishPatrolGoal" />
           <WaitUntilStopped name="WaitAfterNavigation" />
-          <Wait name="PostNavigationWait" />
         </Sequence>
       </Fallback>
     </Fallback>
