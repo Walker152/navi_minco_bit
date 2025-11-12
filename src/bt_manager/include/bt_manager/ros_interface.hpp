@@ -18,6 +18,7 @@
 #include "bt_manager/blackboard.hpp"
 #include "bt_manager/tf_utils.hpp"
 #include "nav_zone.hpp"
+
 namespace Sentry_BT
 {   
     class ros_interface: public rclcpp::Node
@@ -28,6 +29,7 @@ namespace Sentry_BT
         std::shared_ptr<Blackboard> blackboard_;
 
         int nav_status_;
+        double last_health_;
         void eventCallback(const robot_msgs::msg::EventStatus::SharedPtr msg);
         
     public:
@@ -38,4 +40,3 @@ namespace Sentry_BT
         bool TransformPose(const geometry_msgs::msg::Pose & input_pose, geometry_msgs::msg::Pose & output_pose);
     };
 }
-    
