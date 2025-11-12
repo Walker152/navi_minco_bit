@@ -4,15 +4,17 @@ bt_navigator:
     global_frame: map
     robot_base_frame: "base_link"
     odom_topic: /aft_mapped_to_init
-    bt_loop_duration: 10
+    bt_loop_duration: 10 # ms
     # 行为树超时时间，秒
-    default_server_timeout: 50
+    default_server_timeout: 20
     # 毫秒
-    wait_for_service_timeout: 5000
+    wait_for_service_timeout: 1000
     # 'default_nav_through_poses_bt_xml' and 'default_nav_to_pose_bt_xml' are use defaults:
     # nav2_bt_navigator/navigate_to_pose_w_replanning_and_recovery.xml
     # nav2_bt_navigator/navigate_through_poses_w_replanning_and_recovery.xml
     # They can be set here or via a RewrittenYaml remap from a parent launch file to Nav2.
+    default_nav_through_poses_bt_xml: /home/rm/sentry/src/navi2_bringup/behavior_tree/navigate_through_pose_w_replanning_and_recovery.xml
+    default_nav_to_pose_bt_xml: /home/rm/sentry/src/navi2_bringup/behavior_tree/navigate_to_pose_w_replanning_and_recovery.xml
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
       - nav2_compute_path_through_poses_action_bt_node
@@ -112,7 +114,7 @@ controller_server:
       # TF 超时时间，全局坐标系 && 机器人坐标系
       transform_tolerance: 0.1
       min_max_sum_error: 1.0
-      # 前瞻点 2m
+      # 前瞻点 
       lookahead_dist: 0.5
       use_velocity_scaled_lookahead_dist: true # 根据速度调整前瞻点距离
       lookahead_time: 1.0
@@ -124,8 +126,8 @@ controller_server:
       min_approach_linear_velocity: 0.5
       approach_velocity_scaling_dist: 1.0
       # 速度限制
-      v_linear_min: -2.5
-      v_linear_max: 2.5
+      v_linear_min: -1.0
+      v_linear_max: 1.0
       v_angular_min: -3.0
       v_angular_max: 3.0
       curvature_min: 0.4                                # 低曲率阈值，低于此值不减速。
@@ -135,11 +137,84 @@ controller_server:
       curvature_backward_dist: 0.3                      # 后向距离，用于曲率计算
       max_velocity_scaling_factor_rate: 0.9             # 速度缩放因子的最大变化率
 
+    # FollowPath:
+    #   plugin: "nav2_mppi_controller::MPPIController"
+    #   time_steps: 56
+    #   model_dt: 0.05
+    #   batch_size: 2000
+    #   vx_std: 0.6
+    #   vy_std: 0.6
+    #   wz_std: 0.0
+    #   vx_max: 1.4
+    #   vx_min: -1.4
+    #   vy_max: 1.4
+    #   wz_max: 0.0
+    #   iteration_count: 1
+    #   prune_distance: 1.7
+    #   transform_tolerance: 0.1
+    #   temperature: 0.3
+    #   gamma: 0.015
+    #   motion_model: "Omni"
+    #   visualize: false
+    #   reset_period: 1.0 # (only in Humble)
+    #   TrajectoryVisualizer:
+    #     trajectory_step: 5
+    #     time_step: 3
+    #   AckermannConstrains:
+    #     min_turning_r: 0.2
+    #   critics: ["ObstaclesCritic", "GoalCritic", "PathAlignCritic", "PathFollowCritic", "PathAngleCritic", "PreferForwardCritic"]
+    #   GoalCritic:
+    #     enabled: true
+    #     cost_power: 1
+    #     cost_weight: 5.0
+    #     threshold_to_consider: 1.0
+    #   PreferForwardCritic:
+    #     enabled: true
+    #     cost_power: 1
+    #     cost_weight: 5.0
+    #     threshold_to_consider: 0.4
+    #   ObstaclesCritic:
+    #     enabled: true
+    #     cost_power: 1
+    #     repulsion_weight: 1.5
+    #     critical_weight: 20.0
+    #     consider_footprint: false
+    #     collision_cost: 100.0
+    #     collision_margin_distance: 0.1
+    #     near_goal_distance: 0.5
+    #     inflation_radius: 0.4 # (only in Humble)
+    #     cost_scaling_factor: 10.0 # (only in Humble)
+    #   PathAlignCritic:
+    #     enabled: true
+    #     cost_power: 1
+    #     cost_weight: 14.0
+    #     max_path_occupancy_ratio: 0.05
+    #     trajectory_point_step: 3
+    #     threshold_to_consider: 0.40
+    #     offset_from_furthest: 20
+    #   PathFollowCritic:
+    #     enabled: true
+    #     cost_power: 1
+    #     cost_weight: 5.0
+    #     offset_from_furthest: 5
+    #     threshold_to_consider: 0.6
+    #   PathAngleCritic:
+    #     enabled: true
+    #     cost_power: 1
+    #     cost_weight: 2.0
+    #     offset_from_furthest: 4
+    #     threshold_to_consider: 0.40
+    #     max_angle_to_furthest: 1.0
+    #   # TwirlingCritic:
+    #   #   enabled: true
+    #   #   twirling_cost_power: 1
+    #   #   twirling_cost_weight: 10.0
+
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 20.0
-      publish_frequency: 20.0
+      update_frequency: 10.0
+      publish_frequency: 10.0
       global_frame: camera_init
       robot_base_frame: base_link
       use_sim_time: False
@@ -147,7 +222,8 @@ local_costmap:
       width: 7
       height: 7
       resolution: 0.05
-      robot_radius: 0.22
+      # robot_radius: 0.22
+      robot_radius: 0.3
       plugins: ["static_layer", "stvl_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
@@ -155,11 +231,11 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.4
+        inflation_radius: 0.5
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
-        voxel_decay: 1.
+        voxel_decay: 0.8
         decay_model: 0
         voxel_size: 0.05
         track_unknown_space: true
@@ -203,7 +279,8 @@ global_costmap:
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: False
-      robot_radius: 0.22
+      # robot_radius: 0.22
+      robot_radius: 0.3
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "stvl_layer", "inflation_layer"]
@@ -213,11 +290,11 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.20
+        inflation_radius: 0.50
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
-        voxel_decay: 1.
+        voxel_decay: 0.5
         decay_model: 0
         voxel_size: 0.15
         track_unknown_space: true
@@ -275,7 +352,7 @@ planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"
-      tolerance: 0.5
+      tolerance: 0.1
       use_astar: True
       allow_unknown: True
 

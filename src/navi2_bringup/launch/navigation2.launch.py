@@ -20,7 +20,7 @@ def generate_launch_description():
         'map', default=os.path.join(DreamChaser_dir, 'maps', 'rmuc2025.yaml'))
     nav2_param_path = launch.substitutions.LaunchConfiguration(
         'params_file', default=os.path.join(DreamChaser_dir, 'params', 'sentry2.yaml'))
-        # 'params_file', default=os.path.join(DreamChaser_dir, 'params', 'sentry.yaml'))
+        # 'params_file', default=os.path.join(DreamChaser_dir, 'params', 'nav2_params_revise.yaml'))
 
     return launch.LaunchDescription([
         # 静态TF: map -> camera_init

@@ -186,7 +186,7 @@ namespace Sentry_BT
   {
     auto blackboard = config().blackboard;
     // 检查导航状态
-    auto nav_status = blackboard->get<int>("nav_status");
+    auto nav_status  = blackboard->get<int>("nav_status");
 
     std::cout << "Current navigation status: " << current_nav_status[nav_status] << std::endl;
     // 如果导航已经停止，返回成功

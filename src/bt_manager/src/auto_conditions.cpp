@@ -127,7 +127,7 @@ namespace Sentry_BT
     auto enemy_outpost_health = blackboard->get<int>("enemy_outpost_health");
     std::cout << "Enemy outpost health: " << enemy_outpost_health << std::endl;
     // 如果前哨站还在，切换到响应模式
-    if(enemy_outpost_health >= 0)
+    if(enemy_outpost_health > 0)
     {
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::RESPONSE);
       std::cout << "Enemy outpost health: " << enemy_outpost_health << std::endl;
