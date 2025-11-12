@@ -28,11 +28,18 @@ namespace Sentry_BT
           auto current_mode = blackboard_->get<int>("current_mode");
           std_msgs::msg::Bool outpost_msg;
           /*current_mode == Sentry_BT::NavMode::RESPONSE &&
-             current_pose_.position.x > 10.2 && current_pose_.position.x < 14.4 && current_pose_.position.y > -1.0 && current_pose_.position.y < 3.0*/
+             current_pose_.position.x > 10.2 && current_pose_.position.x < 14.4 && current_pose_.position.y > -1.0 &&
+             current_pose_.position.y < 3.0*/
           if(current_mode == Sentry_BT::NavMode::RESPONSE &&
              std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) < 1.0)
           {
             outpost_msg.data = true;
+            outpost_pub->publish(outpost_msg);
+          }
+          else if(std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) >=
+                  1.0)
+          {
+            outpost_msg.data = false;
             outpost_pub->publish(outpost_msg);
           }
         });
@@ -56,7 +63,7 @@ namespace Sentry_BT
     blackboard_->set<int>("enemy_outpost_health", msg->enemy_outpost_health);
     blackboard_->set<bool>("bonus_active", msg->buff_active);
     blackboard_->set<bool>("target_valid", msg->enemy_detected.is_get);
-   
+
     // 更新目标位置
     // if(msg->enemy_detected.is_get)
     if(false)

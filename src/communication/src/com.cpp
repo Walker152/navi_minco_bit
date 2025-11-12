@@ -243,7 +243,7 @@ namespace ns_com
                      pub_team_position = node->create_publisher<robot_msgs::msg::Referee>("/sentry/team_position", 10);
                      gimbal_yaw_pub = node->create_publisher<std_msgs::msg::Float32>("/sentry/gimbal_yaw", 10);
                    });
-    std::cout << "gimbal:" << msg->gimbal_yaw << "+" << msg->game_status << std::endl;
+    // std::cout << "gimbal:" << msg->gimbal_yaw << "+" << msg->game_status << std::endl;
     robot_msgs::msg::EventStatus event_status;
     event_status.own_outpost_destroyed = msg->own_outpost_destroyed;
     event_status.enemy_outpost_health = 1000;
@@ -256,11 +256,11 @@ namespace ns_com
     event_status.enemy_detected.armor_id = msg->armor_id;
     event_status.game_status = msg->game_status;
     event_status.self_health = msg->self_health;
-    std::cout << "self_health:" << event_status.self_health << std::endl;
-    if(msg->num_shoot < 50)
-    {
-      event_status.self_health = 50;
-    }
+    // std::cout << "self_health:" << event_status.self_health << std::endl;
+    // if(msg->num_shoot < 50)
+    // {
+    //   event_status.self_health = 50;
+    // }
     // ADD Delay ？？
     event_status.header.stamp = rclcpp::Clock().now();
     pub->publish(event_status);
