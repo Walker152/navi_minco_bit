@@ -75,6 +75,7 @@ struct _ChassisTarget
   float current_yaw;  // 当前朝向角(rad)
   float gimbal_yaw;   // 期望云台角
   uint8_t is_use_mid360;
+  bool is_aim_outpost; // 是否瞄准前哨站
 
   _ChassisTarget(float _vx_mps,
                  float _vy_mps,
@@ -83,8 +84,8 @@ struct _ChassisTarget
                  float _current_y,
                  float _current_yaw,
                  float _gimbal_yaw,
-                uint8_t _is_use_mid360
-                
+                 uint8_t _is_use_mid360,
+                 bool _is_aim_outpost
                 )
     : vx_mps(_vx_mps)
     , vy_mps(_vy_mps)
@@ -94,6 +95,7 @@ struct _ChassisTarget
     , current_yaw(_current_yaw)
     , gimbal_yaw(_gimbal_yaw)
     , is_use_mid360(_is_use_mid360)
+    , is_aim_outpost(_is_aim_outpost)
   {
   }
 };
@@ -104,29 +106,40 @@ struct __attribute__((packed, aligned(1))) _Event_Status
   uint16_t self_health;        // 自身健康值，范围0-400
   uint16_t num_shoot;
   bool own_outpost_destroyed;  // 我方前哨被摧毁标志
+  uint16_t enemy_outpost_health; // 敌方前哨健康值
   bool buff_active;            // buff是否激活标志
   bool is_get;                 // 是否检测到敌人
   float x;                     // 敌人位置x坐标
   float y;                     // 敌人位置y坐标
   float z;                     // 敌人位置z坐标
   uint8_t armor_id;            // 敌人装甲板ID
-
+  
   float team_position[5][2];
+  // 
+  bool game_status;
+  float gimbal_yaw;
 
 
   _Event_Status(float _self_health,
                 uint16_t _num_shoot,
                 bool _own_outpost_destroyed,
+                uint16_t _enemy_outpost_health,
                 bool _buff_active,
                 bool _is_get,
                 float _x,
                 float _y,
                 float _z,
-                int _armor_id)
+                int _armor_id,
+                bool _game_status,
+                float _gimbal_yaw
+              )
     : self_health(_self_health)
     , num_shoot(_num_shoot)
     , own_outpost_destroyed(_own_outpost_destroyed)
+    , enemy_outpost_health(_enemy_outpost_health)
     , buff_active(_buff_active)
+    , game_status(_game_status)
+    , gimbal_yaw(_gimbal_yaw)
   {
     is_get = _is_get;
     x = _x;

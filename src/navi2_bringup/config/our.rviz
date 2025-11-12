@@ -15,6 +15,7 @@ Panels:
   - Class: rviz_common/Tool Properties
     Expanded:
       - /Publish Point1
+      - /2D Goal Pose1
     Name: Tool Properties
     Splitter Ratio: 0.5886790156364441
   - Class: rviz_common/Views
@@ -82,8 +83,6 @@ Visualization Manager:
           Value: true
         camera_init:
           Value: true
-        gimbal:
-          Value: false
         map:
           Value: false
       Marker Scale: 1
@@ -96,8 +95,7 @@ Visualization Manager:
           camera_init:
             body:
               base_link:
-                gimbal:
-                  {}
+                {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -385,6 +383,13 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /clicked_point
     - Class: nav2_rviz_plugins/GoalTool
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: goal_pose
   Transformation:
     Current:
       Class: rviz_default_plugins/TF
@@ -392,25 +397,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 3.9127378463745117
+      Distance: 25.350704193115234
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.31454581022262573
-        Y: -0.18619079887866974
-        Z: 0.4516697824001312
+        X: 6.9187211990356445
+        Y: -3.05696439743042
+        Z: 2.1755056381225586
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3397970199584961
+      Pitch: 1.3497965335845947
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 2.8885676860809326
+      Yaw: 3.0635688304901123
     Saved: ~
 Window Geometry:
   Displays:
@@ -428,5 +433,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1545
-  X: 347
-  Y: 212
+  X: 476
+  Y: 110

@@ -19,10 +19,10 @@ private:
   double health_threshold;
 };
 
-class CheckFortBonusActive : public BT::ConditionNode
+class CheckOutpostRemained : public BT::ConditionNode
 {
 public:
-  CheckFortBonusActive(const std::string& name, const BT::NodeConfiguration& config);
+  CheckOutpostRemained(const std::string& name, const BT::NodeConfiguration& config);
   
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
