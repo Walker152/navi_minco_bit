@@ -62,5 +62,4 @@ bool TransformUtils::transformPoseToBaseLink(const geometry_msgs::msg::Pose& inp
         return false;
     }
 }
-
 } // namespace Sentry_BT

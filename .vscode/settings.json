@@ -21,5 +21,28 @@
         "--compile-commands-dir=${workspaceFolder}",
         "--background-index",
         "--header-insertion=never"
-    ]
+    ],
+    "python.autoComplete.extraPaths": [
+        "/opt/intel/openvino/python",
+        "/opt/intel/openvino/python/python3",
+        "/home/alioth/2025-sentry-navi/install/robots_msgs/local/lib/python3.10/dist-packages",
+        "/home/alioth/2025-sentry-navi/install/robot_msgs/local/lib/python3.10/dist-packages",
+        "/home/alioth/2025-sentry-navi/install/application/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/opt/intel/openvino/python",
+        "/opt/intel/openvino/python/python3",
+        "/home/alioth/2025-sentry-navi/install/robots_msgs/local/lib/python3.10/dist-packages",
+        "/home/alioth/2025-sentry-navi/install/robot_msgs/local/lib/python3.10/dist-packages",
+        "/home/alioth/2025-sentry-navi/install/application/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "files.associations": {
+        "chrono": "cpp",
+        "random": "cpp",
+        "regex": "cpp"
+    }
 }
