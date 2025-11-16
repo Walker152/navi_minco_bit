@@ -24,7 +24,7 @@ namespace Sentry_BT
     geometry_msgs::msg::TransformStamped static_transform;
 
   // 设置时间戳为当前时间延迟1秒
-  static_transform.header.stamp = this->now() + rclcpp::Duration(1, 0);
+    static_transform.header.stamp = this->now() + rclcpp::Duration(1, 0);
     static_transform.header.frame_id = "base_link";
     static_transform.child_frame_id = "gimbal";
 

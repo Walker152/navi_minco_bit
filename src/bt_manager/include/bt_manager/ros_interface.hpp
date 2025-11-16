@@ -13,7 +13,7 @@
 #include <std_msgs/msg/bool.hpp>
 
 // Custom Messages
-#include "robot_msgs/msg/event_status.hpp"
+#include "ros_interfaces/msg/event_status.hpp"
 
 // Project Headers
 #include "bt_manager/blackboard.hpp"
@@ -25,7 +25,7 @@ namespace Sentry_BT
   class ros_interface : public rclcpp::Node
   {
   private:
-    rclcpp::Subscription<robot_msgs::msg::EventStatus>::SharedPtr event_sub;
+    rclcpp::Subscription<ros_interfaces::msg::EventStatus>::SharedPtr event_sub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr outpost_pub;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub;
     rclcpp::TimerBase::SharedPtr timer_;
@@ -34,7 +34,7 @@ namespace Sentry_BT
 
     int nav_status_;
     geometry_msgs::msg::Pose current_pose_;
-    void eventCallback(const robot_msgs::msg::EventStatus::SharedPtr msg);
+    void eventCallback(const ros_interfaces::msg::EventStatus::SharedPtr msg);
 
   public:
     ros_interface(std::shared_ptr<Blackboard>& blackboard_ptr);

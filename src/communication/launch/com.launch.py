@@ -4,9 +4,9 @@ from launch_ros.actions import Node
 def generate_launch_description():
     return LaunchDescription([
         Node(
-            package='com',
-            executable='com',
-            name='com_sentry12',
+            package='communication',
+            executable='communication',
+            name='communication_sentry',
             output='screen',
             respawn=True
         )

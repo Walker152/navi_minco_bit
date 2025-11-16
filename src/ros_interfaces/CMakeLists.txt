@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(robot_msgs)
+project(ros_interfaces)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(CMAKE_CXX_STANDARD 17)
@@ -26,12 +26,8 @@ set(msg_files
   "msg/Detector.msg"
   "msg/MultiDetect.msg"
   "msg/ScsSignal.msg"
-  "msg/Nav.msg"
-  "msg/NavStatus.msg"
-  "msg/Referee.msg"
-  "msg/Detect.msg"
   "msg/EventStatus.msg"
-  "msg/TeamPos.msg"
+  "msg/Nav.msg"
 )
 
 # set(srv_files
