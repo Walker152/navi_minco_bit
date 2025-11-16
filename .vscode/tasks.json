@@ -20,8 +20,7 @@
             "type": "shell",
             "command": "colcon build --symlink-install --packages-select ${input:package} --cmake-args '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON'",
             "group": {
-                "kind": "build",
-                "isDefault": true
+                "kind": "build"
             },
             "problemMatcher": "$gcc"
         },
@@ -31,8 +30,7 @@
             "type": "shell",
             "command": "rm -rf build/${input:package} install/${input:package} && colcon build --symlink-install --packages-select ${input:package} --cmake-args '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON'",
             "group": {
-                "kind": "build",
-                "isDefault": true
+                "kind": "build"
             },
             "problemMatcher": "$gcc"
         },
