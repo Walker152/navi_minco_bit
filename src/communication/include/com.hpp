@@ -137,6 +137,7 @@ namespace ns_com
       header.from = static_cast<uint8_t>(ArmEnum::ENUM_ARM_SENTRY);
       header.setTo(ArmEnum::ENUM_ARM_SLAVE_COMPUTER);
       header.setDataLen(sizeof(T));
+      
       return __send2stm32(header, &data_packet);
     }
     // 设置 ROS 接口（由上层注入），使本模块不直接依赖 rclcpp 细节

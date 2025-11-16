@@ -62,7 +62,7 @@ namespace Sentry_BT
     blackboard_->set<bool>("own_outpost_destroyed", msg->own_outpost_destroyed);
     blackboard_->set<int>("enemy_outpost_health", msg->enemy_outpost_health);
     blackboard_->set<bool>("bonus_active", msg->buff_active);
-    blackboard_->set<bool>("target_valid", msg->enemy_detected.is_get);
+    blackboard_->set<bool>("target_valid", msg->enemy_detected.is_detect);
 
     // 更新目标位置
     // if(msg->enemy_detected.is_get)

@@ -20,6 +20,7 @@ namespace ns_com
   void Communication::init()
   {
     timer_manager.addTimer(1000, true, []() { Communication::__open(STM32_NAME, STM32_PORT, stm32_read_cb, 115200); });
+
     std::thread([]() { fd_manager.run(); }).detach();
     std::thread([]() { timer_manager.run(); }).detach();
   }
@@ -82,6 +83,17 @@ namespace ns_com
     static ByteArray stm32_recv_buffer;
     stm32_recv_buffer.append(arr.get(), arr.size());
 
+    // 节流：仅每秒输出一次详细调试信息
+    using Clock = std::chrono::steady_clock;
+    static auto last_debug_tp = Clock::now();
+    bool allow_debug = false;
+    auto now_tp = Clock::now();
+    if(now_tp - last_debug_tp >= std::chrono::seconds(1))
+    {
+      allow_debug = true;
+      last_debug_tp = now_tp;
+    }
+
     while(true)
     {
       // 错误处理
@@ -123,7 +135,10 @@ namespace ns_com
       }
       if(check(buf, full_len))
       {
-          LOG_DEBUG_BLOCK(std::string(BLUE) + "[COM] ", NV(header->packet_type), NV(header->data_len));
+          if(allow_debug)
+          {
+            LOG_DEBUG_BLOCK(std::string(BLUE) + "[COM] ", NV(header->packet_type), NV(header->data_len));
+          }
         switch(header->packet_type)
         {
         // 校验通过
@@ -132,23 +147,32 @@ namespace ns_com
             const NavRes* nav_data = (const NavRes*)(buf + sizeof(PacketHeader));
             auto ros_ptr = ros_if_;
             if (ros_ptr) ros_ptr->publishNav(*nav_data);
+            if(allow_debug)
+            {
               LOG_DEBUG_BLOCK(std::string(GREEN) + "[COM][Nav] ", NV(nav_data->x), NV(nav_data->y), NV(nav_data->yaw), NV(nav_data->is_reach));
+            }
             break;
           }
 
           case ENUM_PACKET_GAMESTATUS_DATA:
           {
             const EventStatus* event_status = (const EventStatus*)(buf + sizeof(PacketHeader));
+            if(allow_debug)
+            {
               LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Evt] ", NV(event_status->self_health), NV(event_status->num_shoot),
-                        NV(event_status->own_outpost_destroyed), NV(event_status->buff_active), NV(event_status->is_get),
-                        NV(event_status->x), NV(event_status->y), NV(event_status->z), NV(event_status->armor_id));
+                              NV(event_status->own_outpost_destroyed), NV(event_status->buff_active), NV(event_status->is_get),
+                              NV(event_status->x), NV(event_status->y), NV(event_status->z), NV(event_status->armor_id));
+            }
             auto ros_ptr = ros_if_;
             if (ros_ptr) ros_ptr->publishEventStatus(*event_status);
             break;
           }
           default:
           {
-              LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM][Warn] ", NV(header->packet_type));
+              if(allow_debug)
+              {
+                LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM][Warn] ", NV(header->packet_type));
+              }
           }
         }
       }
