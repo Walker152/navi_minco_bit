@@ -13,7 +13,7 @@ int main(int argc, char** argv)
   msg.own_outpost_destroyed = false;
 
   msg.buff_active = false;
-  msg.enemy_detected.is_get = false;
+  msg.enemy_detected.is_detect = false;
   msg.enemy_detected.position.x = 0.1;
   msg.enemy_detected.position.y = 0.3;
   msg.enemy_detected.position.z = 8.0;
@@ -29,7 +29,7 @@ int main(int argc, char** argv)
     // }
     // else if(count == 30)
     // {
-    //   msg.enemy_detected.is_get = true;
+    //   msg.enemy_detected.is_detect = true;
     // }
     // else if(count == 45)
     // {
@@ -41,7 +41,7 @@ int main(int argc, char** argv)
     // }
     // else if(count == 90)
     // {
-    //   msg.enemy_detected.is_get = false;
+    //   msg.enemy_detected.is_detect = false;
     // }
     // else if(count == 105)
     // {
@@ -53,7 +53,7 @@ int main(int argc, char** argv)
     // }
     pub->publish(msg);
     std::cout << "health: " << msg.self_health << ", buff: " << msg.buff_active
-              << ", enemy: " << (msg.enemy_detected.is_get ? "true" : "false")
+              << ", enemy: " << (msg.enemy_detected.is_detect ? "true" : "false")
               << ", outpost: " << (msg.own_outpost_destroyed ? "true" : "false")
               << ", enemy_outpost_health: " << msg.enemy_outpost_health << std::endl;
     count += 5;
