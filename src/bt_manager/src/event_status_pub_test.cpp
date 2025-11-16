@@ -1,13 +1,13 @@
 #include <rclcpp/rclcpp.hpp>
-#include <robot_msgs/msg/event_status.hpp>
+#include <ros_interfaces/msg/event_status.hpp>
 
 int main(int argc, char** argv)
 {
   rclcpp::init(argc, argv);
   auto node = rclcpp::Node::make_shared("event_status_pub_test");
-  auto pub = node->create_publisher<robot_msgs::msg::EventStatus>("/sentry/event_status", 10);
+  auto pub = node->create_publisher<ros_interfaces::msg::EventStatus>("/sentry/event_status", 10);
 
-  robot_msgs::msg::EventStatus msg;
+  ros_interfaces::msg::EventStatus msg;
   msg.self_health = 90.0;
   msg.enemy_outpost_health = 1500.0;
   msg.own_outpost_destroyed = false;

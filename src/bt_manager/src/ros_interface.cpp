@@ -7,10 +7,10 @@ namespace Sentry_BT
     , blackboard_(blackboard_ptr)
   {
     // 订阅事件状态话题
-    event_sub = this->create_subscription<robot_msgs::msg::EventStatus>(
+    event_sub = this->create_subscription<ros_interfaces::msg::EventStatus>(
         "/sentry/event_status",
         1,
-        [this](const robot_msgs::msg::EventStatus::SharedPtr msg) { this->eventCallback(msg); });
+        [this](const ros_interfaces::msg::EventStatus::SharedPtr msg) { this->eventCallback(msg); });
 
     odom_sub = this->create_subscription<nav_msgs::msg::Odometry>("/odom",
                                                                   1,
@@ -55,7 +55,7 @@ namespace Sentry_BT
     RCLCPP_INFO(this->get_logger(), "导航服务器已连接");
   }
 
-  void ros_interface::eventCallback(const robot_msgs::msg::EventStatus::SharedPtr msg)
+  void ros_interface::eventCallback(const ros_interfaces::msg::EventStatus::SharedPtr msg)
   {
     // 更新黑板中的数据
     blackboard_->set<float>("health", ((int)msg->self_health / 4));

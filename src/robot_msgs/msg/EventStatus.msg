@@ -1,8 +1,0 @@
-std_msgs/Header header
-bool own_outpost_destroyed
-bool buff_active
-float32 self_health
-robot_msgs/Detect enemy_detected
-float32 gimbal_yaw
-bool game_status
-int16 enemy_outpost_health

@@ -1,25 +1,24 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>com</name>
+  <name>communication</name>
   <version>0.0.0</version>
   <description>The communication package</description>
 
   <maintainer email="rm@todo.todo">rm</maintainer>
   <license>TODO</license>
 
-  <!-- 来自 ros2 的构建工具 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <!-- 运行和编译时依赖 -->
   <depend>rclcpp</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
-  <depend>robot_msgs</depend>
+  <depend>ros_interfaces</depend>
   <depend>serial</depend>
   <depend>std_msgs</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
   <depend>tf2_geometry_msgs</depend>
+  <depend>mars_quadrotor_msgs</depend>
 
   <export>
     <build_type>ament_cmake</build_type>
