@@ -1,7 +1,7 @@
 
 #include "dreamchaser_mpc_ctrl.hpp"
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <tf2/utils.h>
 namespace dreamchaser_mpc_ctrl
@@ -66,7 +66,7 @@ namespace dreamchaser_mpc_ctrl
    * @details 从全局路径中提取未来N+1个点作为参考轨迹
    */
   Eigen::MatrixXd MPController::generateReferenceTrajectory(const geometry_msgs::msg::PoseStamped& current_pose,
-                                                                 const geometry_msgs::msg::Twist& current_vel)
+                                                            const geometry_msgs::msg::Twist& current_vel)
   {
     int N = mpc_params_.prediction_horizon;
     Eigen::MatrixXd reference(N + 1, 6);  // (N+1) x 6 矩阵
@@ -126,7 +126,7 @@ namespace dreamchaser_mpc_ctrl
    * @brief ROS消息转状态向量
    */
   Eigen::VectorXd MPController::rosToStateVector(const geometry_msgs::msg::PoseStamped& pose,
-                                                      const geometry_msgs::msg::Twist& velocity)
+                                                 const geometry_msgs::msg::Twist& velocity)
   {
     Eigen::VectorXd state(6);
     state << pose.pose.position.x, pose.pose.position.y, tf2::getYaw(pose.pose.orientation), velocity.linear.x,
@@ -153,9 +153,9 @@ namespace dreamchaser_mpc_ctrl
    * @brief 配置函数示例
    */
   void MPController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr& parent,
-                                    std::string name,
-                                    std::shared_ptr<tf2_ros::Buffer> tf,
-                                    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
+                               std::string name,
+                               std::shared_ptr<tf2_ros::Buffer> tf,
+                               std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
   {
     auto node = parent.lock();
     if(!node)
@@ -199,7 +199,6 @@ namespace dreamchaser_mpc_ctrl
   }
 
 }  // namespace dreamchaser_mpc_ctrl
-
 
 #include "pluginlib/class_list_macros.hpp"
 PLUGINLIB_EXPORT_CLASS(dreamchaser_mpc_ctrl::MPController, nav2_core::Controller)
