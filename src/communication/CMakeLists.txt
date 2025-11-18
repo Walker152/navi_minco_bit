@@ -1,22 +1,16 @@
 cmake_minimum_required(VERSION 3.8)
 project(communication)
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+if(CMAKE_COMPILER_ID MATCHES "Clang|GNU")
   set(CMAKE_CXX_STANDARD 17)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
   set(CMAKE_CXX_EXTENSIONS OFF) # 禁用编译器扩展
   add_compile_options(-Wall -Wextra -Wpedantic)
   set(CMAKE_BUILD_TYPE "Release")
-  add_definitions(-Wall -Werror)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -std=c++17")
+  add_compile_options(-Werror)
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# Option to enable COM debug prints controlled by the COM_DEBUG macro.
-# Usage:
-#  - cmake -S . -B build -DCOM_DEBUG=ON
-#  - colcon build --cmake-args -DCOM_DEBUG=ON
 option(COM_DEBUG "Enable COM debug printing (defines COM_DEBUG)" OFF)
 
 

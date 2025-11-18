@@ -12,7 +12,7 @@
 
     "C_Cpp.codeAnalysis.clangTidy.enabled": true,
     "[cpp]": {
-        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+        "editor.defaultFormatter": "xaver.clang-format",
         "editor.formatOnSave": true
     },
 
@@ -43,6 +43,7 @@
     "files.associations": {
         "chrono": "cpp",
         "random": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "functional": "cpp"
     }
 }
