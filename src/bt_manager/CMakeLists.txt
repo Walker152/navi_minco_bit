@@ -1,14 +1,13 @@
 cmake_minimum_required(VERSION 3.8)
 project(bt_manager)
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+if(CMAKE_COMPILER_ID MATCHES "Clang|GNU")
   set(CMAKE_CXX_STANDARD 17)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
   set(CMAKE_CXX_EXTENSIONS OFF) # 禁用编译器扩展
   add_compile_options(-Wall -Wextra -Wpedantic)
   set(CMAKE_BUILD_TYPE "Release")
-  add_definitions(-Wall -Werror)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -std=c++17")
+  add_compile_options(-Werror)
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
