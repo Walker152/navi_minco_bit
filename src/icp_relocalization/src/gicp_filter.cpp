@@ -64,7 +64,7 @@ namespace icp_relocalization
     pcl::SampleConsensusInitialAlignment<pcl::PointXYZ, pcl::PointXYZ, pcl::FPFHSignature33> sac_ia;
     sac_ia.setMinSampleDistance(options_.sac_ia_min_sample_distance);
     sac_ia.setMaxCorrespondenceDistance(options_.sac_ia_max_correspondence_distance);
-    sac_ia.setMaximumIterations(500);  // 增加迭代次数以提高成功率
+    sac_ia.setMaximumIterations(1000);  // 增加迭代次数以提高成功率
     sac_ia.setCorrespondenceRandomness(options_.sac_ia_correspondence_randomness);
     sac_ia.setNumberOfSamples(options_.sac_ia_num_samples);
 
