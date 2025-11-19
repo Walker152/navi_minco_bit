@@ -1,18 +1,23 @@
+import os
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch_ros.actions import Node
+from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration
-from launch.actions import DeclareLaunchArgument
+import launch.conditions
 
 def generate_launch_description():
-    
-    declare_target_pcd_file_cmd = DeclareLaunchArgument(
-        'target_pcd_file',
-        default_value='src/icp_relocalization/maps/rmuc.pcd',
-        description='Path to the target PCD map file.'
+    pkg_share = get_package_share_directory('icp_relocalization')
+    default_config_path = os.path.join(pkg_share, 'config', 'gicp_relocalization.yaml')
+    declare_gicp_config_cmd = DeclareLaunchArgument(
+        'gicp_config',
+        default_value=default_config_path,
+        description='Full path to the GICP relocalization config file.'
     )
 
     ld = LaunchDescription()
-    ld.add_action(declare_target_pcd_file_cmd)
+
+    ld.add_action(declare_gicp_config_cmd)
 
     # GICP重定位节点
     gicp_node = Node(
@@ -20,27 +25,7 @@ def generate_launch_description():
         executable='gicp_node',
         name='gicp_relocalization_node',
         output='screen',
-        parameters=[
-            # 文件路径
-            {'target_pcd_file': LaunchConfiguration('target_pcd_file')},
-            
-            # GICP核心参数
-            {'gicp.target_voxel_leaf_size': 0.5},
-            {'gicp.source_voxel_leaf_size': 0.3},
-            {'gicp.max_correspondence_distance': 1.0}, # 稍微放宽一点，旧的0.1可能太严格
-            {'gicp.max_iterations': 75},
-            {'gicp.transformation_epsilon': 0.01},
-            {'gicp.euclidean_fitness_epsilon': 0.01},
-
-            # 坐标系和频率
-            {'base_frame': 'base_link'},
-            {'map_frame': 'map'},
-            {'icp_frequency': 1.0}, # 1 Hz
-
-            # 漂移检测阈值
-            {'drift_threshold_m': 1.0},
-            {'drift_threshold_rad': 0.5}
-        ],
+        parameters=[LaunchConfiguration('gicp_config')],
     )
 
     ld.add_action(gicp_node)
