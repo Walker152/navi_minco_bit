@@ -1,59 +1,67 @@
 #include "gicp_ros_interface.hpp"
-
+// #include "pcl_ros/transforms.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
 #include <Eigen/Geometry>
 #include <tf2_eigen/tf2_eigen.hpp>
 
 namespace icp_relocalization
 {
-
+  using namespace color_text;
   GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions& options)
     : Node("gicp_relocalization_node", options)
   {
-    // 参数获取
-    this->declare_parameter<bool>("use_initial_alignment", true);
-    this->declare_parameter<std::string>("target_pcd_file", "map.pcd");
-    this->declare_parameter<std::string>("base_frame", "base_link");
-    this->declare_parameter<std::string>("map_frame", "map");
-    this->declare_parameter<double>("drift_threshold_m", 1.0);
-    this->declare_parameter<double>("drift_threshold_rad", 0.5);
-    this->declare_parameter<double>("icp_frequency", 1.0);  // 1Hz
+    // 从YAML文件读取参数
+    RCLCPP_INFO(this->get_logger(), "Loading parameters from YAML file...");
+    use_initial_alignment_ = this->declare_parameter<bool>("use_initial_alignment", true);
+    base_frame_ = this->declare_parameter<std::string>("base_frame", "base_link");
+    map_frame_ = this->declare_parameter<std::string>("map_frame", "map");
+    drift_threshold_m_ = this->declare_parameter<double>("drift_threshold_m", 1.0);
+    drift_threshold_rad_ = this->declare_parameter<double>("drift_threshold_rad", 0.5);
+    icp_frequency_ = this->declare_parameter<double>("icp_frequency", 1.0);
+    gicp_options_.feature_k_search = this->declare_parameter<int>("feature_k_search", 10);
+    std::string target_pcd_file = this->declare_parameter<std::string>("target_pcd_file", "map.pcd");
 
-    // GICP参数
-    this->declare_parameter<double>("gicp.target_voxel_leaf_size", 2.0);
-    this->declare_parameter<double>("gicp.source_voxel_leaf_size", 2.0);
-    this->declare_parameter<double>("gicp.max_correspondence_distance", 10.0);
-    this->declare_parameter<int>("gicp.max_iterations", 100);
-    this->declare_parameter<double>("gicp.transformation_epsilon", 0.01);
-    this->declare_parameter<double>("gicp.euclidean_fitness_epsilon", 0.01);
+    gicp_options_.target_voxel_leaf_size = this->declare_parameter<double>("gicp.target_voxel_leaf_size", 2.0);
+    gicp_options_.source_voxel_leaf_size = this->declare_parameter<double>("gicp.source_voxel_leaf_size", 2.0);
+    gicp_options_.max_correspondence_distance =
+        this->declare_parameter<double>("gicp.max_correspondence_distance", 10.0);
+    gicp_options_.max_iterations = this->declare_parameter<int>("gicp.max_iterations", 100);
+    gicp_options_.transformation_epsilon = this->declare_parameter<double>("gicp.transformation_epsilon", 0.01);
+    gicp_options_.euclidean_fitness_epsilon = this->declare_parameter<double>("gicp.euclidean_fitness_epsilon", 0.01);
 
-    // SAC-IA参数
-    this->declare_parameter<double>("sac_ia.min_sample_distance", 0.5);
-    this->declare_parameter<int>("sac_ia.correspondence_randomness", 6);
-    this->declare_parameter<int>("sac_ia.num_samples", 3);
-    this->declare_parameter<double>("sac_ia.max_correspondence_distance", 1.0);
-    this->declare_parameter<int>("feature_k_search", 10);
-
-    // 读取参数
-    use_initial_alignment_ = this->get_parameter("use_initial_alignment").as_bool();
-    base_frame_ = this->get_parameter("base_frame").as_string();
-    map_frame_ = this->get_parameter("map_frame").as_string();
-    drift_threshold_m_ = this->get_parameter("drift_threshold_m").as_double();
-    drift_threshold_rad_ = this->get_parameter("drift_threshold_rad").as_double();
-    icp_frequency_ = this->get_parameter("icp_frequency").as_double();
-
-    gicp_options_.target_voxel_leaf_size = this->get_parameter("gicp.target_voxel_leaf_size").as_double();
-    gicp_options_.source_voxel_leaf_size = this->get_parameter("gicp.source_voxel_leaf_size").as_double();
-    gicp_options_.max_correspondence_distance = this->get_parameter("gicp.max_correspondence_distance").as_double();
-    gicp_options_.max_iterations = this->get_parameter("gicp.max_iterations").as_int();
-    gicp_options_.transformation_epsilon = this->get_parameter("gicp.transformation_epsilon").as_double();
-    gicp_options_.euclidean_fitness_epsilon = this->get_parameter("gicp.euclidean_fitness_epsilon").as_double();
-
-    gicp_options_.sac_ia_min_sample_distance = this->get_parameter("sac_ia.min_sample_distance").as_double();
-    gicp_options_.sac_ia_correspondence_randomness = this->get_parameter("sac_ia.correspondence_randomness").as_int();
-    gicp_options_.sac_ia_num_samples = this->get_parameter("sac_ia.num_samples").as_int();
+    gicp_options_.sac_ia_min_sample_distance = this->declare_parameter<double>("sac_ia.min_sample_distance", 0.5);
+    gicp_options_.sac_ia_correspondence_randomness =
+        this->declare_parameter<int>("sac_ia.correspondence_randomness", 6);
+    gicp_options_.sac_ia_num_samples = this->declare_parameter<int>("sac_ia.num_samples", 3);
     gicp_options_.sac_ia_max_correspondence_distance =
-        this->get_parameter("sac_ia.max_correspondence_distance").as_double();
-    gicp_options_.feature_k_search = this->get_parameter("feature_k_search").as_int();
+        this->declare_parameter<double>("sac_ia.max_correspondence_distance", 1.0);
+
+    std::cout << BOLDCYAN << "[GICP Relocalization] Loaded Parameters:" << RESET << std::endl;
+    std::cout << CYAN << "  use_initial_alignment: " << (use_initial_alignment_ ? "true" : "false") << RESET
+              << std::endl;
+    std::cout << CYAN << "  base_frame: " << base_frame_ << RESET << std::endl;
+    std::cout << CYAN << "  map_frame: " << map_frame_ << RESET << std::endl;
+    std::cout << CYAN << "  drift_threshold_m: " << drift_threshold_m_ << RESET << std::endl;
+    std::cout << CYAN << "  drift_threshold_rad: " << drift_threshold_rad_ << RESET << std::endl;
+    std::cout << CYAN << "  icp_frequency: " << icp_frequency_ << RESET << std::endl;
+    std::cout << CYAN << "  target_pcd_file: " << target_pcd_file << RESET << std::endl;
+    std::cout << BOLDCYAN << "  ---------- GICP Options ----------" << RESET << std::endl;
+    std::cout << CYAN << "  target_voxel_leaf_size: " << gicp_options_.target_voxel_leaf_size << RESET << std::endl;
+    std::cout << CYAN << "  source_voxel_leaf_size: " << gicp_options_.source_voxel_leaf_size << RESET << std::endl;
+    std::cout << CYAN << "  max_correspondence_distance: " << gicp_options_.max_correspondence_distance << RESET
+              << std::endl;
+    std::cout << CYAN << "  max_iterations: " << gicp_options_.max_iterations << RESET << std::endl;
+    std::cout << CYAN << "  transformation_epsilon: " << gicp_options_.transformation_epsilon << RESET << std::endl;
+    std::cout << CYAN << "  euclidean_fitness_epsilon: " << gicp_options_.euclidean_fitness_epsilon << RESET
+              << std::endl;
+    std::cout << BOLDCYAN << "  ----------SAC-IA Options----------" << RESET << std::endl;
+    std::cout << CYAN << "  sac_ia_min_sample_distance: " << gicp_options_.sac_ia_min_sample_distance << RESET
+              << std::endl;
+    std::cout << CYAN << "  sac_ia_correspondence_randomness: " << gicp_options_.sac_ia_correspondence_randomness
+              << RESET << std::endl;
+    std::cout << CYAN << "  sac_ia_num_samples: " << gicp_options_.sac_ia_num_samples << RESET << std::endl;
+    std::cout << CYAN << "  sac_ia_max_correspondence_distance: " << gicp_options_.sac_ia_max_correspondence_distance
+              << RESET << std::endl;
 
     if(!use_initial_alignment_)
     {
@@ -65,7 +73,7 @@ namespace icp_relocalization
       RCLCPP_INFO(this->get_logger(), "Initial alignment enabled. Waiting for first lidar scan to initialize.");
     }
 
-    setupGicp();
+    setupGicp(target_pcd_file);
 
     // ROS接口初始化
     callback_group_lidar_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -96,11 +104,16 @@ namespace icp_relocalization
     pcl::toROSMsg(*gicp_filter_->getTargetCloud(), map_msg);
     map_msg.header.frame_id = map_frame_;
     map_pub_->publish(map_msg);
+
+    // 初始化FSM定时器
+    double period = 1.0 / icp_frequency_;
+    fsm_timer_ = this->create_wall_timer(std::chrono::duration<double>(period),
+                                         std::bind(&GicpRosInterface::fsmTimerCallback, this),
+                                         callback_group_lidar_);
   }
 
-  void GicpRosInterface::setupGicp()
+  void GicpRosInterface::setupGicp(const std::string& target_pcd_file)
   {
-    std::string target_pcd_file = this->get_parameter("target_pcd_file").as_string();
     try
     {
       gicp_filter_ = std::make_unique<GicpFilter>(target_pcd_file, gicp_options_);
@@ -117,11 +130,14 @@ namespace icp_relocalization
   {
     last_odom_ = msg;
     // 如果不使用SAC-IA，并且尚未初始化，则使用第一帧里程计进行初始化
+    // 说明: /aft_mapped_to_init 里程计消息提供的是 base_link 在 camera_init 坐标系下的位姿
+    // 因此 current_odom(下方使用) 实际表示 base_link 在 camera_init 下的位姿矩阵。
     if(state_ == State::LOCALIZED && !gicp_initialized_)
     {
       Eigen::Isometry3d initial_pose_iso;
       tf2::fromMsg(msg->pose.pose, initial_pose_iso);
       last_icp_pose_ = initial_pose_iso.matrix().cast<float>();
+      map_to_camera_init_ = Eigen::Matrix4f::Identity();  // 初始时刻认为 camera_init 与 map 重合
       gicp_initialized_ = true;
       last_icp_time_ = msg->header.stamp;
       RCLCPP_INFO(this->get_logger(), "ICP initialized with first odometry pose.");
@@ -130,12 +146,63 @@ namespace icp_relocalization
 
   void GicpRosInterface::lidarCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
   {
-    PointCloud::Ptr source_cloud(new PointCloud());
-    pcl::fromROSMsg(*msg, *source_cloud);
-
-    if(state_ == State::UNINITIALIZED)
+    if(!latest_cloud_)
     {
+      latest_cloud_ = std::make_shared<PointCloud>();
+    }
+    pcl::fromROSMsg(*msg, *latest_cloud_);
+    latest_cloud_frame_ = msg->header.frame_id;
+    latest_cloud_stamp_ = msg->header.stamp;
+    has_new_cloud_ = true;
+  }
+
+  void GicpRosInterface::fsmTimerCallback()
+  {
+    runFSM();
+  }
+
+  void GicpRosInterface::runFSM()
+  {
+    // 1. 检查数据有效性
+    if(!last_odom_)
+    {
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Waiting for odometry to be available...");
+      return;
+    }
+
+    // 2. 获取最新点云（如果有）
+    PointCloud::Ptr source_cloud(new PointCloud());
+    std::string cloud_frame;
+    rclcpp::Time cloud_stamp;
+    bool has_data = false;
+
+    if(has_new_cloud_)
+    {
+      *source_cloud = *latest_cloud_;
+      cloud_frame = latest_cloud_frame_;
+      cloud_stamp = latest_cloud_stamp_;
+      has_new_cloud_ = false;
+      has_data = true;
+    }
+
+    // 准备通用数据
+    Eigen::Isometry3d odom_iso;
+    tf2::fromMsg(last_odom_->pose.pose, odom_iso);
+    Eigen::Matrix4f current_odom = odom_iso.matrix().cast<float>();
+
+    // 3. 状态机逻辑
+    switch(state_)
+    {
+    case State::UNINITIALIZED:
+    {
+      if(!has_data)
+        return;
       state_ = State::INITIALIZING;
+      break;
+    }
+
+    case State::INITIALIZING:
+    {
       RCLCPP_INFO(this->get_logger(), "Starting initial alignment (SAC-IA)...");
 
       auto result = gicp_filter_->initialAlign(source_cloud);
@@ -143,7 +210,12 @@ namespace icp_relocalization
       if(result.converged)
       {
         RCLCPP_INFO(this->get_logger(), "Initial alignment successful! Fitness score: %f", result.fitness_score);
-        last_icp_pose_ = result.final_transformation;
+
+        // 点云在 camera_init 系，SAC-IA 结果即为 map -> camera_init
+        map_to_camera_init_ = result.final_transformation;
+        // base_link 在 map 下 = (map->camera_init) * (camera_init->base_link)
+        last_icp_pose_ = map_to_camera_init_ * current_odom;
+
         gicp_initialized_ = true;
         last_icp_time_ = this->now();
         state_ = State::LOCALIZED;
@@ -152,45 +224,49 @@ namespace icp_relocalization
       else
       {
         RCLCPP_WARN(this->get_logger(), "Initial alignment failed. Retrying on next scan...");
-        state_ = State::UNINITIALIZED;  // Reset to try again
+        state_ = State::UNINITIALIZED;
       }
-      return;
+      break;
     }
-
-    if(state_ == State::LOCALIZED)
+    case State::LOCALIZED:
     {
-      if(!gicp_initialized_ || !last_odom_)
+      if(!gicp_initialized_)
       {
-        RCLCPP_WARN(this->get_logger(), "Waiting for initial odometry or initial alignment...");
+        state_ = State::UNINITIALIZED;
         return;
       }
 
-      if((this->now() - last_icp_time_).seconds() < 1.0 / icp_frequency_)
-      {
+      if(!has_data)
         return;
-      }
 
       RCLCPP_INFO(this->get_logger(), "Processing new lidar scan for incremental alignment...");
       last_icp_time_ = this->now();
 
-      Eigen::Isometry3d initial_guess_iso;
-      tf2::fromMsg(last_odom_->pose.pose, initial_guess_iso);
-      Eigen::Matrix4f initial_guess = initial_guess_iso.matrix().cast<float>();
+      // 点云在 camera_init 系，初值即为 map -> camera_init
+      Eigen::Matrix4f initial_guess = map_to_camera_init_;
 
       auto result = gicp_filter_->align(source_cloud, initial_guess);
 
       if(result.converged)
       {
         RCLCPP_INFO(this->get_logger(), "GICP converged with fitness score: %f", result.fitness_score);
-        checkDriftAndCorrect(result.final_transformation);
-        last_icp_pose_ = result.final_transformation;
+
+        // 更新 map -> camera_init
+        map_to_camera_init_ = result.final_transformation;
+        // 计算 base_link 在 map 下的位姿
+        last_icp_pose_ = map_to_camera_init_ * current_odom;
+
+        checkDriftAndCorrect(last_icp_pose_);
       }
       else
       {
         RCLCPP_WARN(this->get_logger(), "GICP failed to converge.");
-        // 可以在这里添加重定位逻辑，例如切换回UNINITIALIZED状态
-        // state_ = State::UNINITIALIZED;
       }
+      break;
+    }
+
+    default:
+      break;
     }
   }
 
@@ -199,26 +275,23 @@ namespace icp_relocalization
     Eigen::Vector3f icp_pos = icp_pose.block<3, 1>(0, 3);
     Eigen::Quaternionf icp_quat(icp_pose.block<3, 3>(0, 0));
 
-    Eigen::Vector3f odom_pos;
-    odom_pos.x() = last_odom_->pose.pose.position.x;
-    odom_pos.y() = last_odom_->pose.pose.position.y;
-    odom_pos.z() = last_odom_->pose.pose.position.z;
-    Eigen::Quaternionf odom_quat(last_odom_->pose.pose.orientation.w,
-                                 last_odom_->pose.pose.orientation.x,
-                                 last_odom_->pose.pose.orientation.y,
-                                 last_odom_->pose.pose.orientation.z);
+    // 使用当前的 map_to_camera_init_ 预测位姿 (base_link 在 map 下)
+    Eigen::Isometry3d odom_iso;
+    tf2::fromMsg(last_odom_->pose.pose, odom_iso);
+    Eigen::Matrix4f odom_mat = odom_iso.matrix().cast<float>();
+    Eigen::Matrix4f predicted_pose = map_to_camera_init_ * odom_mat;
+
+    Eigen::Vector3f odom_pos = predicted_pose.block<3, 1>(0, 3);
+    Eigen::Quaternionf odom_quat(predicted_pose.block<3, 3>(0, 0));
 
     float pos_diff = (icp_pos - odom_pos).norm();
     float angle_diff = icp_quat.angularDistance(odom_quat);
 
-    RCLCPP_INFO(this->get_logger(), "ICP/Odom diff: pos=%.3fm, angle=%.3frad", pos_diff, angle_diff);
+    RCLCPP_INFO(this->get_logger(), "ICP/Prediction diff: pos=%.3fm, angle=%.3frad", pos_diff, angle_diff);
 
     if(pos_diff > drift_threshold_m_ || angle_diff > drift_threshold_rad_)
     {
       RCLCPP_WARN(this->get_logger(), "Significant drift detected! Resetting odometry integration base.");
-      // 响应机制：这里我们选择信任ICP结果，并用它来重置我们的连续位姿估计基准
-      // 在更复杂的系统中，可能需要更复杂的融合策略或状态重置
-      // 简单起见，我们直接将ICP结果作为最新的有效位姿
     }
 
     // 无论是否漂移，都发布ICP的结果作为更正后的位姿
@@ -242,19 +315,46 @@ namespace icp_relocalization
     pose_msg.pose.pose.orientation.z = quat.z();
     pose_msg.pose.pose.orientation.w = quat.w();
 
-    // 暂时不填充协方差
     pose_pub_->publish(pose_msg);
 
-    // 发布TF
-    geometry_msgs::msg::TransformStamped transform_stamped;
-    transform_stamped.header.stamp = stamp;
-    transform_stamped.header.frame_id = map_frame_;
-    transform_stamped.child_frame_id = base_frame_;
-    transform_stamped.transform.translation.x = pos.x();
-    transform_stamped.transform.translation.y = pos.y();
-    transform_stamped.transform.translation.z = pos.z();
-    transform_stamped.transform.rotation = pose_msg.pose.pose.orientation;
-    tf_broadcaster_->sendTransform(transform_stamped);
+    // Publish Map -> Camera Init TF (child_frame_id 取自里程计消息的 frame_id, 此处应是 camera_init)
+    if(last_odom_)
+    {
+      geometry_msgs::msg::TransformStamped t;
+      t.header.stamp = stamp;
+      t.header.frame_id = map_frame_;
+      t.child_frame_id = last_odom_->header.frame_id;
+
+      Eigen::Vector3f tf_pos = map_to_camera_init_.block<3, 1>(0, 3);
+      Eigen::Quaternionf tf_quat(map_to_camera_init_.block<3, 3>(0, 0));
+
+      t.transform.translation.x = tf_pos.x();
+      t.transform.translation.y = tf_pos.y();
+      t.transform.translation.z = tf_pos.z();
+      t.transform.rotation.x = tf_quat.x();
+      t.transform.rotation.y = tf_quat.y();
+      t.transform.rotation.z = tf_quat.z();
+      t.transform.rotation.w = tf_quat.w();
+
+      tf_broadcaster_->sendTransform(t);
+
+      // 额外发布 map -> base_link 的 TF，便于其他模块直接使用
+      geometry_msgs::msg::TransformStamped tb;
+      tb.header.stamp = stamp;
+      tb.header.frame_id = map_frame_;
+      tb.child_frame_id = base_frame_;
+
+      Eigen::Vector3f b_pos = last_icp_pose_.block<3, 1>(0, 3);
+      Eigen::Quaternionf b_quat(last_icp_pose_.block<3, 3>(0, 0));
+      tb.transform.translation.x = b_pos.x();
+      tb.transform.translation.y = b_pos.y();
+      tb.transform.translation.z = b_pos.z();
+      tb.transform.rotation.x = b_quat.x();
+      tb.transform.rotation.y = b_quat.y();
+      tb.transform.rotation.z = b_quat.z();
+      tb.transform.rotation.w = b_quat.w();
+      tf_broadcaster_->sendTransform(tb);
+    }
   }
 
 }  // namespace icp_relocalization
