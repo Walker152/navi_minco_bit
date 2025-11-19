@@ -58,19 +58,9 @@ ament_target_dependencies(gicp_node
 )
 target_link_libraries(gicp_node gicp_filter)
 
-
-# add_executable(transform_publisher src/transform_publisher.cpp)
-# ament_target_dependencies(transform_publisher rclcpp std_msgs geometry_msgs tf2 tf2_ros tf2_geometry_msgs pcl_ros)
-
-
-# add_executable(sac_ia_gicp
-#   src/sac_ia_gicp.cpp
-# )
-# ament_target_dependencies(sac_ia_gicp  rclcpp  std_msgs  PCL  pcl_ros  Eigen3)
-
-# Install launch files
+# Install launch config files
 install(
-  DIRECTORY launch
+  DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
 )
 
