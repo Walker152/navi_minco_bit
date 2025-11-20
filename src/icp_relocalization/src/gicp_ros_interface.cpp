@@ -1,5 +1,4 @@
 #include "gicp_ros_interface.hpp"
-// #include "pcl_ros/transforms.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include <Eigen/Geometry>
 #include <tf2_eigen/tf2_eigen.hpp>
@@ -10,17 +9,19 @@ namespace icp_relocalization
   GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions& options)
     : Node("gicp_relocalization_node", options)
   {
-    // 从YAML文件读取参数
     RCLCPP_INFO(this->get_logger(), "Loading parameters from YAML file...");
+    // Default parameters
     use_initial_alignment_ = this->declare_parameter<bool>("use_initial_alignment", true);
     base_frame_ = this->declare_parameter<std::string>("base_frame", "base_link");
     map_frame_ = this->declare_parameter<std::string>("map_frame", "map");
     drift_threshold_m_ = this->declare_parameter<double>("drift_threshold_m", 1.0);
     drift_threshold_rad_ = this->declare_parameter<double>("drift_threshold_rad", 0.5);
-    icp_frequency_ = this->declare_parameter<double>("icp_frequency", 1.0);
-    gicp_options_.feature_k_search = this->declare_parameter<int>("feature_k_search", 10);
+    alignment_frequency_ = this->declare_parameter<double>("alignment_frequency", 1.0);
+    publish_pose_on_odom_ = this->declare_parameter<bool>("publish_pose_on_odom", true);
     std::string target_pcd_file = this->declare_parameter<std::string>("target_pcd_file", "map.pcd");
 
+    // GICP Parameters
+    gicp_options_.feature_k_search = this->declare_parameter<int>("feature_k_search", 10);
     gicp_options_.target_voxel_leaf_size = this->declare_parameter<double>("gicp.target_voxel_leaf_size", 2.0);
     gicp_options_.source_voxel_leaf_size = this->declare_parameter<double>("gicp.source_voxel_leaf_size", 2.0);
     gicp_options_.max_correspondence_distance =
@@ -29,6 +30,7 @@ namespace icp_relocalization
     gicp_options_.transformation_epsilon = this->declare_parameter<double>("gicp.transformation_epsilon", 0.01);
     gicp_options_.euclidean_fitness_epsilon = this->declare_parameter<double>("gicp.euclidean_fitness_epsilon", 0.01);
 
+    // SAC-IA Parameters
     gicp_options_.sac_ia_min_sample_distance = this->declare_parameter<double>("sac_ia.min_sample_distance", 0.5);
     gicp_options_.sac_ia_correspondence_randomness =
         this->declare_parameter<int>("sac_ia.correspondence_randomness", 6);
@@ -36,33 +38,31 @@ namespace icp_relocalization
     gicp_options_.sac_ia_max_correspondence_distance =
         this->declare_parameter<double>("sac_ia.max_correspondence_distance", 1.0);
 
-    std::cout << BOLDCYAN << "[GICP Relocalization] Loaded Parameters:" << RESET << std::endl;
-    std::cout << CYAN << "  use_initial_alignment: " << (use_initial_alignment_ ? "true" : "false") << RESET
-              << std::endl;
-    std::cout << CYAN << "  base_frame: " << base_frame_ << RESET << std::endl;
-    std::cout << CYAN << "  map_frame: " << map_frame_ << RESET << std::endl;
-    std::cout << CYAN << "  drift_threshold_m: " << drift_threshold_m_ << RESET << std::endl;
-    std::cout << CYAN << "  drift_threshold_rad: " << drift_threshold_rad_ << RESET << std::endl;
-    std::cout << CYAN << "  icp_frequency: " << icp_frequency_ << RESET << std::endl;
-    std::cout << CYAN << "  target_pcd_file: " << target_pcd_file << RESET << std::endl;
+    std::cout << BOLDCYAN << " ========== GICP Relocalization ==========" << RESET << std::endl;
+    LOG_DEBUG_BLOCK(std::string(CYAN) + "[RELOCALIZATION] ",
+                    NV(use_initial_alignment_),
+                    NV(base_frame_),
+                    NV(map_frame_),
+                    NV(drift_threshold_m_),
+                    NV(drift_threshold_rad_),
+                    NV(alignment_frequency_),
+                    NV(publish_pose_on_odom_),
+                    NV(target_pcd_file));
     std::cout << BOLDCYAN << "  ---------- GICP Options ----------" << RESET << std::endl;
-    std::cout << CYAN << "  target_voxel_leaf_size: " << gicp_options_.target_voxel_leaf_size << RESET << std::endl;
-    std::cout << CYAN << "  source_voxel_leaf_size: " << gicp_options_.source_voxel_leaf_size << RESET << std::endl;
-    std::cout << CYAN << "  max_correspondence_distance: " << gicp_options_.max_correspondence_distance << RESET
-              << std::endl;
-    std::cout << CYAN << "  max_iterations: " << gicp_options_.max_iterations << RESET << std::endl;
-    std::cout << CYAN << "  transformation_epsilon: " << gicp_options_.transformation_epsilon << RESET << std::endl;
-    std::cout << CYAN << "  euclidean_fitness_epsilon: " << gicp_options_.euclidean_fitness_epsilon << RESET
-              << std::endl;
+    LOG_DEBUG_BLOCK(std::string(CYAN) + "[GICP] ",
+                    NV(gicp_options_.target_voxel_leaf_size),
+                    NV(gicp_options_.source_voxel_leaf_size),
+                    NV(gicp_options_.max_correspondence_distance),
+                    NV(gicp_options_.max_iterations),
+                    NV(gicp_options_.transformation_epsilon),
+                    NV(gicp_options_.euclidean_fitness_epsilon));
     std::cout << BOLDCYAN << "  ----------SAC-IA Options----------" << RESET << std::endl;
-    std::cout << CYAN << "  sac_ia_min_sample_distance: " << gicp_options_.sac_ia_min_sample_distance << RESET
-              << std::endl;
-    std::cout << CYAN << "  sac_ia_correspondence_randomness: " << gicp_options_.sac_ia_correspondence_randomness
-              << RESET << std::endl;
-    std::cout << CYAN << "  sac_ia_num_samples: " << gicp_options_.sac_ia_num_samples << RESET << std::endl;
-    std::cout << CYAN << "  sac_ia_max_correspondence_distance: " << gicp_options_.sac_ia_max_correspondence_distance
-              << RESET << std::endl;
-
+    LOG_DEBUG_BLOCK(std::string(CYAN) + "[SAC-IA] ",
+                    NV(gicp_options_.sac_ia_min_sample_distance),
+                    NV(gicp_options_.sac_ia_correspondence_randomness),
+                    NV(gicp_options_.sac_ia_num_samples),
+                    NV(gicp_options_.sac_ia_max_correspondence_distance),
+                    NV(gicp_options_.feature_k_search));
     if(!use_initial_alignment_)
     {
       state_ = State::LOCALIZED;  // 如果不使用SAC-IA，则直接进入定位状态，依赖里程计初始化
@@ -85,7 +85,7 @@ namespace icp_relocalization
     odom_sub_options.callback_group = callback_group_odom_;
 
     lidar_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-        "/livox/lidar",
+        "/cloud_registered",
         rclcpp::SensorDataQoS(),
         std::bind(&GicpRosInterface::lidarCallback, this, std::placeholders::_1),
         lidar_sub_options);
@@ -106,7 +106,7 @@ namespace icp_relocalization
     map_pub_->publish(map_msg);
 
     // 初始化FSM定时器
-    double period = 1.0 / icp_frequency_;
+    double period = 1.0 / alignment_frequency_;
     fsm_timer_ = this->create_wall_timer(std::chrono::duration<double>(period),
                                          std::bind(&GicpRosInterface::fsmTimerCallback, this),
                                          callback_group_lidar_);
@@ -130,8 +130,6 @@ namespace icp_relocalization
   {
     last_odom_ = msg;
     // 如果不使用SAC-IA，并且尚未初始化，则使用第一帧里程计进行初始化
-    // 说明: /aft_mapped_to_init 里程计消息提供的是 base_link 在 camera_init 坐标系下的位姿
-    // 因此 current_odom(下方使用) 实际表示 base_link 在 camera_init 下的位姿矩阵。
     if(state_ == State::LOCALIZED && !gicp_initialized_)
     {
       Eigen::Isometry3d initial_pose_iso;
@@ -141,6 +139,15 @@ namespace icp_relocalization
       gicp_initialized_ = true;
       last_icp_time_ = msg->header.stamp;
       RCLCPP_INFO(this->get_logger(), "ICP initialized with first odometry pose.");
+    }
+    // 使用最新 map_to_camera_init_ 与当前里程计计算 base_link 在 map 下的位姿
+    if(publish_pose_on_odom_ && last_odom_)
+    {
+      Eigen::Isometry3d odom_iso;
+      tf2::fromMsg(last_odom_->pose.pose, odom_iso);
+      Eigen::Matrix4f current_odom = odom_iso.matrix().cast<float>();
+      Eigen::Matrix4f fused_pose = map_to_camera_init_ * current_odom;
+      publishPose(fused_pose, last_odom_->header.stamp);
     }
   }
 
@@ -163,14 +170,14 @@ namespace icp_relocalization
 
   void GicpRosInterface::runFSM()
   {
-    // 1. 检查数据有效性
+    // 检查数据有效性
     if(!last_odom_)
     {
       RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Waiting for odometry to be available...");
       return;
     }
 
-    // 2. 获取最新点云（如果有）
+    // 获取最新点云
     PointCloud::Ptr source_cloud(new PointCloud());
     std::string cloud_frame;
     rclcpp::Time cloud_stamp;
@@ -190,13 +197,16 @@ namespace icp_relocalization
     tf2::fromMsg(last_odom_->pose.pose, odom_iso);
     Eigen::Matrix4f current_odom = odom_iso.matrix().cast<float>();
 
-    // 3. 状态机逻辑
+    // 状态机逻辑
     switch(state_)
     {
     case State::UNINITIALIZED:
     {
       if(!has_data)
+      {
+        RCLCPP_INFO(this->get_logger(), "No LIDAR data available for initialization.");
         return;
+      }
       state_ = State::INITIALIZING;
       break;
     }
@@ -219,7 +229,10 @@ namespace icp_relocalization
         gicp_initialized_ = true;
         last_icp_time_ = this->now();
         state_ = State::LOCALIZED;
-        publishPose(last_icp_pose_, this->now());
+        if(publish_pose_on_odom_ && last_odom_)
+        {
+          publishPose(last_icp_pose_, last_odom_->header.stamp);
+        }
       }
       else
       {
@@ -292,10 +305,8 @@ namespace icp_relocalization
     if(pos_diff > drift_threshold_m_ || angle_diff > drift_threshold_rad_)
     {
       RCLCPP_WARN(this->get_logger(), "Significant drift detected! Resetting odometry integration base.");
+      // TODO 加上LIO漂移替代方案，此处只是发出警告，没有实际处理逻辑
     }
-
-    // 无论是否漂移，都发布ICP的结果作为更正后的位姿
-    publishPose(icp_pose, this->now());
   }
 
   void GicpRosInterface::publishPose(const Eigen::Matrix4f& pose, const rclcpp::Time& stamp)
@@ -317,7 +328,7 @@ namespace icp_relocalization
 
     pose_pub_->publish(pose_msg);
 
-    // Publish Map -> Camera Init TF (child_frame_id 取自里程计消息的 frame_id, 此处应是 camera_init)
+    // Publish Map -> Camera Init TF
     if(last_odom_)
     {
       geometry_msgs::msg::TransformStamped t;
@@ -338,14 +349,14 @@ namespace icp_relocalization
 
       tf_broadcaster_->sendTransform(t);
 
-      // 额外发布 map -> base_link 的 TF，便于其他模块直接使用
+      // 额外发布 map -> base_link 的 TF
       geometry_msgs::msg::TransformStamped tb;
       tb.header.stamp = stamp;
       tb.header.frame_id = map_frame_;
       tb.child_frame_id = base_frame_;
 
-      Eigen::Vector3f b_pos = last_icp_pose_.block<3, 1>(0, 3);
-      Eigen::Quaternionf b_quat(last_icp_pose_.block<3, 3>(0, 0));
+      Eigen::Vector3f b_pos = pose.block<3, 1>(0, 3);
+      Eigen::Quaternionf b_quat(pose.block<3, 3>(0, 0));
       tb.transform.translation.x = b_pos.x();
       tb.transform.translation.y = b_pos.y();
       tb.transform.translation.z = b_pos.z();
