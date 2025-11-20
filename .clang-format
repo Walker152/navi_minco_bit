@@ -32,6 +32,11 @@ AlignAfterOpenBracket: Align
 # 行长度
 ColumnLimit: 120
 
+# 预处理与宏格式
+IndentPPDirectives: None        # 让 #ifndef / #define 不增加缩进，保持原样
+# AlignMacroDefinition 在当前 clang-format 版本不支持，已移除。
+PPIndentWidth: 0                # 与 IndentPPDirectives: None 配合，宽度为 0
+
 # 空格设置
 SpaceBeforeParens: Never
 SpaceAfterCStyleCast: false

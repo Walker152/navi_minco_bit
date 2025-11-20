@@ -9,6 +9,8 @@ gicp_relocalization_node:
     drift_threshold_rad: 0.5
     icp_frequency: 1.0
     feature_k_search: 10
+    publish_pose_on_odom: true
+    alignment_frequency: 1.0
 
     # GICP
     gicp:
