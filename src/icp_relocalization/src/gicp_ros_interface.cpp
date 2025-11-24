@@ -18,7 +18,11 @@ namespace icp_relocalization
     drift_threshold_rad_ = this->declare_parameter<double>("drift_threshold_rad", 0.5);
     alignment_frequency_ = this->declare_parameter<double>("alignment_frequency", 1.0);
     publish_pose_on_odom_ = this->declare_parameter<bool>("publish_pose_on_odom", true);
+    accumulate_frames_ = this->declare_parameter<int>("accumulate_frames", 5);
     std::string target_pcd_file = this->declare_parameter<std::string>("target_pcd_file", "map.pcd");
+
+    // Map Offset Parameters
+    map_offset_ = this->declare_parameter<std::vector<double>>("map_offset", {0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
 
     // GICP Parameters
     gicp_options_.feature_k_search = this->declare_parameter<int>("feature_k_search", 10);
@@ -47,7 +51,21 @@ namespace icp_relocalization
                     NV(drift_threshold_rad_),
                     NV(alignment_frequency_),
                     NV(publish_pose_on_odom_),
+                    NV(accumulate_frames_),
                     NV(target_pcd_file));
+
+    if(map_offset_.size() >= 6)
+    {
+      std::cout << BOLDCYAN << "  ---------- Map Offset ----------" << RESET << std::endl;
+      LOG_DEBUG_BLOCK(std::string(CYAN) + "[OFFSET] ",
+                      NV(map_offset_[0]),
+                      NV(map_offset_[1]),
+                      NV(map_offset_[2]),
+                      NV(map_offset_[3]),
+                      NV(map_offset_[4]),
+                      NV(map_offset_[5]));
+    }
+
     std::cout << BOLDCYAN << "  ---------- GICP Options ----------" << RESET << std::endl;
     LOG_DEBUG_BLOCK(std::string(CYAN) + "[GICP] ",
                     NV(gicp_options_.target_voxel_leaf_size),
@@ -97,6 +115,8 @@ namespace icp_relocalization
 
     pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("/gicp_pose", 10);
     map_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/gicp_map", rclcpp::QoS(1).transient_local());
+    source_pub_ =
+        this->create_publisher<sensor_msgs::msg::PointCloud2>("/gicp_source", 10);  // Debug: accumulated cloud
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
     // 发布一次地图
@@ -116,7 +136,45 @@ namespace icp_relocalization
   {
     try
     {
-      gicp_filter_ = std::make_unique<GicpFilter>(target_pcd_file, gicp_options_);
+      // 1. 加载点云
+      PointCloud::Ptr target_cloud(new PointCloud());
+      if(pcl::io::loadPCDFile<pcl::PointXYZ>(target_pcd_file, *target_cloud) == -1)
+      {
+        throw std::runtime_error("Couldn't read file " + target_pcd_file);
+      }
+
+      // 2. 应用地图偏移
+      if(map_offset_.size() == 6)
+      {
+        bool is_zero = true;
+        for(double v : map_offset_)
+          if(std::abs(v) > 1e-6)
+            is_zero = false;
+
+        if(!is_zero)
+        {
+          RCLCPP_INFO(this->get_logger(),
+                      "Applying map offset: xyz(%.2f, %.2f, %.2f), rpy(%.2f, %.2f, %.2f)",
+                      map_offset_[0],
+                      map_offset_[1],
+                      map_offset_[2],
+                      map_offset_[3],
+                      map_offset_[4],
+                      map_offset_[5]);
+
+          Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+          transform.translation() << map_offset_[0], map_offset_[1], map_offset_[2];
+          transform.rotate(Eigen::AngleAxisf(map_offset_[5], Eigen::Vector3f::UnitZ()) *
+                           Eigen::AngleAxisf(map_offset_[4], Eigen::Vector3f::UnitY()) *
+                           Eigen::AngleAxisf(map_offset_[3], Eigen::Vector3f::UnitX()));
+
+          pcl::transformPointCloud(*target_cloud, *target_cloud, transform);
+        }
+      }
+
+      // 3. 初始化 GICP Filter
+      gicp_filter_ = std::make_unique<GicpFilter>(target_cloud, gicp_options_);
+
       RCLCPP_INFO(this->get_logger(), "GICP filter initialized with map: %s", target_pcd_file.c_str());
     }
     catch(const std::runtime_error& e)
@@ -146,21 +204,26 @@ namespace icp_relocalization
       Eigen::Isometry3d odom_iso;
       tf2::fromMsg(last_odom_->pose.pose, odom_iso);
       Eigen::Matrix4f current_odom = odom_iso.matrix().cast<float>();
-      Eigen::Matrix4f fused_pose = map_to_camera_init_ * current_odom;
+
+      Eigen::Matrix4f fused_pose;
+      {
+        std::lock_guard<std::mutex> lock(map_to_camera_init_mutex_);
+        fused_pose = map_to_camera_init_ * current_odom;
+      }
+
       publishPose(fused_pose, last_odom_->header.stamp);
     }
   }
 
   void GicpRosInterface::lidarCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
   {
-    if(!latest_cloud_)
+    // 将新点云加入队列
+    cloud_queue_.push_back(msg);
+
+    while(cloud_queue_.size() > static_cast<size_t>(accumulate_frames_ * 2))
     {
-      latest_cloud_ = std::make_shared<PointCloud>();
+      cloud_queue_.pop_front();
     }
-    pcl::fromROSMsg(*msg, *latest_cloud_);
-    latest_cloud_frame_ = msg->header.frame_id;
-    latest_cloud_stamp_ = msg->header.stamp;
-    has_new_cloud_ = true;
   }
 
   void GicpRosInterface::fsmTimerCallback()
@@ -171,30 +234,78 @@ namespace icp_relocalization
   void GicpRosInterface::runFSM()
   {
     // 检查数据有效性
-    if(!last_odom_)
+    auto odom = last_odom_;  // 本地副本，避免并发修改
+    if(!odom)
     {
       RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Waiting for odometry to be available...");
       return;
     }
 
-    // 获取最新点云
-    PointCloud::Ptr source_cloud(new PointCloud());
-    std::string cloud_frame;
-    rclcpp::Time cloud_stamp;
-    bool has_data = false;
-
-    if(has_new_cloud_)
+    // 检查是否有足够的点云帧进行累积
+    if(cloud_queue_.size() < static_cast<size_t>(accumulate_frames_))
     {
-      *source_cloud = *latest_cloud_;
-      cloud_frame = latest_cloud_frame_;
-      cloud_stamp = latest_cloud_stamp_;
-      has_new_cloud_ = false;
-      has_data = true;
+      return;
+    }
+
+    // 累积点云
+    PointCloud::Ptr source_cloud(new PointCloud());
+    std::string target_frame = odom->header.frame_id;  // 通常是 camera_init 或 odom
+    rclcpp::Time cloud_stamp;
+
+    // 取队列中最新的 accumulate_frames_ 帧
+    int start_idx = cloud_queue_.size() - accumulate_frames_;
+    for(int i = start_idx; i < (int)cloud_queue_.size(); ++i)
+    {
+      auto& msg = cloud_queue_[i];
+      PointCloud::Ptr temp_cloud(new PointCloud());
+      pcl::fromROSMsg(*msg, *temp_cloud);
+
+      // 如果点云不在目标坐标系下，则进行变换 (运动补偿)
+      if(msg->header.frame_id != target_frame)
+      {
+        try
+        {
+          // 查询点云时刻的 TF (msg_frame -> target_frame)
+          geometry_msgs::msg::TransformStamped tf_stamped = tf_buffer_->lookupTransform(
+              target_frame, msg->header.frame_id, msg->header.stamp, rclcpp::Duration::from_seconds(0.1));
+
+          Eigen::Affine3d tf_eigen = tf2::transformToEigen(tf_stamped);
+          pcl::transformPointCloud(*temp_cloud, *temp_cloud, tf_eigen);
+        }
+        catch(tf2::TransformException& ex)
+        {
+          RCLCPP_WARN(this->get_logger(), "Could not transform point cloud: %s", ex.what());
+          continue;  // 跳过这一帧
+        }
+      }
+
+      *source_cloud += *temp_cloud;
+
+      // 使用最后一帧的时间戳作为本次配准的时间戳
+      if(i == (int)cloud_queue_.size() - 1)
+      {
+        cloud_stamp = msg->header.stamp;
+      }
+    }
+
+    if(source_cloud->empty() || source_cloud->size() < 100)
+    {
+      RCLCPP_WARN(this->get_logger(), "Accumulated cloud is empty or too small (%zu points).", source_cloud->size());
+      return;
+    }
+
+    // Debug: 发布累积后的点云
+    {
+      sensor_msgs::msg::PointCloud2 debug_msg;
+      pcl::toROSMsg(*source_cloud, debug_msg);
+      debug_msg.header.frame_id = target_frame;
+      debug_msg.header.stamp = cloud_stamp;
+      source_pub_->publish(debug_msg);
     }
 
     // 准备通用数据
     Eigen::Isometry3d odom_iso;
-    tf2::fromMsg(last_odom_->pose.pose, odom_iso);
+    tf2::fromMsg(odom->pose.pose, odom_iso);
     Eigen::Matrix4f current_odom = odom_iso.matrix().cast<float>();
 
     // 状态机逻辑
@@ -202,11 +313,6 @@ namespace icp_relocalization
     {
     case State::UNINITIALIZED:
     {
-      if(!has_data)
-      {
-        RCLCPP_INFO(this->get_logger(), "No LIDAR data available for initialization.");
-        return;
-      }
       state_ = State::INITIALIZING;
       break;
     }
@@ -221,17 +327,21 @@ namespace icp_relocalization
       {
         RCLCPP_INFO(this->get_logger(), "Initial alignment successful! Fitness score: %f", result.fitness_score);
 
-        // 点云在 camera_init 系，SAC-IA 结果即为 map -> camera_init
-        map_to_camera_init_ = result.final_transformation;
-        // base_link 在 map 下 = (map->camera_init) * (camera_init->base_link)
-        last_icp_pose_ = map_to_camera_init_ * current_odom;
+        // GICP/SAC-IA 计算的是 Source(camera_init) -> Target(map) 的变换
+        {
+          std::lock_guard<std::mutex> lock(map_to_camera_init_mutex_);
+          map_to_camera_init_ = result.final_transformation.inverse();
+
+          // base_link 在 map 下 = (map->camera_init) * (camera_init->base_link)
+          last_icp_pose_ = map_to_camera_init_ * current_odom;
+        }
 
         gicp_initialized_ = true;
         last_icp_time_ = this->now();
         state_ = State::LOCALIZED;
-        if(publish_pose_on_odom_ && last_odom_)
+        if(publish_pose_on_odom_ && odom)
         {
-          publishPose(last_icp_pose_, last_odom_->header.stamp);
+          publishPose(last_icp_pose_, odom->header.stamp);
         }
       }
       else
@@ -249,14 +359,15 @@ namespace icp_relocalization
         return;
       }
 
-      if(!has_data)
-        return;
-
       RCLCPP_INFO(this->get_logger(), "Processing new lidar scan for incremental alignment...");
       last_icp_time_ = this->now();
 
-      // 点云在 camera_init 系，初值即为 map -> camera_init
-      Eigen::Matrix4f initial_guess = map_to_camera_init_;
+      // GICP 需要 Source -> Target 的初值，即 camera_init -> map
+      Eigen::Matrix4f initial_guess;
+      {
+        std::lock_guard<std::mutex> lock(map_to_camera_init_mutex_);
+        initial_guess = map_to_camera_init_.inverse();
+      }
 
       auto result = gicp_filter_->align(source_cloud, initial_guess);
 
@@ -265,9 +376,12 @@ namespace icp_relocalization
         RCLCPP_INFO(this->get_logger(), "GICP converged with fitness score: %f", result.fitness_score);
 
         // 更新 map -> camera_init
-        map_to_camera_init_ = result.final_transformation;
-        // 计算 base_link 在 map 下的位姿
-        last_icp_pose_ = map_to_camera_init_ * current_odom;
+        {
+          std::lock_guard<std::mutex> lock(map_to_camera_init_mutex_);
+          map_to_camera_init_ = result.final_transformation.inverse();
+          // 计算 base_link 在 map 下的位姿
+          last_icp_pose_ = map_to_camera_init_ * current_odom;
+        }
 
         checkDriftAndCorrect(last_icp_pose_);
       }
@@ -336,8 +450,14 @@ namespace icp_relocalization
       t.header.frame_id = map_frame_;
       t.child_frame_id = last_odom_->header.frame_id;
 
-      Eigen::Vector3f tf_pos = map_to_camera_init_.block<3, 1>(0, 3);
-      Eigen::Quaternionf tf_quat(map_to_camera_init_.block<3, 3>(0, 0));
+      Eigen::Matrix4f current_map_to_init;
+      {
+        std::lock_guard<std::mutex> lock(map_to_camera_init_mutex_);
+        current_map_to_init = map_to_camera_init_;
+      }
+
+      Eigen::Vector3f tf_pos = current_map_to_init.block<3, 1>(0, 3);
+      Eigen::Quaternionf tf_quat(current_map_to_init.block<3, 3>(0, 0));
 
       t.transform.translation.x = tf_pos.x();
       t.transform.translation.y = tf_pos.y();

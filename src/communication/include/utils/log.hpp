@@ -9,7 +9,7 @@
 #include <string>
 #include <string_view>
 
-namespace log
+namespace com_log
 {
   inline std::string now_string()
   {
@@ -73,6 +73,6 @@ namespace log
 
     log_info_line(oss.str());
   }
-}  // namespace log
+}  // namespace com_log
 
-#define NV(var) ::log::nv(#var, (var))
+#define NV(var) ::com_log::nv(#var, (var))
