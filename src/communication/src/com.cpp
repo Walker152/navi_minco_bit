@@ -1,13 +1,14 @@
 #include "com.hpp"
 #include "com_interface_ros.hpp"
 
+// 日志输出落地函数（由头文件模板调用）
+void com_log::log_info_line(std::string_view text)
+{
+  std::cout << text;
+}
+
 namespace ns_com
 {
-  // 日志输出落地函数（由头文件模板调用）
-  void log::log_info_line(std::string_view text)
-  {
-    std::cout << text;
-  }
   // 静态成员变量定义
   MyUtils::Net::FdManager Communication::fd_manager;
   MyUtils::MyTimer::TimerManager Communication::timer_manager;
@@ -25,7 +26,8 @@ namespace ns_com
     std::thread([]() { timer_manager.run(); }).detach();
   }
 
-  void Communication::setRosInterface(const std::shared_ptr<ComInterfaceRos> &ptr) {
+  void Communication::setRosInterface(const std::shared_ptr<ComInterfaceRos>& ptr)
+  {
     ros_if_ = ptr;
   }
 
@@ -56,7 +58,13 @@ namespace ns_com
     else
     {
       std::cerr << RED << "[COM] Failed to open serial port for " << name << RESET << std::endl;
-      LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM] ", NV(name), NV(port), NV(baud_rate), NV(n_bits), NV(stop_length), NV(check_type));
+      LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM] ",
+                      NV(name),
+                      NV(port),
+                      NV(baud_rate),
+                      NV(n_bits),
+                      NV(stop_length),
+                      NV(check_type));
     }
   }
   // send2stm32 模板定义已放入头文件（com.hpp），此处仅保留 __send2stm32 的实现
@@ -101,7 +109,7 @@ namespace ns_com
         return;
 
       char* buf = (char*)stm32_recv_buffer.get();
-      
+
       int start_idx = -1;
       for(size_t i = 0; i + 1 < stm32_recv_buffer.size(); ++i)
       {
@@ -113,7 +121,8 @@ namespace ns_com
       }
       if(start_idx == -1)
       {
-        std::cout << RED << "[COM] Warning: No valid start flag found in STM32 buffer, clearing buffer." << RESET << std::endl;
+        std::cout << RED << "[COM] Warning: No valid start flag found in STM32 buffer, clearing buffer." << RESET
+                  << std::endl;
         stm32_recv_buffer.reset();
         return;
       }
@@ -135,49 +144,64 @@ namespace ns_com
       }
       if(check(buf, full_len))
       {
-          if(allow_debug)
-          {
-            LOG_DEBUG_BLOCK(std::string(BLUE) + "[COM] ", NV(header->packet_type), NV(header->data_len));
-          }
+        if(allow_debug)
+        {
+          LOG_DEBUG_BLOCK(std::string(BLUE) + "[COM] ", NV(header->packet_type), NV(header->data_len));
+        }
         switch(header->packet_type)
         {
-        // 校验通过
-          case ENUM_PACKET_NAV_DATA:
+          // 校验通过
+        case ENUM_PACKET_NAV_DATA:
+        {
+          const NavRes* nav_data = (const NavRes*)(buf + sizeof(PacketHeader));
+          auto ros_ptr = ros_if_;
+          if(ros_ptr)
+            ros_ptr->publishNav(*nav_data);
+          if(allow_debug)
           {
-            const NavRes* nav_data = (const NavRes*)(buf + sizeof(PacketHeader));
-            auto ros_ptr = ros_if_;
-            if (ros_ptr) ros_ptr->publishNav(*nav_data);
-            if(allow_debug)
-            {
-              LOG_DEBUG_BLOCK(std::string(GREEN) + "[COM][Nav] ", NV(nav_data->x), NV(nav_data->y), NV(nav_data->yaw), NV(nav_data->is_reach));
-            }
-            break;
+            LOG_DEBUG_BLOCK(std::string(GREEN) + "[COM][Nav] ",
+                            NV(nav_data->x),
+                            NV(nav_data->y),
+                            NV(nav_data->yaw),
+                            NV(nav_data->is_reach));
           }
+          break;
+        }
 
-          case ENUM_PACKET_GAMESTATUS_DATA:
+        case ENUM_PACKET_GAMESTATUS_DATA:
+        {
+          const EventStatus* event_status = (const EventStatus*)(buf + sizeof(PacketHeader));
+          if(allow_debug)
           {
-            const EventStatus* event_status = (const EventStatus*)(buf + sizeof(PacketHeader));
-            if(allow_debug)
-            {
-              LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Evt] ", NV(event_status->self_health), NV(event_status->num_shoot),
-                              NV(event_status->own_outpost_destroyed), NV(event_status->buff_active), NV(event_status->is_get),
-                              NV(event_status->x), NV(event_status->y), NV(event_status->z), NV(event_status->armor_id));
-            }
-            auto ros_ptr = ros_if_;
-            if (ros_ptr) ros_ptr->publishEventStatus(*event_status);
-            break;
+            LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Evt] ",
+                            NV(event_status->self_health),
+                            NV(event_status->num_shoot),
+                            NV(event_status->own_outpost_destroyed),
+                            NV(event_status->buff_active),
+                            NV(event_status->is_get),
+                            NV(event_status->x),
+                            NV(event_status->y),
+                            NV(event_status->z),
+                            NV(event_status->armor_id));
           }
-          default:
+          auto ros_ptr = ros_if_;
+          if(ros_ptr)
+            ros_ptr->publishEventStatus(*event_status);
+          break;
+        }
+        default:
+        {
+          if(allow_debug)
           {
-              if(allow_debug)
-              {
-                LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM][Warn] ", NV(header->packet_type));
-              }
+            LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM][Warn] ", NV(header->packet_type));
           }
         }
+        }
       }
-      else{
-        std::cout << RED << "[COM] Warning: Checksum error (Packet type: " << (int)header->packet_type << ")" << RESET <<std::endl;
+      else
+      {
+        std::cout << RED << "[COM] Warning: Checksum error (Packet type: " << (int)header->packet_type << ")" << RESET
+                  << std::endl;
       }
       stm32_recv_buffer = stm32_recv_buffer.sub(full_len);
     }

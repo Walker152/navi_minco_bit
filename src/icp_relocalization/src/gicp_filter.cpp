@@ -12,15 +12,26 @@ namespace icp_relocalization
     {
       throw std::runtime_error("Couldn't read file " + target_pcd_path);
     }
+    preprocessMap(target_cloud);
+  }
 
+  GicpFilter::GicpFilter(const PointCloud::Ptr& target_cloud, const Options& options)
+    : options_(options)
+  {
+    preprocessMap(target_cloud);
+  }
+
+  void GicpFilter::preprocessMap(const PointCloud::Ptr& cloud)
+  {
     // 移除NaN点
+    PointCloud::Ptr cloud_no_nan(new PointCloud());
     pcl::Indices indices;
-    pcl::removeNaNFromPointCloud(*target_cloud, *target_cloud, indices);
+    pcl::removeNaNFromPointCloud(*cloud, *cloud_no_nan, indices);
 
     // 对地图进行降采样
     pcl::VoxelGrid<pcl::PointXYZ> vg;
     vg.setLeafSize(options_.target_voxel_leaf_size, options_.target_voxel_leaf_size, options_.target_voxel_leaf_size);
-    vg.setInputCloud(target_cloud);
+    vg.setInputCloud(cloud_no_nan);
     target_cloud_filtered_ = std::make_shared<PointCloud>();
     vg.filter(*target_cloud_filtered_);
 

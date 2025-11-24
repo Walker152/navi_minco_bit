@@ -2,13 +2,13 @@
 
 #include <Eigen/Core>
 #include <memory>
+#include <pcl/features/fpfh_omp.h>
+#include <pcl/features/normal_3d_omp.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/registration/gicp.h>
-#include <pcl/features/fpfh_omp.h>
-#include <pcl/features/normal_3d_omp.h>
 #include <pcl/registration/ia_ransac.h>
 #include <pcl/search/kdtree.h>
 #include <string>
@@ -30,7 +30,7 @@ namespace icp_relocalization
       // Voxel Grid
       double target_voxel_leaf_size = 2.0;
       double source_voxel_leaf_size = 2.0;
-      
+
       // SAC-IA
       double sac_ia_min_sample_distance = 0.5;
       int sac_ia_correspondence_randomness = 6;
@@ -55,6 +55,9 @@ namespace icp_relocalization
     // 构造函数，加载地图并进行预处理
     explicit GicpFilter(const std::string& target_pcd_path, const Options& options);
 
+    // 构造函数，直接使用点云数据
+    GicpFilter(const PointCloud::Ptr& target_cloud, const Options& options);
+
     // 全局初始定位：使用SAC-IA粗定位 + GICP精细定位
     Result initialAlign(const PointCloud::Ptr& source_cloud);
 
@@ -68,6 +71,9 @@ namespace icp_relocalization
     }
 
   private:
+    // 初始化处理流程
+    void preprocessMap(const PointCloud::Ptr& cloud);
+
     // 计算点云的FPFH特征
     FPFHFeature::Ptr computeFPFH(const PointCloud::Ptr& cloud);
 
