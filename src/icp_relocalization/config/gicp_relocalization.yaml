@@ -11,6 +11,8 @@ gicp_relocalization_node:
     feature_k_search: 10
     publish_pose_on_odom: true
     alignment_frequency: 1.0
+    map_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    accumulate_frames: 5
 
     # GICP
     gicp:

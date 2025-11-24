@@ -13,6 +13,7 @@
 #include "tf2_ros/transform_listener.h"
 
 #include <deque>
+#include <mutex>
 
 #include "color_text.hpp"
 #include "gicp_filter.hpp"
@@ -53,6 +54,7 @@ namespace icp_relocalization
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr map_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr source_pub_;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
@@ -66,15 +68,16 @@ namespace icp_relocalization
     State state_ = State::UNINITIALIZED;
     std::deque<nav_msgs::msg::Odometry::SharedPtr> odom_buffer_;
     nav_msgs::msg::Odometry::SharedPtr last_odom_;
-    PointCloud::Ptr latest_cloud_;
-    std::string latest_cloud_frame_;
-    rclcpp::Time latest_cloud_stamp_;
-    bool has_new_cloud_ = false;
+
+    // 点云缓存队列 (用于多帧累积)
+    std::deque<sensor_msgs::msg::PointCloud2::SharedPtr> cloud_queue_;
+
     bool gicp_initialized_ = false;
     rclcpp::Time last_icp_time_;
 
     // 变换与位姿
     Eigen::Matrix4f map_to_camera_init_ = Eigen::Matrix4f::Identity();
+    std::mutex map_to_camera_init_mutex_;                          // 保护 map_to_camera_init_ 的互斥锁
     Eigen::Matrix4f last_icp_pose_ = Eigen::Matrix4f::Identity();  // base_link 在 map 下的最新融合位姿
 
     // 默认参数
@@ -85,6 +88,11 @@ namespace icp_relocalization
     double alignment_frequency_;  // 地图对齐(GICP)低频执行频率
     bool publish_pose_on_odom_;   // 是否在每次里程计回调发布融合位姿
     bool use_initial_alignment_;  // 是否启用 SAC-IA 初始定位
+    int accumulate_frames_;       // 参与配准的累积帧数
+
+    // 地图偏移参数 (用于对齐 PCD 与 Grid Map)
+    std::vector<double> map_offset_;  // [x, y, z, roll, pitch, yaw]
+
     GicpFilter::Options gicp_options_;
   };
 
