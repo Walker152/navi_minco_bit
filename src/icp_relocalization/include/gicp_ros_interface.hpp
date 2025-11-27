@@ -44,8 +44,6 @@ namespace icp_relocalization
 
     void setupGicp(const std::string& target_pcd_file);
 
-    void checkDriftAndCorrect(const Eigen::Matrix4f& icp_pose);
-
     void publishPose(const Eigen::Matrix4f& pose, const rclcpp::Time& stamp);
 
     // ROS 接口
@@ -83,12 +81,13 @@ namespace icp_relocalization
     // 默认参数
     std::string base_frame_;
     std::string map_frame_;
-    double drift_threshold_m_;    // 位置漂移阈值
-    double drift_threshold_rad_;  // 姿态漂移阈值
-    double alignment_frequency_;  // 地图对齐(GICP)低频执行频率
-    bool publish_pose_on_odom_;   // 是否在每次里程计回调发布融合位姿
-    bool use_initial_alignment_;  // 是否启用 SAC-IA 初始定位
-    int accumulate_frames_;       // 参与配准的累积帧数
+    double drift_threshold_m_;        // 位置漂移阈值
+    double drift_threshold_rad_;      // 姿态漂移阈值
+    double alignment_frequency_;      // 地图对齐(GICP)低频执行频率
+    bool publish_pose_on_odom_;       // 是否在每次里程计回调发布融合位姿
+    bool use_initial_alignment_;      // 是否启用 SAC-IA 初始定位
+    int accumulate_frames_;           // 参与配准的累积帧数
+    double fitness_score_threshold_;  // 配准得分阈值
 
     // 地图偏移参数 (用于对齐 PCD 与 Grid Map)
     std::vector<double> map_offset_;  // [x, y, z, roll, pitch, yaw]
