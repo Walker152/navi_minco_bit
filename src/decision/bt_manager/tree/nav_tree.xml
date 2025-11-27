@@ -1,0 +1,42 @@
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Fallback>
+      <!-- 紧急撤退模式（最高优先级） -->
+      <Sequence name="EmergencyRetreat">
+        <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
+        <SetCoordinate name="SetHomeCoordinate" goal="0" />
+        <PublishNavigationGoal name="PublishRetreatGoal" />
+        <WaitUntilStopped name="WaitUntilHome" />
+      </Sequence>
+      
+      <!-- 前哨站打击模式 -->
+      <Sequence name="OutpostResponse">
+        <CheckIfRetreating name="CheckIfRetreating"/>
+        <CheckOutpostRemained name="CheckOutpostRemained" />
+        <SetCoordinate name="SetResponseCoordinate" goal="2" />
+        <PublishNavigationGoal name="PublishResponseGoal" />
+      </Sequence>
+      
+      <!-- 进攻策略选择 -->
+      <Fallback name="OffensiveStrategies">
+        <Sequence name="TargetPursuit">
+          <CheckIfRetreating name="CheckIfRetreating"/>
+          <CheckTargetLocked name="CheckTargetLocked" />
+          <SetTargetCoordinate name="SetTargetCoordinate" />
+          <PublishNavigationGoal name="PublishPursuitGoal" />
+        </Sequence>
+        
+        <!-- 常规巡逻模式（循环巡逻点） -->
+        <Sequence name="RegularPatrol">
+          <Wait name="InitialWait" milliseconds="5000"/>
+          <CheckIfRetreating name="CheckIfRetreating"/>
+          <CheckNavStatus name="CheckNavStatus" />
+          <SelectPatrolPoint name="SelectPatrolPoint" />
+          <PublishNavigationGoal name="PublishPatrolGoal" />
+          <WaitUntilStopped name="WaitAfterNavigation" />
+          <Wait name="PostNavigationWait" />
+        </Sequence>
+      </Fallback>
+    </Fallback>
+  </BehaviorTree>
+</root>

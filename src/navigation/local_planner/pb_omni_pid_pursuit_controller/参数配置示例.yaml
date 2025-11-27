@@ -1,0 +1,166 @@
+# PB Omni PID Pursuit Controller 参数配置示例
+
+# 这个文件展示了如何在 nav2_params.yaml 中配置 pb_omni_pid_pursuit_controller
+# 包含详细的参数说明和调优建议
+
+controller_server:
+  ros__parameters:
+    # 控制器基本设置
+    controller_frequency: 20.0          # 控制器更新频率 (Hz)
+    min_x_velocity_threshold: 0.001     # 最小x速度阈值
+    min_y_velocity_threshold: 0.5       # 最小y速度阈值  
+    min_theta_velocity_threshold: 0.001 # 最小角速度阈值
+    failure_tolerance: 0.3              # 故障容差
+    progress_checker_plugin: "progress_checker"
+    goal_checker_plugins: ["general_goal_checker"]
+    controller_plugins: ["FollowPath"]
+
+    # 进度检查器
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5     # 必需的移动半径
+      movement_time_allowance: 10.0     # 移动时间容许
+
+    # 目标检查器
+    general_goal_checker:
+      stateful: True
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.15           # 位置容差 (米)
+      yaw_goal_tolerance: 0.25          # 角度容差 (弧度)
+
+    # === PB Omni PID Pursuit Controller 配置 ===
+    FollowPath:
+      plugin: "pb_omni_pid_pursuit_controller::OmniPidPursuitController"
+      
+      # === PID 控制器参数 ===
+      # 平移PID：控制机器人向目标点的线性运动
+      translation_kp: 3.0               # 比例增益 - 控制响应速度
+                                        # 增大：响应更快，但可能超调
+                                        # 减小：响应更慢，但更稳定
+      translation_ki: 0.1               # 积分增益 - 消除稳态误差  
+                                        # 增大：更快消除误差，但可能振荡
+                                        # 减小：误差消除慢，但更稳定
+      translation_kd: 0.3               # 微分增益 - 减少超调和振荡
+                                        # 增大：阻尼更强，但对噪声敏感
+                                        # 减小：阻尼减弱，可能振荡
+      
+      # 旋转PID：控制机器人的角度调整
+      enable_rotation: true             # 是否启用角度控制（全向轮建议启用）
+      rotation_kp: 3.0                  # 角度比例增益
+      rotation_ki: 0.1                  # 角度积分增益
+      rotation_kd: 0.3                  # 角度微分增益
+      
+      # PID系统参数
+      transform_tolerance: 0.1          # 坐标变换超时容差 (秒)
+      min_max_sum_error: 1.0           # PID积分项限幅（防止积分饱和）
+      
+      # === Pure Pursuit 算法核心参数 ===
+      # 前瞻距离设置 - 决定机器人"看多远"
+      lookahead_dist: 0.3              # 基础前瞻距离 (米)
+                                       # 调优指导：
+                                       # - 小车：0.2-0.5m  
+                                       # - 大车：0.5-1.5m
+                                       # - 室内：较小值，转弯更灵敏
+                                       # - 室外：较大值，路径更平滑
+                                        
+      use_velocity_scaled_lookahead_dist: true  # 启用速度自适应前瞻
+                                       # true: 速度越快，前瞻越远
+                                       # false: 使用固定前瞻距离
+                                       
+      min_lookahead_dist: 0.2          # 最小前瞻距离 (米)
+                                       # 防止前瞻距离过小导致振荡
+                                       
+      max_lookahead_dist: 1.0          # 最大前瞻距离 (米)  
+                                       # 防止前瞻距离过大导致转弯迟钝
+                                       
+      lookahead_time: 1.0              # 前瞻时间常数 (秒)
+                                       # 用于计算: lookahead = velocity × lookahead_time
+                                       # 调优：根据期望的预判时间调整
+      
+      # === 路径跟踪策略参数 ===
+      use_interpolation: true          # 是否使用插值计算精确前瞻点
+                                       # true: 更精确，计算量稍大
+                                       # false: 使用最近路径点，计算快
+                                       
+      use_rotate_to_heading: true      # 接近目标时是否旋转到目标朝向
+                                       # 适用于需要精确最终姿态的场景
+                                       
+      use_rotate_to_heading_treshold: 0.1  # 触发旋转到目标朝向的角度阈值 (弧度)
+                                       # ≈ 5.7度，大于此值时停止前进专注旋转
+      
+      # === 速度限制和缩放参数 ===
+      # 绝对速度限制
+      v_linear_max: 3.0                # 最大线性速度 (m/s)
+      v_linear_min: -3.0               # 最小线性速度 (m/s, 负值允许倒退)
+      v_angular_max: 3.0               # 最大角速度 (rad/s)
+      v_angular_min: -3.0              # 最小角速度 (rad/s)
+      
+      # 接近目标时的减速策略
+      min_approach_linear_velocity: 0.05    # 接近目标时的最小速度 (m/s)
+                                            # 防止最后阶段停止不动
+                                            
+      approach_velocity_scaling_dist: 0.6   # 开始减速的距离阈值 (米)
+                                            # 距离目标小于此值时开始线性减速
+                                            # 调优：根据制动距离和精度要求调整
+      
+      # === 路径搜索参数 ===
+      max_robot_pose_search_dist: 3.0  # 在路径上搜索机器人位置的最大距离 (米)
+                                       # 通常设为代价地图最大范围的一半
+      
+      # === 曲率限制参数（高级安全功能）===
+      # 防止在急转弯时速度过快，提高安全性
+      curvature_min: 0.4               # 开始限速的曲率阈值 (1/米)
+                                       # 曲率 = 1/转弯半径
+                                       # 0.4 对应 2.5米转弯半径
+                                       
+      curvature_max: 0.7               # 最大限速的曲率阈值 (1/米)  
+                                       # 0.7 对应 1.43米转弯半径
+                                       
+      reduction_ratio_at_high_curvature: 0.5   # 高曲率时的速度削减比例
+                                               # 0.5 表示在急转弯时速度减半
+      
+      # 曲率计算用的参考点距离
+      curvature_forward_dist: 0.7      # 前向参考点距离 (米)
+      curvature_backward_dist: 0.3     # 后向参考点距离 (米)
+                                       # 用三点拟合圆来计算路径曲率
+      
+      # 速度缩放平滑控制
+      max_velocity_scaling_factor_rate: 0.9    # 速度缩放系数的最大变化率
+                                               # 防止速度突变，提供平滑的加减速
+
+
+# === 使用建议和调优流程 ===
+
+# 1. 基础调优顺序:
+#    a) 先设置合适的速度限制 (v_linear_max, v_angular_max)
+#    b) 调整前瞻距离 (lookahead_dist) 
+#    c) 调整PID参数 (先Kp，再Ki，最后Kd)
+#    d) 微调高级功能参数
+
+# 2. 常见问题及解决:
+#    - 振荡: 减小Kp，增大Kd，或增大前瞻距离
+#    - 响应慢: 增大Kp，减小前瞻距离
+#    - 转弯过冲: 启用曲率限制，调整曲率参数
+#    - 稳态误差: 适当增大Ki（但要小心振荡）
+
+# 3. 不同应用场景的建议配置:
+#    
+#    室内AGV (小型，精确):
+#    - lookahead_dist: 0.2-0.3
+#    - translation_kp: 2.0-4.0  
+#    - v_linear_max: 0.5-1.5
+#    
+#    室外移动机器人 (中型，平稳):
+#    - lookahead_dist: 0.5-0.8
+#    - translation_kp: 1.5-3.0
+#    - v_linear_max: 1.0-3.0
+#    
+#    大型运输车辆 (大型，稳定):
+#    - lookahead_dist: 1.0-2.0
+#    - translation_kp: 1.0-2.0
+#    - v_linear_max: 0.5-2.0
+
+# 4. 调试工具:
+#    - 在RViz中观察 /local_plan 和 /lookahead_point 话题
+#    - 使用 ros2 param set 命令实时调整参数
+#    - 监控控制器日志输出
