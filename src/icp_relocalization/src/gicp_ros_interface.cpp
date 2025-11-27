@@ -42,6 +42,8 @@ namespace icp_relocalization
     gicp_options_.sac_ia_max_correspondence_distance =
         this->declare_parameter<double>("sac_ia.max_correspondence_distance", 1.0);
 
+    fitness_score_threshold_ = this->declare_parameter<double>("fitness_score_threshold", 0.5);
+
     std::cout << BOLDCYAN << " ========== GICP Relocalization ==========" << RESET << std::endl;
     LOG_DEBUG_BLOCK(std::string(CYAN) + "[RELOCALIZATION] ",
                     NV(use_initial_alignment_),
@@ -234,7 +236,7 @@ namespace icp_relocalization
   void GicpRosInterface::runFSM()
   {
     // 检查数据有效性
-    auto odom = last_odom_;  // 本地副本，避免并发修改
+    auto odom = last_odom_;
     if(!odom)
     {
       RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Waiting for odometry to be available...");
@@ -275,7 +277,7 @@ namespace icp_relocalization
         catch(tf2::TransformException& ex)
         {
           RCLCPP_WARN(this->get_logger(), "Could not transform point cloud: %s", ex.what());
-          continue;  // 跳过这一帧
+          continue;  
         }
       }
 
@@ -330,7 +332,7 @@ namespace icp_relocalization
         // GICP/SAC-IA 计算的是 Source(camera_init) -> Target(map) 的变换
         {
           std::lock_guard<std::mutex> lock(map_to_camera_init_mutex_);
-          map_to_camera_init_ = result.final_transformation.inverse();
+          map_to_camera_init_ = result.final_transformation;
 
           // base_link 在 map 下 = (map->camera_init) * (camera_init->base_link)
           last_icp_pose_ = map_to_camera_init_ * current_odom;
@@ -366,7 +368,7 @@ namespace icp_relocalization
       Eigen::Matrix4f initial_guess;
       {
         std::lock_guard<std::mutex> lock(map_to_camera_init_mutex_);
-        initial_guess = map_to_camera_init_.inverse();
+        initial_guess = map_to_camera_init_;
       }
 
       auto result = gicp_filter_->align(source_cloud, initial_guess);
@@ -375,15 +377,47 @@ namespace icp_relocalization
       {
         RCLCPP_INFO(this->get_logger(), "GICP converged with fitness score: %f", result.fitness_score);
 
-        // 更新 map -> camera_init
+        Eigen::Matrix4f new_map_to_init = result.final_transformation;
+        Eigen::Matrix4f new_pose = new_map_to_init * current_odom;
+
+        // 计算漂移量
+        Eigen::Matrix4f old_map_to_init;
         {
           std::lock_guard<std::mutex> lock(map_to_camera_init_mutex_);
-          map_to_camera_init_ = result.final_transformation.inverse();
-          // 计算 base_link 在 map 下的位姿
-          last_icp_pose_ = map_to_camera_init_ * current_odom;
+          old_map_to_init = map_to_camera_init_;
         }
 
-        checkDriftAndCorrect(last_icp_pose_);
+        Eigen::Matrix4f predicted_pose = old_map_to_init * current_odom;
+
+        Eigen::Vector3f new_pos = new_pose.block<3, 1>(0, 3);
+        Eigen::Quaternionf new_quat(new_pose.block<3, 3>(0, 0));
+        Eigen::Vector3f pred_pos = predicted_pose.block<3, 1>(0, 3);
+        Eigen::Quaternionf pred_quat(predicted_pose.block<3, 3>(0, 0));
+
+        float pos_diff = (new_pos - pred_pos).norm();
+        float angle_diff = new_quat.angularDistance(pred_quat);
+
+        RCLCPP_INFO(this->get_logger(), "ICP/Prediction diff: pos=%.4fm, angle=%.4frad", pos_diff, angle_diff);
+
+        if(pos_diff > drift_threshold_m_ || angle_diff > drift_threshold_rad_)
+        {
+          RCLCPP_WARN(this->get_logger(), "Significant drift detected!");
+        }
+
+        // 只有当匹配分数足够好时才更新
+        if(result.fitness_score < fitness_score_threshold_)
+        {
+          std::lock_guard<std::mutex> lock(map_to_camera_init_mutex_);
+          map_to_camera_init_ = new_map_to_init;
+          last_icp_pose_ = new_pose;
+        }
+        else
+        {
+          RCLCPP_WARN(this->get_logger(),
+                      "GICP fitness score too high (%f > %f), skipping update.",
+                      result.fitness_score,
+                      fitness_score_threshold_);
+        }
       }
       else
       {
@@ -394,32 +428,6 @@ namespace icp_relocalization
 
     default:
       break;
-    }
-  }
-
-  void GicpRosInterface::checkDriftAndCorrect(const Eigen::Matrix4f& icp_pose)
-  {
-    Eigen::Vector3f icp_pos = icp_pose.block<3, 1>(0, 3);
-    Eigen::Quaternionf icp_quat(icp_pose.block<3, 3>(0, 0));
-
-    // 使用当前的 map_to_camera_init_ 预测位姿 (base_link 在 map 下)
-    Eigen::Isometry3d odom_iso;
-    tf2::fromMsg(last_odom_->pose.pose, odom_iso);
-    Eigen::Matrix4f odom_mat = odom_iso.matrix().cast<float>();
-    Eigen::Matrix4f predicted_pose = map_to_camera_init_ * odom_mat;
-
-    Eigen::Vector3f odom_pos = predicted_pose.block<3, 1>(0, 3);
-    Eigen::Quaternionf odom_quat(predicted_pose.block<3, 3>(0, 0));
-
-    float pos_diff = (icp_pos - odom_pos).norm();
-    float angle_diff = icp_quat.angularDistance(odom_quat);
-
-    RCLCPP_INFO(this->get_logger(), "ICP/Prediction diff: pos=%.3fm, angle=%.3frad", pos_diff, angle_diff);
-
-    if(pos_diff > drift_threshold_m_ || angle_diff > drift_threshold_rad_)
-    {
-      RCLCPP_WARN(this->get_logger(), "Significant drift detected! Resetting odometry integration base.");
-      // TODO 加上LIO漂移替代方案，此处只是发出警告，没有实际处理逻辑
     }
   }
 
