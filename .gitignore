@@ -9,4 +9,3 @@ __pycache__/
 cmake-build-*/
 build-*/
 .cache
-*.bash
