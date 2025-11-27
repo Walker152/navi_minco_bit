@@ -1,0 +1,9 @@
+<!-- <class_libraries>
+    <library path="dreamchaser_mpc_ctrl">
+        <class type="dreamchaser_mpc_ctrl::MPController" base_class_type="nav2_core::Controller">
+            <description>
+                DreamChaser
+            </description>
+        </class>
+    </library>
+</class_libraries> -->
