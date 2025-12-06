@@ -3,9 +3,9 @@
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <rclcpp/rclcpp.hpp>
 
-namespace pcd2pgm
+namespace PCD_Processor
 {
-class PCLFiltersNode : public rclcpp::Node
+class PGMConventor : public rclcpp::Node
 {
 private:
   float thre_z_min_;
@@ -44,7 +44,7 @@ private:
   void publishMap();
 
 public:
-  explicit PCLFiltersNode(const rclcpp::NodeOptions & options);
-  ~PCLFiltersNode();
+  explicit PGMConventor(const rclcpp::NodeOptions & options);
+  ~PGMConventor();
 };
-}  // namespace pcd2pgm
+}  // namespace PCD_Processor
