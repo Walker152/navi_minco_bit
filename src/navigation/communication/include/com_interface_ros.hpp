@@ -83,7 +83,7 @@ namespace ns_com
       nav_pub_ = create_publisher<ros_interfaces::msg::Nav>("/NavRequest", 10);
       event_status_pub_ = create_publisher<ros_interfaces::msg::EventStatus>("/sentry/event_status", 10);
 
-      RCLCPP_INFO(this->get_logger(), "ComInterfaceRos initialized");
+      // RCLCPP_INFO(this->get_logger(), "ComInterfaceRos initialized");
     }
 
     void sendChassisCtrlCB(const geometry_msgs::msg::Twist::ConstSharedPtr& velPtr)
