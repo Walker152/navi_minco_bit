@@ -1,0 +1,11 @@
+bool	 io_cmd_lamp_ctrl
+bool	 io_cmd_unlock
+bool   io_cmd_low_power_enable
+bool     io_cmd_lower_beam_headlamp
+bool     io_cmd_upper_beam_headlamp     
+uint8	 io_cmd_turn_lamp
+bool     io_cmd_braking_lamp
+bool     io_cmd_clearance_lamp
+bool     io_cmd_fog_lamp
+bool	 io_cmd_speaker
+uint8  io_cmd_low_power_ratio
