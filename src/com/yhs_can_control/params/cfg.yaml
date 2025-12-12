@@ -1,0 +1,5 @@
+yhs_can_control_node:
+  ros__parameters:
+    can_name: "can0"
+    ultrasonic_number: [0, 1, 2, 3, 4, 5, 6, 7] # 如果有超声波，安装的位置可能不同，打印“ultrasonic”话题，根据实际数据改变序号，空格隔开，
+                                               # 前右到右前默认[0~7]，逆时针，单位为毫米                            
