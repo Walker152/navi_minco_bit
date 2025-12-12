@@ -1,1 +1,0 @@
-#include "rog_map_ros/rog_map_ros2.hpp"
