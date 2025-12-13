@@ -103,9 +103,9 @@ namespace small_gicp_relocalization
 
     RCLCPP_INFO(this->get_logger(),
                 "Accumulated frame %d/%d (total points: %zu)",
-                current_frame_count_,
-                frames_to_accumulate_,
-                accumulated_cloud_->size());
+                static_cast<int>(current_frame_count_),
+                static_cast<int>(frames_to_accumulate_),
+                static_cast<size_t>(accumulated_cloud_->size()));
 
     // 达到设定的帧数后触发配准
     if(current_frame_count_ >= frames_to_accumulate_)
@@ -134,7 +134,7 @@ namespace small_gicp_relocalization
 
     RCLCPP_INFO(this->get_logger(), "=== Starting GICP Registration ===");
     RCLCPP_INFO(
-        this->get_logger(), "Accumulated %d frames with %zu points", current_frame_count_, accumulated_cloud_->size());
+        this->get_logger(), "Accumulated %d frames with %zu points", static_cast<int>(current_frame_count_), static_cast<size_t>(accumulated_cloud_->size()));
     source_ = small_gicp::voxelgrid_sampling_omp<pcl::PointCloud<pcl::PointXYZ>, pcl::PointCloud<pcl::PointCovariance>>(
         *accumulated_cloud_, registered_leaf_size_);
     RCLCPP_INFO(this->get_logger(), "Source points after downsampling: %zu", source_->size());
