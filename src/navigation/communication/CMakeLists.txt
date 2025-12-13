@@ -13,6 +13,7 @@ endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(COM_DEBUG "Enable COM debug printing (defines COM_DEBUG)" OFF)
 
+
 ## Find catkin macros and libraries
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_test REQUIRED)
@@ -71,7 +72,7 @@ target_link_libraries(${PROJECT_NAME} ${PROJECT_NAME}_core )
 
 # If requested, add COM_DEBUG definition to targets so '#ifdef COM_DEBUG' blocks are enabled
 if(COM_DEBUG)
-  message(STATUS "COM debug enabled (BUILD_TYPE: ${CMAKE_BUILD_TYPE}): adding COM_DEBUG define to targets")
+  message(STATUS "COM debug enabled: adding COM_DEBUG define to targets")
   target_compile_definitions(${PROJECT_NAME}_core PRIVATE COM_DEBUG)
   target_compile_definitions(${PROJECT_NAME} PRIVATE COM_DEBUG)
 endif()
