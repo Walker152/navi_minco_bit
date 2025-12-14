@@ -23,34 +23,34 @@ int main(int argc, char** argv)
   int count = 0;
   while(rclcpp::ok())
   {
-    // if(count == 15)
-    // {
-    //   msg.self_health = 100.0;
-    // }
-    // else if(count == 30)
-    // {
-    //   msg.enemy_detected.is_detect = true;
-    // }
-    // else if(count == 45)
-    // {
-    //   msg.self_health = 350.0;
-    // }
-    // else if(count == 60)
-    // {
-    //   msg.enemy_outpost_health = 0.0;
-    // }
-    // else if(count == 90)
-    // {
-    //   msg.enemy_detected.is_detect = false;
-    // }
-    // else if(count == 105)
-    // {
-    //   msg.self_health = 110.0;
-    // }
-    // else if(count == 120)
-    // {
-    //   msg.self_health = 350.0;
-    // }
+    if(count == 15)
+    {
+      msg.self_health = 100.0;
+    }
+    else if(count == 30)
+    {
+      msg.enemy_detected.is_detect = true;
+    }
+    else if(count == 45)
+    {
+      msg.self_health = 350.0;
+    }
+    else if(count == 60)
+    {
+      msg.enemy_outpost_health = 0.0;
+    }
+    else if(count == 90)
+    {
+      msg.enemy_detected.is_detect = false;
+    }
+    else if(count == 105)
+    {
+      msg.self_health = 110.0;
+    }
+    else if(count == 120)
+    {
+      msg.self_health = 350.0;
+    }
     pub->publish(msg);
     std::cout << "health: " << msg.self_health << ", buff: " << msg.buff_active
               << ", enemy: " << (msg.enemy_detected.is_detect ? "true" : "false")
