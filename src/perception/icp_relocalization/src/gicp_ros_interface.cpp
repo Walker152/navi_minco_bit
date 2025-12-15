@@ -30,15 +30,13 @@ namespace icp_relocalization
     std::string target_pcd_file = this->declare_parameter<std::string>("target_pcd_file", "map.pcd");
 
     // Map Offset Parameters
-    // map_offset_ = this->declare_parameter<std::vector<double>>("map_offset", {0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
     initial_pose_ = this->declare_parameter<std::vector<double>>("initial_pose", {0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
 
     // GICP Parameters
     gicp_options_.feature_k_search = this->declare_parameter<int>("feature_k_search", 20);
-    gicp_options_.target_voxel_leaf_size = this->declare_parameter<double>("gicp.target_voxel_leaf_size", 0.25);
-    gicp_options_.source_voxel_leaf_size = this->declare_parameter<double>("gicp.source_voxel_leaf_size", 0.25);
-    gicp_options_.max_correspondence_distance =
-        this->declare_parameter<double>("gicp.max_correspondence_distance", 1.5);
+    gicp_options_.target_voxel_leaf_size = this->declare_parameter<double>("gicp.target_voxel_leaf_size", 0.1);
+    gicp_options_.source_voxel_leaf_size = this->declare_parameter<double>("gicp.source_voxel_leaf_size", 0.1);
+    gicp_options_.max_correspondence_distance = this->declare_parameter<double>("gicp.max_correspondence_distance", 1.5);
     gicp_options_.max_iterations = this->declare_parameter<int>("gicp.max_iterations", 100);
     gicp_options_.transformation_epsilon = this->declare_parameter<double>("gicp.transformation_epsilon", 1e-4);
     gicp_options_.euclidean_fitness_epsilon = this->declare_parameter<double>("gicp.euclidean_fitness_epsilon", 1e-4);
@@ -215,9 +213,7 @@ namespace icp_relocalization
     }
 
     // Debug: 发布累积后的点云
-    {
-      publishVisualization(source_cloud, last_cloud_stamp_);
-    }
+    publishVisualization(source_cloud, last_cloud_stamp_);
 
     // 状态机逻辑
     switch(state_)
