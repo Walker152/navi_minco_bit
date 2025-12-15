@@ -192,7 +192,6 @@ class PointCloudProcessor:
 
 def main():
     # ==================== 配置区域 (请在此处修改参数) ====================
-    
     # 输入文件路径
     INPUT_PCD = "src/navigation/navi2_bringup/maps/pcd/2026rmuc.pcd"
     
