@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web点云可视化处理工具 Pro v2.6 (Precision Input)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Three.js Core -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 0; }
+        .ui-panel { z-index: 10; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%;
+            background: #3b82f6; cursor: pointer; margin-top: -8px; border: 2px solid #1f2937;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5); 
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: #4b5563; border-radius: 2px;
+        }
+        /* 去掉 number input 的箭头 */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; margin: 0; 
+        }
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.1); border-radius: 50%; border-top: 3px solid #3b82f6;
+            width: 20px; height: 20px; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        #error-boundary {
+            position: fixed; top: 0; left: 0; width: 100%; z-index: 9999;
+            pointer-events: none; padding: 20px;
+        }
+        .error-msg {
+            background: rgba(220, 38, 38, 0.9); color: white; padding: 10px 20px;
+            border-radius: 5px; margin-bottom: 10px; pointer-events: auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); max-width: 600px;
+        }
+    </style>
+</head>
+<body>
+    <div id="error-boundary"></div>
+    <div id="root"></div>
+
+    <script>
+        window.onerror = function(msg, url, line, col, error) {
+            const div = document.createElement('div');
+            div.className = 'error-msg';
+            div.innerHTML = `<strong>系统错误:</strong> ${msg}<br><small>${url}:${line}</small>`;
+            document.getElementById('error-boundary').appendChild(div);
+            return false;
+        };
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+        // --- 1. PCD 解析器 ---
+        const parsePCD = (buffer) => {
+            const textDecoder = new TextDecoder();
+            const header = { data: 'ascii', fields: [], size: [], type: [], count: 1, points: 0, headerLen: 0 };
+            const view = new Uint8Array(buffer);
+            let line = '';
+            let ptr = 0;
+            while (ptr < buffer.byteLength) {
+                const char = String.fromCharCode(view[ptr]);
+                ptr++;
+                if (char === '\n') {
+                    const cleanLine = line.trim();
+                    if (cleanLine.length > 0) {
+                        const parts = cleanLine.split(/\s+/);
+                        const tag = parts[0].toUpperCase();
+                        if (tag === 'FIELDS') header.fields = parts.slice(1).map(f => f.toLowerCase());
+                        else if (tag === 'SIZE') header.size = parts.slice(1).map(x => parseInt(x));
+                        else if (tag === 'TYPE') header.type = parts.slice(1);
+                        else if (tag === 'COUNT') header.count = parts.slice(1).map(x => parseInt(x));
+                        else if (tag === 'WIDTH') header.points = parseInt(parts[1]); 
+                        else if (tag === 'POINTS') header.points = parseInt(parts[1]);
+                        else if (tag === 'DATA') { header.data = parts[1]; header.headerLen = ptr; break; }
+                    }
+                    line = '';
+                } else { line += char; }
+            }
+            const xIdx = header.fields.indexOf('x'); const yIdx = header.fields.indexOf('y'); const zIdx = header.fields.indexOf('z');
+            if (xIdx === -1 || yIdx === -1 || zIdx === -1) throw new Error("PCD 文件缺少 x, y, z 字段");
+            const points = [];
+            if (header.data === 'ascii') {
+                const bodyStr = textDecoder.decode(buffer.slice(header.headerLen));
+                const lines = bodyStr.split('\n');
+                for (let i = 0; i < lines.length; i++) {
+                    const l = lines[i].trim();
+                    if (l === '') continue;
+                    const parts = l.split(/\s+/);
+                    if (parts.length > zIdx) {
+                        const x = parseFloat(parts[xIdx]), y = parseFloat(parts[yIdx]), z = parseFloat(parts[zIdx]);
+                        if (!isNaN(x) && !isNaN(y) && !isNaN(z)) points.push(x, y, z);
+                    }
+                }
+            } else if (header.data === 'binary') {
+                const dataView = new DataView(buffer, header.headerLen);
+                let rowStep = 0; header.size.forEach(s => rowStep += s);
+                let xOffset = 0, yOffset = 0, zOffset = 0;
+                for(let i=0; i<xIdx; i++) xOffset += header.size[i];
+                for(let i=0; i<yIdx; i++) yOffset += header.size[i];
+                for(let i=0; i<zIdx; i++) zOffset += header.size[i];
+                for (let i = 0; i < header.points; i++) {
+                    const rowStart = i * rowStep;
+                    if (rowStart + rowStep > dataView.byteLength) break;
+                    points.push(
+                        dataView.getFloat32(rowStart + xOffset, true),
+                        dataView.getFloat32(rowStart + yOffset, true),
+                        dataView.getFloat32(rowStart + zOffset, true)
+                    );
+                }
+            }
+            return new Float32Array(points);
+        };
+
+        // --- 2. PGM 解析器 ---
+        const parsePGM = (buffer) => {
+            const view = new Uint8Array(buffer);
+            let ptr = 0;
+            const nextWord = () => {
+                let word = '';
+                while (ptr < view.length) {
+                    let code = view[ptr];
+                    let char = String.fromCharCode(code);
+                    ptr++;
+                    if (char === '#') { while (ptr < view.length && view[ptr] !== 10) ptr++; } 
+                    else if (code <= 32) { if (word.length > 0) return word; } 
+                    else { word += char; }
+                }
+                return word;
+            };
+            const magic = nextWord();
+            if (magic !== 'P5' && magic !== 'P2') throw new Error("仅支持 PGM (P2/P5) 格式");
+            const width = parseInt(nextWord());
+            const height = parseInt(nextWord());
+            const maxVal = parseInt(nextWord());
+            const pixelCount = width * height;
+            const data = new Uint8Array(pixelCount);
+            if (magic === 'P5') {
+                if (view.length - ptr < pixelCount) {
+                    const start = view.length - pixelCount;
+                    data.set(view.slice(start, view.length));
+                } else {
+                    data.set(view.slice(ptr, ptr + pixelCount));
+                }
+            } else {
+                let valIdx = 0;
+                while(valIdx < pixelCount) {
+                    const w = nextWord();
+                    if(!w) break;
+                    data[valIdx++] = parseInt(w);
+                }
+            }
+            return { width, height, data, maxVal };
+        };
+
+        // --- 3. 滤波 ---
+        const voxelGridFilter = (points, leafSize) => {
+            if (leafSize <= 0) return points;
+            const voxelMap = new Map();
+            const invLeaf = 1.0 / leafSize;
+            for (let i = 0; i < points.length; i += 3) {
+                const x = points[i], y = points[i+1], z = points[i+2];
+                const ix = Math.floor(x * invLeaf), iy = Math.floor(y * invLeaf), iz = Math.floor(z * invLeaf);
+                const key = `${ix},${iy},${iz}`;
+                if (!voxelMap.has(key)) voxelMap.set(key, { sx: x, sy: y, sz: z, count: 1 });
+                else { const v = voxelMap.get(key); v.sx += x; v.sy += y; v.sz += z; v.count++; }
+            }
+            const filtered = [];
+            voxelMap.forEach(v => filtered.push(v.sx / v.count, v.sy / v.count, v.sz / v.count));
+            return new Float32Array(filtered);
+        };
+
+        const generateDemoData = () => {
+            const points = [];
+            for (let i = 0; i < 15000; i++) {
+                const u = Math.random() * Math.PI * 2, v = Math.random() * Math.PI * 2;
+                const R = 10, r = 4;
+                points.push(
+                    (R + r * Math.cos(v)) * Math.cos(u) + (Math.random() - 0.5) * 0.2, // x
+                    (R + r * Math.cos(v)) * Math.sin(u) + (Math.random() - 0.5) * 0.2, // y
+                    r * Math.sin(v) + (Math.random() - 0.5) * 0.2 // z
+                );
+            }
+            return new Float32Array(points);
+        };
+
+        // --- 3D Viewer (Z-UP MODE) ---
+        const PointCloudViewer = ({ points, transforms, cropSettings, setBoundingBoxInfo, mapData, mapSettings }) => {
+            const mountRef = useRef(null);
+            const sceneRef = useRef(null);
+            const rendererRef = useRef(null);
+            const cameraRef = useRef(null);
+            const pointsRef = useRef(null);
+            const boxHelperRef = useRef(null);
+            const cropBoxHelperRef = useRef(null);
+            const mapMeshRef = useRef(null);
+            const requestRef = useRef(null);
+            const isDragging = useRef(false);
+            const isRightDragging = useRef(false);
+            const lastMouse = useRef({ x: 0, y: 0 });
+            const camState = useRef({ r: 40, theta: Math.PI/4, phi: Math.PI/3, target: new THREE.Vector3() });
+
+            if (typeof THREE === 'undefined') throw new Error("Three.js Not Loaded");
+
+            useEffect(() => {
+                const w = window.innerWidth, h = window.innerHeight;
+                const scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x111827);
+                sceneRef.current = scene;
+
+                const grid = new THREE.GridHelper(100, 100, 0x444444, 0x222222);
+                grid.rotation.x = Math.PI / 2; 
+                scene.add(grid);
+                scene.add(new THREE.AxesHelper(5));
+                scene.add(new THREE.AmbientLight(0xffffff, 1));
+
+                const camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 2000);
+                camera.up.set(0, 0, 1);
+                cameraRef.current = camera;
+                updateCam();
+
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(w, h);
+                mountRef.current.appendChild(renderer.domElement);
+                rendererRef.current = renderer;
+
+                const onResize = () => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                };
+                window.addEventListener('resize', onResize);
+
+                const animate = () => {
+                    requestRef.current = requestAnimationFrame(animate);
+                    renderer.render(scene, camera);
+                };
+                animate();
+
+                return () => {
+                    window.removeEventListener('resize', onResize);
+                    cancelAnimationFrame(requestRef.current);
+                    if (mountRef.current && renderer.domElement) mountRef.current.removeChild(renderer.domElement);
+                };
+            }, []);
+
+            const updateCam = () => {
+                if (!cameraRef.current) return;
+                const { r, theta, phi, target } = camState.current;
+                const x = target.x + r * Math.sin(phi) * Math.cos(theta);
+                const y = target.y + r * Math.sin(phi) * Math.sin(theta);
+                const z = target.z + r * Math.cos(phi);
+                cameraRef.current.position.set(x, y, z);
+                cameraRef.current.lookAt(target);
+            };
+
+            useEffect(() => {
+                if (!sceneRef.current || !points) return;
+                if (pointsRef.current) {
+                    sceneRef.current.remove(pointsRef.current);
+                    sceneRef.current.remove(boxHelperRef.current);
+                    pointsRef.current.geometry.dispose();
+                    pointsRef.current.material.dispose();
+                }
+                
+                const geo = new THREE.BufferGeometry();
+                geo.setAttribute('position', new THREE.BufferAttribute(points, 3));
+                
+                let minZ = Infinity, maxZ = -Infinity;
+                for(let i=2; i<points.length; i+=3) {
+                    if(points[i] < minZ) minZ = points[i];
+                    if(points[i] > maxZ) maxZ = points[i];
+                }
+                const range = maxZ - minZ || 1;
+                const colors = [];
+                const c1 = new THREE.Color(0x3b82f6), c2 = new THREE.Color(0x10b981);
+                for(let i=0; i<points.length; i+=3) {
+                    const t = (points[i+2] - minZ) / range;
+                    const c = c1.clone().lerp(c2, t);
+                    colors.push(c.r, c.g, c.b);
+                }
+                geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+
+                const mesh = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.15, vertexColors: true }));
+                pointsRef.current = mesh;
+                sceneRef.current.add(mesh);
+
+                const boxHelp = new THREE.BoxHelper(mesh, 0xffff00);
+                boxHelperRef.current = boxHelp;
+                sceneRef.current.add(boxHelp);
+
+                geo.computeBoundingBox();
+                const b = geo.boundingBox;
+                if(b) {
+                    const s = new THREE.Vector3(), c = new THREE.Vector3();
+                    b.getSize(s); b.getCenter(c);
+                    setBoundingBoxInfo({ count: points.length/3, size: {x:s.x,y:s.y,z:s.z}, center: {x:c.x,y:c.y,z:c.z} });
+                }
+            }, [points]);
+
+            useEffect(() => {
+                if(!sceneRef.current) return;
+                if(mapMeshRef.current) {
+                    sceneRef.current.remove(mapMeshRef.current);
+                    mapMeshRef.current.geometry.dispose();
+                    mapMeshRef.current.material.dispose();
+                    mapMeshRef.current = null;
+                }
+                if(mapData && mapSettings.visible) {
+                    const { width, height, data } = mapData;
+                    const rgba = new Uint8Array(width*height*4);
+                    for(let i=0; i<width*height; i++) {
+                        const val = data[i];
+                        const idx = i*4;
+                        if(val < 10) { rgba[idx]=0; rgba[idx+1]=0; rgba[idx+2]=0; rgba[idx+3]=255; }
+                        else if(val > 240) { rgba[idx]=255; rgba[idx+1]=255; rgba[idx+2]=255; rgba[idx+3]=30; }
+                        else { rgba[idx]=128; rgba[idx+1]=128; rgba[idx+2]=128; rgba[idx+3]=0; }
+                    }
+                    const tex = new THREE.DataTexture(rgba, width, height, THREE.RGBAFormat);
+                    tex.flipY = mapSettings.flipY; 
+                    tex.needsUpdate = true;
+                    
+                    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: mapSettings.opacity, side: THREE.DoubleSide });
+                    const planeWidth = width*mapSettings.resolution;
+                    const planeHeight = height*mapSettings.resolution;
+                    const plane = new THREE.Mesh(new THREE.PlaneGeometry(planeWidth, planeHeight), mat);
+                    
+                    const cx = mapSettings.originX + planeWidth / 2.0;
+                    const cy = mapSettings.originY + planeHeight / 2.0;
+
+                    plane.position.set(cx, cy, mapSettings.zOffset);
+                    plane.rotation.z = THREE.MathUtils.degToRad(mapSettings.rotation);
+
+                    sceneRef.current.add(plane);
+                    mapMeshRef.current = plane;
+                }
+            }, [mapData, mapSettings]);
+
+            useEffect(() => {
+                if(pointsRef.current) {
+                    pointsRef.current.position.set(transforms.x, transforms.y, transforms.z);
+                    pointsRef.current.rotation.set(THREE.MathUtils.degToRad(transforms.rotX), THREE.MathUtils.degToRad(transforms.rotY), THREE.MathUtils.degToRad(transforms.rotZ));
+                    pointsRef.current.updateMatrixWorld();
+                    if(boxHelperRef.current) boxHelperRef.current.update();
+                }
+            }, [transforms]);
+
+            useEffect(() => {
+                if(!sceneRef.current) return;
+                if(cropBoxHelperRef.current) { sceneRef.current.remove(cropBoxHelperRef.current); cropBoxHelperRef.current = null; }
+                if(cropSettings.active) {
+                    const w = cropSettings.maxX - cropSettings.minX, h = cropSettings.maxY - cropSettings.minY, d = cropSettings.maxZ - cropSettings.minZ;
+                    const cx = (cropSettings.minX+cropSettings.maxX)/2, cy = (cropSettings.minY+cropSettings.maxY)/2, cz = (cropSettings.minZ+cropSettings.maxZ)/2;
+                    const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w,h,d)), new THREE.LineBasicMaterial({ color: 0xff0000 }));
+                    box.position.set(cx, cy, cz);
+                    cropBoxHelperRef.current = box;
+                    sceneRef.current.add(box);
+                }
+            }, [cropSettings]);
+
+            const onMouseDown = e => { if(e.button===0) isDragging.current=true; if(e.button===2) isRightDragging.current=true; lastMouse.current={x:e.clientX, y:e.clientY}; };
+            const onMouseUp = () => { isDragging.current=false; isRightDragging.current=false; };
+            const onMouseMove = e => {
+                const dx = e.clientX - lastMouse.current.x, dy = e.clientY - lastMouse.current.y;
+                lastMouse.current = {x:e.clientX, y:e.clientY};
+                if(isDragging.current) {
+                    camState.current.theta -= dx*0.01; 
+                    camState.current.phi -= dy*0.01;
+                    camState.current.phi = Math.max(0.1, Math.min(Math.PI-0.1, camState.current.phi));
+                    updateCam();
+                } else if(isRightDragging.current) {
+                    const fwd = new THREE.Vector3(); 
+                    cameraRef.current.getWorldDirection(fwd); 
+                    fwd.z = 0; fwd.normalize();
+                    const rt = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,0,1));
+                    camState.current.target.addScaledVector(rt, -dx*0.05);
+                    camState.current.target.addScaledVector(fwd, dy*0.05);
+                    updateCam();
+                }
+            };
+            const onWheel = e => {
+                camState.current.r += e.deltaY*0.05; camState.current.r = Math.max(1, camState.current.r);
+                updateCam();
+            };
+
+            return <div ref={mountRef} className="canvas-container cursor-move" onMouseDown={onMouseDown} onMouseUp={onMouseUp} onMouseMove={onMouseMove} onMouseLeave={onMouseUp} onWheel={onWheel} onContextMenu={e=>e.preventDefault()} />;
+        };
+
+        const App = () => {
+            const [points, setPoints] = useState(generateDemoData());
+            const [mapData, setMapData] = useState(null);
+            const [activeTab, setActiveTab] = useState('transform');
+            const [transforms, setTransforms] = useState({ x:0,y:0,z:0,rotX:0,rotY:0,rotZ:0 });
+            const [cropSettings, setCropSettings] = useState({ active:false, minX:-20,maxX:20, minY:-20,maxY:20, minZ:-20,maxZ:20 });
+            const [mapSettings, setMapSettings] = useState({ resolution:0.05, opacity:0.6, visible:true, rotation:0, zOffset:-0.5, originX: 0.0, originY: 0.0, flipY: true });
+            const [voxelLeaf, setVoxelLeaf] = useState(0.5);
+            const [filtering, setFiltering] = useState(false);
+            const [info, setInfo] = useState({ count:0, size:{x:0,y:0,z:0}, center:{x:0,y:0,z:0} });
+
+            const handleFile = e => {
+                const f = e.target.files[0]; if(!f) return;
+                const r = new FileReader();
+                r.onload = ev => {
+                    try {
+                        let pts;
+                        if(f.name.toLowerCase().endsWith('.pcd')) pts = parsePCD(ev.target.result);
+                        else {
+                            const lines = ev.target.result.split(/\r\n|\n/);
+                            const arr = [];
+                            lines.forEach(l => {
+                                if(l.startsWith('#')) return;
+                                const p = l.trim().split(/\s+/);
+                                if(p.length>=3) {
+                                    const x=parseFloat(p[0]), y=parseFloat(p[1]), z=parseFloat(p[2]);
+                                    if(!isNaN(x)&&!isNaN(y)&&!isNaN(z)) arr.push(x,y,z);
+                                }
+                            });
+                            pts = new Float32Array(arr);
+                        }
+                        if(pts && pts.length) { setPoints(pts); setTransforms({x:0,y:0,z:0,rotX:0,rotY:0,rotZ:0}); }
+                        else alert("未找到点数据");
+                    } catch(err) { alert("解析失败: "+err.message); }
+                };
+                if(f.name.toLowerCase().endsWith('.pcd')) r.readAsArrayBuffer(f); else r.readAsText(f);
+            };
+
+            const handleMap = e => {
+                const f = e.target.files[0]; if(!f) return;
+                const r = new FileReader();
+                r.onload = ev => {
+                    try { setMapData(parsePGM(ev.target.result)); } catch(err) { alert("地图解析失败: "+err.message); }
+                };
+                r.readAsArrayBuffer(f);
+            };
+
+            const doFilter = () => {
+                setFiltering(true);
+                setTimeout(() => {
+                    setPoints(voxelGridFilter(points, voxelLeaf));
+                    setFiltering(false);
+                }, 50);
+            };
+            
+            const doCrop = () => {
+                const m = new THREE.Matrix4();
+                m.makeRotationFromEuler(new THREE.Euler(
+                    THREE.MathUtils.degToRad(transforms.rotX), THREE.MathUtils.degToRad(transforms.rotY), THREE.MathUtils.degToRad(transforms.rotZ)
+                ));
+                m.setPosition(transforms.x, transforms.y, transforms.z);
+                const v = new THREE.Vector3(), arr=[];
+                for(let i=0; i<points.length; i+=3) {
+                    v.set(points[i], points[i+1], points[i+2]).applyMatrix4(m);
+                    if(v.x>=cropSettings.minX && v.x<=cropSettings.maxX && v.y>=cropSettings.minY && v.y<=cropSettings.maxY && v.z>=cropSettings.minZ && v.z<=cropSettings.maxZ)
+                        arr.push(v.x, v.y, v.z);
+                }
+                if(!arr.length) return alert("区域内无点");
+                setPoints(new Float32Array(arr));
+                setTransforms({x:0,y:0,z:0,rotX:0,rotY:0,rotZ:0});
+                setCropSettings({...cropSettings, active:false});
+            };
+
+            const doExportXYZ = () => {
+                let s = "";
+                const m = new THREE.Matrix4();
+                m.makeRotationFromEuler(new THREE.Euler(
+                    THREE.MathUtils.degToRad(transforms.rotX), THREE.MathUtils.degToRad(transforms.rotY), THREE.MathUtils.degToRad(transforms.rotZ)
+                ));
+                m.setPosition(transforms.x, transforms.y, transforms.z);
+                const v = new THREE.Vector3();
+                for(let i=0; i<points.length; i+=3) {
+                    v.set(points[i], points[i+1], points[i+2]).applyMatrix4(m);
+                    s += `${v.x.toFixed(4)} ${v.y.toFixed(4)} ${v.z.toFixed(4)}\n`;
+                }
+                const b = new Blob([s], {type:'text/plain'});
+                const u = URL.createObjectURL(b);
+                const a = document.createElement('a'); a.href=u; a.download='processed.xyz'; a.click();
+            };
+
+            const doExportPCD = () => {
+                const count = points.length / 3;
+                let s = "# .PCD v0.7 - Point Cloud Data file format\n";
+                s += "VERSION 0.7\nFIELDS x y z\nSIZE 4 4 4\nTYPE F F F\nCOUNT 1 1 1\n";
+                s += `WIDTH ${count}\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS ${count}\nDATA ascii\n`;
+                const m = new THREE.Matrix4();
+                m.makeRotationFromEuler(new THREE.Euler(
+                    THREE.MathUtils.degToRad(transforms.rotX), THREE.MathUtils.degToRad(transforms.rotY), THREE.MathUtils.degToRad(transforms.rotZ)
+                ));
+                m.setPosition(transforms.x, transforms.y, transforms.z);
+                const v = new THREE.Vector3();
+                for(let i=0; i<points.length; i+=3) {
+                    v.set(points[i], points[i+1], points[i+2]).applyMatrix4(m);
+                    s += `${v.x.toFixed(4)} ${v.y.toFixed(4)} ${v.z.toFixed(4)}\n`;
+                }
+                const b = new Blob([s], {type:'text/plain'});
+                const u = URL.createObjectURL(b);
+                const a = document.createElement('a'); a.href=u; a.download='processed.pcd'; a.click();
+            };
+
+            return (
+                <div className="w-full h-full relative font-sans">
+                    <PointCloudViewer points={points} transforms={transforms} cropSettings={cropSettings} setBoundingBoxInfo={setInfo} mapData={mapData} mapSettings={mapSettings} />
+                    
+                    <div className="absolute top-0 left-0 p-4 z-10">
+                        <h1 className="text-xl font-bold bg-gray-900/80 px-4 py-2 rounded text-blue-400 border border-gray-700 backdrop-blur">
+                            CloudLab <span className="text-xs text-gray-400">Pro v2.6</span>
+                        </h1>
+                    </div>
+
+                    <div className="absolute top-0 right-0 h-full w-[480px] bg-gray-900/95 border-l border-gray-700 flex flex-col z-10 backdrop-blur">
+                        <div className="p-6 border-b border-gray-700 bg-gray-800/50">
+                            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">统计信息</h2>
+                            <div className="grid grid-cols-2 gap-4 text-xs">
+                                <div className="bg-gray-800 p-3 rounded"><span className="text-gray-500">点数</span> <span className="text-blue-400 font-bold block text-lg mt-1">{info.count.toLocaleString()}</span></div>
+                                <div className="bg-gray-800 p-3 rounded"><span className="text-gray-500">尺寸</span> <span className="text-green-400 block mt-1 text-sm font-mono">{info.size.x.toFixed(1)} x {info.size.y.toFixed(1)} x {info.size.z.toFixed(1)}</span></div>
+                            </div>
+                        </div>
+
+                        <div className="flex border-b border-gray-700">
+                            {['transform','filter','crop','map','file'].map(t => (
+                                <button key={t} onClick={()=>setActiveTab(t)} className={`flex-1 py-4 text-sm font-medium ${activeTab===t?'bg-blue-600 text-white':'text-gray-400 hover:bg-gray-800'}`}>
+                                    {{transform:'变换',filter:'滤波',crop:'裁减',map:'地图',file:'文件'}[t]}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            {activeTab==='transform' && (
+                                <div className="space-y-6">
+                                    <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                                        <div className="flex justify-between mb-5 text-base font-bold text-gray-300"><span>平移 (m)</span> <button onClick={()=>setTransforms({...transforms,x:0,y:0,z:0})} className="text-blue-400 text-xs font-normal">重置</button></div>
+                                        {['x','y','z'].map(k=>(<div key={k} className="flex items-center mb-5"><span className="w-8 uppercase text-sm text-gray-500 font-bold">{k}</span><input type="range" min="-50" max="50" step="0.01" value={transforms[k]} onChange={e=>setTransforms({...transforms,[k]:parseFloat(e.target.value)})} className="flex-1 mx-4"/><input type="number" step="0.01" value={transforms[k]} onChange={e=>setTransforms({...transforms,[k]:parseFloat(e.target.value)})} className="w-20 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs text-right font-mono text-gray-300 focus:border-blue-500 outline-none" /></div>))}
+                                    </div>
+                                    <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                                        <div className="flex justify-between mb-5 text-base font-bold text-gray-300"><span>旋转 (Deg)</span> <button onClick={()=>setTransforms({...transforms,rotX:0,rotY:0,rotZ:0})} className="text-blue-400 text-xs font-normal">重置</button></div>
+                                        {['rotX','rotY','rotZ'].map((k,i)=>(<div key={k} className="flex items-center mb-5"><span className="w-8 uppercase text-sm text-gray-500 font-bold">{['X','Y','Z'][i]}</span><input type="range" min="-180" max="180" step="0.01" value={transforms[k]} onChange={e=>setTransforms({...transforms,[k]:parseFloat(e.target.value)})} className="flex-1 mx-4"/><input type="number" step="0.01" value={transforms[k]} onChange={e=>setTransforms({...transforms,[k]:parseFloat(e.target.value)})} className="w-20 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs text-right font-mono text-gray-300 focus:border-blue-500 outline-none" /></div>))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab==='filter' && (
+                                <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                                    <h3 className="font-bold mb-6 text-lg">体素滤波</h3>
+                                    <div className="mb-6">
+                                        <div className="flex justify-between text-sm mb-2 text-gray-400"><span>网格大小 (Leaf Size)</span> <span className="text-blue-400 font-mono">{voxelLeaf}m</span></div>
+                                        <input type="range" min="0.05" max="2.0" step="0.05" value={voxelLeaf} onChange={e=>setVoxelLeaf(parseFloat(e.target.value))} />
+                                    </div>
+                                    <button onClick={doFilter} disabled={filtering} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-bold flex justify-center items-center shadow-lg transition-colors">
+                                        {filtering && <div className="spinner mr-2"></div>} {filtering?'处理中...':'应用滤波'}
+                                    </button>
+                                </div>
+                            )}
+
+                            {activeTab==='crop' && (
+                                <div>
+                                    <div className="flex justify-between items-center bg-gray-800 p-6 rounded-lg border border-gray-700 mb-6 cursor-pointer hover:bg-gray-750 transition-colors" onClick={()=>setCropSettings({...cropSettings,active:!cropSettings.active})}>
+                                        <span className="text-base font-bold">显示裁减框</span>
+                                        <div className={`w-12 h-6 rounded-full relative transition-colors ${cropSettings.active?'bg-blue-600':'bg-gray-600'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${cropSettings.active?'left-7':'left-1'}`}/></div>
+                                    </div>
+                                    {cropSettings.active && ['X','Y','Z'].map(ax=>(
+                                        <div key={ax} className="bg-gray-800 p-5 rounded-lg border border-gray-700 mb-4">
+                                            <div className="text-sm font-bold text-gray-400 mb-4 border-b border-gray-700 pb-2">{ax} 轴范围</div>
+                                            <div className="flex items-center mb-4"><span className="text-xs w-8 text-gray-500 font-bold">Min</span><input type="range" min="-50" max="50" step="1" value={cropSettings[`min${ax}`]} onChange={e=>{const v=parseFloat(e.target.value);if(v<cropSettings[`max${ax}`])setCropSettings({...cropSettings,[`min${ax}`]:v})}} className="flex-1 mx-3"/><span className="text-xs w-8 text-right font-mono bg-gray-900 py-1 rounded">{cropSettings[`min${ax}`]}</span></div>
+                                            <div className="flex items-center"><span className="text-xs w-8 text-gray-500 font-bold">Max</span><input type="range" min="-50" max="50" step="1" value={cropSettings[`max${ax}`]} onChange={e=>{const v=parseFloat(e.target.value);if(v>cropSettings[`min${ax}`])setCropSettings({...cropSettings,[`max${ax}`]:v})}} className="flex-1 mx-3"/><span className="text-xs w-8 text-right font-mono bg-gray-900 py-1 rounded">{cropSettings[`max${ax}`]}</span></div>
+                                        </div>
+                                    ))}
+                                    {cropSettings.active && <button onClick={doCrop} className="w-full py-4 bg-red-600 hover:bg-red-500 rounded-lg text-sm font-bold mt-2 shadow-lg transition-colors">执行裁减</button>}
+                                </div>
+                            )}
+
+                            {activeTab==='map' && (
+                                <div className="space-y-6">
+                                    <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 border-dashed hover:border-blue-500 transition-colors">
+                                        <div className="text-base font-bold mb-3">加载 PGM 地图</div>
+                                        <input type="file" accept=".pgm" onChange={handleMap} className="text-sm text-gray-400 w-full file:py-2 file:px-4 file:bg-gray-700 file:border-0 file:rounded file:text-white file:mr-3 hover:file:bg-gray-600"/>
+                                    </div>
+                                    {mapData && (
+                                        <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 space-y-6">
+                                            <div className="flex justify-between items-center cursor-pointer" onClick={()=>setMapSettings({...mapSettings,visible:!mapSettings.visible})}><span className="text-base font-bold">地图可见性</span><div className={`w-10 h-5 rounded-full relative ${mapSettings.visible?'bg-green-500':'bg-gray-600'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${mapSettings.visible?'left-6':'left-1'}`}/></div></div>
+                                            
+                                            <div className="pt-2 border-t border-gray-700">
+                                                <div className="flex justify-between text-sm text-gray-300 font-bold mb-3">
+                                                    <span>Origin X / Y</span> 
+                                                    <span className="text-xs text-gray-500 font-normal">来自 map.yaml</span>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <div className="flex-1">
+                                                        <span className="text-xs text-gray-500 block mb-1">Origin X</span>
+                                                        <input type="number" step="0.01" value={mapSettings.originX} onChange={e=>setMapSettings({...mapSettings,originX:parseFloat(e.target.value)})} className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-blue-400 focus:border-blue-500 outline-none"/>
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <span className="text-xs text-gray-500 block mb-1">Origin Y</span>
+                                                        <input type="number" step="0.01" value={mapSettings.originY} onChange={e=>setMapSettings({...mapSettings,originY:parseFloat(e.target.value)})} className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-blue-400 focus:border-blue-500 outline-none"/>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div><div className="flex justify-between text-sm text-gray-400 mb-2"><span>分辨率 (m/px)</span><span className="text-blue-400">{mapSettings.resolution}</span></div><input type="range" min="0.01" max="0.2" step="0.001" value={mapSettings.resolution} onChange={e=>setMapSettings({...mapSettings,resolution:parseFloat(e.target.value)})}/></div>
+                                            <div><div className="flex justify-between text-sm text-gray-400 mb-2"><span>不透明度</span><span className="text-blue-400">{mapSettings.opacity}</span></div><input type="range" min="0" max="1" step="0.1" value={mapSettings.opacity} onChange={e=>setMapSettings({...mapSettings,opacity:parseFloat(e.target.value)})}/></div>
+                                            
+                                            <div><div className="flex justify-between text-sm text-gray-400 mb-2"><span>旋转 (Deg)</span></div>
+                                            <div className="flex items-center"><input type="range" min="0" max="360" step="0.01" value={mapSettings.rotation} onChange={e=>setMapSettings({...mapSettings,rotation:parseFloat(e.target.value)})} className="flex-1 mr-3"/>
+                                            <input type="number" step="0.01" value={mapSettings.rotation} onChange={e=>setMapSettings({...mapSettings,rotation:parseFloat(e.target.value)})} className="w-20 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs text-right font-mono text-gray-300 focus:border-blue-500 outline-none" /></div></div>
+                                            
+                                            <div><div className="flex justify-between text-sm text-gray-400 mb-2"><span>垂直翻转 (Flip Y)</span></div><div onClick={()=>setMapSettings({...mapSettings,flipY:!mapSettings.flipY})} className={`w-full py-2 text-center rounded cursor-pointer text-xs ${mapSettings.flipY?'bg-gray-700 text-green-400':'bg-gray-900 text-gray-500'}`}>{mapSettings.flipY ? '已翻转 (Flip Y)' : '未翻转'}</div></div>
+                                            
+                                            <div><div className="flex justify-between text-sm text-gray-400 mb-2"><span>Z轴偏移 (m)</span></div>
+                                            <div className="flex items-center"><input type="range" min="-2" max="2" step="0.01" value={mapSettings.zOffset} onChange={e=>setMapSettings({...mapSettings,zOffset:parseFloat(e.target.value)})} className="flex-1 mr-3"/>
+                                            <input type="number" step="0.01" value={mapSettings.zOffset} onChange={e=>setMapSettings({...mapSettings,zOffset:parseFloat(e.target.value)})} className="w-20 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs text-right font-mono text-gray-300 focus:border-blue-500 outline-none" /></div></div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {activeTab==='file' && (
+                                <div className="space-y-6">
+                                    <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 border-dashed hover:border-blue-500 transition-colors">
+                                        <div className="text-base font-bold mb-3">导入点云 (.pcd / .xyz)</div>
+                                        <input type="file" accept=".pcd,.xyz,.txt" onChange={handleFile} className="text-sm text-gray-400 w-full file:py-2 file:px-4 file:bg-gray-700 file:border-0 file:rounded file:text-white file:mr-3 hover:file:bg-gray-600"/>
+                                    </div>
+                                    <button onClick={doExportPCD} className="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-bold shadow-lg transition-colors">导出结果 (.PCD)</button>
+                                    <button onClick={doExportXYZ} className="w-full py-4 bg-green-600 hover:bg-green-500 rounded-lg text-sm font-bold shadow-lg transition-colors">导出结果 (.XYZ)</button>
+                                    <button onClick={()=>{setPoints(generateDemoData());setTransforms({x:0,y:0,z:0,rotX:0,rotY:0,rotZ:0})}} className="w-full py-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm mt-2 transition-colors">重置示例</button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
