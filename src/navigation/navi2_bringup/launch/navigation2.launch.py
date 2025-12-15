@@ -31,12 +31,12 @@ def generate_launch_description():
             output='screen'),
 
         # 静态TF: camera_init -> body
-        # launch_ros.actions.Node(
-        #     package='tf2_ros',
-        #     executable='static_transform_publisher',
-        #     name='static_tf_camera_init_to_body',
-        #     arguments=['0', '0', '0', '0', '0', '0', 'camera_init', 'body'],
-        #     output='screen'),
+        launch_ros.actions.Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='static_tf_camera_init_to_body',
+            arguments=['0', '0', '0', '0', '0', '0', 'camera_init', 'body'],
+            output='screen'),
 
         # 静态TF: body -> base_link
         launch_ros.actions.Node(
