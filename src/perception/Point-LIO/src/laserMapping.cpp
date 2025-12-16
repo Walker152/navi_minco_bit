@@ -298,8 +298,8 @@ void publish_odometry(
     geometry_msgs::msg::TransformStamped transform_inverse;
     transform_inverse.header.frame_id = "body";
     transform_inverse.child_frame_id = "base_link";
-    transform_inverse.transform.translation.x = -0.31;
-    transform_inverse.transform.translation.y = -0.2;
+    transform_inverse.transform.translation.x = -0.20;
+    transform_inverse.transform.translation.y = -0;
     transform_inverse.transform.translation.z = 0.0;
 
     tf2::Quaternion q(
