@@ -19,6 +19,7 @@ private:
   double health_threshold;
 };
 
+
 class CheckOutpostRemained : public BT::ConditionNode
 {
 public:

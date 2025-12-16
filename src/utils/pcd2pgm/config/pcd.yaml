@@ -1,6 +1,6 @@
 /pcd2pgm:
   ros__parameters:
-    file_directory: src/navi2_bringup/maps/pcd/
+    file_directory: src/navigation/navi2_bringup/maps/pcd/
     file_name: 2026rmuc
     flag_pass_through: false
     map_resolution: 0.05
