@@ -2,9 +2,9 @@ gicp_relocalization_node:
   ros__parameters:
     # General Configuration
     mode: "initial_guess" # Options: "sac_ia", "initial_guess"
-    target_pcd_file: "src/perception/icp_relocalization/maps/rmuc.pcd"
+    target_pcd_file: "src/perception/icp_relocalization/maps/processed.pcd"
     map_frame: "map"
-    alignment_frequency: 1.0
+    alignment_frequency: 5.0
     accumulate_frames: 5
     
     # Convergence Criteria
