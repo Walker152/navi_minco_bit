@@ -363,8 +363,10 @@ planner_server:
   ros__parameters:
     expected_planner_frequency: 20.0
     use_sim_time: False
-    planner_plugins: ["GridBased"]
-    GridBased:
+    # 同时加载 SmacPlanner 和 MincoPlanner 两个全局规划插件
+    planner_plugins: ["SmacPlanner", "MincoPlanner"]
+
+    SmacPlanner:
       plugin: "nav2_smac_planner/SmacPlanner2D"
       tolerance: 0.1                      # tolerance for planning if unable to reach exact pose, in meters
       downsample_costmap: false           # whether or not to downsample the map
@@ -373,8 +375,8 @@ planner_server:
       max_iterations: 1000000             # maximum total iterations to search for before failing (in case unreachable), set to -1 to disable
       max_on_approach_iterations: 1000    # Maximum number of iterations after within tolerances to continue to try to find exact solution
       max_planning_time: 1.0              # max time in s for planner to plan, smooth
-      cost_travel_multiplier: 2.0         # Cost multiplier to apply to search to steer away from high cost areas. Larger values will place in the center of aisles more exactly (if non-`1.0` cost potential field multiplier) but possibly with slightly longer paths. 
-      use_final_approach_orientation: true # Whether to set the final path pose to the goal's orientation to the requested orientation.
+      cost_travel_multiplier: 2.0         # Cost multiplier to apply to search to steer away from high cost areas.
+      use_final_approach_orientation: true # Whether to set the final path pose to the goal's orientation.
       smoother:
         max_iterations: 1000
         w_smooth: 0.3
@@ -383,6 +385,11 @@ planner_server:
         do_refinement: true
         refinement_num: 2
 
+    MincoPlanner:
+      plugin: "minco_planner/MincoPlanner"
+      tolerance: 0.1
+      allow_unknown: true
+      use_astar: true
 smoother_server:
   ros__parameters:
     use_sim_time: False
