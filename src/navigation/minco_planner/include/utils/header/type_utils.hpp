@@ -25,15 +25,11 @@
 #define SUPER_TYPE_UTILS_HPP
 
 // comment or uncomment the following line to enable or disable the utils
-#include <super_utils/color_text.hpp>
-#include <super_utils/eigen_alias.hpp>
-#include <super_utils/color_msg_utils.hpp>
+#include <utils/header/color_text.hpp>
+#include <utils/header/eigen_alias.hpp>
+#include <utils/header/color_msg_utils.hpp>
 #include <utils/header/backward.hpp>
 
-
-
-#define DEBUG_FILE_DIR(name) (std::string(std::string(ROOT_DIR) + "log/"+name))
-#define PCD_FILE_DIR(name) (std::string(std::string(ROOT_DIR) + "pcd/"+name))
 #define SIGN(x) ((x > 0) - (x < 0))
 
 namespace super_utils{

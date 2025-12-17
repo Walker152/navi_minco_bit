@@ -15,11 +15,14 @@ public:
   Astar(unsigned int nx, unsigned int ny);
   ~Astar();
 
-  void setCostmap(const unsigned int * costmap);
-  void setStart(int * start);
-  void setGoal(int * goal);
+  void setCostmap(const unsigned char * costmap, bool isROS = true, bool allow_unknown = true);
+  void setStart(int x, int y);
+  void setGoal(int x, int y);
   bool calcPath(int nplan);
   
+  void setupNavFn(bool keepit = false);
+  bool propNavFnAstar(int cycles);
+
   float * getPathX() { return pathx; }
   float * getPathY() { return pathy; }
   int getPathLen() { return npath; }
@@ -27,13 +30,11 @@ public:
   void setSize(int nx, int ny);
 
 private:
-  void setupNavFn(bool keepit = false);
-  bool propNavFnAstar(int cycles);
   void updateCell(int n);
   void updateCellAstar(int n);
 
   int nx, ny, ns;
-  const unsigned int * costarr;
+  const unsigned char * costarr;
   float * potarr;
   bool * pending;
   int * current_width;
@@ -41,8 +42,9 @@ private:
   int * gradx, * grady;
   float * pathx, * pathy;
   int npath;
-  int * start;
-  int * goal;
+  int start[2];
+  int goal[2];
+  bool allow_unknown;
   
   float curT;
   float priInc;
