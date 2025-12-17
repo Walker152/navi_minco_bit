@@ -27,3 +27,5 @@ sleep 2s
 gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
 sleep 1s
 gnome-terminal -- bash -c "ros2 launch bt_manager test.launch.py; exec bash"
+
+gnome-terminal -- bash -c "cd /home/rm/rosbag && ros2 bag record -a ;exec bash"
