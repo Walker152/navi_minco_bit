@@ -63,7 +63,7 @@ namespace geometry_utils {
     using super_utils::PolyhedronH;
 
     ///============ 2023-06-30: add by yunfan ============///
-    static void simplePMTimeAllocator(const double &a_max, const double &v_max,
+    [[maybe_unused]] static void simplePMTimeAllocator(const double &a_max, const double &v_max,
                                 const double &v0,
                                 const double &total_dis,
                                 const double &cur_dis, double &t, double &vel) {

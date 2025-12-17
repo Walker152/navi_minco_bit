@@ -200,7 +200,7 @@ bool Trajectory::getPartialTrajectoryByID(const int &start_id, const int &end_id
         end_id_ = pieces.size();
     }
 
-    if (start_id < 0 || end_id_ >= pieces.size() || start_id >= end_id_) {
+    if (start_id < 0 || end_id_ >= static_cast<int>(pieces.size()) || start_id >= end_id_) {
         return false;
     }
 
