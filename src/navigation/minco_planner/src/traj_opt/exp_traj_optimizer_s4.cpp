@@ -4,8 +4,11 @@
 
 namespace traj_opt {
 
+using math_utils::lbfgs;
+
 ExpTrajOpt::ExpTrajOpt(const Config &cfg, std::shared_ptr<void> ros_ptr)
     : cfg_(cfg) {
+    (void)ros_ptr;
 }
 
 ExpTrajOpt::~ExpTrajOpt() {
@@ -16,7 +19,7 @@ bool ExpTrajOpt::optimize(const Eigen::Vector3d &start_pos, const Eigen::Vector3
                           const std::vector<Eigen::Vector3d> &guide_path,
                           std::vector<Eigen::Vector3d> &optimized_path) {
     
-    int piece_num = guide_path.size();
+    int piece_num = guide_path.size() - 1;
     if (piece_num < 1) piece_num = 1;
 
     // Initialize optimization variables
@@ -26,9 +29,9 @@ bool ExpTrajOpt::optimize(const Eigen::Vector3d &start_pos, const Eigen::Vector3
     opt_vars.points.resize(3, piece_num - 1);
     
     // Initialize points from guide path (excluding start/end)
-    for (int i = 0; i < piece_num - 1; ++i) {
-        if (i < guide_path.size()) {
-            opt_vars.points.col(i) = guide_path[i];
+    for (std::size_t i = 0; i < static_cast<std::size_t>(piece_num - 1); ++i) {
+        if (i + 1 < guide_path.size()) {
+            opt_vars.points.col(i) = guide_path[i + 1];
         } else {
             opt_vars.points.col(i) = (start_pos + end_pos) * 0.5;
         }
@@ -85,17 +88,11 @@ bool ExpTrajOpt::optimize(const Eigen::Vector3d &start_pos, const Eigen::Vector3
     // Sample trajectory for output
     optimized_path.clear();
     double total_time = opt_vars.times.sum();
-    double dt = 0.1;
-    for (double t = 0; t <= total_time; t += dt) {
-        // optimized_path.push_back(traj.getPos(t)); // Need to implement getPos in Trajectory or use Minco to eval
-        // For now, just push back waypoints to show something
+    double dt = 0.05;
+    for (double t = 0; t < total_time - 1e-4; t += dt) {
+        optimized_path.push_back(traj.getPos(t));
     }
-    
-    // Add waypoints
-    optimized_path.push_back(start_pos);
-    for(int i=0; i<opt_vars.points.cols(); ++i) {
-        optimized_path.push_back(opt_vars.points.col(i));
-    }
+    optimized_path.push_back(traj.getPos(total_time));
     optimized_path.push_back(end_pos);
 
     return true;

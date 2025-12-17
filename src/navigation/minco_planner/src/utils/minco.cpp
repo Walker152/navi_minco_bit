@@ -110,7 +110,7 @@ void MINCO_S2NU::getEnergyPartialGradByCoeffs(Eigen::MatrixX3d &gdC) const {
 
 void MINCO_S2NU::getEnergyPartialGradByTimes(Eigen::VectorXd &gdT) const {
     gdT.resize(N);
-    for (long unsigned int i = 0; i < N; i++) {
+    for (int i = 0; i < N; i++) {
         gdT(i) = 4.0 * b.row(4 * i + 2).squaredNorm() +
                  24.0 * b.row(4 * i + 2).dot(b.row(4 * i + 3)) * T1(i) +
                  36.0 * b.row(4 * i + 3).squaredNorm() * T2(i);
@@ -125,13 +125,13 @@ void MINCO_S2NU::propogateGrad(const Eigen::MatrixX3d &partialGradByCoeffs, cons
     Eigen::MatrixX3d adjGrad = partialGradByCoeffs;
     A.solveAdj(adjGrad);
 
-    for (long unsigned int i = 0; i < N - 1; i++) {
+    for (int i = 0; i < N - 1; i++) {
         gradByPoints.col(i) = adjGrad.row(4 * i + 3).transpose();
     }
 
     Eigen::Matrix<double, 4, 3> B1;
     Eigen::Matrix<double, 2, 3> B2;
-    for (long unsigned int i = 0; i < N - 1; i++) {
+    for (int i = 0; i < N - 1; i++) {
         // negative jerk
         B1.row(0) = -6.0 * b.row(i * 4 + 3);
 
