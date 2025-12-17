@@ -39,7 +39,15 @@ public:
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal) override;
-
+  
+  bool makePlan(
+    const geometry_msgs::msg::Pose & start,
+    const geometry_msgs::msg::Pose & goal,
+    nav_msgs::msg::Path & plan);
+  
+  bool worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my);
+  void mapToWorld(double mx, double my, double & wx, double & wy);
+  void clearRobotCell(unsigned int wx, unsigned int wy);
 private:
   std::shared_ptr<tf2_ros::Buffer> tf_;
   nav2_util::LifecycleNode::WeakPtr node_;
