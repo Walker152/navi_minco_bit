@@ -4,6 +4,7 @@
 #include <limits>
 #include <cmath>
 #include <iostream>
+#include "rclcpp/rclcpp.hpp"
 
 namespace minco_planner
 {
@@ -11,8 +12,8 @@ namespace minco_planner
 #define COST_UNKNOWN_ROS 255
 #define COST_OBS 254
 #define COST_OBS_ROS 253
-#define COST_NEUTRAL 50
-#define COST_FACTOR 0.8
+#define COST_NEUTRAL 10   // 原来是 50，减小它表示“多走几步没关系”
+#define COST_FACTOR 3.0   // 原来是 0.8 且未被使用。改为 3.0 表示“障碍物很危险，离远点”
 
 Astar::Astar(unsigned int nx, unsigned int ny)
 : nx(nx), ny(ny), ns(nx * ny)
@@ -33,9 +34,10 @@ Astar::Astar(unsigned int nx, unsigned int ny)
   overP = new int[ns];
 
   costarr = NULL;
-  start = NULL;
-  goal = NULL;
+  start[0] = 0; start[1] = 0;
+  goal[0] = 0; goal[1] = 0;
   npath = 0;
+  allow_unknown = true;
 }
 
 Astar::~Astar()
@@ -54,19 +56,22 @@ Astar::~Astar()
   delete[] overP;
 }
 
-void Astar::setCostmap(const unsigned int * costmap)
+void Astar::setCostmap(const unsigned char * costmap, bool /*isROS*/, bool allow_unknown)
 {
   costarr = costmap;
+  this->allow_unknown = allow_unknown;
 }
 
-void Astar::setStart(int * start)
+void Astar::setStart(int x, int y)
 {
-  this->start = start;
+  start[0] = x;
+  start[1] = y;
 }
 
-void Astar::setGoal(int * goal)
+void Astar::setGoal(int x, int y)
 {
-  this->goal = goal;
+  goal[0] = x;
+  goal[1] = y;
 }
 
 void Astar::setSize(int nx, int ny)
@@ -93,8 +98,9 @@ void Astar::setSize(int nx, int ny)
   delete[] overP; overP = new int[ns];
 }
 
-void Astar::setupNavFn(bool keepit)
+void Astar::setupNavFn(bool /*keepit*/)
 {
+  npath = 0;
   for (int i = 0; i < ns; i++) {
     potarr[i] = std::numeric_limits<float>::max();
     gradx[i] = 0;
@@ -113,36 +119,28 @@ void Astar::setupNavFn(bool keepit)
   pending[goal_idx] = true;
 }
 
-bool Astar::calcPath(int nplan)
+bool Astar::calcPath(int /*nplan*/)
 {
-  setupNavFn();
-  
-  // Propagate
-  int cycle = 0;
-  while (propNavFnAstar(std::max(nx * ny / 20, nx + ny))) {
-    cycle++;
-    if (cycle > 10000) break; // Safety break
-  }
-  
   // Trace back
-  int start_idx = start[1] * nx + start[0];
-  if (potarr[start_idx] >= std::numeric_limits<float>::max()) {
+  npath = 0;
+  int c = start[1] * nx + start[0];
+  int goal_c = goal[1] * nx + goal[0];
+
+  if (potarr[c] >= std::numeric_limits<float>::max()) {
     return false;
   }
   
-  // Simple gradient descent for path
-  int c = start_idx;
-  npath = 0;
   pathx[npath] = c % nx;
   pathy[npath] = c / nx;
   npath++;
   
-  while (c != goal[1] * nx + goal[0] && npath < ns) {
+  while (c != goal_c) {
     int min_c = c;
     float min_pot = potarr[c];
     
-    int dx[8] = {1, -1, 0, 0, 1, 1, -1, -1};
-    int dy[8] = {0, 0, 1, -1, 1, -1, 1, -1};
+    // 8-connected gradient descent
+    int dx[8] = {1, 0, -1, 0, 1, 1, -1, -1};
+    int dy[8] = {0, 1, 0, -1, 1, -1, 1, -1};
     
     for (int i = 0; i < 8; i++) {
       int nc = c + dy[i] * nx + dx[i];
@@ -153,10 +151,23 @@ bool Astar::calcPath(int nplan)
     }
     
     if (min_c == c) break;
+
+    if (npath >= ns - 1) {
+      RCLCPP_ERROR(rclcpp::get_logger("Astar"), "Path buffer overflow! Force breaking.");
+      break;
+    }
+
     c = min_c;
     pathx[npath] = c % nx;
     pathy[npath] = c / nx;
     npath++;
+  }
+  
+  // 确保终点也被加入路径（如果还没加入）
+  if (npath < ns && (pathx[npath-1] != goal[0] || pathy[npath-1] != goal[1])) {
+      pathx[npath] = goal[0];
+      pathy[npath] = goal[1];
+      npath++;
   }
   
   return true;
@@ -177,15 +188,20 @@ bool Astar::propNavFnAstar(int cycles)
       
       if (c == start_idx) return false; // Found start
       
-      // Neighbors
-      int dx[4] = {1, -1, 0, 0};
-      int dy[4] = {0, 0, 1, -1};
+      // Neighbors (8-connected)
+      int dx[8] = {1, -1, 0, 0, 1, 1, -1, -1};
+      int dy[8] = {0, 0, 1, -1, 1, -1, 1, -1};
+      float dist[8] = {1.0, 1.0, 1.0, 1.0, 1.414, 1.414, 1.414, 1.414};
       
-      for (int k = 0; k < 4; k++) {
+      for (int k = 0; k < 8; k++) {
         int nc = c + dy[k] * nx + dx[k];
         if (nc >= 0 && nc < ns) {
-          float new_pot = potarr[c] + COST_NEUTRAL + costarr[nc];
-          if (costarr[nc] >= COST_OBS_ROS) continue; // Obstacle
+          // 增加距离权重：对角线移动代价更高
+          float new_pot = potarr[c] + COST_NEUTRAL * dist[k] + costarr[nc] * COST_FACTOR * dist[k];
+          
+          // 检查障碍物：如果是 UNKNOWN (255) 且不允许 unknown，则跳过
+          // 如果是 LETHAL (254) 或 INSCRIBED (253)，则跳过
+          if (costarr[nc] >= COST_OBS_ROS && !(allow_unknown && costarr[nc] == 255)) continue;
           
           if (new_pot < potarr[nc]) {
             potarr[nc] = new_pot;

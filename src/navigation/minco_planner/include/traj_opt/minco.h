@@ -48,6 +48,16 @@
 
 #include <utils/optimization/banded_system.h>
 #include <data_structure/base/trajectory.h>
+#include <utils/header/eigen_alias.hpp>
+
+namespace geometry_utils {
+
+using super_utils::Mat3Df;
+using super_utils::StatePVA;
+using super_utils::StatePVAJ;
+
+}
+#include <utils/header/eigen_alias.hpp>
 
 namespace traj_opt {
     using namespace geometry_utils;
