@@ -1,6 +1,7 @@
 #pragma once
 
 #include <behaviortree_cpp_v3/condition_node.h>
+#include "bt_manager/auto_conditions.hpp"
 #include "bt_manager/blackboard.hpp"
 #include "nav_zone.hpp"
 
@@ -17,6 +18,7 @@ public:
 private:
   double health_threshold;
 };
+
 
 class CheckOutpostRemained : public BT::ConditionNode
 {
