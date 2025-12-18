@@ -3,7 +3,7 @@
 #include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 #include <vector>
-
+#include <rclcpp/rclcpp.hpp>
 namespace Sentry_BT
 {
   struct Point2D
@@ -60,8 +60,17 @@ namespace Sentry_BT
     Sentry = 5,
   } RobotID;
 
+  typedef enum _Positions
+  {
+    MOVE = 1,
+    ATTACK = 2,
+    DEFEND = 3,
+  } Positions;
+
+  
   extern std::vector<std::string> current_nav_status;
   extern std::vector<std::string> mode_names;
+  extern std::vector<std::string> position_names;
   extern std::vector<Point2D> nav_points;
   extern std::vector<Point2D> patrol_points_normal;
   extern std::vector<int> patrol_points_milliseconds;
