@@ -5,9 +5,9 @@
 
 #include <rclcpp/qos.hpp>
 
-namespace PCD_Processor
+namespace pcd2pgm
 {
-PGMConventor::PGMConventor(const rclcpp::NodeOptions & options) : Node("pcd_processor/pgm_conventor", options)
+PCLFiltersNode::PCLFiltersNode(const rclcpp::NodeOptions & options) : Node("pcd2pgm", options)
 {
   declareParameters();
   getParameters();
@@ -31,14 +31,14 @@ PGMConventor::PGMConventor(const rclcpp::NodeOptions & options) : Node("pcd_proc
   radiusOutlierFilter(cloud_after_PassThrough_, thre_radius_, thres_point_count_);
   setMapTopicMsg(cloud_after_Radius_, map_topic_msg_);
 
-  time_ = create_wall_timer(std::chrono::seconds(1), std::bind(&PGMConventor::publishMap, this));
+  time_ = create_wall_timer(std::chrono::seconds(1), std::bind(&PCLFiltersNode::publishMap, this));
 }
 
-PGMConventor::~PGMConventor() {}
+PCLFiltersNode::~PCLFiltersNode() {}
 
-void PGMConventor::publishMap() { map_publisher_->publish(map_topic_msg_); }
+void PCLFiltersNode::publishMap() { map_publisher_->publish(map_topic_msg_); }
 
-void PGMConventor::declareParameters()
+void PCLFiltersNode::declareParameters()
 {
   declare_parameter("file_directory", "/home/lihanchen/Downloads/pcd2pgm/");
   declare_parameter("file_name", "RMUC");
@@ -51,7 +51,7 @@ void PGMConventor::declareParameters()
   declare_parameter("map_topic_name", "map");
 }
 
-void PGMConventor::getParameters()
+void PCLFiltersNode::getParameters()
 {
   get_parameter("file_directory", file_directory_);
   get_parameter("file_name", file_name_);
@@ -65,7 +65,7 @@ void PGMConventor::getParameters()
   pcd_file_ = file_directory_ + file_name_ + ".pcd";
 }
 
-void PGMConventor::passThroughFilter(
+void PCLFiltersNode::passThroughFilter(
   const double & thre_low, const double & thre_high, const bool & flag_in)
 {
   pcl::PointCloud<pcl::PointXYZ>::Ptr capt(new pcl::PointCloud<pcl::PointXYZ>);
@@ -83,7 +83,7 @@ void PGMConventor::passThroughFilter(
     cloud_after_PassThrough_->points.size());
 }
 
-void PGMConventor::radiusOutlierFilter(
+void PCLFiltersNode::radiusOutlierFilter(
   const pcl::PointCloud<pcl::PointXYZ>::Ptr & pcd_cloud0, const double & radius,
   const int & thre_count)
 {
@@ -101,7 +101,7 @@ void PGMConventor::radiusOutlierFilter(
     cloud_after_Radius_->points.size());
 }
 
-void PGMConventor::setMapTopicMsg(
+void PCLFiltersNode::setMapTopicMsg(
   const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, nav_msgs::msg::OccupancyGrid & msg)
 {
   msg.header.stamp = now();
@@ -151,7 +151,7 @@ void PGMConventor::setMapTopicMsg(
   RCLCPP_INFO(get_logger(), "Map data size: %lu", msg.data.size());
 }
 
-}  // namespace PCD_Processor
+}  // namespace pcd2pgm
 
 #include "rclcpp_components/register_node_macro.hpp"
-RCLCPP_COMPONENTS_REGISTER_NODE(PCD_Processor::PGMConventor)
+RCLCPP_COMPONENTS_REGISTER_NODE(pcd2pgm::PCLFiltersNode)
