@@ -189,4 +189,165 @@ namespace Sentry_BT
     // 检查当前模式是否为撤退模式
     return (current_mode == Sentry_BT::NavMode::RETREAT) ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
   }
+
+  // ------------------- CheckMPCondition -------------------
+  CheckMPCondition::CheckMPCondition(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::ConditionNode(name, config)
+  {
+  }
+
+  BT::PortsList CheckOutpostRemained::providedPorts()
+  {
+    return {};
+  }
+
+  CheckMPCondition::Conditions()
+  {
+    auto blackboard = config().blackboard;
+    auto enemy_outpost_health = blackboard->get<int>("enemy_outpost_health");
+    auto current_mode = blackboard->get<int>("current_mode");
+    auto nav_status = blackboard->get<int>("nav_status");
+    auto outpost_msg = blackboard->get<bool>("outpost_msg");
+    if(((enemy_outpost_health > 0) && (current_mode == Sentry_BT::NavMode::RESPONSE) && (outpost_msg == false)) || 
+       (current_mode == Sentry_BT::NavMode::RETREAT) && (nav_status == Sentry_BT::NavStatus::RUNNING) ||
+       (current_mode == Sentry_BT::NavMode::PATROL) && (nav_status == Sentry_BT::NavStatus::RUNNING)
+      )
+    {
+      return true;
+    }
+    return false;
+  }
+
+  BT::NodeStatus CheckMPCondition::tick()
+  {
+    std::cout << "---------- CheckMPCondition ----------" << std::endl;
+    auto blackboard = config().blackboard;
+    auto my_position = blackboard->get<int>("my_position");
+    std::cout << "Current position: " << position_names[my_position] << std::endl;
+
+    if(Conditions())
+    {
+      want_position = 1; // move 全局变量
+      return BT::NodeStatus::SUCCESS;
+    }
+    return BT::NodeStatus::FAILURE;
+  }
+
+// ------------------- CheckAPCondition -------------------
+  CheckAPCondition::CheckAPCondition(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::ConditionNode(name, config)
+  {
+  }
+  
+  BT::PortsList CheckAPCondition::providedPorts()
+  {
+    return {};
+  }
+ 
+  CheckAPCondition::Conditions()
+  {
+    auto blackboard = config().blackboard;
+    auto enemy_outpost_health = blackboard->get<int>("enemy_outpost_health");
+    auto current_mode = blackboard->get<int>("current_mode");
+    auto nav_status = blackboard->get<int>("nav_status");
+    auto outpost_msg = blackboard->get<bool>("outpost_msg");
+    auto current_health = blackboard->get<float>("health");
+    if(((enemy_outpost_health > 0) && (current_mode == Sentry_BT::NavMode::RESPONSE) && (outpost_msg == true)) ||
+       (current_mode == Sentry_BT::NavMode::ATTACK) ||
+       (nav_status == Sentry_BT::NavStatus::IDLE) && (current_health > 100.0f)
+      )
+    {
+      return true;
+    }
+    return false;
+  }
+
+  BT::NodeStatus CheckAPCondition::tick()
+  {
+    std::cout << "---------- CheckAPCondition ----------" << std::endl;
+    auto blackboard = config().blackboard;
+    auto my_position = blackboard->get<int>("my_position");
+    std::cout << "Current position: " << position_names[my_position] << std::endl;
+    if(Conditions())
+    {
+      want_position = 2; // attack
+      return BT::NodeStatus::SUCCESS;
+    }
+    return BT::NodeStatus::FAILURE;
+  }
+
+// ------------------- CheckDPCondition -------------------
+  CheckDPCondition::CheckDPCondition(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::ConditionNode(name, config)
+  {
+  }
+
+  BT::PortsList CheckDPCondition::providedPorts()
+  {
+    return {};
+  }
+
+  CheckDPCondition::Conditions()
+  {
+    auto blackboard = config().blackboard;
+    auto current_mode = blackboard->get<int>("current_mode");
+    auto nav_status = blackboard->get<int>("nav_status");
+    auto current_health = blackboard->get<float>("health");
+    if((current_mode == Sentry_BT::NavMode::FAILURE) ||
+       (nav_status == Sentry_BT::NavStatus::IDLE) && (current_health <= 100.0f)
+      )
+    {
+      return true;
+    }
+    return false;
+  }
+
+  BT::NodeStatus CheckDPCondition::tick()
+  {
+    std::cout << "---------- CheckDPCondition ----------" << std::endl;
+    auto blackboard = config().blackboard;
+
+    auto my_position = blackboard->get<int>("my_position");
+    std::cout << "Current position: " << position_names[my_position] << std::endl;
+
+    if(Conditions())
+    {
+      want_position = 3; // defend
+      return BT::NodeStatus::SUCCESS;
+    }
+    return BT::NodeStatus::FAILURE;
+  }
+ 
+// ------------------- CheckWhetherChange -------------------
+  CheckWhetherChange::CheckWhetherChange(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::ConditionNode(name, config)
+  {
+  }
+
+  BT::PortsList CheckWhetherChange::providedPorts()
+  {
+    return {};
+  }
+
+  BT::NodeStatus CheckWhetherChange::tick()
+  {
+    std::cout << "---------- CheckWhetherChange ----------" << std::endl;
+    auto blackboard = config().blackboard;
+
+    auto my_position = blackboard->get<int>("my_position");
+    std::cout << "Current position: " << position_names[my_position] << std::endl;
+
+    if(want_position != my_position)
+    {
+      return BT::NodeStatus::SUCCESS;
+    }
+    return BT::NodeStatus::FAILURE;
+  }
+
+
+
+
+
+
+
 }  // namespace Sentry_BT

@@ -19,6 +19,9 @@ namespace Sentry_BT
     factory_.registerNodeType<WaitUntilStopped>("WaitUntilStopped");
     factory_.registerNodeType<Wait>("Wait");
 
+    factory_.registerNodeType<CheckMPCondition>("CheckMPCondition");
+    factory_.registerNodeType<CheckAPCondition>("CheckMPCondition");
+    factory_.registerNodeType<CheckDPCondition>("CheckMPCondition");
     // 创建行为树
     try
     {
