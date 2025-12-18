@@ -34,12 +34,14 @@ namespace Sentry_BT
              std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) < 1.0)
           {
             outpost_msg.data = true;
+            blackboard_->set<bool>("outpost_msg", true);  
             outpost_pub->publish(outpost_msg);
           }
           else if(std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) >=
                   1.0)
           {
             outpost_msg.data = false;
+            blackboard_->set<bool>("outpost_msg", false);
             outpost_pub->publish(outpost_msg);
           }
         });
@@ -54,7 +56,7 @@ namespace Sentry_BT
     }
     RCLCPP_INFO(this->get_logger(), "导航服务器已连接");
   }
-
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   void ros_interface::eventCallback(const ros_interfaces::msg::EventStatus::SharedPtr msg)
   {
     // 更新黑板中的数据
@@ -63,7 +65,7 @@ namespace Sentry_BT
     blackboard_->set<int>("enemy_outpost_health", msg->enemy_outpost_health);
     blackboard_->set<bool>("bonus_active", msg->buff_active);
     blackboard_->set<bool>("target_valid", msg->enemy_detected.is_detect);
-
+    blackboard_->set<bool>("my_position", msg->position);
     // 更新目标位置
     // if(msg->enemy_detected.is_get)
     if(false)
@@ -87,7 +89,7 @@ namespace Sentry_BT
     //             msg->buff_active ? "true" : "false",
     //             msg->enemy_detected.is_get ? "true" : "false");
   }
-
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   bool ros_interface::publishNavigationGoal(const Sentry_BT::Point2D& goal)
   {
     auto goal_msg = nav2_msgs::action::NavigateToPose::Goal();
@@ -103,7 +105,7 @@ namespace Sentry_BT
     {
       auto goal_handle = future.get();
       if(!goal_handle)
-      {
+      {2
         RCLCPP_INFO(get_logger(), "目标点被服务器拒绝");
         blackboard_->set("nav_status", static_cast<int>(Sentry_BT::NavStatus::FAILURE));
       }

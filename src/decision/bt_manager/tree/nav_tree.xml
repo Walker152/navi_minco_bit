@@ -1,10 +1,12 @@
 <root main_tree_to_execute="MainTree">
+  <include path="./change_position_subtree.xml" />
   <BehaviorTree ID="MainTree">
     <Fallback>
       <!-- 紧急撤退模式（最高优先级） -->
       <Sequence name="EmergencyRetreat">
         <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
         <SetCoordinate name="SetHomeCoordinate" goal="0" />
+        <SubTree ID="ChangePositionTree" blackboard="shared"/>
         <PublishNavigationGoal name="PublishRetreatGoal" />
         <WaitUntilStopped name="WaitUntilHome" />
       </Sequence>
@@ -14,6 +16,7 @@
         <CheckIfRetreating name="CheckIfRetreating"/>
         <CheckOutpostRemained name="CheckOutpostRemained" />
         <SetCoordinate name="SetResponseCoordinate" goal="2" />
+        <SubTree ID="ChangePositionTree" blackboard="shared"/>
         <PublishNavigationGoal name="PublishResponseGoal" />
       </Sequence>
       
@@ -23,6 +26,7 @@
           <CheckIfRetreating name="CheckIfRetreating"/>
           <CheckTargetLocked name="CheckTargetLocked" />
           <SetTargetCoordinate name="SetTargetCoordinate" />
+          <SubTree ID="ChangePositionTree" blackboard="shared"/>
           <PublishNavigationGoal name="PublishPursuitGoal" />
         </Sequence>
         
@@ -31,9 +35,11 @@
           <Wait name="InitialWait" milliseconds="5000"/>
           <CheckIfRetreating name="CheckIfRetreating"/>
           <CheckNavStatus name="CheckNavStatus" />
+          <SubTree ID="ChangePositionTree"/>
           <SelectPatrolPoint name="SelectPatrolPoint" />
           <PublishNavigationGoal name="PublishPatrolGoal" />
           <WaitUntilStopped name="WaitAfterNavigation" />
+          <SubTree ID="ChangePositionTree" blackboard="shared"/>
           <Wait name="PostNavigationWait" />
         </Sequence>
       </Fallback>
