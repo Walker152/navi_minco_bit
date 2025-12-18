@@ -4,19 +4,17 @@ bt_navigator:
     global_frame: map
     robot_base_frame: "base_link"
     odom_topic: /aft_mapped_to_init
-    bt_loop_duration: 10 # ms
+    bt_loop_duration: 20 # ms
     # 行为树超时时间，秒
     default_server_timeout: 20
     # 毫秒
-    wait_for_service_timeout: 1000
+    wait_for_service_timeout: 2000
     # 'default_nav_through_poses_bt_xml' and 'default_nav_to_pose_bt_xml' are use defaults:
     # nav2_bt_navigator/navigate_to_pose_w_replanning_and_recovery.xml
     # nav2_bt_navigator/navigate_through_poses_w_replanning_and_recovery.xml
     # They can be set here or via a RewrittenYaml remap from a parent launch file to Nav2.
     default_nav_through_poses_bt_xml: src/navigation/navi2_bringup/behavior_tree/navigate_through_pose_w_replanning_and_recovery.xml
     default_nav_to_pose_bt_xml: src/navigation/navi2_bringup/behavior_tree/navigate_to_pose_w_replanning_and_recovery.xml
-    # default_nav_through_poses_bt_xml: src/navigation/navi2_bringup/behavior_tree/navigate_through_poses_dynamic.xml
-    # default_nav_to_pose_bt_xml: src/navigation/navi2_bringup/behavior_tree/navigate_to_pose_dynamic.xml
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
       - nav2_compute_path_through_poses_action_bt_node
@@ -78,7 +76,7 @@ controller_server:
   ros__parameters:
     robot_base_frame: "base_link"
     use_sim_time: False
-    controller_frequency: 20.0
+    controller_frequency: 60.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.001
     min_theta_velocity_threshold: 0.001
@@ -142,16 +140,16 @@ controller_server:
     FollowPath:
       plugin: "nav2_mppi_controller::MPPIController"
       time_steps: 56
-      model_dt: 0.05
+      model_dt: 0.0167
       batch_size: 2000
-      vx_std: 0.6     # Average linear velocity noise standard deviation, this controls the real velocity standard
-      vy_std: 0.6     # Average linear velocity noise standard deviation, this controls the real velocity standard
+      vx_std: 0.4   # Average linear velocity noise standard deviation, this controls the real velocity standard
+      vy_std: 0.4     # Average linear velocity noise standard deviation, this controls the real velocity standard
       wz_std: 0.1
-      vx_max: 1.4
-      vx_min: -1.4
-      vy_max: 1.4
+      vx_max: 1.0
+      vx_min: -1.0
+      vy_max: 1.0
       wz_max: 0.1
-      iteration_count: 2
+      iteration_count: 1
       prune_distance: 1.7
       transform_tolerance: 0.1
       temperature: 0.3
@@ -174,19 +172,18 @@ controller_server:
         enabled: true
         cost_power: 1
         cost_weight: 5.0
-        threshold_to_consider: 0.4
+        threshold_to_consider: 1.0
       ## Only choose one between ObstaclesCritic and CostCritic
       ObstaclesCritic:
         enabled: true
         cost_power: 1
-        repulsion_weight: 1.5
-        critical_weight: 20.0
+        repulsion_weight: 2.0
+        critical_weight: 30.0
         consider_footprint: false
         collision_cost: 1000.0
         collision_margin_distance: 0.2
         near_goal_distance: 0.1
         inflation_layer_name: "inflation_layer"
-        cost_weight: 4.0
       # CostCritic:
       #   enabled: true
       #   cost_power: 1
@@ -208,7 +205,7 @@ controller_server:
         enabled: true
         cost_power: 1
         cost_weight: 5.0
-        offset_from_furthest: 5
+        offset_from_furthest: 10
         threshold_to_consider: 0.6
       # PathAngleCritic:
       #   enabled: true
@@ -220,13 +217,13 @@ controller_server:
       VelocityDeadbandCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 35.0
+        cost_weight: 5.0
         deadband_velocities: [0.05, 0.05, 0.05]
       # TwirlingCritic:
       #   enabled: true
       #   twirling_cost_power: 1
       #   twirling_cost_weight: 10.0
-    
+
 local_costmap:
   local_costmap:
     ros__parameters:
@@ -247,8 +244,8 @@ local_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 8.0
-        inflation_radius: 1.0
+        cost_scaling_factor: 6.0
+        inflation_radius: 0.35
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
@@ -306,8 +303,8 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 8.0
-        inflation_radius: 1.0
+        cost_scaling_factor: 6.0
+        inflation_radius: 0.50
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
@@ -366,22 +363,20 @@ planner_server:
   ros__parameters:
     expected_planner_frequency: 20.0
     use_sim_time: False
-    planner_plugins: ["GridBased"]
-    GridBased:
-      # plugin: "nav2_navfn_planner/NavfnPlanner"
-      # tolerance: 0.1
-      # use_astar: True
-      # allow_unknown: True
+    # 同时加载 SmacPlanner 和 MincoPlanner 两个全局规划插件
+    planner_plugins: ["SmacPlanner", "MincoPlanner"]
+
+    SmacPlanner:
       plugin: "nav2_smac_planner/SmacPlanner2D"
+      tolerance: 0.1                      # tolerance for planning if unable to reach exact pose, in meters
       downsample_costmap: false           # whether or not to downsample the map
       downsampling_factor: 1              # multiplier for the resolution of the costmap layer (e.g. 2 on a 5cm costmap would be 10cm)
       allow_unknown: true                 # allow traveling in unknown space
       max_iterations: 1000000             # maximum total iterations to search for before failing (in case unreachable), set to -1 to disable
       max_on_approach_iterations: 1000    # Maximum number of iterations after within tolerances to continue to try to find exact solution
-      max_planning_time: 5.0              # max time in s for planner to plan, smooth
-      cost_penalty: 2.0                   # Penalty to apply to higher cost areas when adding into the obstacle map dynamic programming distance expansion heuristic. This drives the robot more towards the center of passages. A value between 1.3 - 3.5 is reasonable.
-      smooth_path: True                   # If true, does a simple and quick smoothing post-processing to the path
-
+      max_planning_time: 1.0              # max time in s for planner to plan, smooth
+      cost_travel_multiplier: 2.0         # Cost multiplier to apply to search to steer away from high cost areas.
+      use_final_approach_orientation: true # Whether to set the final path pose to the goal's orientation.
       smoother:
         max_iterations: 1000
         w_smooth: 0.3
@@ -390,6 +385,11 @@ planner_server:
         do_refinement: true
         refinement_num: 2
 
+    MincoPlanner:
+      plugin: "minco_planner/MincoPlanner"
+      tolerance: 0.1
+      allow_unknown: true
+      use_astar: true
 smoother_server:
   ros__parameters:
     use_sim_time: False
