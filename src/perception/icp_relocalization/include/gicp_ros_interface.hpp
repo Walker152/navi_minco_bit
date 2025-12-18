@@ -10,6 +10,7 @@
 
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_broadcaster.h"
+#include "tf2_ros/static_transform_broadcaster.h"
 #include "tf2_ros/transform_listener.h"
 
 #include <deque>
@@ -36,61 +37,61 @@ namespace icp_relocalization
     {
       UNINITIALIZED,
       INITIALIZING,
+      CONVERGING,
       LOCALIZED
     };
 
+    enum class Mode
+    {
+      SAC_IA,
+      INITIAL_GUESS
+    };
+
     void lidarCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
-    void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
 
     void setupGicp(const std::string& target_pcd_file);
 
-    void publishPose(const Eigen::Matrix4f& pose, const rclcpp::Time& stamp);
+    void publishStaticTf(const rclcpp::Time& stamp);
+    void publishVisualization(const PointCloud::Ptr& cloud, const rclcpp::Time& stamp);
 
     // ROS 接口
     std::unique_ptr<GicpFilter> gicp_filter_;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr lidar_sub_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-    rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr map_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr source_pub_;
-    std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr aligned_cloud_pub_;
+    std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     rclcpp::CallbackGroup::SharedPtr callback_group_lidar_;
-    rclcpp::CallbackGroup::SharedPtr callback_group_odom_;
     rclcpp::TimerBase::SharedPtr fsm_timer_;
     void fsmTimerCallback();
     void runFSM();
 
     // 状态与缓存
     State state_ = State::UNINITIALIZED;
-    std::deque<nav_msgs::msg::Odometry::SharedPtr> odom_buffer_;
-    nav_msgs::msg::Odometry::SharedPtr last_odom_;
 
-    // 点云缓存队列 (用于多帧累积)
-    std::deque<sensor_msgs::msg::PointCloud2::SharedPtr> cloud_queue_;
+    // 点云累积
+    PointCloud::Ptr accumulated_cloud_;
+    int current_accumulated_frames_ = 0;
+    rclcpp::Time last_cloud_stamp_;
+    std::string cloud_frame_id_;
 
     bool gicp_initialized_ = false;
     rclcpp::Time last_icp_time_;
 
     // 变换与位姿
     Eigen::Matrix4f map_to_camera_init_ = Eigen::Matrix4f::Identity();
-    std::mutex map_to_camera_init_mutex_;                          // 保护 map_to_camera_init_ 的互斥锁
-    Eigen::Matrix4f last_icp_pose_ = Eigen::Matrix4f::Identity();  // base_link 在 map 下的最新融合位姿
 
     // 默认参数
-    std::string base_frame_;
     std::string map_frame_;
-    double drift_threshold_m_;        // 位置漂移阈值
-    double drift_threshold_rad_;      // 姿态漂移阈值
     double alignment_frequency_;      // 地图对齐(GICP)低频执行频率
-    bool publish_pose_on_odom_;       // 是否在每次里程计回调发布融合位姿
-    bool use_initial_alignment_;      // 是否启用 SAC-IA 初始定位
+    Mode mode_ = Mode::SAC_IA;        // 重定位模式
     int accumulate_frames_;           // 参与配准的累积帧数
     double fitness_score_threshold_;  // 配准得分阈值
-
-    // 地图偏移参数 (用于对齐 PCD 与 Grid Map)
-    std::vector<double> map_offset_;  // [x, y, z, roll, pitch, yaw]
+    int converged_count_threshold_;   // 收敛次数阈值
+    int converged_count_ = 0;         // 当前收敛次数
+    std::vector<double> initial_pose_; // 初始位姿猜测 [x, y, z, roll, pitch, yaw]
 
     GicpFilter::Options gicp_options_;
   };

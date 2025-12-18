@@ -5,6 +5,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <tf2/LinearMath/Transform.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 
@@ -283,7 +284,7 @@ void publish_odometry(
   if (tf_send_en) {
     geometry_msgs::msg::TransformStamped transform;
     transform.header.frame_id = "camera_init";
-    transform.child_frame_id = "aft_mapped";
+    transform.child_frame_id = "body";
     transform.transform.translation.x = odomAftMapped.pose.pose.position.x;
     transform.transform.translation.y = odomAftMapped.pose.pose.position.y;
     transform.transform.translation.z = odomAftMapped.pose.pose.position.z;
@@ -293,6 +294,28 @@ void publish_odometry(
     transform.transform.rotation.z = odomAftMapped.pose.pose.orientation.z;
     transform.header.stamp = odomAftMapped.header.stamp;
     tf_br->sendTransform(transform);
+
+    geometry_msgs::msg::TransformStamped transform_inverse;
+    transform_inverse.header.frame_id = "body";
+    transform_inverse.child_frame_id = "base_link";
+    transform_inverse.transform.translation.x = -0.20;
+    transform_inverse.transform.translation.y = -0;
+    transform_inverse.transform.translation.z = 0.0;
+
+    tf2::Quaternion q(
+      odomAftMapped.pose.pose.orientation.x,
+      odomAftMapped.pose.pose.orientation.y,
+      odomAftMapped.pose.pose.orientation.z,
+      odomAftMapped.pose.pose.orientation.w);
+    tf2::Quaternion q_inv = q.inverse();
+
+    transform_inverse.transform.rotation.w = q_inv.w();
+    transform_inverse.transform.rotation.x = q_inv.x();
+    transform_inverse.transform.rotation.y = q_inv.y();
+    transform_inverse.transform.rotation.z = q_inv.z();
+    transform_inverse.header.stamp = odomAftMapped.header.stamp;
+    tf_br->sendTransform(transform_inverse);
+
   }
 }
 
