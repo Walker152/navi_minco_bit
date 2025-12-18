@@ -47,13 +47,13 @@ struct __attribute__((packed, aligned(1))) _NavRes
   float y;
   float yaw;
   bool is_reach;  // 是否到达目标点，布尔标志，一般0为未到达，1为已到达
-
   // 带参构造函数，便于初始化结构体成员值
   _NavRes(float _x, float _y, float _yaw, bool _is_reach)
     : x(_x)
     , y(_y)
     , yaw(_yaw)
     , is_reach(_is_reach)
+    , position(_position)
   {
   }
 };
@@ -68,6 +68,7 @@ struct _ChassisTarget
   float current_y;    // 当前y位置(m)
   float current_yaw;  // 当前朝向角(rad)
   float gimbal_yaw;   // 期望云台角
+  int position; //姿态
   uint8_t is_use_mid360;
 
   _ChassisTarget(float _vx_mps,
@@ -77,8 +78,8 @@ struct _ChassisTarget
                  float _current_y,
                  float _current_yaw,
                  float _gimbal_yaw,
+                 int _position,
                 uint8_t _is_use_mid360
-                
                 )
     : vx_mps(_vx_mps)
     , vy_mps(_vy_mps)
@@ -88,6 +89,7 @@ struct _ChassisTarget
     , current_yaw(_current_yaw)
     , gimbal_yaw(_gimbal_yaw)
     , is_use_mid360(_is_use_mid360)
+    , position(_position)
   {
   }
 };
@@ -106,7 +108,7 @@ struct __attribute__((packed, aligned(1))) _Event_Status
   uint8_t armor_id;            // 敌人装甲板ID
 
   float team_position[5][2];
-
+  int position;
 
   _Event_Status(float _self_health,
                 uint16_t _num_shoot,
@@ -116,7 +118,8 @@ struct __attribute__((packed, aligned(1))) _Event_Status
                 float _x,
                 float _y,
                 float _z,
-                int _armor_id)
+                int _armor_id,
+                int _position)
     : self_health(_self_health)
     , num_shoot(_num_shoot)
     , own_outpost_destroyed(_own_outpost_destroyed)

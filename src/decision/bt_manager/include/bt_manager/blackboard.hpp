@@ -8,7 +8,8 @@
 
 namespace Sentry_BT
 {
-
+  extern int want_position = 1;  // 默认姿态为move，attack为2，defend为3 
+  
   class Blackboard
   {
   private:
@@ -32,6 +33,11 @@ namespace Sentry_BT
       blackboard_->set("nav_goal", Point2D{0.0, 0.0});                      // 当前导航目标
       blackboard_->set("patrol_index", 0);                                  // 巡逻点索引
       blackboard_->set("patrol_wait_time", 1000);                           // 巡逻等待时间（毫秒）
+      
+      blackboard_->set("my_position", 1);                                   // 当前姿态
+      blackboard_->set("outpost_msg", false);                               // 抬头
+      blackboard_->set("retreat_msg", false);                               // 回家
+      // 额外加成状态
     }
 
     template <typename T> void set(const std::string& key, const T& value)
@@ -85,6 +91,7 @@ namespace Sentry_BT
     {
       set("nav_status", static_cast<int>(status));
     }
+
   };
 
 }  // namespace Sentry_BT

@@ -63,11 +63,15 @@ namespace ns_com
       msg.enemy_detected.position.y = in.y;
       msg.enemy_detected.position.z = in.z;
       msg.enemy_detected.armor_id = in.armor_id;
+      msg.position = in.position;
+
       msg.header.stamp = now();
       event_status_pub_->publish(msg);
     }
 
   private:
+    int position_ = 1; //默认move
+
     void initRos()
     {
       cmd_vel_.linear.x = 0.0;
@@ -79,10 +83,12 @@ namespace ns_com
           "/aft_mapped_to_init", 1, [this](nav_msgs::msg::Odometry::ConstSharedPtr msg) { odomCB(msg); });
       gimbal_yaw_sub_ = create_subscription<std_msgs::msg::Float32>(
           "/gimbal_yaw", 1, [this](std_msgs::msg::Float32::ConstSharedPtr msg) { desiredYawCB(msg); });
-
+      position_sub_ = create_subscription<std_msgs::msg::Int32>(
+          "/position", 1, [this](std_msgs::msg::Int32::ConstSharedPtr msg) { position_ = msg->data; });
+      
       nav_pub_ = create_publisher<ros_interfaces::msg::Nav>("/NavRequest", 10);
       event_status_pub_ = create_publisher<ros_interfaces::msg::EventStatus>("/sentry/event_status", 10);
-
+      
       // RCLCPP_INFO(this->get_logger(), "ComInterfaceRos initialized");
     }
 
@@ -108,6 +114,7 @@ namespace ns_com
                            odom_.pose.pose.position.y,
                            current_yaw_deg,
                            gimbal_yaw_.data,
+                           position_,
                            0);
       auto flag = Communication::send2stm32<ChassisTarget>(target);
       if(flag == 0)
@@ -138,6 +145,7 @@ namespace ns_com
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr chassis_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr gimbal_yaw_sub_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr position_sub_;
 
     // Publishers
     rclcpp::Publisher<ros_interfaces::msg::Nav>::SharedPtr nav_pub_;
