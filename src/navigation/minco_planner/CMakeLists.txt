@@ -24,6 +24,7 @@ find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(ros_interfaces REQUIRED)
 
 nav2_package()
 
@@ -32,7 +33,7 @@ set(library_name minco_planner)
 add_library(${library_name} SHARED
   src/minco_core/minco_planner.cpp
   src/minco_core/astar.cpp
-  src/traj_opt/exp_traj_optimizer_s4.cpp
+  src/traj_opt/minco_optimizer.cpp
   # MINCO / 轨迹优化核心实现（只保留规划实际用到的最小子集）
   src/utils/banded_system.cpp
   src/utils/lbfgs.cpp
@@ -58,6 +59,7 @@ ament_target_dependencies(${library_name}
   rclcpp
   rclcpp_lifecycle
   tf2_ros
+  ros_interfaces
 )
 
 pluginlib_export_plugin_description_file(nav2_core global_planner_plugin.xml)
@@ -98,6 +100,7 @@ ament_export_dependencies(
   rclcpp_lifecycle
   rcl_interfaces
   tf2_ros
+  ros_interfaces
 )
 ament_export_targets(${library_name})
 ament_package()
