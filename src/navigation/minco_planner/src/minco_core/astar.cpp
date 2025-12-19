@@ -12,8 +12,8 @@ namespace minco_planner
 #define COST_UNKNOWN_ROS 255
 #define COST_OBS 254
 #define COST_OBS_ROS 253
-#define COST_NEUTRAL 10   // 原来是 50，减小它表示“多走几步没关系”
-#define COST_FACTOR 3.0   // 原来是 0.8 且未被使用。改为 3.0 表示“障碍物很危险，离远点”
+#define COST_NEUTRAL 10   
+#define COST_FACTOR 3.0
 
 Astar::Astar(unsigned int nx, unsigned int ny)
 : nx(nx), ny(ny), ns(nx * ny)
@@ -173,12 +173,21 @@ bool Astar::calcPath(int /*nplan*/)
   return true;
 }
 
-bool Astar::propNavFnAstar(int cycles)
+bool Astar::propNavFnAstar(int cycles, std::function<bool()> cancelChecker)
 {
   int ncycl = 0;
+  int ncycl_check = 0;
   int start_idx = start[1] * nx + start[0];
   
   while (ncycl < cycles) {
+    if (cancelChecker && ncycl_check > 1000) {
+      ncycl_check = 0;
+      if (cancelChecker()) {
+        return false;
+      }
+    }
+    ncycl_check++;
+
     if (curPe == 0 && nextPe == 0 && overPe == 0) return false; // No more to propagate
     
     // Process current buffer
