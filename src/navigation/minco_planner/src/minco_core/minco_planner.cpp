@@ -30,6 +30,7 @@ void MincoPlanner::configure(
   global_frame_ = costmap_ros_->getGlobalFrameID();
 
   auto node = parent.lock();
+  logger_ = node->get_logger();
   
   nav2_util::declare_parameter_if_not_declared(
     node, name + ".tolerance", rclcpp::ParameterValue(0.5));
@@ -43,13 +44,25 @@ void MincoPlanner::configure(
     node, name + ".allow_unknown", rclcpp::ParameterValue(true));
   node->get_parameter(name + ".allow_unknown", allow_unknown_);
 
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.max_velocity", rclcpp::ParameterValue(2.0));
+  node->get_parameter(name + ".minco_optimizer.max_velocity", minco_config.max_vel);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.max_acceleration", rclcpp::ParameterValue(4.0));
+  node->get_parameter(name + ".minco_optimizer.max_acceleration", minco_config.max_acc);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.time_allocation_iters", rclcpp::ParameterValue(15));
+  node->get_parameter(name + ".minco_optimizer.time_allocation_iters", minco_config.time_allocation_iters);
+
   astar_planner_ = std::make_unique<Astar>(
     costmap_->getSizeInCellsX(), costmap_->getSizeInCellsY());
     
   // Initialize Minco Optimizer
-  traj_opt::Config minco_config;
+  
   // Set config values here if needed
-  minco_optimizer_ = std::make_shared<traj_opt::ExpTrajOpt>(minco_config, nullptr); // ros_ptr is null for now
+  minco_optimizer_ = std::make_unique<minco_planner::MincoOptimizer>(minco_config); 
 }
 
 void MincoPlanner::cleanup()
@@ -74,8 +87,20 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
   path.header.stamp = rclcpp::Clock().now();
   path.header.frame_id = global_frame_;
 
+  // In ROS 2 Humble, the GlobalPlanner interface does not provide a cancel_checker.
+  // We use rclcpp::ok() as a basic check.
+  auto cancel_checker = []() {
+    return !rclcpp::ok();
+  };
+
   if (!astar_planner_ || !costmap_) {
+    RCLCPP_ERROR(logger_, "MincoPlanner: planner is not properly configured");
     throw std::runtime_error("MincoPlanner: planner is not properly configured");
+  }
+
+  if (!minco_optimizer_) {
+    RCLCPP_ERROR(logger_, "MincoPlanner: minco_optimizer is not initialized");
+    throw std::runtime_error("MincoPlanner: minco_optimizer is not initialized");
   }
 
   // 将起点和终点转换到地图坐标系
@@ -111,7 +136,7 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
     return path;
   }
 
-  if (!makePlan(start.pose, goal.pose, path)) {
+  if (!makePlan(start.pose, goal.pose, tolerance_, cancel_checker, path)) {
     throw std::runtime_error(
             "Failed to create plan with tolerance of: " + std::to_string(tolerance_) );
   }
@@ -120,12 +145,40 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
 bool MincoPlanner::makePlan(
   const geometry_msgs::msg::Pose & start,
   const geometry_msgs::msg::Pose & goal,
+  double tolerance,
+  std::function<bool()> cancel_checker,
   nav_msgs::msg::Path & plan)
 {
+  (void)tolerance;
+  // 1. Prepare the plan
   plan.poses.clear();
   plan.header.stamp = rclcpp::Clock().now();
   plan.header.frame_id = global_frame_;
 
+  double plan_start_time = rclcpp::Clock().now().seconds() + 0.03;
+  Eigen::Matrix3d start_state, end_state;
+  start_state.setZero();
+  end_state.setZero();
+
+  bool hot_start = false;
+  if (has_last_traj_)
+  {
+    double t_dur = plan_start_time - last_traj_.start_WT;
+    if (t_dur > 0.0 && t_dur < last_traj_.getTotalDuration())
+    {
+      hot_start = true;
+      start_state.col(0) = last_traj_.getPos(t_dur);
+      start_state.col(1) = last_traj_.getVel(t_dur);
+      start_state.col(2) = last_traj_.getAcc(t_dur);
+    }
+  }
+  
+  if (!hot_start)
+  {
+    start_state.col(0) = Eigen::Vector3d(start.position.x, start.position.y, 0.0);
+  }
+
+  // 2. 使用 A* 算法找到路径
   double wx = start.position.x;
   double wy = start.position.y;
   unsigned int mx_start, my_start;
@@ -141,35 +194,30 @@ bool MincoPlanner::makePlan(
   unsigned int nx = costmap_->getSizeInCellsX();
   unsigned int ny = costmap_->getSizeInCellsY();
   astar_planner_->setSize(nx, ny);
-
-  // 1. 设置起点终点 (必须在 setupNavFn 之前，因为 setupNavFn 可能依赖 goal)
   astar_planner_->setStart(static_cast<int>(mx_start), static_cast<int>(my_start));
   astar_planner_->setGoal(static_cast<int>(mx_goal), static_cast<int>(my_goal));
-
-  // 2. 初始化/重置 (重置 potarr, pending 等)
   astar_planner_->setupNavFn(true);
-
-  // 3. 设置代价地图
   astar_planner_->setCostmap(costmap_->getCharMap(), true, allow_unknown_);
-  lock.unlock();
 
-  // 4. 传播波前
+  // 传播波前
   // 循环调用 propNavFnAstar 直到找到 Start 或队列为空
   // 给定一个足够大的总循环次数上限，防止死循环
   int max_total_cycles = nx * ny; 
   int cycles_per_step = std::max(nx * ny / 20, nx + ny);
   
   while (max_total_cycles > 0) {
-    if (!astar_planner_->propNavFnAstar(cycles_per_step)) {
+    if (cancel_checker && cancel_checker()) {
+      return false;
+    }
+    if (!astar_planner_->propNavFnAstar(cycles_per_step, cancel_checker)) {
       break;
     }
     max_total_cycles -= cycles_per_step;
   }
 
-  // 5. 提取路径
+  // 提取路径
   if (!astar_planner_->calcPath(nx * ny / 2) || astar_planner_->getPathLen() < 2) {
-    // 如果路径长度小于 2，说明寻路失败（可能只找到了 Start 自己）
-    throw std::runtime_error("Failed to create A* path (len < 2)");
+    return false;
   }
 
   // 取出 A* 路径（地图坐标），转换到世界坐标并构造导航路径
@@ -186,55 +234,103 @@ bool MincoPlanner::makePlan(
 
     double wx, wy;
     costmap_->mapToWorld(path_x[i], path_y[i], wx, wy);
+
     pose.pose.position.x = wx;
     pose.pose.position.y = wy;
     pose.pose.position.z = 0.0;
-    pose.pose.orientation.x = 0.0;
-    pose.pose.orientation.y = 0.0;
-    pose.pose.orientation.z = 0.0;
-    pose.pose.orientation.w = 1.0;
-
-    plan.poses.push_back(pose);
-
-    // 为 Minco 构造引导路径（世界坐标系，z 置 0）
     guide_path.emplace_back(wx, wy, 0.0);
+    plan.poses.push_back(pose);
   }
 
-  // 使用 Minco 对路径进行时间分配 / 平滑
-  if (minco_optimizer_ && guide_path.size() >= 2) {
-    Eigen::Vector3d start_pos(start.position.x, start.position.y, 0.0);
-    Eigen::Vector3d goal_pos(goal.position.x, goal.position.y, 0.0);
-    Eigen::Vector3d zero_vel(0.0, 0.0, 0.0);
+  std::vector<Eigen::Vector3d> sparse_path = getSparseWaypoints(guide_path);
+  lock.unlock();
+  // 3. 使用 Minco 优化器优化路径
+  traj_opt::Trajectory opt_traj;
+  end_state.col(0) = sparse_path.back();
+  if (!minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj))
+  {
+    RCLCPP_WARN(node_.lock()->get_logger(), "Minco optimization failed");
+    return false;
+  } 
 
-    std::vector<Eigen::Vector3d> optimized;
-    if (minco_optimizer_->optimize(start_pos, zero_vel, goal_pos, zero_vel,
-        guide_path, optimized))
-    {
-      nav_msgs::msg::Path opt_path;
-      opt_path.header = plan.header;
-
-      for (const auto & p : optimized) {
-        geometry_msgs::msg::PoseStamped pose;
-        pose.header = opt_path.header;
-        pose.pose.position.x = p.x();
-        pose.pose.position.y = p.y();
-        pose.pose.position.z = 0.0;
-        pose.pose.orientation.x = 0.0;
-        pose.pose.orientation.y = 0.0;
-        pose.pose.orientation.z = 0.0;
-        pose.pose.orientation.w = 1.0;
-        opt_path.poses.push_back(pose);
-      }
-
-      if (!opt_path.poses.empty()) {
-        plan = opt_path;
-        return true;
-      }
-    }
+  // 4. 将优化后的轨迹转换为导航路径
+  double t_start = plan_start_time;
+  double t_end = t_start + opt_traj.getTotalDuration();
+  
+  if (opt_traj.getTotalDuration() <= 1e-3) {
+      t_end = t_start + 1e-3; // Ensure non-zero duration
   }
 
-  // Minco 失败或未启用时，退回原始 A* 路径
+  double t_step = (t_end - t_start) / (len - 1);
+  for (int i = 0; i < len; ++i) {
+    double t = i * t_step;
+    Eigen::Vector3d pos = opt_traj.getPos(t);
+
+    plan.poses[i].pose.position.x = pos(0);
+    plan.poses[i].pose.position.y = pos(1);
+    plan.poses[i].pose.position.z = 0.0;
+    plan.poses[i].pose.orientation.x = 0.0;
+    plan.poses[i].pose.orientation.y = 0.0;
+    plan.poses[i].pose.orientation.z = 0.0;
+    plan.poses[i].pose.orientation.w = 1.0;
+  }
+
+  RCLCPP_INFO(logger_, "MincoPlanner: Successfully created plan with %d poses, duration %f", len, opt_traj.getTotalDuration());
+
+  // 5. 保存优化后的轨迹
+  last_traj_ = opt_traj;
+  last_traj_.start_WT = t_start;
+  has_last_traj_ = true;
+
   return !plan.poses.empty();
+}
+
+std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<Eigen::Vector3d>& path) {
+    std::vector<Eigen::Vector3d> sparse;
+    if (path.empty()) return sparse;
+    
+    sparse.push_back(path.front());
+    if (path.size() < 3) {
+        sparse.push_back(path.back());
+        return sparse;
+    }
+    
+    const int lookahead_step = 0.5 / costmap_->getResolution();
+    size_t current_idx = 0;
+
+    while (current_idx < path.size() - 1) {
+      size_t next_idx = current_idx + 1;
+      Eigen::Vector3d curr_pt = path[current_idx];
+      size_t max_lookahead = std::min(static_cast<size_t>(lookahead_step), path.size() - 1 - current_idx);
+      for (size_t i = 1; i < max_lookahead; i++) {
+        if (!isLineFree(curr_pt, path[current_idx + i])) {
+          break;
+        }
+        next_idx = current_idx + i;
+      }
+      sparse.push_back(path[next_idx]);
+      current_idx = next_idx;
+    }
+    sparse.push_back(path.back());
+    return sparse;
+}
+
+bool MincoPlanner::isLineFree(const Eigen::Vector3d& p1, const Eigen::Vector3d& p2) {
+    if (!costmap_) return true; 
+    unsigned int mx, my;
+    double dist = (p2 - p1).norm();
+    int steps = std::ceil(dist / costmap_->getResolution()); 
+    
+    for (int i = 0; i <= steps; ++i) {
+        double t = static_cast<double>(i) / steps;
+        Eigen::Vector3d p = p1 + (p2 - p1) * t;
+        if (costmap_->worldToMap(p.x(), p.y(), mx, my)) {
+            if (costmap_->getCost(mx, my) >= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) { 
+                return false; 
+            }
+        }
+    }
+    return true;
 }
 
 bool MincoPlanner::worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my)

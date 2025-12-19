@@ -4,6 +4,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <functional>
 #include "nav2_costmap_2d/costmap_2d.hpp"
 
 namespace minco_planner
@@ -21,7 +22,7 @@ public:
   bool calcPath(int nplan);
   
   void setupNavFn(bool keepit = false);
-  bool propNavFnAstar(int cycles);
+  bool propNavFnAstar(int cycles, std::function<bool()> cancelChecker = nullptr);
 
   float * getPathX() { return pathx; }
   float * getPathY() { return pathy; }
