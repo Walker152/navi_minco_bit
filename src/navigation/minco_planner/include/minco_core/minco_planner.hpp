@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <functional>
 
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/point.hpp"
@@ -13,9 +14,10 @@
 #include "nav2_util/lifecycle_node.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 
-#include "minco_core/astar.hpp"
-#include "traj_opt/exp_traj_optimizer_s4.h"
+#include "ros_interfaces/msg/position_command.hpp"
 
+#include "minco_core/astar.hpp"
+#include "traj_opt/minco_optimizer.hpp"
 namespace minco_planner
 {
 
@@ -43,8 +45,13 @@ public:
   bool makePlan(
     const geometry_msgs::msg::Pose & start,
     const geometry_msgs::msg::Pose & goal,
+    double tolerance,
+    std::function<bool()> cancel_checker,
     nav_msgs::msg::Path & plan);
   
+  // 路径抽稀
+  std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3d>& path); 
+  bool isLineFree(const Eigen::Vector3d& start, const Eigen::Vector3d& end);
   bool worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my);
   void mapToWorld(double mx, double my, double & wx, double & wy);
   void clearRobotCell(unsigned int wx, unsigned int wy);
@@ -59,12 +66,20 @@ private:
   std::unique_ptr<Astar> astar_planner_;
   
   // Minco Optimizer
-  std::shared_ptr<traj_opt::ExpTrajOpt> minco_optimizer_;
+  std::unique_ptr<minco_planner::MincoOptimizer> minco_optimizer_;
   
   // Parameters
   double tolerance_;
   bool use_astar_;
   bool allow_unknown_;
+  MincoOptimizer::Config minco_config;
+  
+  rclcpp::Publisher<ros_interfaces::msg::PositionCommand>::SharedPtr traj_pub_;
+
+  geometry_utils::Trajectory last_traj_;
+  bool has_last_traj_ = false;
+  
+  rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
 };
 
 }  // namespace minco_planner
