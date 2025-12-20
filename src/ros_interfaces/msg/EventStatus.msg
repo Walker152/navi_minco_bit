@@ -10,3 +10,5 @@ float32 gimbal_yaw                      # 云台偏航角
 int16 enemy_outpost_health              # 敌方前哨站血量 
 
 ros_interfaces/Detector enemy_detected   # 敌方检测信息
+
+int32 position                          # 新增的姿态字段

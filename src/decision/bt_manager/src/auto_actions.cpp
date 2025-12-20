@@ -231,4 +231,35 @@ namespace Sentry_BT
     std::this_thread::sleep_for(std::chrono::milliseconds(wait_time));
     return BT::NodeStatus::SUCCESS;
   }
+
+    // ------------------- ChangePosition -------------------
+  ChangePosition::ChangePosition(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::SyncActionNode(name, config)
+  {
+  }
+
+  BT::PortsList ChangePosition::providedPorts()
+  {
+    return {};
+  }
+  BT::NodeStatus ChangePosition::tick()
+  {   
+    auto blackboard = config().blackboard;
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  //    justprotect
+  JustProtect::JustProtect(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::SyncActionNode(name, config)
+  {
+  }
+
+  BT::PortsList JustProtect::providedPorts()
+  {
+    return {};
+  }
+  BT::NodeStatus JustProtect::tick()
+  {   
+    return BT::NodeStatus::SUCCESS;
+  }
 }  // namespace Sentry_BT
