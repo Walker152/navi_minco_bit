@@ -28,6 +28,9 @@ namespace Sentry_BT
     rclcpp::Subscription<ros_interfaces::msg::EventStatus>::SharedPtr event_sub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr outpost_pub;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub;
+
+    rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr position_pub;
+
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp_action::Client<nav2_msgs::action::NavigateToPose>::SharedPtr nav_client_;
     std::shared_ptr<Blackboard> blackboard_;
