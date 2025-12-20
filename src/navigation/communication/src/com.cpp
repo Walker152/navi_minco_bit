@@ -159,7 +159,7 @@ namespace ns_com
             ros_ptr->publishNav(*nav_data);
           if(allow_debug)
           {
-            LOG_DEBUG_BLOCK(std::string(GREEN) + "[COM][Nav] ",
+            LOG_DEBUG_BLOCK(std::string(GREEN) + "[COM][Nav] ",   
                             NV(nav_data->x),
                             NV(nav_data->y),
                             NV(nav_data->yaw),
@@ -171,6 +171,8 @@ namespace ns_com
         case ENUM_PACKET_GAMESTATUS_DATA:
         {
           const EventStatus* event_status = (const EventStatus*)(buf + sizeof(PacketHeader));
+          std::cout << RED << "position收到的是" << event_status->position << RESET
+                  << std::endl;
           if(allow_debug)
           {
             LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Evt] ",
@@ -182,7 +184,8 @@ namespace ns_com
                             NV(event_status->x),
                             NV(event_status->y),
                             NV(event_status->z),
-                            NV(event_status->armor_id));
+                            NV(event_status->armor_id);
+                            NV(event_status->position));
           }
           auto ros_ptr = ros_if_;
           if(ros_ptr)
