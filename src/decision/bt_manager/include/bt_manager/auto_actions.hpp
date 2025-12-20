@@ -64,4 +64,22 @@ public:
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
 };
+
+class ChangePosition : public BT::SyncActionNode
+{
+public:
+  ChangePosition(const std::string& name, const BT::NodeConfiguration& config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class JustProtect : public BT::SyncActionNode
+{
+public:
+  JustProtect(const std::string& name, const BT::NodeConfiguration& config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
 }  // namespace Sentry_BT
