@@ -18,7 +18,7 @@ namespace Sentry_BT
                                                                   {
                                                                     // 更新当前位置
                                                                     current_pose_ = msg->pose.pose;
-                                                                  });
+                                                                  }); 
 
     // 定时发布前哨站状态
     timer_ = this->create_wall_timer(
@@ -34,20 +34,41 @@ namespace Sentry_BT
              std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) < 1.0)
           {
             outpost_msg.data = true;
+            blackboard_->set<bool>("outpost_msg", true);
             outpost_pub->publish(outpost_msg);
           }
           else if(std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) >=
                   1.0)
           {
             outpost_msg.data = false;
+            blackboard_->set<bool>("outpost_msg", false);
             outpost_pub->publish(outpost_msg);
+          }
+          int want_position_ = blackboard_->get<int>("want_position");
+          std_msgs::msg::Int32 want_position;
+          if(want_position_ == 1)
+          {
+            want_position.data = 1;
+            position_pub->publish(want_position);
+          }
+          else if (want_position_ == 2) 
+          {
+            want_position.data = 2;
+            position_pub->publish(want_position);
+          }
+          else if (want_position_ == 3) 
+          {
+            want_position.data = 3;
+            position_pub->publish(want_position);
           }
         });
     outpost_pub = this->create_publisher<std_msgs::msg::Bool>("/sentry/outpost_status", 10);
     // 创建导航客户端
     nav_client_ = rclcpp_action::create_client<nav2_msgs::action::NavigateToPose>(this, "navigate_to_pose");
-
     // 等待导航服务器可用
+    
+    position_pub = this->create_publisher<std_msgs::msg::Int32>("/sentry/want_position", 10);
+
     while(!nav_client_->wait_for_action_server(std::chrono::seconds(5)))
     {
       RCLCPP_INFO(this->get_logger(), "等待导航服务器...");
@@ -63,7 +84,13 @@ namespace Sentry_BT
     blackboard_->set<int>("enemy_outpost_health", msg->enemy_outpost_health);
     blackboard_->set<bool>("bonus_active", msg->buff_active);
     blackboard_->set<bool>("target_valid", msg->enemy_detected.is_detect);
-
+    if(msg->position == 1 || msg->position == 2 ||msg->position == 3 )
+    {
+      blackboard_->set<int>("my_position", msg->position);
+    }else 
+    {
+      blackboard_->set<int>("my_position", 4);
+    }
     // 更新目标位置
     // if(msg->enemy_detected.is_get)
     if(false)
@@ -178,4 +205,5 @@ namespace Sentry_BT
 
     return success;
   }
+
 }  // namespace Sentry_BT
