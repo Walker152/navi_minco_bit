@@ -142,6 +142,7 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
   }
   return path;
 }
+
 bool MincoPlanner::makePlan(
   const geometry_msgs::msg::Pose & start,
   const geometry_msgs::msg::Pose & goal,
@@ -261,8 +262,24 @@ bool MincoPlanner::makePlan(
       t_end = t_start + 1e-3; // Ensure non-zero duration
   }
 
-  double t_step = (t_end - t_start) / (len - 1);
-  for (int i = 0; i < len; ++i) {
+  // Re-sample based on fixed resolution to ensure path quality
+  double resolution = costmap_->getResolution();
+  int steps = std::max(2, static_cast<int>(opt_traj.getTotalDuration() / 0.1)); // Min 2 points, or 10Hz
+  // Or better, use spatial resolution
+  if (len < steps) {
+      steps = std::max(len, static_cast<int>(opt_traj.getTotalDuration() / 0.05));
+  } else {
+      steps = len;
+  }
+  
+  // Resize plan
+  plan.poses.resize(steps);
+  for (int i = 0; i < steps; ++i) {
+      plan.poses[i].header = plan.header;
+  }
+
+  double t_step = (t_end - t_start) / (steps - 1);
+  for (int i = 0; i < steps; ++i) {
     double t = i * t_step;
     Eigen::Vector3d pos = opt_traj.getPos(t);
 
@@ -275,7 +292,7 @@ bool MincoPlanner::makePlan(
     plan.poses[i].pose.orientation.w = 1.0;
   }
 
-  RCLCPP_INFO(logger_, "MincoPlanner: Successfully created plan with %d poses, duration %f", len, opt_traj.getTotalDuration());
+  RCLCPP_INFO(logger_, "MincoPlanner: Successfully created plan with %d poses, duration %f", steps, opt_traj.getTotalDuration());
 
   // 5. 保存优化后的轨迹
   last_traj_ = opt_traj;
@@ -311,7 +328,10 @@ std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<
       sparse.push_back(path[next_idx]);
       current_idx = next_idx;
     }
-    sparse.push_back(path.back());
+    
+    if (sparse.back() != path.back()) {
+      sparse.push_back(path.back());
+    }
     return sparse;
 }
 

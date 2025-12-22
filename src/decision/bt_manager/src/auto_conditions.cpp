@@ -196,12 +196,12 @@ namespace Sentry_BT
   {
   }
 
-  BT::PortsList CheckOutpostRemained::providedPorts()
+  BT::PortsList CheckMPCondition::providedPorts()
   {
     return {};
   }
 
-  CheckMPCondition::Conditions()
+  bool CheckMPCondition::Conditions()
   {
     auto blackboard = config().blackboard;
     auto enemy_outpost_health = blackboard->get<int>("enemy_outpost_health");
@@ -244,7 +244,7 @@ namespace Sentry_BT
     return {};
   }
  
-  CheckAPCondition::Conditions()
+  bool CheckAPCondition::Conditions()
   {
     auto blackboard = config().blackboard;
     auto enemy_outpost_health = blackboard->get<int>("enemy_outpost_health");
@@ -287,13 +287,13 @@ namespace Sentry_BT
     return {};
   }
 
-  CheckDPCondition::Conditions()
+  bool CheckDPCondition::Conditions()
   {
     auto blackboard = config().blackboard;
     auto current_mode = blackboard->get<int>("current_mode");
     auto nav_status = blackboard->get<int>("nav_status");
     auto current_health = blackboard->get<float>("health");
-    if((current_mode == Sentry_BT::NavMode::FAILURE) ||
+    if((current_mode == Sentry_BT::NavStatus::FAILURE) ||
        (nav_status == Sentry_BT::NavStatus::IDLE) && (current_health <= 100.0f)
       )
     {
@@ -343,11 +343,5 @@ namespace Sentry_BT
     }
     return BT::NodeStatus::FAILURE;
   }
-
-
-
-
-
-
 
 }  // namespace Sentry_BT
