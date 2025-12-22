@@ -43,5 +43,5 @@ namespace Sentry_BT
 
   std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};
   std::vector<std::string> mode_names = {"PATROL", "ATTACK", "RETREAT", "RESPONSE"};
-  std::vector<std::string> position_names = {"MOVE", "ATTACK", "DEFEND"}; //202
+  std::vector<std::string> position_names = {"MOVE", "ATTACK", "DEFEND"}; 
 }  // namespace Sentry_BT
