@@ -20,8 +20,8 @@ namespace Sentry_BT
     factory_.registerNodeType<Wait>("Wait");
 
     factory_.registerNodeType<CheckMPCondition>("CheckMPCondition");
-    factory_.registerNodeType<CheckAPCondition>("CheckMPCondition");
-    factory_.registerNodeType<CheckDPCondition>("CheckMPCondition");
+    factory_.registerNodeType<CheckAPCondition>("CheckAPCondition");
+    factory_.registerNodeType<CheckDPCondition>("CheckDPCondition");
     // 创建行为树
     try
     {
