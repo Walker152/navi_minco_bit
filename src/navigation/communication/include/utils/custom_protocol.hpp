@@ -1,5 +1,6 @@
 #pragma once
 // 数据包类型
+#include <cstdint>
 enum PacketTypeEnum
 {
   ENUM_PACKET_HEART_BEAT = 0,                   // 心跳包
@@ -70,6 +71,15 @@ struct _ChassisTarget
   float gimbal_yaw;   // 期望云台角
   int position; //姿态
   uint8_t is_use_mid360;
+  bool is_aim_outpost;
+  int32_t position;
+
+  // float vx_mps{}, vy_mps{}, vw_rpm{};
+  // float current_x{}, current_y{}, current_yaw{}, radar_yaw{};
+  // uint8_t radar_autoaim{};    // 0 -- 电控自行巡检， 1 -- 雷达辅助瞄准
+  // bool is_aim_outpost{};      // 发1则强制哨兵抬头巡检，寻找前哨站
+  // int32_t sentry_state{};    // 哨兵姿态，遵循Sentry_StateEnum
+  // minipc_to_stm32() = default;
 
   _ChassisTarget(float _vx_mps,
                  float _vy_mps,
@@ -78,8 +88,15 @@ struct _ChassisTarget
                  float _current_y,
                  float _current_yaw,
                  float _gimbal_yaw,
+<<<<<<< HEAD
                  int _position,
                 uint8_t _is_use_mid360
+=======
+                 uint8_t _is_use_mid360,
+                 bool _is_aim_outpost,
+                 int32_t _position
+                
+>>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
                 )
     : vx_mps(_vx_mps)
     , vy_mps(_vy_mps)
@@ -89,6 +106,10 @@ struct _ChassisTarget
     , current_yaw(_current_yaw)
     , gimbal_yaw(_gimbal_yaw)
     , is_use_mid360(_is_use_mid360)
+<<<<<<< HEAD
+=======
+    , is_aim_outpost(_is_aim_outpost)
+>>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
     , position(_position)
   {
   }
@@ -100,30 +121,53 @@ struct __attribute__((packed, aligned(1))) _Event_Status
   uint16_t self_health;        // 自身健康值，范围0-400
   uint16_t num_shoot;
   bool own_outpost_destroyed;  // 我方前哨被摧毁标志
+  uint16_t enemy_outpost_health;
   bool buff_active;            // buff是否激活标志
   bool is_get;                 // 是否检测到敌人
   float x;                     // 敌人位置x坐标
   float y;                     // 敌人位置y坐标
   float z;                     // 敌人位置z坐标
   uint8_t armor_id;            // 敌人装甲板ID
-
+  int32_t position;
   float team_position[5][2];
   int position;
+
+// uint16_t self_health{};
+//     uint16_t bullets_remaining{};
+//     bool own_outpost_destroyed;
+//     uint16_t enemy_outpost_health{};
+//     bool buff_active;
+//     bool is_get;
+//     float armor_pos[3];
+//     uint8_t armor_num;      // 进行处理，红方蓝方发送的装甲板数字相同
+//     int32_t sentry_current_state;
+//     float team_pos[5][2];
+//     uint8_t game_status;    // 0:未开始比赛 1:准备阶段 2:15s裁判系统自检 3:5s倒计时 4:比赛中 5:比赛结算中
+//     float yaw_imu;      // imu的yaw轴角度 逆时针为正
+//     inf_stm32_to_minipc() = default;
+
 
   _Event_Status(float _self_health,
                 uint16_t _num_shoot,
                 bool _own_outpost_destroyed,
+                uint16_t _enemy_outpost_health,
                 bool _buff_active,
                 bool _is_get,
                 float _x,
                 float _y,
                 float _z,
                 int _armor_id,
+<<<<<<< HEAD
                 int _position)
+=======
+                int32_t _position)
+>>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
     : self_health(_self_health)
     , num_shoot(_num_shoot)
     , own_outpost_destroyed(_own_outpost_destroyed)
+    , enemy_outpost_health(_enemy_outpost_health)
     , buff_active(_buff_active)
+    , position(_position)
   {
     is_get = _is_get;
     x = _x;

@@ -8,8 +8,6 @@
 
 namespace Sentry_BT
 {
-  extern int want_position = 1;  // 默认姿态为move，attack为2，defend为3 
-  
   class Blackboard
   {
   private:
@@ -22,7 +20,7 @@ namespace Sentry_BT
 
       // 初始化黑板变量
       blackboard_->set("health", 400.0f);                                   // 初始生命值
-      blackboard_->set("my_outpost_destroyed", false);                      // 前哨站状态
+      blackboard_->set("own_outpost_destroyed", false);                      // 前哨站状态
       blackboard_->set("enemy_outpost_health", 1500);                       // 敌方前哨站状态
       blackboard_->set("target_valid", false);                              // 目标锁定状态
       blackboard_->set("target_in_range", false);                           // 目标是否在攻击范围内
@@ -34,10 +32,10 @@ namespace Sentry_BT
       blackboard_->set("patrol_index", 0);                                  // 巡逻点索引
       blackboard_->set("patrol_wait_time", 1000);                           // 巡逻等待时间（毫秒）
       
-      blackboard_->set("my_position", 1);                                   // 当前姿态
+      blackboard_->set("want_position", 1);
+      blackboard_->set("my_position", 2);                                   // 当前姿态
       blackboard_->set("outpost_msg", false);                               // 抬头
       blackboard_->set("retreat_msg", false);                               // 回家
-      // 额外加成状态
     }
 
     template <typename T> void set(const std::string& key, const T& value)
