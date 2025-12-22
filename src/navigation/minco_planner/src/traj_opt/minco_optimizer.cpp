@@ -1,131 +1,362 @@
 #include "traj_opt/minco_optimizer.hpp"
 
+#define POS_IDX 0
+#define VEL_IDX 1
+#define ACC_IDX 2
+#define ATT_IDX 3
 namespace minco_planner {
+using Mat63f = Eigen::Matrix<double, 6, 3>;
 
-bool MincoOptimizer::optimize(const std::vector<Eigen::Vector3d>& waypoints,
+    // 在 minco_optimizer.cpp 中
+double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d>& waypoints,
                              const Eigen::Matrix3d& start_state,
                              const Eigen::Matrix3d& end_state,
                              geometry_utils::Trajectory& out_traj) 
 {
-    int N = waypoints.size() - 1; // 多项式段数
+    // 1. 设置问题
+    if (!setupProblemAndCheck(waypoints, start_state, end_state)) {
+        cout << YELLOW << " -- [TrajOpt] Error in setup problem, force return." << RESET << endl;
+        return INFINITY;
+    }
+    VecDf x(opt_vars_.dim_t + opt_vars_.dim_p);
+    Eigen::Map<VecDf> tau(x.data(), opt_vars_.dim_t);
+    Eigen::Map<VecDf> xi(x.data() + opt_vars_.dim_t, opt_vars_.dim_p);
     
-    if (N == 0) return false;
+    opt_vars_.penalty_log.resize(5); // energy, pos, vel, acc, attract
+    opt_vars_.penalty_log.setZero();
 
-    // MINCO_S3NU 需要 headPVA 和 tailPVA
-    // start_state 和 end_state 分别是 3x3 矩阵 (Col0: P, Col1: V, Col2: A)
-    Eigen::Matrix3d headState = start_state;
-    Eigen::Matrix3d tailState = end_state;
-    
-    // 强制修正起终点位置为抽稀后的起终点（防止微小误差）
-    headState.col(0) = waypoints.front();
-    tailState.col(0) = waypoints.back();
-
-    // 3. 提取中间点
-    Eigen::Matrix3Xd innerPoints;
-    if (N > 1) {
-        innerPoints.resize(3, N - 1);
-        for (int i = 0; i < N - 1; ++i) {
-            innerPoints.col(i) = waypoints[i + 1];
-        }
-    } else {
-        innerPoints.resize(3, 0);
+    if (opt_vars_.times.minCoeff() < 1e-3) {
+        cout << YELLOW << " -- [TrajOpt] Error, the init times have zero, force return." << RESET << endl;
+        cout << " -- Head PVA: " << endl;
+        cout << opt_vars_.headPVA << endl;
+        cout << " -- Tail PVA: " << endl;
+        cout << opt_vars_.tailPVA << endl;
+        cout << " -- Times: " << endl;
+        cout << opt_vars_.times.transpose() << endl;
+        return INFINITY;
     }
 
-    // 4. 初始时间分配
-    Eigen::VectorXd times = allocateInitialTimes(waypoints);
+    gcopter::backwardMapTToTau(opt_vars_.times, tau);
+    xi = Eigen::Map<const VecDf>(opt_vars_.points.data(), opt_vars_.points.size());
+    
+    opt_vars_.iter_num = 0;
+    double minCostFunctional = 0.0;
+    lbfgs::lbfgs_parameter_t lbfgs_params;
+    lbfgs_params.mem_size = 256;
+    lbfgs_params.past = 3;
+    lbfgs_params.min_step = 1.0e-32;
+    lbfgs_params.g_epsilon = 0.0;
+    lbfgs_params.delta = cfg_.opt_accuracy; // 确保 Config 里有这个，或者写死 1e-4
+    lbfgs_params.max_iterations = 256;
+    VecDf times_init = opt_vars_.times;
 
-    // 5. 迭代求解与时间重分配 (Hard Constraint Loop)
-    bool satisfy_constraints = false;
-    if (!minco_solver_) {
-        std::cerr << "[MincoOptimizer] minco_solver_ is null!" << std::endl;
+    // 4. 执行优化
+    int ret = lbfgs::lbfgs_optimize(
+        x,
+        minCostFunctional,
+        &MincoOptimizer::costFunctional,
+        nullptr,
+        nullptr,
+        &this->opt_vars_,
+        lbfgs_params
+    );
+
+    if (cfg_.print_optimizer_log) {
+        cout << " -- [MincoOpt] Opt finish, with iter num: " << opt_vars_.iter_num << "\n";
+        cout << "\tEnergy: " << opt_vars_.penalty_log(0) << endl;
+        cout << "\tPos: " << opt_vars_.penalty_log(1) << endl;
+        cout << "\tVel: " << opt_vars_.penalty_log(2) << endl;
+        cout << "\tAcc: " << opt_vars_.penalty_log(3) << endl;
+        cout << "\tAttract: " << opt_vars_.penalty_log(4) << endl;
+        cout << "\tOptimized Time: " << opt_vars_.times.transpose() << endl;
+    }
+
+    if (ret >= 0) {
+        gcopter::forwardMapTauToT(tau, opt_vars_.times);
+        opt_vars_.points = Eigen::Map<const Mat3Df>(xi.data(), 3, opt_vars_.piece_num - 1);
+
+        // opt_vars_.minco_solver_->setConditions(opt_vars_.headPVA, opt_vars_.tailPVA, opt_vars_.piece_num);
+        opt_vars_.minco_solver_->setParameters(opt_vars_.points, opt_vars_.times);
+        opt_vars_.minco_solver_->getTrajectory(out_traj);
+        
+        opt_vars_.init_ts = opt_vars_.times;
+        opt_vars_.init_ps.clear();
+        for (int i = 0; i < opt_vars_.points.cols(); ++i) {
+            opt_vars_.init_ps.emplace_back(opt_vars_.points.col(i));
+        }
+        opt_vars_.default_init = false;
+    } else {
+        // 优化失败，恢复初始值
+        minCostFunctional = INFINITY;
+    }
+    return minCostFunctional + ret;
+}
+
+double MincoOptimizer::costFunctional(void *ptr, const VecDf& x, VecDf& g) 
+{
+    OptVars& opt_vars_ = *(static_cast<OptVars*>(ptr));
+    const auto &dim_t = opt_vars_.dim_t;
+    const auto &dim_p = opt_vars_.dim_p;
+    const auto &waypoint_attractor = opt_vars_.waypoint_attractor;
+    const auto &integral_res = opt_vars_.integral_res;
+    const auto &smooth_eps = opt_vars_.smooth_eps;
+    const auto &rho = opt_vars_.rho;
+    const auto &penaltyWeights = opt_vars_.penaltyWeights;
+    const auto &magnitudeBounds = opt_vars_.magnitudeBounds;
+    const auto &minco_solver_ = opt_vars_.minco_solver_;
+
+    opt_vars_.iter_num++;
+
+    const Eigen::Map<const VecDf> tau(x.data(), dim_t);
+    const Eigen::Map<const VecDf> xi(x.data() + dim_t, dim_p);
+    Eigen::Map<VecDf> grad_tau(g.data(), dim_t);
+    Eigen::Map<VecDf> grad_points(g.data() + dim_t, dim_p);
+    
+    // 时间变量转换
+    VecDf times;
+    gcopter::forwardMapTauToT(tau, times);
+    
+    Mat3Df points;
+    if (dim_p > 0) {
+        points = Eigen::Map<const Eigen::Matrix<double, 3, Eigen::Dynamic>>(xi.data(), 3, dim_p / 3);
+    } else {
+        points.resize(3, 0);
+    }
+    
+    // 设置 MINCO_S3NU 参数
+    minco_solver_->setParameters(points, times);
+    
+    // 计算能量和梯度
+    double cost = 0.0;
+    MatD3f partialGradByCoeffs(6 * times.size(), 3);
+    VecDf partialGradByTimes(times.size());
+    partialGradByCoeffs.setZero();
+    partialGradByTimes.setZero();
+    minco_solver_->getEnergy(cost);
+    minco_solver_->getEnergyPartialGradByCoeffs(partialGradByCoeffs);
+    minco_solver_->getEnergyPartialGradByTimes(partialGradByTimes);
+    opt_vars_.penalty_log(0) = cost;
+
+    // 计算约束代价和梯度
+    constraintsFunctional(times, minco_solver_->getCoeffs(),
+                        waypoint_attractor,
+                          smooth_eps, integral_res,
+                          magnitudeBounds, penaltyWeights,
+                          cost,
+                          partialGradByTimes,
+                          partialGradByCoeffs,
+                          opt_vars_.penalty_log);
+    
+    // 传播梯度到点和时间
+    Mat3Df gradByPoints;
+    VecDf gradByTimes;
+    minco_solver_->propogateGrad(partialGradByCoeffs,
+                                 partialGradByTimes,
+                                 gradByPoints,
+                                 gradByTimes);
+    cost += rho * times.sum();
+    gradByTimes.array() += rho;
+    
+    
+    // 时间梯度反向传播 (T -> tau)
+    gcopter::propagateGradientTToTau(tau, gradByTimes, grad_tau);
+    
+    if (dim_p > 0) {
+        grad_points = Eigen::Map<VecDf>(gradByPoints.data(), gradByPoints.size());
+    }
+
+
+    return cost;
+}
+
+void MincoOptimizer::constraintsFunctional(const VecDf& T, 
+                               const MatD3f& coeffs,
+                               const Mat3Df& waypoint_attractor,
+                               const double& smooth_eps,
+                               const int& integral_res,
+                               const VecDf& magnitudeBounds,
+                               const VecDf& penaltyWeights,
+                               // outputs
+                               double& cost,
+                               VecDf& partialGradByTimes,
+                               MatD3f& partialGradByCoeffs,
+                               VecDf& penalty_log) 
+{
+    const auto &vmax = magnitudeBounds[0];
+    const auto &amax = magnitudeBounds[1];
+
+    const auto &vmaxSqr = vmax * vmax;
+    const auto &amaxSqr = amax * amax;
+
+    const auto &weightVel = penaltyWeights[0];
+    const auto &weightAcc = penaltyWeights[1];
+    const auto &weightAtt = penaltyWeights[2];
+
+    const auto &piece_num = T.size();
+
+    const double integralFrac = 1.0 / integral_res;
+    VecDf max_pena(4);
+    max_pena.setZero();
+
+    for (int i = 0; i < piece_num; i++)
+    {
+        const Mat63f &c = coeffs.block<6, 3>(i * 6, 0);
+        const auto &step = T(i) * integralFrac;
+        for (int j = 0; j <= integral_res; j++)
+        {
+            double s1 = j * step;
+            double s2 = s1 * s1;
+            double s3 = s2 * s1;
+            double s4 = s2 * s2;
+            double s5 = s4 * s1;
+            Vec6f beta0, beta1, beta2, beta3, beta4;
+            beta0 << 1.0, s1, s2, s3, s4, s5;
+            beta1 << 0.0, 1.0, 2.0 * s1, 3.0 * s2, 4.0 * s3, 5.0 * s4;
+            beta2 << 0.0, 0.0, 2.0, 6.0 * s1, 12.0 * s2, 20.0 * s3;
+            beta3 << 0.0, 0.0, 0.0, 6.0, 24.0 * s1, 60.0 * s2;
+            //beta4 << 0.0, 0.0, 0.0, 0., 0.0, 120.0;
+
+            const Vec3f pos = c.transpose() * beta0;
+            const Vec3f vel = c.transpose() * beta1;
+            const Vec3f acc = c.transpose() * beta2;
+            const Vec3f jer = c.transpose() * beta3;
+            
+            double tmp_cost{0.0};
+            Vec3f gradPos{0.0, 0.0, 0.0}, gradVel{0.0, 0.0, 0.0}, gradAcc{0.0, 0.0, 0.0};
+
+            // For attract point cost
+            if (weightAtt > 0.0) {
+                const auto is_waypoint = (j == 0) && (i != 0);
+                const auto is_end = ((j == integral_res) && (i != piece_num - 1));
+                const auto idx = is_end ? i + 1 : i;
+                if (is_waypoint || is_end) {
+                    Vec3f p_a = pos - waypoint_attractor.col(idx);
+                    const auto &violaAtt =
+                            p_a.squaredNorm() - 0.1 * 0.1; // dead zone 0.1m
+                    double violaAttPena, violaAttPenaD;
+                    if (violaAtt > max_pena(ATT_IDX)) max_pena(ATT_IDX) = violaAtt;
+                    if (gcopter::smoothedL1(violaAtt, smooth_eps, violaAttPena, violaAttPenaD)) {
+                        Vec3f gradAtt = weightAtt * violaAttPenaD * 2.0 * p_a;
+                        partialGradByCoeffs.block<6, 3>(i * 6, 0) += beta0 * gradAtt.transpose();
+                        cost += weightAtt * violaAttPena;
+                        if (is_end) {
+                            partialGradByTimes(i) += gradAtt.dot(vel);
+                        }
+                    }
+                }
+            }
+
+            // For velocity cost
+            const auto &violaVel = vel.squaredNorm() - vmaxSqr;
+            double violaVelPena, violaVelPenaD;
+            if (weightVel > 0 && gcopter::smoothedL1(violaVel, smooth_eps, violaVelPena, violaVelPenaD)) {
+                gradVel += weightVel * violaVelPenaD * 2.0 * vel;
+                tmp_cost += weightVel * violaVelPena;
+                if (violaVel > max_pena(VEL_IDX)) max_pena(VEL_IDX) = violaVel;
+            }
+
+            // For acceleration cost
+            const auto &violaAcc = acc.squaredNorm() - amaxSqr;
+            double violaAccPena, violaAccPenaD;
+            if (weightAcc > 0 && gcopter::smoothedL1(violaAcc, smooth_eps, violaAccPena, violaAccPenaD)) {
+                gradAcc += weightAcc * violaAccPenaD * 2.0 * acc;
+                tmp_cost += weightAcc * violaAccPena;
+                if (violaAcc > max_pena(ACC_IDX)) max_pena(ACC_IDX) = violaAcc;
+            }
+
+            const auto node = (j == 0 || j == integral_res) ? 0.5 : 1.0;
+            const double alpha = j * integralFrac;
+            partialGradByCoeffs.block<6, 3>(i * 6, 0) += (beta0 * gradPos.transpose() +
+                                                          beta1 * gradVel.transpose() +
+                                                          beta2 * gradAcc.transpose()) *
+                                                        node * step;
+            partialGradByTimes(i) += (gradPos.dot(vel) +
+                                      gradVel.dot(acc) +
+                                      gradAcc.dot(jer)) *
+                                     alpha * node * step +
+                                     node * integralFrac * tmp_cost;
+            cost += node * step * tmp_cost;
+        }
+    }
+    penalty_log(1) = max_pena(POS_IDX);
+    penalty_log(2) = max_pena(VEL_IDX);
+    penalty_log(3) = max_pena(ACC_IDX);
+    penalty_log(4) = max_pena(ATT_IDX);
+}
+
+bool MincoOptimizer::setupProblemAndCheck(const std::vector<Eigen::Vector3d>& waypoints,
+                              const Eigen::Matrix3d& start_state,
+                              const Eigen::Matrix3d& end_state) 
+{   
+    int N = waypoints.size() - 1; // 多项式段数
+    if (N <= 0) {
         return false;
     }
-    minco_solver_->setConditions(headState, tailState, N);
-    
-    for (int iter = 0; iter < config_.time_allocation_iters; ++iter) {
-        // A. 闭式求解 Ax=b
-        // minco.h 中的 getTrajectory 会自动计算系数并填入 out_traj
-        minco_solver_->setParameters(innerPoints, times);
-        minco_solver_->getTrajectory(out_traj); 
 
-        // B. 检查约束
-        Eigen::VectorXd new_times;
-        double max_ratio = checkConstraints(out_traj, times, new_times);
+    // 初始化优化变量上下文
+    opt_vars_.piece_num = N;
+    opt_vars_.headPVA = start_state;
+    opt_vars_.tailPVA = end_state;
+    opt_vars_.times.resize(N);
+    opt_vars_.points.resize(3, N - 1);
+    opt_vars_.waypoint_attractor.resize(3, N + 1);
+    for (int i = 0; i < N - 1; ++i) {
+        opt_vars_.waypoint_attractor.col(i + 1) = waypoints[i + 1];
+    }
+    opt_vars_.waypoint_attractor.col(0) = opt_vars_.headPVA.col(0);
+    opt_vars_.waypoint_attractor.rightCols(1) = opt_vars_.tailPVA.col(0);
 
-        // C. 判断收敛
-        if (max_ratio <= 1.01) { // 允许 1% 的误差
-            satisfy_constraints = true;
-            break;
+    // 初始化优化变量
+    opt_vars_.dim_t = N;
+    opt_vars_.dim_p = 3 * (N - 1);
+
+    // 初始梯度缓存
+    opt_vars_.gradByPoints.resize(3, N - 1);
+    opt_vars_.gradByTimes.resize(N);
+    opt_vars_.partialGradByCoeffs.resize(6 * N, 3);
+    opt_vars_.partialGradByTimes.resize(N);
+
+    if (opt_vars_.default_init) {
+        DefaultInit();
+    } else {
+        opt_vars_.times *= 0.8;
+        if (opt_vars_.init_ps.size() == N - 1) {
+            for (int i = 0; i < N - 1; ++i) {
+                opt_vars_.points.col(i) = opt_vars_.init_ps[i];
+            }
+        } else {
+            // 如果缓存的路点数量不对，强制退化为冷启动
+            DefaultInit();
         }
-
-        // D. 更新时间
-        times = new_times;
     }
-
-    if (!satisfy_constraints) {
-        // 如果迭代耗尽仍未完全满足，通常是因为极短的段导致加速度极大
-        // 此时 out_traj 依然是一条连续可行的轨迹，只是可能略微超限
-        // 在 RM 比赛中，可以直接输出，底盘控制器会有限幅保护
-        // 或者在这里做一个 fallback 处理
-    }
-
+    
+    opt_vars_.minco_solver_->setConditions(opt_vars_.headPVA, opt_vars_.tailPVA, N);
     return true;
 }
 
-Eigen::VectorXd MincoOptimizer::allocateInitialTimes(const std::vector<Eigen::Vector3d>& waypoints) {
-    int N = waypoints.size() - 1;
-    Eigen::VectorXd times(N);
-    for (int i = 0; i < N; ++i) {
-        double dist = (waypoints[i+1] - waypoints[i]).norm();
-        // 初始猜测：用较慢的速度，留出裕量
-        double t = dist / (config_.max_vel * 0.6); 
-        times(i) = std::max(0.1, t); // 最小时间保护
-    }
-    return times;
-}
-
-double MincoOptimizer::checkConstraints(const geometry_utils::Trajectory& traj, 
-                                        const Eigen::VectorXd& times,
-                                        Eigen::VectorXd& new_times) 
+void MincoOptimizer::DefaultInit() 
 {
-    double global_max_ratio = 1.0;
-    new_times = times;
-    int N = traj.getPieceNum(); // Trajectory 类的方法
-
-    // 获取所有段的时长
-    Eigen::VectorXd durs = traj.getDurations(); 
-    for (int i = 0; i < N; ++i) {
-        double duration = durs(i);
-        double seg_max_v = 0.0;
-        double seg_max_a = 0.0;
-
-        // 采样检查：在当前段内采样
-        int samples = 15; 
-        for (int k = 0; k <= samples; ++k) {
-            double t_local = duration * k / samples;
-            
-            Eigen::Vector3d v = traj[i].getVel(t_local);
-            Eigen::Vector3d a = traj[i].getAcc(t_local);
-
-            if (v.norm() > seg_max_v) seg_max_v = v.norm();
-            if (a.norm() > seg_max_a) seg_max_a = a.norm();
-        }
-
-        // 计算缩放比例
-        double v_ratio = (seg_max_v > config_.max_vel) ? (seg_max_v / config_.max_vel) : 1.0;
-        double a_ratio = (seg_max_a > config_.max_acc) ? std::sqrt(seg_max_a / config_.max_acc) : 1.0;
-        
-        double ratio = std::max(v_ratio, a_ratio);
-        
-        // 如果违规，拉长时间
-        if (ratio > 1.0) {
-            new_times(i) = times(i) * ratio * 1.05; // 1.05 倍余量加速收敛
-            global_max_ratio = std::max(global_max_ratio, ratio);
-        } else {
-            new_times(i) = times(i);
-        }
-    }
-    return global_max_ratio;
+    // 根据距离和最大速度分配初始时间
+    const VecDf dis = (opt_vars_.waypoint_attractor.leftCols(opt_vars_.piece_num) -
+                           opt_vars_.waypoint_attractor.rightCols(opt_vars_.piece_num)).colwise().norm().transpose();
+    double speed = cfg_.max_vel;
+    opt_vars_.times = dis / speed;
+    opt_vars_.points = opt_vars_.waypoint_attractor.block(0, 1, 3, opt_vars_.piece_num - 1);
 }
 
+void MincoOptimizer::setInitPsAndTs(const vec_Vec3f& init_ps, const VecDf& init_ts) 
+{
+    opt_vars_.default_init = false;
+    if (opt_vars_.times.size() != init_ts.size()) {
+        return;
+    }
+    if (opt_vars_.points.cols() != init_ps.size()) {
+        return;
+    }
+    
+    for (size_t i = 0; i < init_ps.size(); ++i) {
+        opt_vars_.times[i] = init_ts[i];
+        opt_vars_.points.col(i) = init_ps[i];
+    }
+}
 } // namespace minco_planner
