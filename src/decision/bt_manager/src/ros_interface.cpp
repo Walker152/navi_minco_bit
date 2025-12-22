@@ -105,7 +105,7 @@ namespace Sentry_BT
     {
       auto goal_handle = future.get();
       if(!goal_handle)
-      {2
+      {
         RCLCPP_INFO(get_logger(), "目标点被服务器拒绝");
         blackboard_->set("nav_status", static_cast<int>(Sentry_BT::NavStatus::FAILURE));
       }
