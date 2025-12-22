@@ -78,4 +78,12 @@ private:
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr position_pub_;
 };
 
+class JustProtect : public BT::SyncActionNode
+{
+public:
+  JustProtect(const std::string& name, const BT::NodeConfiguration& config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
 }  // namespace Sentry_BT

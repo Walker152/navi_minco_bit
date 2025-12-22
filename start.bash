@@ -1,10 +1,3 @@
-# 在开头添加CAN初始化
-echo "初始化CAN接口..."
-sudo ip link set can0 down
-sudo ip link set can0 type can bitrate 500000
-sudo ip link set can0 up
-sleep 1s
-echo "等待CAN接口启动..."
 # COM:CAN
 source ~/2025-sentry-navi/install/setup.bash
 
@@ -26,6 +19,7 @@ sleep 2s
 # BT-manager
 gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
 sleep 1s
-gnome-terminal -- bash -c "ros2 launch bt_manager test.launch.py; exec bash"
-
-gnome-terminal -- bash -c "cd /home/rm/rosbag && ros2 bag record -a ;exec bash"
+#gnome-terminal -- bash -c "ros2 launch bt_manager test.launch.py; exec bash"
+# COM
+gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
+#gnome-terminal -- bash -c "cd /home/rm/rosbag && ros2 bag record -a ;exec bash"
