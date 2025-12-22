@@ -56,14 +56,13 @@ class CheckIfRetreating : public BT::ConditionNode
     BT::NodeStatus tick() override;
 };
 
-
 // ------------------- CheckPositionCondition -------------------
 class CheckMPCondition : public BT::ConditionNode
 {
   public:
     CheckMPCondition(const std::string& name, const BT::NodeConfiguration& config);
 
-    static BT::PortsList p人噢videdPorts();
+    static BT::PortsList providedPorts();
     bool Conditions();
     BT::NodeStatus tick() override;
 };
