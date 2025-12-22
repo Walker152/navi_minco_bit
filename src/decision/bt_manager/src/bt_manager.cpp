@@ -22,6 +22,9 @@ namespace Sentry_BT
     factory_.registerNodeType<CheckMPCondition>("CheckMPCondition");
     factory_.registerNodeType<CheckAPCondition>("CheckAPCondition");
     factory_.registerNodeType<CheckDPCondition>("CheckDPCondition");
+    factory_.registerNodeType<CheckWhetherChange>("CheckWhetherChange");
+    factory_.registerNodeType<ChangePosition>("ChangePosition");
+    factory_.registerNodeType<ChangePosition>("JustProtect");
     // 创建行为树
     try
     {
