@@ -6,7 +6,36 @@
       <Sequence name="EmergencyRetreat">
         <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
         <SetCoordinate name="SetHomeCoordinate" goal="0" />
+<<<<<<< HEAD
         <SubTree ID="ChangePositionTree" blackboard="shared"/>
+=======
+        <Fallback>
+
+            <!-- 切换移动姿态1（若已是应保持不变,感觉可以用precondition节点（09）来读取黑板中表示状态的变量，相等就跳过切换,从pbb那里实时更新）2状态切换有五秒cd在想加在哪里（delay装饰器？）3 切姿态后地盘功率减半我们这边从电控拿电容储量信息然后控我们的速度上限？  4请注意黑板条目相互独立，必须进行端口重映射（global_blackboard?） -->
+          <Sequence name="MovePosition">
+            <CheckMPCondition name="CheckMPCondition" />
+            <CheckWhetherChange name="CheckWhetherChange" />
+            <ChangePosition name="ChangePosition" />
+          </Sequence>
+
+            <!-- 切换进攻姿态 -->
+          <Sequence name="AttackPosition">
+            <CheckAPCondition name="CheckAPCondition"/>
+            <CheckWhetherChange name="CheckWhetherChange" />
+            <ChangePosition name="ChangePosition" />
+          </Sequence>
+            
+            <!-- 切换防御姿态 -->
+          <Sequence name="DefendPosition">
+            <CheckDPCondition name="CheckDPCondition"/>
+            <CheckWhetherChange name="CheckWhetherChange" />
+            <ChangePosition name="ChangePosition" />
+          </Sequence> 
+          <Sequence name="PositionProtect">
+            <JustProtect name="JustProtect"/>
+          </Sequence> 
+        </Fallback>
+>>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
         <PublishNavigationGoal name="PublishRetreatGoal" />
         <WaitUntilStopped name="WaitUntilHome" />
       </Sequence>
@@ -16,7 +45,36 @@
         <CheckIfRetreating name="CheckIfRetreating"/>
         <CheckOutpostRemained name="CheckOutpostRemained" />
         <SetCoordinate name="SetResponseCoordinate" goal="2" />
+<<<<<<< HEAD
         <SubTree ID="ChangePositionTree" blackboard="shared"/>
+=======
+        <Fallback>
+
+            <!-- 切换移动姿态1（若已是应保持不变,感觉可以用precondition节点（09）来读取黑板中表示状态的变量，相等就跳过切换,从pbb那里实时更新）2状态切换有五秒cd在想加在哪里（delay装饰器？）3 切姿态后地盘功率减半我们这边从电控拿电容储量信息然后控我们的速度上限？  4请注意黑板条目相互独立，必须进行端口重映射（global_blackboard?） -->
+          <Sequence name="MovePosition">
+            <CheckMPCondition name="CheckMPCondition" />
+            <CheckWhetherChange name="CheckWhetherChange" />
+            <ChangePosition name="ChangePosition" />
+          </Sequence>
+
+            <!-- 切换进攻姿态 -->
+          <Sequence name="AttackPosition">
+            <CheckAPCondition name="CheckAPCondition"/>
+            <CheckWhetherChange name="CheckWhetherChange" />
+            <ChangePosition name="ChangePosition" />
+          </Sequence>
+            
+            <!-- 切换防御姿态 -->
+          <Sequence name="DefendPosition">
+            <CheckDPCondition name="CheckDPCondition"/>
+            <CheckWhetherChange name="CheckWhetherChange" />
+            <ChangePosition name="ChangePosition" />
+          </Sequence>  
+          <Sequence name="PositionProtect">
+            <JustProtect name="JustProtect"/>
+          </Sequence>  
+        </Fallback>
+>>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
         <PublishNavigationGoal name="PublishResponseGoal" />
       </Sequence>
       
@@ -26,7 +84,36 @@
           <CheckIfRetreating name="CheckIfRetreating"/>
           <CheckTargetLocked name="CheckTargetLocked" />
           <SetTargetCoordinate name="SetTargetCoordinate" />
+<<<<<<< HEAD
           <SubTree ID="ChangePositionTree" blackboard="shared"/>
+=======
+          <Fallback>
+
+              <!-- 切换移动姿态1（若已是应保持不变,感觉可以用precondition节点（09）来读取黑板中表示状态的变量，相等就跳过切换,从pbb那里实时更新）2状态切换有五秒cd在想加在哪里（delay装饰器？）3 切姿态后地盘功率减半我们这边从电控拿电容储量信息然后控我们的速度上限？  4请注意黑板条目相互独立，必须进行端口重映射（global_blackboard?） -->
+            <Sequence name="MovePosition">
+              <CheckMPCondition name="CheckMPCondition" />
+              <CheckWhetherChange name="CheckWhetherChange" />
+              <ChangePosition name="ChangePosition" />
+            </Sequence>
+
+              <!-- 切换进攻姿态 -->
+            <Sequence name="AttackPosition">
+              <CheckAPCondition name="CheckAPCondition"/>
+              <CheckWhetherChange name="CheckWhetherChange" />
+              <ChangePosition name="ChangePosition" />
+            </Sequence>
+              
+              <!-- 切换防御姿态 -->
+            <Sequence name="DefendPosition">
+              <CheckDPCondition name="CheckDPCondition"/>
+              <CheckWhetherChange name="CheckWhetherChange" />
+              <ChangePosition name="ChangePosition" />
+            </Sequence>   
+            <Sequence name="PositionProtect">
+              <JustProtect name="JustProtect"/>
+            </Sequence> 
+          </Fallback>
+>>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
           <PublishNavigationGoal name="PublishPursuitGoal" />
         </Sequence>
         
@@ -35,7 +122,36 @@
           <Wait name="InitialWait" milliseconds="5000"/>
           <CheckIfRetreating name="CheckIfRetreating"/>
           <CheckNavStatus name="CheckNavStatus" />
+<<<<<<< HEAD
           <SubTree ID="ChangePositionTree"/>
+=======
+          <Fallback>
+
+            <!-- 切换移动姿态1（若已是应保持不变,感觉可以用precondition节点（09）来读取黑板中表示状态的变量，相等就跳过切换,从pbb那里实时更新）2状态切换有五秒cd在想加在哪里（delay装饰器？）3 切姿态后地盘功率减半我们这边从电控拿电容储量信息然后控我们的速度上限？  4请注意黑板条目相互独立，必须进行端口重映射（global_blackboard?） -->
+            <Sequence name="MovePosition">
+              <CheckMPCondition name="CheckMPCondition" />
+              <CheckWhetherChange name="CheckWhetherChange" />
+              <ChangePosition name="ChangePosition" />
+            </Sequence>
+
+              <!-- 切换进攻姿态 -->
+            <Sequence name="AttackPosition">
+              <CheckAPCondition name="CheckAPCondition"/>
+              <CheckWhetherChange name="CheckWhetherChange" />
+              <ChangePosition name="ChangePosition" />
+            </Sequence>
+              
+              <!-- 切换防御姿态 -->
+            <Sequence name="DefendPosition">
+              <CheckDPCondition name="CheckDPCondition"/>
+              <CheckWhetherChange name="CheckWhetherChange" />
+              <ChangePosition name="ChangePosition" />
+            </Sequence>    
+            <Sequence name="PositionProtect">
+              <JustProtect name="JustProtect"/>
+            </Sequence> 
+          </Fallback>
+>>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
           <SelectPatrolPoint name="SelectPatrolPoint" />
           <PublishNavigationGoal name="PublishPatrolGoal" />
           <WaitUntilStopped name="WaitAfterNavigation" />

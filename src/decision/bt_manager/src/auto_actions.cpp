@@ -232,11 +232,10 @@ namespace Sentry_BT
     return BT::NodeStatus::SUCCESS;
   }
 
-  // ------------------- ChangePosition -------------------
+    // ------------------- ChangePosition -------------------
   ChangePosition::ChangePosition(const std::string& name, const BT::NodeConfiguration& config)
     : BT::SyncActionNode(name, config)
   {
-    position_pub_ = node_->create_publisher<std_msgs::msg::Int32>("/position", 10);
   }
 
   BT::PortsList ChangePosition::providedPorts()
@@ -244,18 +243,23 @@ namespace Sentry_BT
     return {};
   }
   BT::NodeStatus ChangePosition::tick()
-{
-    std::cout << "---------- ChangePosition ----------" << std::endl;
+  {   
     auto blackboard = config().blackboard;
-
-    if (position_pub_)
-    {
-        std_msgs::msg::Int32 msg;
-        msg.data = want_position;
-        position_pub_->publish(msg);
-        std::cout << "[ChangePosition] Publish position: " << position_val << std::endl;
-    }
-
     return BT::NodeStatus::SUCCESS;
-}
+  }
+
+  //    justprotect
+  JustProtect::JustProtect(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::SyncActionNode(name, config)
+  {
+  }
+
+  BT::PortsList JustProtect::providedPorts()
+  {
+    return {};
+  }
+  BT::NodeStatus JustProtect::tick()
+  {   
+    return BT::NodeStatus::SUCCESS;
+  }
 }  // namespace Sentry_BT
