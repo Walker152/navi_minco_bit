@@ -6,6 +6,7 @@
 #include "nav_zone.hpp"
 
 #include <geometry_msgs/msg/pose.hpp>
+#include <std_msgs/msg/int32.hpp>
 
 namespace Sentry_BT
 {
@@ -72,6 +73,9 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+
+private:
+  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr position_pub_;
 };
 
 }  // namespace Sentry_BT
