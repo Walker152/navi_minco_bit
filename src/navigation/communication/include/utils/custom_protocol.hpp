@@ -53,7 +53,7 @@ struct __attribute__((packed, aligned(1))) _NavRes
     , y(_y)
     , yaw(_yaw)
     , is_reach(_is_reach)
-    , position(_position)
+    // , position(_position)
   {
   }
 };
