@@ -7,7 +7,7 @@ if(CMAKE_COMPILER_ID MATCHES "Clang|GNU")
   set(CMAKE_CXX_EXTENSIONS OFF) # 禁用编译器扩展
   add_compile_options(-Wall -Wextra -Wpedantic)
   set(CMAKE_BUILD_TYPE "Release")
-  add_compile_options(-Werror)
+  add_compile_options(-Werror -Wno-error=unused-variable -Wno-error=unused-parameter)
 endif()
 
 find_package(ament_cmake REQUIRED)
@@ -30,16 +30,14 @@ nav2_package()
 
 set(library_name minco_planner)
 
+file(GLOB UTILS_SOURCES "src/utils/*.cpp")
+
 add_library(${library_name} SHARED
   src/minco_core/minco_planner.cpp
   src/minco_core/astar.cpp
   src/traj_opt/minco_optimizer.cpp
   # MINCO / 轨迹优化核心实现（只保留规划实际用到的最小子集）
-  src/utils/banded_system.cpp
-  src/utils/lbfgs.cpp
-  src/utils/minco.cpp
-  src/utils/piece.cpp
-  src/utils/trajectory.cpp
+  ${UTILS_SOURCES}
 )
 
 include_directories(

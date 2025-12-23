@@ -430,8 +430,8 @@ int sdlp::linfracprog(const double *halves, const int max_size, const int m, con
 
 template<>
 int
-sdlp::linfracprog<1>(const double *halves, const int max_size, const int m, const double *n_vec, const double *d_vec,
-                     double *opt, double *work, int *next, int *prev) {
+sdlp::linfracprog<1>(const double *halves, const int /*max_size*/, const int m, const double *n_vec, const double *d_vec,
+                     double *opt, double * /*work*/, int *next, int *prev) {
     if (m > 0) {
         return lp_base_case((const double (*)[2]) halves, m,
                             n_vec, d_vec, opt, next, prev);
