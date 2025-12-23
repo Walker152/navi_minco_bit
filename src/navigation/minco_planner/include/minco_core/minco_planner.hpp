@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include <functional>
+#include <mutex>
 
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/point.hpp"
@@ -80,6 +81,7 @@ private:
   bool has_last_traj_ = false;
   
   rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
+  std::mutex mutex_;
 };
 
 }  // namespace minco_planner
