@@ -4,6 +4,7 @@
 
 #include <Eigen/Core>
 #include <stdexcept>
+#include <cmath>
 
 namespace minco_planner
 {
@@ -56,6 +57,41 @@ void MincoPlanner::configure(
     node, name + ".minco_optimizer.time_allocation_iters", rclcpp::ParameterValue(15));
   node->get_parameter(name + ".minco_optimizer.time_allocation_iters", minco_config.time_allocation_iters);
 
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.rho", rclcpp::ParameterValue(0.01));
+  node->get_parameter(name + ".minco_optimizer.rho", minco_config.rho);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.smooth_eps", rclcpp::ParameterValue(0.01));
+  node->get_parameter(name + ".minco_optimizer.smooth_eps", minco_config.smooth_eps);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.integral_res", rclcpp::ParameterValue(16));
+  node->get_parameter(name + ".minco_optimizer.integral_res", minco_config.integral_res);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.opt_accuracy", rclcpp::ParameterValue(1.0e-4));
+  node->get_parameter(name + ".minco_optimizer.opt_accuracy", minco_config.opt_accuracy);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.print_optimizer_log", rclcpp::ParameterValue(true));
+  node->get_parameter(name + ".minco_optimizer.print_optimizer_log", minco_config.print_optimizer_log);
+
+  std::vector<double> default_penalty_weights = {1000.0, 10000.0, 1000.0};
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.penalty_weights", rclcpp::ParameterValue(default_penalty_weights));
+  std::vector<double> penalty_weights;
+  node->get_parameter(name + ".minco_optimizer.penalty_weights", penalty_weights);
+
+  minco_config.penaltyWeights.resize(penalty_weights.size());
+  for (size_t i = 0; i < penalty_weights.size(); ++i) {
+    minco_config.penaltyWeights(i) = penalty_weights[i];
+  }
+
+  minco_config.magnitudeBounds.resize(2);
+  minco_config.magnitudeBounds(0) = minco_config.max_vel;
+  minco_config.magnitudeBounds(1) = minco_config.max_acc;
+
   astar_planner_ = std::make_unique<Astar>(
     costmap_->getSizeInCellsX(), costmap_->getSizeInCellsY());
     
@@ -83,11 +119,11 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
   const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   nav_msgs::msg::Path path;
   path.header.stamp = rclcpp::Clock().now();
   path.header.frame_id = global_frame_;
 
-  // In ROS 2 Humble, the GlobalPlanner interface does not provide a cancel_checker.
   // We use rclcpp::ok() as a basic check.
   auto cancel_checker = []() {
     return !rclcpp::ok();
@@ -248,7 +284,8 @@ bool MincoPlanner::makePlan(
   // 3. 使用 Minco 优化器优化路径
   traj_opt::Trajectory opt_traj;
   end_state.col(0) = sparse_path.back();
-  if (!minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj))
+  double cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
+  if (std::isinf(cost))
   {
     RCLCPP_WARN(node_.lock()->get_logger(), "Minco optimization failed");
     return false;
@@ -263,7 +300,7 @@ bool MincoPlanner::makePlan(
   }
 
   // Re-sample based on fixed resolution to ensure path quality
-  double resolution = costmap_->getResolution();
+  // double resolution = costmap_->getResolution();
   int steps = std::max(2, static_cast<int>(opt_traj.getTotalDuration() / 0.1)); // Min 2 points, or 10Hz
   // Or better, use spatial resolution
   if (len < steps) {

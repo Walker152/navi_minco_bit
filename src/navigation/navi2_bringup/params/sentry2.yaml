@@ -387,13 +387,19 @@ planner_server:
 
     MincoPlanner:
       plugin: "minco_planner/MincoPlanner"
-      tolerance: 0.1
-      allow_unknown: true
+      tolerance: 10.0
       use_astar: true
+      allow_unknown: true
       minco_optimizer:
         max_velocity: 2.0
         max_acceleration: 4.0
         time_allocation_iters: 15
+        rho: 0.01
+        smooth_eps: 0.01
+        integral_res: 16
+        opt_accuracy: 0.0001
+        print_optimizer_log: true
+        penalty_weights: [1000.0, 10000.0, 1000.0]
 
 smoother_server:
   ros__parameters:
