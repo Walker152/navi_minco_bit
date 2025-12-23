@@ -33,7 +33,7 @@ namespace Sentry_BT
       blackboard_->set("patrol_wait_time", 1000);                           // 巡逻等待时间（毫秒）
       
       blackboard_->set("want_position", 1);
-      blackboard_->set("my_position", 2);                                   // 当前姿态
+      blackboard_->set("my_position", 1);                                   // 当前姿态
       blackboard_->set("outpost_msg", false);                               // 抬头
       blackboard_->set("retreat_msg", false);                               // 回家
     }
