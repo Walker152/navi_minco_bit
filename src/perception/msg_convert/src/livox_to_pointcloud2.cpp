@@ -177,7 +177,7 @@ private:
     cloud_msg_->height = 1;
     cloud_msg_->is_bigendian = false;
     cloud_msg_->is_dense = true;
-    cloud_msg_->header.frame_id = "body";
+    cloud_msg_->header.frame_id = "camera_init";
     // cloud_msg_->header.frame_id = frame_id_;
   }
 
@@ -245,8 +245,8 @@ private:
     // 发布转换后的点云
     pub_->publish(*cloud_msg_);
     auto publish_time = this->now();
-    std::cout << "Transform time: " << (publish_time.seconds() - receive_time.seconds()) * 1000 << " ms" << std::endl
-              << "Input points: " << point_num << ", Output points: " << output_point_num << std::endl;
+    // std::cout << "Transform time: " << (publish_time.seconds() - receive_time.seconds()) * 1000 << " ms" << std::endl
+    //           << "Input points: " << point_num << ", Output points: " << output_point_num << std::endl;
   }
 
   rclcpp::Subscription<livox_ros_driver2::msg::CustomMsg>::SharedPtr sub_;
