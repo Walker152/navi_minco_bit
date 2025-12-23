@@ -1,5 +1,6 @@
 #include "bt_manager/auto_conditions.hpp"
 #include "bt_manager/blackboard.hpp"
+#include <iostream>
 #include <string>
 
 namespace Sentry_BT
@@ -19,9 +20,13 @@ namespace Sentry_BT
   }
 
   BT::NodeStatus CheckRetreatCondition::tick()
-  {
+  { 
     std::cout << "---------- CheckRetreatCondition ----------" << std::endl;
     auto blackboard = config().blackboard;
+    //
+    auto my_position = blackboard->get<int>("my_position");
+    std::cout << "当前姿态：" << my_position  << std::endl;
+    //
     // 从XML获取健康阈值和恢复阈值
     auto health_threshold_ = getInput<float>("health_threshold");
     auto recovery_threshold_ = getInput<float>("recovery_threshold");
@@ -210,15 +215,12 @@ namespace Sentry_BT
     auto nav_status = blackboard->get<int>("nav_status");
     auto outpost_msg = blackboard->get<bool>("outpost_msg");
     auto my_position = blackboard->get<int>("my_position");
-
-    std::cout << my_position << std::endl;
     if(((enemy_outpost_health > 0) && (current_mode == Sentry_BT::NavMode::RESPONSE) && (outpost_msg == false)) || 
-       (current_mode == Sentry_BT::NavMode::RETREAT) && (nav_status == Sentry_BT::NavStatus::RUNNING) ||
-       (current_mode == Sentry_BT::NavMode::PATROL) && (nav_status == Sentry_BT::NavStatus::RUNNING)
+       ((current_mode == Sentry_BT::NavMode::RETREAT) && (nav_status == Sentry_BT::NavStatus::RUNNING)) ||
+       ((current_mode == Sentry_BT::NavMode::PATROL) && (nav_status == Sentry_BT::NavStatus::RUNNING))     
       )
     {
-      blackboard->set("want_position", 2); 
-      std::cout << "now want_position = 1" << std::endl;
+      blackboard->set("want_position", 1); 
       return BT::NodeStatus::SUCCESS;
     }
     return BT::NodeStatus::FAILURE;
@@ -247,7 +249,8 @@ namespace Sentry_BT
     auto current_health = blackboard->get<float>("health");
     if(((enemy_outpost_health > 0) && (current_mode == Sentry_BT::NavMode::RESPONSE) && (outpost_msg == true)) ||
        (current_mode == Sentry_BT::NavMode::ATTACK) ||
-       (current_mode == Sentry_BT::NavMode::PATROL) && (nav_status == Sentry_BT::NavStatus::IDLE) && (current_health > 100.0f)
+       ((current_mode == Sentry_BT::NavMode::PATROL) && (nav_status == Sentry_BT::NavStatus::IDLE)) ||
+       ((current_mode == Sentry_BT::NavMode::PATROL) && (nav_status == Sentry_BT::NavStatus::SUCCESS))
       )
     {
       blackboard->set("want_position", 2); // attack
@@ -277,8 +280,7 @@ namespace Sentry_BT
     auto current_mode = blackboard->get<int>("current_mode");
     auto nav_status = blackboard->get<int>("nav_status");
     auto current_health = blackboard->get<float>("health");
-    if((current_mode == Sentry_BT::NavStatus::FAILURE) && (current_health <= 20.0f)||
-       (current_mode == Sentry_BT::NavMode::PATROL) && (nav_status == Sentry_BT::NavStatus::IDLE) && (current_health <= 20.0f)
+    if(((current_mode == Sentry_BT::NavStatus::FAILURE) && (current_health <= 50.0f))
       )
     {
       blackboard->set("want_position", 3); // defend   
