@@ -10,10 +10,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/int32.hpp>
-<<<<<<< HEAD
-=======
 #include <std_msgs/msg/bool.hpp>
->>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -77,9 +74,12 @@ namespace ns_com
     }
 
   private:
-    int position_ = 1; //默认move
+    std_msgs::msg::Int32 position_;
+    std_msgs::msg::Bool outpost_msg_;
+    void initRos()
     {
       cmd_vel_.linear.x = 0.0;
+      cmd_vel_.linear.y = 0.0;
 
       
       chassis_sub_ = create_subscription<geometry_msgs::msg::Twist>(
@@ -89,18 +89,13 @@ namespace ns_com
       gimbal_yaw_sub_ = create_subscription<std_msgs::msg::Float32>(
           "/gimbal_yaw", 1, [this](std_msgs::msg::Float32::ConstSharedPtr msg) { desiredYawCB(msg); });
       position_sub_ = create_subscription<std_msgs::msg::Int32>(
-<<<<<<< HEAD
-          "/position", 1, [this](std_msgs::msg::Int32::ConstSharedPtr msg) { position_ = msg->data; });
-      
-=======
           "/sentry/want_position", 1, [this](std_msgs::msg::Int32::ConstSharedPtr msg) { position_.data = msg->data; });
       outpost_msg_sub_ = create_subscription<std_msgs::msg::Bool>(
           "/sentry/outpost_status", 1, [this](std_msgs::msg::Bool::ConstSharedPtr msg) { outpost_msg_.data = msg->data; });
->>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
       nav_pub_ = create_publisher<ros_interfaces::msg::Nav>("/NavRequest", 10);
       event_status_pub_ = create_publisher<ros_interfaces::msg::EventStatus>("/sentry/event_status", 10);
-      
-      // RCLCPP_INFO(this->get_logger(), "ComInterfaceRos initialized");
+
+      RCLCPP_INFO(this->get_logger(), "ComInterfaceRos initialized");
     }
 
     void sendChassisCtrlCB(const geometry_msgs::msg::Twist::ConstSharedPtr& velPtr, std_msgs::msg::Int32 _position, std_msgs::msg::Bool _outpost_msg)
@@ -161,12 +156,8 @@ namespace ns_com
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr gimbal_yaw_sub_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr position_sub_;
-<<<<<<< HEAD
-
-=======
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr outpost_msg_sub_;
     
->>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
     // Publishers
     rclcpp::Publisher<ros_interfaces::msg::Nav>::SharedPtr nav_pub_;
     rclcpp::Publisher<ros_interfaces::msg::EventStatus>::SharedPtr event_status_pub_;

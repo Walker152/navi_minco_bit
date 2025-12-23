@@ -48,13 +48,13 @@ struct __attribute__((packed, aligned(1))) _NavRes
   float y;
   float yaw;
   bool is_reach;  // 是否到达目标点，布尔标志，一般0为未到达，1为已到达
+
   // 带参构造函数，便于初始化结构体成员值
   _NavRes(float _x, float _y, float _yaw, bool _is_reach)
     : x(_x)
     , y(_y)
     , yaw(_yaw)
     , is_reach(_is_reach)
-    // , position(_position)
   {
   }
 };
@@ -69,9 +69,9 @@ struct _ChassisTarget
   float current_y;    // 当前y位置(m)
   float current_yaw;  // 当前朝向角(rad)
   float gimbal_yaw;   // 期望云台角
-  int position; //姿态
   uint8_t is_use_mid360;
   bool is_aim_outpost;
+  int32_t position;
 
   // float vx_mps{}, vy_mps{}, vw_rpm{};
   // float current_x{}, current_y{}, current_yaw{}, radar_yaw{};
@@ -87,15 +87,10 @@ struct _ChassisTarget
                  float _current_y,
                  float _current_yaw,
                  float _gimbal_yaw,
-<<<<<<< HEAD
-                 int _position,
-                uint8_t _is_use_mid360
-=======
                  uint8_t _is_use_mid360,
                  bool _is_aim_outpost,
                  int32_t _position
                 
->>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
                 )
     : vx_mps(_vx_mps)
     , vy_mps(_vy_mps)
@@ -105,10 +100,7 @@ struct _ChassisTarget
     , current_yaw(_current_yaw)
     , gimbal_yaw(_gimbal_yaw)
     , is_use_mid360(_is_use_mid360)
-<<<<<<< HEAD
-=======
     , is_aim_outpost(_is_aim_outpost)
->>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
     , position(_position)
   {
   }
@@ -129,7 +121,7 @@ struct __attribute__((packed, aligned(1))) _Event_Status
   uint8_t armor_id;            // 敌人装甲板ID
   int32_t position;
   float team_position[5][2];
-  int position;
+
 
 // uint16_t self_health{};
 //     uint16_t bullets_remaining{};
@@ -156,11 +148,7 @@ struct __attribute__((packed, aligned(1))) _Event_Status
                 float _y,
                 float _z,
                 int _armor_id,
-<<<<<<< HEAD
-                int _position)
-=======
                 int32_t _position)
->>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
     : self_health(_self_health)
     , num_shoot(_num_shoot)
     , own_outpost_destroyed(_own_outpost_destroyed)

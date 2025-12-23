@@ -285,8 +285,8 @@ void geometry_utils::normalizeNextYaw(const double& last_yaw, double& yaw) {
 }
 
 ///============ 2023-3-12: add by Yunfan ============///
-void geometry_utils::convertFlatOutputToAttAndOmg(const Vec3f& p,
-                                                  const Vec3f& v,
+void geometry_utils::convertFlatOutputToAttAndOmg(const Vec3f& /*p*/,
+                                                  const Vec3f& /*v*/,
                                                   const Vec3f& a,
                                                   const Vec3f& j,
                                                   const double& yaw,
