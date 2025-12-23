@@ -98,7 +98,7 @@ namespace geometry_utils {
             const double b = -(a_max - v0);
             const double c = -(v0 * v0 / a_max + 2 * total_dis);
             const double t_acc = solve_quadratic(a, b, c);
-            const double t_dec = t_acc - t_to_v0;
+            // const double t_dec = t_acc - t_to_v0;
             const double dis_acc = calc_dis(a_max, t_acc);
             const double cur_v_max = a_max * t_acc;
 

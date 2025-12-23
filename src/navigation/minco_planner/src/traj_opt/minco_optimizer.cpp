@@ -226,10 +226,9 @@ void MincoOptimizer::constraintsFunctional(const VecDf& T,
 
             // For attract point cost
             if (weightAtt > 0.0) {
-                const auto is_waypoint = (j == 0) && (i != 0);
                 const auto is_end = ((j == integral_res) && (i != piece_num - 1));
                 const auto idx = is_end ? i + 1 : i;
-                if (is_waypoint || is_end) {
+                if (is_end) {
                     Vec3f p_a = pos - waypoint_attractor.col(idx);
                     const auto &violaAtt =
                             p_a.squaredNorm() - 0.1 * 0.1; // dead zone 0.1m
@@ -320,7 +319,7 @@ bool MincoOptimizer::setupProblemAndCheck(const std::vector<Eigen::Vector3d>& wa
         DefaultInit();
     } else {
         opt_vars_.times *= 0.8;
-        if (opt_vars_.init_ps.size() == N - 1) {
+        if (opt_vars_.init_ps.size() == static_cast<size_t>(N - 1)) {
             for (int i = 0; i < N - 1; ++i) {
                 opt_vars_.points.col(i) = opt_vars_.init_ps[i];
             }
@@ -350,7 +349,7 @@ void MincoOptimizer::setInitPsAndTs(const vec_Vec3f& init_ps, const VecDf& init_
     if (opt_vars_.times.size() != init_ts.size()) {
         return;
     }
-    if (opt_vars_.points.cols() != init_ps.size()) {
+    if (static_cast<size_t>(opt_vars_.points.cols()) != init_ps.size()) {
         return;
     }
     
