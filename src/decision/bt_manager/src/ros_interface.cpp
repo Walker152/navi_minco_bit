@@ -12,7 +12,7 @@ namespace Sentry_BT
         1,
         [this](const ros_interfaces::msg::EventStatus::SharedPtr msg) { this->eventCallback(msg); });
 
-    odom_sub = this->create_subscription<nav_msgs::msg::Odometry>("/odom",
+    odom_sub = this->create_subscription<nav_msgs::msg::Odometry>("/aft_mapped_to_init",
                                                                   1,
                                                                   [this](const nav_msgs::msg::Odometry::SharedPtr msg)
                                                                   {
@@ -35,6 +35,8 @@ namespace Sentry_BT
           {
             outpost_msg.data = true;
             blackboard_->set<bool>("outpost_msg", true);
+            std::cout << "我在" << current_pose_.position.x << "," << current_pose_.position.y << std::endl;
+            std::cout << "TRUE" << outpost_msg.data << std::endl;
             outpost_pub->publish(outpost_msg);
           }
           else if(std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) >=
@@ -42,6 +44,8 @@ namespace Sentry_BT
           {
             outpost_msg.data = false;
             blackboard_->set<bool>("outpost_msg", false);
+            std::cout << "我在" << current_pose_.position.x << "," << current_pose_.position.y << std::endl;
+            std::cout << "FALSE" << outpost_msg.data << std::endl;
             outpost_pub->publish(outpost_msg);
           }
           int want_position_ = blackboard_->get<int>("want_position");
@@ -56,7 +60,7 @@ namespace Sentry_BT
             want_position.data = 2;
             position_pub->publish(want_position);
           }
-          else if (want_position_ == 3) 
+          else if (want_position_ == 3)                       
           {
             want_position.data = 3;
             position_pub->publish(want_position);
@@ -82,6 +86,7 @@ namespace Sentry_BT
     blackboard_->set<float>("health", ((int)msg->self_health / 4));
     blackboard_->set<bool>("own_outpost_destroyed", msg->own_outpost_destroyed);
     blackboard_->set<int>("enemy_outpost_health", msg->enemy_outpost_health);
+    //blackboard_->set<int>("enemy_outpost_health", 1500);
     blackboard_->set<bool>("bonus_active", msg->buff_active);
     blackboard_->set<bool>("target_valid", msg->enemy_detected.is_detect);
     if(msg->position == 1 || msg->position == 2 ||msg->position == 3 )
