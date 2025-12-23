@@ -72,7 +72,6 @@ struct _ChassisTarget
   int position; //姿态
   uint8_t is_use_mid360;
   bool is_aim_outpost;
-  int32_t position;
 
   // float vx_mps{}, vy_mps{}, vw_rpm{};
   // float current_x{}, current_y{}, current_yaw{}, radar_yaw{};
