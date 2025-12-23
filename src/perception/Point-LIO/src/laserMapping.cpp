@@ -1,4 +1,5 @@
 // #include <so3_math.h>
+#include <cstdint>
 #include <malloc.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
@@ -35,6 +36,10 @@ bool flg_reset = false, flg_exit = false;
 PointCloudXYZI::Ptr feats_undistort(new PointCloudXYZI());
 PointCloudXYZI::Ptr feats_down_body_space(new PointCloudXYZI());
 PointCloudXYZI::Ptr init_feats_world(new PointCloudXYZI());
+// Global map for visualization
+PointCloudXYZI::Ptr global_map_ptr(new PointCloudXYZI());
+pcl::VoxelGrid<PointType> downSizeFilterGlobalMap;
+
 std::deque<PointCloudXYZI::Ptr> depth_feats_world;
 pcl::VoxelGrid<PointType> downSizeFilterSurf;
 pcl::VoxelGrid<PointType> downSizeFilterMap;
@@ -270,6 +275,13 @@ void publish_odometry(
   const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pubOdomAftMapped,
   std::shared_ptr<tf2_ros::TransformBroadcaster> & tf_br)
 {
+  static int frame_count = 0;
+  frame_count++;
+  if (frame_count < 100) {
+    return;  // Skip the first 100 frames
+  } else {
+  frame_count = 0;
+  }
   odomAftMapped.header.frame_id = "camera_init";
   odomAftMapped.child_frame_id = "body";
   if (publish_odometry_without_downsample) {
@@ -1009,6 +1021,7 @@ int main(int argc, char ** argv)
       if (path_en) publish_path(pub_path);
       if (scan_pub_en || pcd_save_en) publish_frame_world(pub_laser_cloud_full_res);
       if (scan_pub_en && scan_body_pub_en) publish_frame_body(pub_laser_cloud_full_res_body);
+      if (scan_pub_en) publish_init_map(pub_laser_cloud_map);
 
       /*** Debug variables Logging ***/
       if (runtime_pos_log) {

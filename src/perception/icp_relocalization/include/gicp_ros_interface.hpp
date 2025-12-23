@@ -53,6 +53,7 @@ namespace icp_relocalization
 
     void publishStaticTf(const rclcpp::Time& stamp);
     void publishVisualization(const PointCloud::Ptr& cloud, const rclcpp::Time& stamp);
+    void printEvaluation(const Eigen::Matrix4f& initial_guess, const Eigen::Matrix4f& final_transformation, double fitness_score, double time_ms);
 
     // ROS 接口
     std::unique_ptr<GicpFilter> gicp_filter_;
