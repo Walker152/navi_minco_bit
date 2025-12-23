@@ -283,10 +283,15 @@ namespace icp_relocalization
       
       Eigen::Matrix4f initial_guess = map_to_camera_init_;
 
+      auto start_time = std::chrono::high_resolution_clock::now();
       auto result = gicp_filter_->align(source_cloud, initial_guess);
+      auto end_time = std::chrono::high_resolution_clock::now();
+      double time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
 
       if(result.converged && result.fitness_score < fitness_score_threshold_)
       {
+        printEvaluation(initial_guess, result.final_transformation, result.fitness_score, time_ms);
+
         RCLCPP_INFO(this->get_logger(), "GICP converged with score: %f", result.fitness_score);
         
         map_to_camera_init_ = result.final_transformation;
@@ -379,6 +384,38 @@ namespace icp_relocalization
       aligned_msg.header.stamp = stamp;
       aligned_cloud_pub_->publish(aligned_msg);
     }
+  }
+
+  void GicpRosInterface::printEvaluation(const Eigen::Matrix4f& initial_guess, 
+                                         const Eigen::Matrix4f& final_transformation, 
+                                         double fitness_score, 
+                                         double time_ms)
+  {
+    float init_x = initial_guess(0, 3);
+    float init_y = initial_guess(1, 3);
+    float final_x = final_transformation(0, 3);
+    float final_y = final_transformation(1, 3);
+    
+    float dx = final_x - init_x;
+    float dy = final_y - init_y;
+    
+    float init_yaw = std::atan2(initial_guess(1, 0), initial_guess(0, 0));
+    float final_yaw = std::atan2(final_transformation(1, 0), final_transformation(0, 0));
+    float dyaw = final_yaw - init_yaw;
+    // Normalize angle
+    const double PI = 3.14159265358979323846;
+    while (dyaw > PI) dyaw -= 2 * PI;
+    while (dyaw < -PI) dyaw += 2 * PI;
+
+    const std::string GREEN = "\033[32m";
+    const std::string RESET = "\033[0m";
+    
+    std::cout << GREEN << "--------------------------------------------------" << RESET << std::endl;
+    printf("%s[GICP Eval] Score: %.4f, Time: %.2f ms%s\n", GREEN.c_str(), fitness_score, time_ms, RESET.c_str());
+    printf("%sExpected(Init): x=%.3f, y=%.3f, yaw=%.3f%s\n", GREEN.c_str(), init_x, init_y, init_yaw, RESET.c_str());
+    printf("%sActual(Final) : x=%.3f, y=%.3f, yaw=%.3f%s\n", GREEN.c_str(), final_x, final_y, final_yaw, RESET.c_str());
+    printf("%sDeviation     : dx=%.3f, dy=%.3f, dyaw=%.3f%s\n", GREEN.c_str(), dx, dy, dyaw, RESET.c_str());
+    std::cout << GREEN << "--------------------------------------------------" << RESET << std::endl;
   }
 
 }  // namespace icp_relocalization

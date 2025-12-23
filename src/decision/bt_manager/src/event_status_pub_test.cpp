@@ -6,7 +6,6 @@ int main(int argc, char** argv)
   rclcpp::init(argc, argv);
   auto node = rclcpp::Node::make_shared("event_status_pub_test");
   auto pub = node->create_publisher<ros_interfaces::msg::EventStatus>("/sentry/event_status", 10);
-
   ros_interfaces::msg::EventStatus msg;
   msg.self_health = 90.0;
   msg.enemy_outpost_health = 1500.0;
@@ -25,7 +24,7 @@ int main(int argc, char** argv)
   {
     if(count == 15)
     {
-      msg.self_health = 100.0;
+      msg.self_health = 350.0;
     }
     else if(count == 30)
     {
@@ -37,7 +36,7 @@ int main(int argc, char** argv)
     }
     else if(count == 60)
     {
-      msg.enemy_outpost_health = 0.0;
+      msg.enemy_outpost_health = 1500.0;
     }
     else if(count == 90)
     {
@@ -45,16 +44,22 @@ int main(int argc, char** argv)
     }
     else if(count == 105)
     {
-      msg.self_health = 110.0;
+      msg.self_health = 350.0;
     }
     else if(count == 120)
     {
       msg.self_health = 350.0;
     }
+    else if(count == 300)
+    {
+      msg.enemy_outpost_health = 0.0;
+    }
     pub->publish(msg);
     std::cout << "health: " << msg.self_health << ", buff: " << msg.buff_active
               << ", enemy: " << (msg.enemy_detected.is_detect ? "true" : "false")
               << ", outpost: " << (msg.own_outpost_destroyed ? "true" : "false")
+              << ", enemy_outpost_health: " << msg.enemy_outpost_health << std::endl;
+    std::cout << "health: " << msg.self_health  
               << ", enemy_outpost_health: " << msg.enemy_outpost_health << std::endl;
     count += 5;
     RCLCPP_INFO(node->get_logger(), "Published test EventStatus");
