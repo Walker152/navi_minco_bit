@@ -72,26 +72,14 @@ namespace ns_com
       msg.enemy_detected.position.z = in.z;
       msg.enemy_detected.armor_id = in.armor_id;
       msg.position = in.position;
-<<<<<<< HEAD
-
-=======
->>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
       msg.header.stamp = now();
       event_status_pub_->publish(msg);
     }
 
   private:
-<<<<<<< HEAD
     int position_ = 1; //默认move
-
-=======
-    std_msgs::msg::Int32 position_;
-    std_msgs::msg::Bool outpost_msg_;
->>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
-    void initRos()
     {
       cmd_vel_.linear.x = 0.0;
-      cmd_vel_.linear.y = 0.0;
 
       
       chassis_sub_ = create_subscription<geometry_msgs::msg::Twist>(
@@ -140,14 +128,9 @@ namespace ns_com
                            odom_.pose.pose.position.y,
                            current_yaw_deg,
                            gimbal_yaw_.data,
-<<<<<<< HEAD
-                           position_,
-                           0);
-=======
                            _is_use_mid360,
                            outpost_msg,
                            position);
->>>>>>> b48d0ec91a97627d119e3e7c78ada90d87e8808d
       auto flag = Communication::send2stm32<ChassisTarget>(target);
       if(flag == 0)
       {

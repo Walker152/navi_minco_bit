@@ -7,6 +7,7 @@ namespace Sentry_BT
       {5.5, 3.5},  // BONUS
       //{-3, 5.5}
       {12.2, 0.65}  // OUTPOST
+      //{0.0, 0.0}//test
       //{1.0, 3.2} //TEST  -
   };
 
