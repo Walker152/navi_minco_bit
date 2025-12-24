@@ -58,8 +58,8 @@ void MincoPlanner::configure(
   node->get_parameter(name + ".minco_optimizer.time_allocation_iters", minco_config.time_allocation_iters);
 
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".minco_optimizer.rho", rclcpp::ParameterValue(0.01));
-  node->get_parameter(name + ".minco_optimizer.rho", minco_config.rho);
+    node, name + ".minco_optimizer.penalty_weight_time", rclcpp::ParameterValue(0.01));
+  node->get_parameter(name + ".minco_optimizer.penalty_weight_time", minco_config.rho);
 
   nav2_util::declare_parameter_if_not_declared(
     node, name + ".minco_optimizer.smooth_eps", rclcpp::ParameterValue(0.01));
@@ -77,16 +77,23 @@ void MincoPlanner::configure(
     node, name + ".minco_optimizer.print_optimizer_log", rclcpp::ParameterValue(true));
   node->get_parameter(name + ".minco_optimizer.print_optimizer_log", minco_config.print_optimizer_log);
 
-  std::vector<double> default_penalty_weights = {1000.0, 10000.0, 1000.0};
+  double penalty_weight_vel, penalty_weight_acc, penalty_weight_att;
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".minco_optimizer.penalty_weights", rclcpp::ParameterValue(default_penalty_weights));
-  std::vector<double> penalty_weights;
-  node->get_parameter(name + ".minco_optimizer.penalty_weights", penalty_weights);
+    node, name + ".minco_optimizer.penalty_weight_vel", rclcpp::ParameterValue(1000.0));
+  node->get_parameter(name + ".minco_optimizer.penalty_weight_vel", penalty_weight_vel);
 
-  minco_config.penaltyWeights.resize(penalty_weights.size());
-  for (size_t i = 0; i < penalty_weights.size(); ++i) {
-    minco_config.penaltyWeights(i) = penalty_weights[i];
-  }
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.penalty_weight_acc", rclcpp::ParameterValue(10000.0));
+  node->get_parameter(name + ".minco_optimizer.penalty_weight_acc", penalty_weight_acc);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.penalty_weight_att", rclcpp::ParameterValue(1000.0));
+  node->get_parameter(name + ".minco_optimizer.penalty_weight_att", penalty_weight_att);
+
+  minco_config.penaltyWeights.resize(3);
+  minco_config.penaltyWeights(0) = penalty_weight_vel;
+  minco_config.penaltyWeights(1) = penalty_weight_acc;
+  minco_config.penaltyWeights(2) = penalty_weight_att;
 
   minco_config.magnitudeBounds.resize(2);
   minco_config.magnitudeBounds(0) = minco_config.max_vel;
@@ -197,16 +204,23 @@ bool MincoPlanner::makePlan(
   start_state.setZero();
   end_state.setZero();
 
+  start_state.col(0) = Eigen::Vector3d(start.position.x, start.position.y, 0.0);
+
   bool hot_start = false;
   if (has_last_traj_)
   {
     double t_dur = plan_start_time - last_traj_.start_WT;
     if (t_dur > 0.0 && t_dur < last_traj_.getTotalDuration())
     {
-      hot_start = true;
-      start_state.col(0) = last_traj_.getPos(t_dur);
-      start_state.col(1) = last_traj_.getVel(t_dur);
-      start_state.col(2) = last_traj_.getAcc(t_dur);
+      Eigen::Vector3d pos = last_traj_.getPos(t_dur);
+      double dist = (pos - start_state.col(0)).norm();
+      if (dist < 0.3)
+      {
+        // start_state.col(0) = last_traj_.getPos(t_dur);
+        start_state.col(1) = last_traj_.getVel(t_dur);
+        start_state.col(2) = last_traj_.getAcc(t_dur);
+        hot_start = true;
+      }
     }
   }
   
@@ -284,6 +298,20 @@ bool MincoPlanner::makePlan(
   // 3. 使用 Minco 优化器优化路径
   traj_opt::Trajectory opt_traj;
   end_state.col(0) = sparse_path.back();
+  while (sparse_path.size() > 2)
+  {
+    Eigen::Vector3d first_pt = sparse_path[1];
+    Eigen::Vector3d dir = first_pt - start_state.col(0);
+    if ((dir.norm() < 0.2 || start_state.col(1).dot(dir) < 0)) // 30度偏移
+    {
+      sparse_path.erase(sparse_path.begin() + 1);
+    }
+    else
+    {
+      break;
+    }
+  }
+  
   double cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
   if (std::isinf(cost))
   {
@@ -301,7 +329,7 @@ bool MincoPlanner::makePlan(
 
   // Re-sample based on fixed resolution to ensure path quality
   // double resolution = costmap_->getResolution();
-  int steps = std::max(2, static_cast<int>(opt_traj.getTotalDuration() / 0.1)); // Min 2 points, or 10Hz
+  int steps = std::max(2, static_cast<int>(opt_traj.getTotalDuration() / 0.1)); // Min 2 points, or 5Hz
   // Or better, use spatial resolution
   if (len < steps) {
       steps = std::max(len, static_cast<int>(opt_traj.getTotalDuration() / 0.05));
@@ -319,14 +347,27 @@ bool MincoPlanner::makePlan(
   for (int i = 0; i < steps; ++i) {
     double t = i * t_step;
     Eigen::Vector3d pos = opt_traj.getPos(t);
+    Eigen::Vector3d vel = opt_traj.getVel(t);
+
+    double yaw = 0.0;
+    if (vel.norm() > 1e-4) {
+      yaw = std::atan2(vel(1), vel(0));
+    } else if (i > 0) {
+      yaw = 2.0 * std::atan2(plan.poses[i-1].pose.orientation.z, plan.poses[i-1].pose.orientation.w);
+    } else {
+      Eigen::Vector3d vel_next = opt_traj.getVel(t + 1e-3);
+      if (vel_next.norm() > 1e-4) {
+        yaw = std::atan2(vel_next(1), vel_next(0));
+      }
+    }
 
     plan.poses[i].pose.position.x = pos(0);
     plan.poses[i].pose.position.y = pos(1);
     plan.poses[i].pose.position.z = 0.0;
     plan.poses[i].pose.orientation.x = 0.0;
     plan.poses[i].pose.orientation.y = 0.0;
-    plan.poses[i].pose.orientation.z = 0.0;
-    plan.poses[i].pose.orientation.w = 1.0;
+    plan.poses[i].pose.orientation.z = sin(yaw / 2.0);
+    plan.poses[i].pose.orientation.w = cos(yaw / 2.0);
   }
 
   RCLCPP_INFO(logger_, "MincoPlanner: Successfully created plan with %d poses, duration %f", steps, opt_traj.getTotalDuration());
@@ -349,7 +390,7 @@ std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<
         return sparse;
     }
     
-    const int lookahead_step = 0.5 / costmap_->getResolution();
+    const int lookahead_step = 2.0 / costmap_->getResolution();
     size_t current_idx = 0;
 
     while (current_idx < path.size() - 1) {
@@ -369,7 +410,28 @@ std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<
     if (sparse.back() != path.back()) {
       sparse.push_back(path.back());
     }
-    return sparse;
+
+    std::vector<Eigen::Vector3d> final_sparse;
+    final_sparse.push_back(sparse.front());
+    
+    for (size_t i = 1; i < sparse.size() - 1; ++i) {
+        const auto& last_pt = final_sparse.back();
+        const auto& curr_pt = sparse[i];
+        const auto& next_pt = sparse[i+1];
+        
+        double dist = (curr_pt - last_pt).norm();
+        
+        // 如果距离太近 (例如 < 1.0m)，且直接连线 (last -> next) 是无碰撞的，则跳过当前点
+        if (dist < 1.0 && isLineFree(last_pt, next_pt)) {
+             continue; // 跳过这个点，直接尝试连下一个
+        }
+        
+        final_sparse.push_back(curr_pt);
+    }
+    
+    // 确保终点被加入
+    final_sparse.push_back(sparse.back());
+    return final_sparse;
 }
 
 bool MincoPlanner::isLineFree(const Eigen::Vector3d& p1, const Eigen::Vector3d& p2) {
