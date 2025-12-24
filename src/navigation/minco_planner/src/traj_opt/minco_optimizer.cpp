@@ -68,10 +68,10 @@ double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d>& waypoints,
         cout << "\tVel: " << opt_vars_.penalty_log(2) << endl;
         cout << "\tAcc: " << opt_vars_.penalty_log(3) << endl;
         cout << "\tAttract: " << opt_vars_.penalty_log(4) << endl;
-        cout << "\tOptimized Time: " << opt_vars_.times.transpose() << endl;
+        cout << "\tOptimized Time: " << opt_vars_.times.norm() << endl;
     }
 
-    if (ret >= 0) {
+    if (ret >= 0 || ret == lbfgs::LBFGSERR_MAXIMUMITERATION) {
         gcopter::forwardMapTauToT(tau, opt_vars_.times);
         opt_vars_.points = Eigen::Map<const Mat3Df>(xi.data(), 3, opt_vars_.piece_num - 1);
 
@@ -315,19 +315,20 @@ bool MincoOptimizer::setupProblemAndCheck(const std::vector<Eigen::Vector3d>& wa
     opt_vars_.partialGradByCoeffs.resize(6 * N, 3);
     opt_vars_.partialGradByTimes.resize(N);
 
-    if (opt_vars_.default_init) {
-        DefaultInit();
-    } else {
-        opt_vars_.times *= 0.8;
-        if (opt_vars_.init_ps.size() == static_cast<size_t>(N - 1)) {
-            for (int i = 0; i < N - 1; ++i) {
-                opt_vars_.points.col(i) = opt_vars_.init_ps[i];
-            }
-        } else {
-            // 如果缓存的路点数量不对，强制退化为冷启动
-            DefaultInit();
-        }
-    }
+    DefaultInit();
+    // if (opt_vars_.default_init) {
+    //     DefaultInit();
+    // } else {
+    //     // opt_vars_.times *= 0.8;
+    //     if (opt_vars_.init_ps.size() == static_cast<size_t>(N - 1)) {
+    //         for (int i = 0; i < N - 1; ++i) {
+    //             opt_vars_.points.col(i) = opt_vars_.init_ps[i];
+    //         }
+    //     } else {
+    //         // 如果缓存的路点数量不对，强制退化为冷启动
+    //         DefaultInit();
+    //     }
+    // }
     
     opt_vars_.minco_solver_->setConditions(opt_vars_.headPVA, opt_vars_.tailPVA, N);
     return true;
@@ -339,7 +340,7 @@ void MincoOptimizer::DefaultInit()
     const VecDf dis = (opt_vars_.waypoint_attractor.leftCols(opt_vars_.piece_num) -
                            opt_vars_.waypoint_attractor.rightCols(opt_vars_.piece_num)).colwise().norm().transpose();
     double speed = cfg_.max_vel;
-    opt_vars_.times = dis / speed;
+    opt_vars_.times = (dis / speed).cwiseMax(0.1); // 防止除零
     opt_vars_.points = opt_vars_.waypoint_attractor.block(0, 1, 3, opt_vars_.piece_num - 1);
 }
 
