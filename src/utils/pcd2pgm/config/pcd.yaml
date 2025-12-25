@@ -7,6 +7,6 @@
     map_topic_name: map
     thre_radius: 0.5
     thre_z_max: 5.0
-    thre_z_min: 0.21
+    thre_z_min: 0.50
     thres_point_count: 10
     use_sim_time: false

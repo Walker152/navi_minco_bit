@@ -1,200 +1,195 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
-#include <pcl/io/pcd_io.h>
+#include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/kdtree/kdtree_flann.h>
-#include <pcl/filters/voxel_grid.h>
+#include <pcl/io/pcd_io.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <fstream>
+#include <yaml-cpp/yaml.h>
+#include <opencv2/opencv.hpp>
+#include <Eigen/Core>
 #include <vector>
-#include <algorithm>
+#include <string>
+#include <cmath>
+#include <filesystem>
 
-class Pcd2EsdfNode : public rclcpp::Node
-{
-public:
-  Pcd2EsdfNode() : Node("pcd2esdf_node")
-  {
-    this->declare_parameter("pcd_path", "");
-    this->declare_parameter("output_path", "");
-    this->declare_parameter("resolution", 0.1);
-    this->declare_parameter("downsample_resolution", 0.05);
-    this->declare_parameter("padding", 1.0); // meters
-    this->declare_parameter("visualize", true);
+/**
+ * @brief 从 Nav2 PGM 地图生成 ESDF
+ * 逻辑：
+ * 1. 读取 YAML 获取地图元数据（分辨率、原点）。
+ * 2. 读取 PGM 像素，识别占据格（像素值 < occupied_thresh）。
+ * 3. 运行 2D Meijster 距离变换。
+ * 4. 转换回世界坐标并存储在 PCD Intensity 字段。
+ */
 
-    std::string pcd_path = this->get_parameter("pcd_path").as_string();
-    std::string output_path = this->get_parameter("output_path").as_string();
-    resolution_ = this->get_parameter("resolution").as_double();
-    double downsample_res = this->get_parameter("downsample_resolution").as_double();
-    padding_ = this->get_parameter("padding").as_double();
-    bool visualize = this->get_parameter("visualize").as_bool();
-
-    if (pcd_path.empty()) {
-      RCLCPP_ERROR(this->get_logger(), "Please provide pcd_path parameter");
-      return;
-    }
-
-    if (output_path.empty()) {
-      size_t last_dot = pcd_path.find_last_of(".");
-      if (last_dot != std::string::npos && pcd_path.substr(last_dot) == ".pcd") {
-        output_path = pcd_path.substr(0, last_dot) + ".esdf";
-      } else {
-        output_path = pcd_path + ".esdf";
-      }
-      RCLCPP_WARN(this->get_logger(), "output_path not provided, using %s", output_path.c_str());
-    }
-
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    if (pcl::io::loadPCDFile<pcl::PointXYZ>(pcd_path, *cloud) == -1) {
-      RCLCPP_ERROR(this->get_logger(), "Couldn't read file %s", pcd_path.c_str());
-      return;
-    }
-
-    RCLCPP_INFO(this->get_logger(), "Loaded %lu points", cloud->points.size());
-
-    if (downsample_res > 1e-4) {
-      pcl::VoxelGrid<pcl::PointXYZ> sor;
-      sor.setInputCloud(cloud);
-      sor.setLeafSize(downsample_res, downsample_res, downsample_res);
-      sor.filter(*cloud);
-      RCLCPP_INFO(this->get_logger(), "Downsampled to %lu points", cloud->points.size());
-    }
-
-    generateESDF(cloud, output_path);
-
-    if (visualize) {
-      pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("esdf_cloud", 1);
-      publishESDF();
-    }
-  }
-
+class Pgm2EsdfGenerator : public rclcpp::Node {
 private:
-  void generateESDF(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, const std::string& output_path)
-  {
-    // 1. Compute bounds
-    double x_min = 1e9, y_min = 1e9, z_min = 1e9;
-    double x_max = -1e9, y_max = -1e9, z_max = -1e9;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr esdf_pub_;
 
-    for (const auto& pt : cloud->points) {
-      if (pt.x < x_min) x_min = pt.x;
-      if (pt.x > x_max) x_max = pt.x;
-      if (pt.y < y_min) y_min = pt.y;
-      if (pt.y > y_max) y_max = pt.y;
-      if (pt.z < z_min) z_min = pt.z;
-      if (pt.z > z_max) z_max = pt.z;
+    // 地图参数
+    std::string map_yaml_path_;
+    std::string output_pcd_path_;
+    double max_dist_;
+    int occupied_thresh_;
+
+    // YAML 中的数据
+    std::string image_name_;
+    double resolution_;
+    std::vector<double> origin_; // [x, y, yaw]
+    int width_, height_;
+
+public:
+    Pgm2EsdfGenerator() : Node("pgm2esdf_generator") {
+        this->declare_parameter("map_yaml", "map.yaml");
+        this->declare_parameter("output_pcd", "map_esdf.pcd");
+        this->declare_parameter("max_dist", 3.0);
+        this->declare_parameter("occupied_thresh", 10); // 接近 0 为障碍物
+
+        map_yaml_path_ = this->get_parameter("map_yaml").as_string();
+        output_pcd_path_ = this->get_parameter("output_pcd").as_string();
+        max_dist_ = this->get_parameter("max_dist").as_double();
+        occupied_thresh_ = this->get_parameter("occupied_thresh").as_int();
+
+        esdf_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("esdf_result", rclcpp::QoS(1).transient_local());
+
+        process();
     }
 
-    x_min -= padding_; y_min -= padding_; z_min -= padding_;
-    x_max += padding_; y_max += padding_; z_max += padding_;
-
-    int x_size = std::ceil((x_max - x_min) / resolution_);
-    int y_size = std::ceil((y_max - y_min) / resolution_);
-    int z_size = std::ceil((z_max - z_min) / resolution_);
-
-    RCLCPP_INFO(this->get_logger(), "Map bounds: [%f, %f] x [%f, %f] x [%f, %f]", x_min, x_max, y_min, y_max, z_min, z_max);
-    RCLCPP_INFO(this->get_logger(), "Grid size: %d x %d x %d", x_size, y_size, z_size);
-
-    // 2. Build KD-Tree
-    pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
-    kdtree.setInputCloud(cloud);
-
-    // 3. Compute ESDF
-    esdf_data_.resize(x_size * y_size * z_size);
-    
-    // Store metadata for visualization
-    min_bound_ = Eigen::Vector3d(x_min, y_min, z_min);
-    grid_size_ = Eigen::Vector3i(x_size, y_size, z_size);
-
-    RCLCPP_INFO(this->get_logger(), "Computing ESDF... This might take a while.");
-    
-    #pragma omp parallel for collapse(3)
-    for (int x = 0; x < x_size; ++x) {
-      for (int y = 0; y < y_size; ++y) {
-        for (int z = 0; z < z_size; ++z) {
-          pcl::PointXYZ searchPoint;
-          searchPoint.x = x_min + (x + 0.5) * resolution_;
-          searchPoint.y = y_min + (y + 0.5) * resolution_;
-          searchPoint.z = z_min + (z + 0.5) * resolution_;
-
-          std::vector<int> pointIdxNKNSearch(1);
-          std::vector<float> pointNKNSquaredDistance(1);
-
-          if (kdtree.nearestKSearch(searchPoint, 1, pointIdxNKNSearch, pointNKNSquaredDistance) > 0) {
-            esdf_data_[x * y_size * z_size + y * z_size + z] = std::sqrt(pointNKNSquaredDistance[0]);
-          } else {
-            esdf_data_[x * y_size * z_size + y * z_size + z] = -1.0; // Should not happen
-          }
+    /**
+     * @brief 1D 距离变换核心逻辑
+     */
+    void fillESDF1D(const std::vector<double>& src, std::vector<double>& dst, int n, int step, int offset) {
+        int first_obs = -1;
+        for (int i = 0; i < n; ++i) {
+            if (src[i * step + offset] < 1e9) { first_obs = i; break; }
         }
-      }
-    }
-    RCLCPP_INFO(this->get_logger(), "ESDF computed.");
-
-    // 4. Save to file
-    std::ofstream out(output_path, std::ios::binary);
-    if (!out) {
-      RCLCPP_ERROR(this->get_logger(), "Failed to open output file %s", output_path.c_str());
-      return;
-    }
-
-    out.write(reinterpret_cast<const char*>(&resolution_), sizeof(double));
-    out.write(reinterpret_cast<const char*>(&x_min), sizeof(double));
-    out.write(reinterpret_cast<const char*>(&y_min), sizeof(double));
-    out.write(reinterpret_cast<const char*>(&z_min), sizeof(double));
-    out.write(reinterpret_cast<const char*>(&x_size), sizeof(int));
-    out.write(reinterpret_cast<const char*>(&y_size), sizeof(int));
-    out.write(reinterpret_cast<const char*>(&z_size), sizeof(int));
-    out.write(reinterpret_cast<const char*>(esdf_data_.data()), esdf_data_.size() * sizeof(double));
-    out.close();
-
-    RCLCPP_INFO(this->get_logger(), "Saved ESDF to %s", output_path.c_str());
-  }
-
-  void publishESDF()
-  {
-    pcl::PointCloud<pcl::PointXYZI> cloud_out;
-    
-    // Downsample for visualization if needed, or just publish points with dist < threshold
-    // Here we publish a slice or just points close to obstacles for verification
-    
-    for (int x = 0; x < grid_size_.x(); ++x) {
-      for (int y = 0; y < grid_size_.y(); ++y) {
-        for (int z = 0; z < grid_size_.z(); ++z) {
-           double dist = esdf_data_[x * grid_size_.y() * grid_size_.z() + y * grid_size_.z() + z];
-           // Visualize points with distance < 2.0m to see the field
-           if (dist < 2.0) {
-             pcl::PointXYZI pt;
-             pt.x = min_bound_.x() + (x + 0.5) * resolution_;
-             pt.y = min_bound_.y() + (y + 0.5) * resolution_;
-             pt.z = min_bound_.z() + (z + 0.5) * resolution_;
-             pt.intensity = dist;
-             cloud_out.points.push_back(pt);
-           }
+        if (first_obs == -1) {
+            for (int i = 0; i < n; ++i) dst[i * step + offset] = 1e10;
+            return;
         }
-      }
+
+        std::vector<int> v(n);
+        std::vector<double> z(n + 1);
+        int k = 0;
+        v[0] = first_obs;
+        z[0] = -1e10;
+        z[1] = 1e10;
+
+        for (int q = first_obs + 1; q < n; ++q) {
+            if (src[q * step + offset] > 1e9) continue;
+            double s;
+            while (k >= 0) {
+                int p = v[k];
+                s = ((src[q * step + offset] + (double)q * q) - (src[p * step + offset] + (double)p * p)) / (2.0 * (double)q - 2.0 * (double)p);
+                if (s <= z[k]) k--;
+                else break;
+            }
+            k++;
+            v[k] = q;
+            z[k] = s;
+            z[k + 1] = 1e10;
+        }
+
+        int cur_seg = 0;
+        for (int q = 0; q < n; ++q) {
+            while (z[cur_seg + 1] < (double)q) cur_seg++;
+            dst[q * step + offset] = (double)(q - v[cur_seg]) * (q - v[cur_seg]) + src[v[cur_seg] * step + offset];
+        }
     }
 
-    cloud_out.width = cloud_out.points.size();
-    cloud_out.height = 1;
-    cloud_out.is_dense = true;
-    cloud_out.header.frame_id = "map";
+    void process() {
+        // 1. 解析 YAML
+        try {
+            YAML::Node config = YAML::LoadFile(map_yaml_path_);
+            image_name_ = config["image"].as<std::string>();
+            resolution_ = config["resolution"].as<double>();
+            origin_ = config["origin"].as<std::vector<double>>();
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(this->get_logger(), "YAML Load Error: %s", e.what());
+            return;
+        }
 
-    sensor_msgs::msg::PointCloud2 msg;
-    pcl::toROSMsg(cloud_out, msg);
-    pub_->publish(msg);
-    RCLCPP_INFO(this->get_logger(), "Published ESDF visualization cloud.");
-  }
+        // 获取 PGM 的完整路径（与 YAML 在同一目录下）
+        std::filesystem::path yaml_p(map_yaml_path_);
+        std::string image_path = (yaml_p.parent_path() / image_name_).string();
 
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_;
-  std::vector<double> esdf_data_;
-  double resolution_;
-  double padding_;
-  Eigen::Vector3d min_bound_;
-  Eigen::Vector3i grid_size_;
+        // 2. 读取 PGM
+        cv::Mat img = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
+        if (img.empty()) {
+            RCLCPP_ERROR(this->get_logger(), "Could not load image: %s", image_path.c_str());
+            return;
+        }
+        width_ = img.cols;
+        height_ = img.rows;
+        RCLCPP_INFO(this->get_logger(), "Map Loaded: %dx%d, Res: %.3f", width_, height_, resolution_);
+
+        // 3. 初始化距离场缓冲区
+        std::vector<double> dist_buffer(width_ * height_, 1e10);
+        for (int r = 0; r < height_; ++r) {
+            for (int c = 0; c < width_; ++c) {
+                // Nav2 PGM: 0 是障碍物，254 是空地，255 是未知
+                // 我们取像素值小于阈值的作为障碍物
+                if (img.at<uchar>(r, c) <= occupied_thresh_) {
+                    dist_buffer[r * width_ + c] = 0;
+                }
+            }
+        }
+
+        // 4. Meijster 算法计算 ESDF
+        std::vector<double> tmp_buffer(width_ * height_, 1e10);
+        // 第一遍：行扫描 (Column-wise in logic, but Row in data)
+        for (int r = 0; r < height_; ++r) {
+            fillESDF1D(dist_buffer, tmp_buffer, width_, 1, r * width_);
+        }
+        // 第二遍：列扫描
+        for (int c = 0; c < width_; ++c) {
+            fillESDF1D(tmp_buffer, dist_buffer, height_, width_, c);
+        }
+
+        // 5. 转换为世界坐标系点云
+        pcl::PointCloud<pcl::PointXYZI>::Ptr out_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+        double max_px_dist_sq = std::pow(max_dist_ / resolution_, 2);
+
+        for (int r = 0; r < height_; ++r) {
+            for (int c = 0; c < width_; ++c) {
+                double d2 = dist_buffer[r * width_ + c];
+                if (d2 > max_px_dist_sq) continue;
+
+                pcl::PointXYZI pt;
+                // 注意：PGM 的 (0,0) 是左上角，行代表 Y 轴减方向。
+                // Nav2 的逻辑通常是：World_X = Origin_X + col * Res
+                // World_Y = Origin_Y + (height - row - 1) * Res (如果原点在左下角)
+                // 具体的转换取决于 YAML 的定义，通常 Nav2 是 col -> X, (height-row) -> Y
+                pt.x = origin_[0] + (double)c * resolution_;
+                pt.y = origin_[1] + (double)(height_ - r - 1) * resolution_;
+                pt.z = 0.0;
+                pt.intensity = std::sqrt(d2) * resolution_; // 物理距离 (米)
+                out_cloud->push_back(pt);
+            }
+        }
+
+        if (out_cloud->empty()) {
+            RCLCPP_WARN(this->get_logger(), "ESDF result is empty!");
+            return;
+        }
+
+        // 6. 保存与发布
+        out_cloud->width = out_cloud->size();
+        out_cloud->height = 1;
+        out_cloud->is_dense = true;
+        pcl::io::savePCDFileBinary(output_pcd_path_, *out_cloud);
+        RCLCPP_INFO(this->get_logger(), "ESDF saved to %s (%lu points)", output_pcd_path_.c_str(), out_cloud->size());
+
+        sensor_msgs::msg::PointCloud2 ros_msg;
+        pcl::toROSMsg(*out_cloud, ros_msg);
+        ros_msg.header.frame_id = "map";
+        ros_msg.header.stamp = this->now();
+        esdf_pub_->publish(ros_msg);
+    }
 };
 
-int main(int argc, char** argv)
-{
-  rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<Pcd2EsdfNode>());
-  rclcpp::shutdown();
-  return 0;
+int main(int argc, char** argv) {
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<Pgm2EsdfGenerator>());
+    rclcpp::shutdown();
+    return 0;
 }
