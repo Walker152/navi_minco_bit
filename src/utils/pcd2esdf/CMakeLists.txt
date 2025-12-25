@@ -12,6 +12,8 @@ find_package(geometry_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(pcl_ros REQUIRED)
 find_package(PCL REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(yaml-cpp REQUIRED)
 find_package(OpenMP)
 
 include_directories(
@@ -19,6 +21,8 @@ include_directories(
   ${PCL_INCLUDE_DIRS}
   ${pcl_conversions_INCLUDE_DIRS}
   ${pcl_ros_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  ${YAML_CPP_INCLUDE_DIRS}
 )
 
 if(OpenMP_CXX_FOUND)
@@ -33,8 +37,9 @@ target_link_libraries(pcd2esdf_node
   ${pcl_conversions_LIBRARIES}
   ${pcl_ros_LIBRARIES}
   ${PCL_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  yaml-cpp
 )
-
 if(OpenMP_CXX_FOUND)
   target_link_libraries(pcd2esdf_node OpenMP::OpenMP_CXX)
 endif()
@@ -49,3 +54,6 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME})
 
 ament_package()
+install(DIRECTORY config
+  DESTINATION share/${PROJECT_NAME})
+
