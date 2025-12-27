@@ -19,6 +19,7 @@
   <depend>pluginlib</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_lifecycle</depend>
+  <depend>sensor_msgs</depend>
   <depend>tf2_ros</depend>
   <depend>ros_interfaces</depend>
 

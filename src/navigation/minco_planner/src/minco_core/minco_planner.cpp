@@ -5,9 +5,147 @@
 #include <Eigen/Core>
 #include <stdexcept>
 #include <cmath>
+#include <cstring>
+
+#include "sensor_msgs/msg/point_field.hpp"
 
 namespace minco_planner
 {
+
+void MincoPlanner::publishEsdfCloud(const std_msgs::msg::Header & header)
+{
+  if (!esdf_cloud_pub_ || !esdf_map_) {
+    return;
+  }
+
+  const int width = esdf_map_->getWidth();
+  const int height = esdf_map_->getHeight();
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+
+  const auto & data = esdf_map_->getData();
+  if (data.empty()) {
+    return;
+  }
+
+  sensor_msgs::msg::PointCloud2 cloud;
+  cloud.header = header;
+  cloud.height = 1;
+  cloud.width = static_cast<uint32_t>(static_cast<size_t>(width) * static_cast<size_t>(height));
+  cloud.is_bigendian = false;
+  cloud.is_dense = false;
+
+  cloud.fields.resize(4);
+  cloud.fields[0].name = "x";
+  cloud.fields[0].offset = 0;
+  cloud.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
+  cloud.fields[0].count = 1;
+
+  cloud.fields[1].name = "y";
+  cloud.fields[1].offset = 4;
+  cloud.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
+  cloud.fields[1].count = 1;
+
+  cloud.fields[2].name = "z";
+  cloud.fields[2].offset = 8;
+  cloud.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
+  cloud.fields[2].count = 1;
+
+  cloud.fields[3].name = "intensity";
+  cloud.fields[3].offset = 12;
+  cloud.fields[3].datatype = sensor_msgs::msg::PointField::FLOAT32;
+  cloud.fields[3].count = 1;
+
+  cloud.point_step = 16;
+  cloud.row_step = cloud.point_step * cloud.width;
+  cloud.data.resize(static_cast<size_t>(cloud.row_step) * cloud.height);
+
+  const double res = esdf_map_->getResolution();
+  const auto origin = esdf_map_->getOrigin();
+
+  size_t point_index = 0;
+  for (int iy = 0; iy < height; ++iy)
+  {
+    for (int ix = 0; ix < width; ++ix, ++point_index)
+    {
+      const size_t idx = static_cast<size_t>(iy) * static_cast<size_t>(width) + static_cast<size_t>(ix);
+      const float x = static_cast<float>(origin.x() + ix * res);
+      const float y = static_cast<float>(origin.y() + iy * res);
+      const float z = 0.0f;
+      const float intensity = static_cast<float>((idx < data.size()) ? data[idx] : 0.0);
+
+      const size_t base = point_index * static_cast<size_t>(cloud.point_step);
+      std::memcpy(&cloud.data[base + 0], &x, sizeof(float));
+      std::memcpy(&cloud.data[base + 4], &y, sizeof(float));
+      std::memcpy(&cloud.data[base + 8], &z, sizeof(float));
+      std::memcpy(&cloud.data[base + 12], &intensity, sizeof(float));
+    }
+  }
+
+  esdf_cloud_pub_->publish(cloud);
+}
+
+void MincoPlanner::publishOptimizedTrajectory(
+  const traj_opt::Trajectory & opt_traj,
+  const std_msgs::msg::Header & header,
+  int steps,
+  double t_step)
+{
+  if (!opt_path_pub_ || steps <= 0) {
+    return;
+  }
+
+  ros_interfaces::msg::MpcPositionCommand traj_msg;
+  traj_msg.header = header;
+  traj_msg.command_flag = ros_interfaces::msg::MpcPositionCommand::NORMAL_COMMAND;
+  traj_msg.cmds.resize(steps);
+
+  const uint32_t traj_id = ++opt_trajectory_id_;
+  for (int i = 0; i < steps; ++i)
+  {
+    const double t = i * t_step;
+    const Eigen::Vector3d pos = opt_traj.getPos(t);
+    const Eigen::Vector3d vel = opt_traj.getVel(t);
+    const Eigen::Vector3d acc = opt_traj.getAcc(t);
+    const Eigen::Vector3d jer = opt_traj.getJer(t);
+
+    double yaw = 0.0;
+    if (vel.norm() > 1e-4) {
+      yaw = std::atan2(vel(1), vel(0));
+    } else if (i > 0) {
+      yaw = traj_msg.cmds[i - 1].yaw;
+    }
+
+    auto & cmd = traj_msg.cmds[i];
+    cmd.header = traj_msg.header;
+    cmd.position.x = pos(0);
+    cmd.position.y = pos(1);
+    cmd.position.z = 0.0;
+    cmd.velocity.x = vel(0);
+    cmd.velocity.y = vel(1);
+    cmd.velocity.z = vel(2);
+    cmd.acceleration.x = acc(0);
+    cmd.acceleration.y = acc(1);
+    cmd.acceleration.z = acc(2);
+    cmd.jerk.x = jer(0);
+    cmd.jerk.y = jer(1);
+    cmd.jerk.z = jer(2);
+    cmd.angular_velocity.x = 0.0;
+    cmd.angular_velocity.y = 0.0;
+    cmd.angular_velocity.z = 0.0;
+    cmd.yaw = yaw;
+    cmd.yaw_dot = 0.0;
+    cmd.vel_norm = vel.norm();
+    cmd.acc_norm = acc.norm();
+    cmd.kx = {0.0, 0.0, 0.0};
+    cmd.kv = {0.0, 0.0, 0.0};
+    cmd.trajectory_id = traj_id;
+  }
+
+  traj_msg.mpc_horizon = static_cast<uint32_t>(traj_msg.cmds.size());
+  opt_path_pub_->publish(traj_msg);
+}
 
 MincoPlanner::MincoPlanner()
 : tf_(nullptr), costmap_(nullptr)
@@ -46,6 +184,10 @@ void MincoPlanner::configure(
   node->get_parameter(name + ".allow_unknown", allow_unknown_);
 
   nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.safe_dist", rclcpp::ParameterValue(0.3));
+  node->get_parameter(name + ".minco_optimizer.safe_dist", minco_config.safe_dist);
+
+  nav2_util::declare_parameter_if_not_declared(
     node, name + ".minco_optimizer.max_velocity", rclcpp::ParameterValue(2.0));
   node->get_parameter(name + ".minco_optimizer.max_velocity", minco_config.max_vel);
 
@@ -77,7 +219,11 @@ void MincoPlanner::configure(
     node, name + ".minco_optimizer.print_optimizer_log", rclcpp::ParameterValue(true));
   node->get_parameter(name + ".minco_optimizer.print_optimizer_log", minco_config.print_optimizer_log);
 
-  double penalty_weight_vel, penalty_weight_acc, penalty_weight_att;
+  double penalty_weight_pos, penalty_weight_vel, penalty_weight_acc, penalty_weight_att;
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.penalty_weight_pos", rclcpp::ParameterValue(1000.0));
+  node->get_parameter(name + ".minco_optimizer.penalty_weight_pos", penalty_weight_pos);
+
   nav2_util::declare_parameter_if_not_declared(
     node, name + ".minco_optimizer.penalty_weight_vel", rclcpp::ParameterValue(1000.0));
   node->get_parameter(name + ".minco_optimizer.penalty_weight_vel", penalty_weight_vel);
@@ -90,28 +236,59 @@ void MincoPlanner::configure(
     node, name + ".minco_optimizer.penalty_weight_att", rclcpp::ParameterValue(1000.0));
   node->get_parameter(name + ".minco_optimizer.penalty_weight_att", penalty_weight_att);
 
-  minco_config.penaltyWeights.resize(3);
-  minco_config.penaltyWeights(0) = penalty_weight_vel;
-  minco_config.penaltyWeights(1) = penalty_weight_acc;
-  minco_config.penaltyWeights(2) = penalty_weight_att;
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".static_esdf.esdf_pcd_path", rclcpp::ParameterValue("src/utils/pcd2esdf/maps/2026_esdf.pcd"));
+  node->get_parameter(name + ".static_esdf.esdf_pcd_path", esdf_pcd_path_);
 
-  minco_config.magnitudeBounds.resize(2);
-  minco_config.magnitudeBounds(0) = minco_config.max_vel;
-  minco_config.magnitudeBounds(1) = minco_config.max_acc;
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".static_esdf.esdf_resolution", rclcpp::ParameterValue(0.1));
+  node->get_parameter(name + ".static_esdf.esdf_resolution", esdf_resolution_);
+
+  minco_config.penaltyWeights.resize(4);
+  minco_config.penaltyWeights(0) = penalty_weight_pos;
+  minco_config.penaltyWeights(1) = penalty_weight_vel;
+  minco_config.penaltyWeights(2) = penalty_weight_acc;
+  minco_config.penaltyWeights(3) = penalty_weight_att;
+
+  minco_config.magnitudeBounds.resize(3);
+  minco_config.magnitudeBounds(0) = minco_config.safe_dist;
+  minco_config.magnitudeBounds(1) = minco_config.max_vel;
+  minco_config.magnitudeBounds(2) = minco_config.max_acc;
 
   astar_planner_ = std::make_unique<Astar>(
     costmap_->getSizeInCellsX(), costmap_->getSizeInCellsY());
-    
+
+  opt_path_pub_ = node->create_publisher<ros_interfaces::msg::MpcPositionCommand>(
+    "/opt_path", rclcpp::QoS(rclcpp::KeepLast(1)));
+
+  esdf_cloud_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>(
+    "/esdf_cloud", 10);
+
+  // Load Static ESDF Map
+  esdf_map_ = std::make_shared<StaticESDFMap>();
+  if (!esdf_map_->loadMap(esdf_pcd_path_, esdf_resolution_)) {
+    RCLCPP_ERROR(logger_, "MincoPlanner: Failed to load static ESDF map from PCD: %s", esdf_pcd_path_.c_str());
+  } else {
+  RCLCPP_INFO(logger_, "MincoPlanner: Static ESDF map loaded from PCD: %s", esdf_pcd_path_.c_str());
+
+  std_msgs::msg::Header header;
+  header.stamp = rclcpp::Clock().now();
+  header.frame_id = global_frame_;
+  publishEsdfCloud(header);
+  }
+
   // Initialize Minco Optimizer
-  
-  // Set config values here if needed
-  minco_optimizer_ = std::make_unique<minco_planner::MincoOptimizer>(minco_config); 
+  minco_optimizer_ = std::make_unique<MincoOptimizer>(minco_config);
+  minco_optimizer_->setESDFMap(esdf_map_); 
 }
 
 void MincoPlanner::cleanup()
 {
   astar_planner_.reset();
   minco_optimizer_.reset();
+  opt_path_pub_.reset();
+  esdf_cloud_pub_.reset();
+  esdf_timer_.reset();
 }
 
 void MincoPlanner::activate()
@@ -130,6 +307,8 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
   nav_msgs::msg::Path path;
   path.header.stamp = rclcpp::Clock().now();
   path.header.frame_id = global_frame_;
+
+  publishEsdfCloud(path.header);
 
   // We use rclcpp::ok() as a basic check.
   auto cancel_checker = []() {
@@ -371,6 +550,9 @@ bool MincoPlanner::makePlan(
   }
 
   RCLCPP_INFO(logger_, "MincoPlanner: Successfully created plan with %d poses, duration %f", steps, opt_traj.getTotalDuration());
+
+  // Publish optimized trajectory using custom message on opt_path
+  publishOptimizedTrajectory(opt_traj, plan.header, steps, t_step);
 
   // 5. 保存优化后的轨迹
   last_traj_ = opt_traj;
