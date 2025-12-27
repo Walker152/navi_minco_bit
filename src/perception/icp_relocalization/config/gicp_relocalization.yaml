@@ -18,6 +18,12 @@ gicp_relocalization_node:
     # Feature Extraction
     feature_k_search: 20
 
+    # Height Filter (PassThrough on z) - optional performance optimization
+    height_filter:
+      enable: true
+      min_z: 0.0
+      max_z: 5.0
+
     # GICP Parameters
     gicp:
       target_voxel_leaf_size: 0.1
