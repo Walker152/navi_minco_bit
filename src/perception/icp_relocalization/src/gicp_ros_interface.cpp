@@ -41,6 +41,11 @@ namespace icp_relocalization
     gicp_options_.transformation_epsilon = this->declare_parameter<double>("gicp.transformation_epsilon", 1e-4);
     gicp_options_.euclidean_fitness_epsilon = this->declare_parameter<double>("gicp.euclidean_fitness_epsilon", 1e-4);
 
+    // Height Filter Parameters (optional performance optimization)
+    gicp_options_.height_filter_enabled = this->declare_parameter<bool>("height_filter.enable", false);
+    gicp_options_.height_filter_min_z = this->declare_parameter<double>("height_filter.min_z", -1000.0);
+    gicp_options_.height_filter_max_z = this->declare_parameter<double>("height_filter.max_z", 1000.0);
+
     // SAC-IA Parameters
     gicp_options_.sac_ia_min_sample_distance = this->declare_parameter<double>("sac_ia.min_sample_distance", 0.5);
     gicp_options_.sac_ia_correspondence_randomness =
@@ -77,7 +82,10 @@ namespace icp_relocalization
                     NV(gicp_options_.max_correspondence_distance),
                     NV(gicp_options_.max_iterations),
                     NV(gicp_options_.transformation_epsilon),
-                    NV(gicp_options_.euclidean_fitness_epsilon));
+                    NV(gicp_options_.euclidean_fitness_epsilon),
+                    NV(gicp_options_.height_filter_enabled),
+                    NV(gicp_options_.height_filter_min_z),
+                    NV(gicp_options_.height_filter_max_z));
     std::cout << BOLDCYAN << "  ----------SAC-IA Options----------" << RESET << std::endl;
     LOG_DEBUG_BLOCK(std::string(CYAN) + "[SAC-IA] ",
                     NV(gicp_options_.sac_ia_min_sample_distance),
