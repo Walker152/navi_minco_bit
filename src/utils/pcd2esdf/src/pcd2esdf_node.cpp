@@ -10,6 +10,7 @@
 #include <vector>
 #include <string>
 #include <cmath>
+#include <limits>
 #include <filesystem>
 
 /**
@@ -29,12 +30,15 @@ private:
     std::string map_yaml_path_;
     std::string output_pcd_path_;
     double max_dist_;
-    int occupied_thresh_;
+    double occupied_thresh_;
+    double free_thresh_;
+    bool treat_unknown_as_obstacle_;
 
     // YAML 中的数据
     std::string image_name_;
     double resolution_;
     std::vector<double> origin_; // [x, y, yaw]
+    int negate_;
     int width_, height_;
 
 public:
@@ -42,12 +46,17 @@ public:
         this->declare_parameter("map_yaml", "map.yaml");
         this->declare_parameter("output_pcd", "map_esdf.pcd");
         this->declare_parameter("max_dist", 3.0);
-        this->declare_parameter("occupied_thresh", 10); // 接近 0 为障碍物
+        // Nav2 map_server 语义：占据/空闲阈值为概率(0~1)，并受 negate 影响。
+        this->declare_parameter("occupied_thresh", 0.65);
+        this->declare_parameter("free_thresh", 0.25);
+        this->declare_parameter("treat_unknown_as_obstacle", false);
 
         map_yaml_path_ = this->get_parameter("map_yaml").as_string();
         output_pcd_path_ = this->get_parameter("output_pcd").as_string();
         max_dist_ = this->get_parameter("max_dist").as_double();
-        occupied_thresh_ = this->get_parameter("occupied_thresh").as_int();
+        occupied_thresh_ = this->get_parameter("occupied_thresh").as_double();
+        free_thresh_ = this->get_parameter("free_thresh").as_double();
+        treat_unknown_as_obstacle_ = this->get_parameter("treat_unknown_as_obstacle").as_bool();
 
         esdf_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("esdf_result", rclcpp::QoS(1).transient_local());
 
@@ -103,6 +112,7 @@ public:
             image_name_ = config["image"].as<std::string>();
             resolution_ = config["resolution"].as<double>();
             origin_ = config["origin"].as<std::vector<double>>();
+            negate_ = config["negate"] ? config["negate"].as<int>() : 0;
         } catch (const std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "YAML Load Error: %s", e.what());
             return;
@@ -120,19 +130,43 @@ public:
         }
         width_ = img.cols;
         height_ = img.rows;
-        RCLCPP_INFO(this->get_logger(), "Map Loaded: %dx%d, Res: %.3f", width_, height_, resolution_);
+        RCLCPP_INFO(this->get_logger(), "Map Loaded: %dx%d, Res: %.3f, Negate: %d", width_, height_, resolution_, negate_);
+        RCLCPP_INFO(this->get_logger(), "occupied_thresh=%.3f, free_thresh=%.3f, max_dist=%.3f, treat_unknown_as_obstacle=%s",
+                    occupied_thresh_, free_thresh_, max_dist_, (treat_unknown_as_obstacle_ ? "true" : "false"));
+
+        if (occupied_thresh_ < 0.0 || occupied_thresh_ > 1.0 || free_thresh_ < 0.0 || free_thresh_ > 1.0 || free_thresh_ >= occupied_thresh_) {
+            RCLCPP_ERROR(this->get_logger(),
+                         "Invalid thresholds: require 0<=free_thresh<occupied_thresh<=1. Got free_thresh=%.3f occupied_thresh=%.3f",
+                         free_thresh_, occupied_thresh_);
+            return;
+        }
 
         // 3. 初始化距离场缓冲区
         std::vector<double> dist_buffer(width_ * height_, 1e10);
+        size_t occupied_cnt = 0;
         for (int r = 0; r < height_; ++r) {
             for (int c = 0; c < width_; ++c) {
                 // Nav2 PGM: 0 是障碍物，254 是空地，255 是未知
-                // 我们取像素值小于阈值的作为障碍物
-                if (img.at<uchar>(r, c) <= occupied_thresh_) {
+                const auto pix = img.at<uchar>(r, c);
+                // negate==0: 0(黑)表示占据概率高；negate==1: 255(白)表示占据概率高
+                const double occ_prob = (negate_ == 0) ? (255.0 - (double)pix) / 255.0 : (double)pix / 255.0;
+
+                bool is_occupied = (occ_prob >= occupied_thresh_);
+                const bool is_unknown = (!is_occupied && occ_prob > free_thresh_);
+                if (!is_occupied && treat_unknown_as_obstacle_ && is_unknown) {
+                    is_occupied = true;
+                }
+
+                if (is_occupied) {
                     dist_buffer[r * width_ + c] = 0;
+                    occupied_cnt++;
                 }
             }
         }
+
+        const double occupied_ratio = (double)occupied_cnt / (double)(width_ * height_);
+        RCLCPP_INFO(this->get_logger(), "Occupied cells: %lu / %d (%.2f%%)",
+                    (unsigned long)occupied_cnt, width_ * height_, occupied_ratio * 100.0);
 
         // 4. Meijster 算法计算 ESDF
         std::vector<double> tmp_buffer(width_ * height_, 1e10);
@@ -149,6 +183,9 @@ public:
         pcl::PointCloud<pcl::PointXYZI>::Ptr out_cloud(new pcl::PointCloud<pcl::PointXYZI>);
         double max_px_dist_sq = std::pow(max_dist_ / resolution_, 2);
 
+        double min_intensity = std::numeric_limits<double>::infinity();
+        double max_intensity = 0.0;
+
         for (int r = 0; r < height_; ++r) {
             for (int c = 0; c < width_; ++c) {
                 double d2 = dist_buffer[r * width_ + c];
@@ -163,6 +200,8 @@ public:
                 pt.y = origin_[1] + (double)(height_ - r - 1) * resolution_;
                 pt.z = 0.0;
                 pt.intensity = std::sqrt(d2) * resolution_; // 物理距离 (米)
+                min_intensity = std::min(min_intensity, (double)pt.intensity);
+                max_intensity = std::max(max_intensity, (double)pt.intensity);
                 out_cloud->push_back(pt);
             }
         }
@@ -171,6 +210,8 @@ public:
             RCLCPP_WARN(this->get_logger(), "ESDF result is empty!");
             return;
         }
+
+        RCLCPP_INFO(this->get_logger(), "ESDF intensity range: [%.3f, %.3f] (meters)", min_intensity, max_intensity);
 
         // 6. 保存与发布
         out_cloud->width = out_cloud->size();
