@@ -23,8 +23,10 @@ find_package(rcl_interfaces REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(ros_interfaces REQUIRED)
+find_package(PCL REQUIRED)
 
 nav2_package()
 
@@ -43,6 +45,7 @@ add_library(${library_name} SHARED
 include_directories(
   include
   ${EIGEN3_INCLUDE_DIR}
+  ${PCL_INCLUDE_DIRS}
 )
 
 ament_target_dependencies(${library_name}
@@ -56,8 +59,13 @@ ament_target_dependencies(${library_name}
   rcl_interfaces
   rclcpp
   rclcpp_lifecycle
+  sensor_msgs
   tf2_ros
   ros_interfaces
+)
+
+target_link_libraries(${library_name}
+  ${PCL_LIBRARIES}
 )
 
 pluginlib_export_plugin_description_file(nav2_core global_planner_plugin.xml)
@@ -97,6 +105,7 @@ ament_export_dependencies(
   rclcpp
   rclcpp_lifecycle
   rcl_interfaces
+  sensor_msgs
   tf2_ros
   ros_interfaces
 )

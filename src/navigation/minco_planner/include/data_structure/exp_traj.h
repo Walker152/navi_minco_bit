@@ -25,13 +25,10 @@
 #ifndef EXP_TRAJ_H
 #define EXP_TRAJ_H
 #include <data_structure/base/trajectory.h>
-#include <data_structure/base/polytope.h>
 #include <utils/header/eigen_alias.hpp>
 
 namespace super_planner {
     using geometry_utils::Trajectory;
-    using geometry_utils::PolytopeVec;
-
     class ExpTraj{
         /* The optimized positional trajectory */
         Trajectory pos_traj_{};
@@ -40,9 +37,6 @@ namespace super_planner {
         Trajectory yaw_traj_{};
 
         double start_WT_{0.0};
-
-        /* The safe flight corridor */
-        PolytopeVec sfc_{};
 
         /* some flags */
         bool flag_connected_goal_{false};
@@ -65,10 +59,6 @@ namespace super_planner {
 
         bool connectedToGoal()const {
             return flag_connected_goal_;
-        }
-
-        size_t getSFCSize() const {
-            return sfc_.size();
         }
 
         bool getFirstPartBackupTraj(double & on_backup_traj_start_TT,
@@ -110,11 +100,6 @@ namespace super_planner {
 
         StatePVAJ getYawState(const double &t)const {
             return yaw_traj_.getState(t);
-        }
-
-
-        void setSFC(const PolytopeVec & sfc) {
-            sfc_ = sfc;
         }
 
         void setGoalConnectedFlag(const bool & _in) {
