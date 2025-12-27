@@ -14,7 +14,7 @@ def generate_launch_description():
         Node(
             package='pcd2esdf',
             executable='pcd2esdf_node',
-            name='fast_esdf_generator',
+            name='pgm2esdf_generator',
             output='screen',
             parameters=[config]
         )
