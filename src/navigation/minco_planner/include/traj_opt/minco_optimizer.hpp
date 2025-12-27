@@ -12,7 +12,9 @@
 #include "data_structure/base/trajectory.h" 
 #include "utils/optimization/lbfgs.h" 
 #include "utils/optimization/optimization_utils.h"
-#include "utils/header/color_text.hpp" 
+#include "utils/header/color_text.hpp"
+
+#include "minco_core/static_esdf_map.hpp"
 
 namespace minco_planner {
 
@@ -25,6 +27,7 @@ using namespace color_text;
 class MincoOptimizer {
 public:
     struct Config {
+        double safe_dist{0.3};
         double max_vel{5.0};               
         double max_acc{5.0};
         
@@ -54,6 +57,10 @@ public:
 
     void setInitPsAndTs(const vec_Vec3f& init_ps, const VecDf& init_ts);
 
+    void setESDFMap(const StaticESDFMap::Ptr& esdf_map) {
+        opt_vars_.static_esdf_map = esdf_map;
+    }
+
     double optimize(const std::vector<Eigen::Vector3d>& waypoints,
                  const Eigen::Matrix3d& start_state,
                  const Eigen::Matrix3d& end_state,
@@ -69,7 +76,10 @@ private:
         double smooth_eps;
         double integral_res;
         bool default_init{true};
-        
+
+        // 环境地图指针
+        StaticESDFMap::Ptr static_esdf_map;
+
         VecDf magnitudeBounds;
         VecDf penaltyWeights;
 
@@ -111,6 +121,7 @@ private:
     static void constraintsFunctional(const VecDf& T, 
                                const MatD3f& coeffs,
                                const Mat3Df& waypoint_attractor,
+                               const StaticESDFMap::Ptr& static_esdf_map,
                                const double& smooth_eps,
                                const int& integral_res,
                                const VecDf& magnitudeBounds,
