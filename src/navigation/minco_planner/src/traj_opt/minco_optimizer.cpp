@@ -104,6 +104,7 @@ double MincoOptimizer::costFunctional(void *ptr, const VecDf& x, VecDf& g)
     const auto &penaltyWeights = opt_vars_.penaltyWeights;
     const auto &magnitudeBounds = opt_vars_.magnitudeBounds;
     const auto &minco_solver_ = opt_vars_.minco_solver_;
+    const auto &static_esdf_map = opt_vars_.static_esdf_map;
 
     opt_vars_.iter_num++;
 
@@ -138,14 +139,15 @@ double MincoOptimizer::costFunctional(void *ptr, const VecDf& x, VecDf& g)
     opt_vars_.penalty_log(0) = cost;
 
     // 计算约束代价和梯度
-    constraintsFunctional(times, minco_solver_->getCoeffs(),
-                        waypoint_attractor,
-                          smooth_eps, integral_res,
-                          magnitudeBounds, penaltyWeights,
-                          cost,
-                          partialGradByTimes,
-                          partialGradByCoeffs,
-                          opt_vars_.penalty_log);
+        constraintsFunctional(times, minco_solver_->getCoeffs(),
+                                                waypoint_attractor,
+                                                    static_esdf_map,
+                                                    smooth_eps, integral_res,
+                                                    magnitudeBounds, penaltyWeights,
+                                                    cost,
+                                                    partialGradByTimes,
+                                                    partialGradByCoeffs,
+                                                    opt_vars_.penalty_log);
     
     // 传播梯度到点和时间
     Mat3Df gradByPoints;
@@ -172,6 +174,7 @@ double MincoOptimizer::costFunctional(void *ptr, const VecDf& x, VecDf& g)
 void MincoOptimizer::constraintsFunctional(const VecDf& T, 
                                const MatD3f& coeffs,
                                const Mat3Df& waypoint_attractor,
+                               const StaticESDFMap::Ptr& static_esdf_map,
                                const double& smooth_eps,
                                const int& integral_res,
                                const VecDf& magnitudeBounds,
@@ -182,15 +185,17 @@ void MincoOptimizer::constraintsFunctional(const VecDf& T,
                                MatD3f& partialGradByCoeffs,
                                VecDf& penalty_log) 
 {
-    const auto &vmax = magnitudeBounds[0];
-    const auto &amax = magnitudeBounds[1];
+    const auto &safe_dist = magnitudeBounds[0];
+    const auto &vmax = magnitudeBounds[1];
+    const auto &amax = magnitudeBounds[2];
 
     const auto &vmaxSqr = vmax * vmax;
     const auto &amaxSqr = amax * amax;
 
-    const auto &weightVel = penaltyWeights[0];
-    const auto &weightAcc = penaltyWeights[1];
-    const auto &weightAtt = penaltyWeights[2];
+    const auto &weightPos = penaltyWeights[0];
+    const auto &weightVel = penaltyWeights[1];
+    const auto &weightAcc = penaltyWeights[2];
+    const auto &weightAtt = penaltyWeights[3];
 
     const auto &piece_num = T.size();
 
@@ -224,24 +229,19 @@ void MincoOptimizer::constraintsFunctional(const VecDf& T,
             double tmp_cost{0.0};
             Vec3f gradPos{0.0, 0.0, 0.0}, gradVel{0.0, 0.0, 0.0}, gradAcc{0.0, 0.0, 0.0};
 
-            // For attract point cost
-            if (weightAtt > 0.0) {
-                const auto is_end = ((j == integral_res) && (i != piece_num - 1));
-                const auto idx = is_end ? i + 1 : i;
-                if (is_end) {
-                    Vec3f p_a = pos - waypoint_attractor.col(idx);
-                    const auto &violaAtt =
-                            p_a.squaredNorm() - 0.1 * 0.1; // dead zone 0.1m
-                    double violaAttPena, violaAttPenaD;
-                    if (violaAtt > max_pena(ATT_IDX)) max_pena(ATT_IDX) = violaAtt;
-                    if (gcopter::smoothedL1(violaAtt, smooth_eps, violaAttPena, violaAttPenaD)) {
-                        Vec3f gradAtt = weightAtt * violaAttPenaD * 2.0 * p_a;
-                        partialGradByCoeffs.block<6, 3>(i * 6, 0) += beta0 * gradAtt.transpose();
-                        cost += weightAtt * violaAttPena;
-                        if (is_end) {
-                            partialGradByTimes(i) += gradAtt.dot(vel);
-                        }
-                    }
+            // For position cost
+            if (weightPos > 0.0 && static_esdf_map) {
+                double esdf_dist = 0.0;
+                Eigen::Vector3d esdf_grad;
+                static_esdf_map->evaluate(pos.cast<double>(), esdf_dist, esdf_grad);
+
+                const double violaPos = safe_dist - esdf_dist;
+                double violaPosPena, violaPosPenaD;
+                if (gcopter::smoothedL1(violaPos, smooth_eps, violaPosPena, violaPosPenaD)) {
+                    // d(violaPos)/dpos = -grad(dist)
+                    gradPos += (-weightPos * violaPosPenaD) * esdf_grad.cast<double>();
+                    tmp_cost += weightPos * violaPosPena;
+                    if (violaPos > max_pena(POS_IDX)) max_pena(POS_IDX) = violaPos;
                 }
             }
 
@@ -261,6 +261,27 @@ void MincoOptimizer::constraintsFunctional(const VecDf& T,
                 gradAcc += weightAcc * violaAccPenaD * 2.0 * acc;
                 tmp_cost += weightAcc * violaAccPena;
                 if (violaAcc > max_pena(ACC_IDX)) max_pena(ACC_IDX) = violaAcc;
+            }
+
+            // For attract point cost
+            if (weightAtt > 0.0) {
+                const auto is_end = ((j == integral_res) && (i != piece_num - 1));
+                const auto idx = is_end ? i + 1 : i;
+                if (is_end) {
+                    Vec3f p_a = pos - waypoint_attractor.col(idx);
+                    const auto &violaAtt =
+                            p_a.squaredNorm() - 0.1 * 0.1; // dead zone 0.1m
+                    double violaAttPena, violaAttPenaD;
+                    if (violaAtt > max_pena(ATT_IDX)) max_pena(ATT_IDX) = violaAtt;
+                    if (gcopter::smoothedL1(violaAtt, smooth_eps, violaAttPena, violaAttPenaD)) {
+                        Vec3f gradAtt = weightAtt * violaAttPenaD * 2.0 * p_a;
+                        partialGradByCoeffs.block<6, 3>(i * 6, 0) += beta0 * gradAtt.transpose();
+                        cost += weightAtt * violaAttPena;
+                        if (is_end) {
+                            partialGradByTimes(i) += gradAtt.dot(vel);
+                        }
+                    }
+                }
             }
 
             const auto node = (j == 0 || j == integral_res) ? 0.5 : 1.0;

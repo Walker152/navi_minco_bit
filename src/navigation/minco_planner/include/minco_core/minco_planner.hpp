@@ -6,6 +6,7 @@
 #include <vector>
 #include <functional>
 #include <mutex>
+#include <chrono>
 
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/point.hpp"
@@ -15,9 +16,13 @@
 #include "nav2_util/lifecycle_node.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 
+#include "sensor_msgs/msg/point_cloud2.hpp"
+
 #include "ros_interfaces/msg/position_command.hpp"
+#include "ros_interfaces/msg/mpc_position_command.hpp"
 
 #include "minco_core/astar.hpp"
+#include "minco_core/static_esdf_map.hpp"
 #include "traj_opt/minco_optimizer.hpp"
 namespace minco_planner
 {
@@ -57,6 +62,14 @@ public:
   void mapToWorld(double mx, double my, double & wx, double & wy);
   void clearRobotCell(unsigned int wx, unsigned int wy);
 private:
+  void publishOptimizedTrajectory(
+    const traj_opt::Trajectory & opt_traj,
+    const std_msgs::msg::Header & header,
+    int steps,
+    double t_step);
+
+  void publishEsdfCloud(const std_msgs::msg::Header & header);
+
   std::shared_ptr<tf2_ros::Buffer> tf_;
   nav2_util::LifecycleNode::WeakPtr node_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
@@ -67,8 +80,12 @@ private:
   std::unique_ptr<Astar> astar_planner_;
   
   // Minco Optimizer
-  std::unique_ptr<minco_planner::MincoOptimizer> minco_optimizer_;
+  std::unique_ptr<MincoOptimizer> minco_optimizer_;
   
+  // Static ESDF Map
+  StaticESDFMap::Ptr esdf_map_;
+  std::string esdf_pcd_path_;
+  double esdf_resolution_;
   // Parameters
   double tolerance_;
   bool use_astar_;
@@ -76,6 +93,10 @@ private:
   MincoOptimizer::Config minco_config;
   
   rclcpp::Publisher<ros_interfaces::msg::PositionCommand>::SharedPtr traj_pub_;
+  rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr esdf_cloud_pub_;
+  rclcpp::TimerBase::SharedPtr esdf_timer_;
+  uint32_t opt_trajectory_id_{0};
 
   geometry_utils::Trajectory last_traj_;
   bool has_last_traj_ = false;
