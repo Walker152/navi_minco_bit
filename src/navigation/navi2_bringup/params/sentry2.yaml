@@ -137,92 +137,120 @@ controller_server:
     #   curvature_backward_dist: 0.3                      # 后向距离，用于曲率计算
     #   max_velocity_scaling_factor_rate: 0.9             # 速度缩放因子的最大变化率
 
+    # FollowPath:
+    #   plugin: "nav2_mppi_controller::MPPIController"
+    #   time_steps: 56
+    #   model_dt: 0.0167
+    #   batch_size: 2000
+    #   vx_std: 0.4   # Average linear velocity noise standard deviation, this controls the real velocity standard
+    #   vy_std: 0.4     # Average linear velocity noise standard deviation, this controls the real velocity standard
+    #   wz_std: 0.1
+    #   vx_max: 1.0
+    #   vx_min: -1.0
+    #   vy_max: 1.0
+    #   wz_max: 0.1
+    #   iteration_count: 1
+    #   prune_distance: 1.7
+    #   transform_tolerance: 0.1
+    #   temperature: 0.3
+    #   gamma: 0.015
+    #   motion_model: "Omni"
+    #   visualize: false
+    #   reset_period: 1.0 # (only in Humble)
+    #   TrajectoryVisualizer:
+    #     trajectory_step: 5
+    #     time_step: 3
+    #   AckermannConstrains:
+    #     min_turning_r: 0.2
+    #   critics: ["ObstaclesCritic", "GoalCritic", "PathAlignCritic", "PathFollowCritic", "PreferForwardCritic", "VelocityDeadbandCritic"]
+    #   GoalCritic:
+    #     enabled: true
+    #     cost_power: 1
+    #     cost_weight: 5.0
+    #     threshold_to_consider: 1.0
+    #   PreferForwardCritic:
+    #     enabled: true
+    #     cost_power: 1
+    #     cost_weight: 5.0
+    #     threshold_to_consider: 1.0
+    #   ## Only choose one between ObstaclesCritic and CostCritic
+    #   ObstaclesCritic:
+    #     enabled: true
+    #     cost_power: 1
+    #     repulsion_weight: 2.0
+    #     critical_weight: 30.0
+    #     consider_footprint: false
+    #     collision_cost: 1000.0
+    #     collision_margin_distance: 0.2
+    #     near_goal_distance: 0.1
+    #     inflation_layer_name: "inflation_layer"
+    #   # CostCritic:
+    #   #   enabled: true
+    #   #   cost_power: 1
+    #   #   cost_weight: 3.81
+    #   #   critical_cost: 300.0
+    #   #   consider_footprint: true
+    #   #   collision_cost: 1000000.0
+    #   #   near_goal_distance: 1.0
+    #   #   trajectory_point_step: 2
+    #   PathAlignCritic:
+    #     enabled: true
+    #     cost_power: 1
+    #     cost_weight: 14.0
+    #     max_path_occupancy_ratio: 0.05
+    #     trajectory_point_step: 3
+    #     threshold_to_consider: 0.40   # Distance between robot and goal above which path align cost stops being considered
+    #     offset_from_furthest: 20      # Distance checks that the candidate trajectories are sufficiently far along their way tracking the path to apply the alignment critic.
+    #   PathFollowCritic:
+    #     enabled: true
+    #     cost_power: 1
+    #     cost_weight: 5.0
+    #     offset_from_furthest: 10
+    #     threshold_to_consider: 0.6
+    #   # PathAngleCritic:
+    #   #   enabled: true
+    #   #   cost_power: 1
+    #   #   cost_weight: 2.0
+    #   #   offset_from_furthest: 4
+    #   #   threshold_to_consider: 0.40
+    #   #   max_angle_to_furthest: 1.0
+    #   VelocityDeadbandCritic:
+    #     enabled: true
+    #     cost_power: 1
+    #     cost_weight: 5.0
+    #     deadband_velocities: [0.05, 0.05, 0.05]
+    #   # TwirlingCritic:
+    #   #   enabled: true
+    #   #   twirling_cost_power: 1
+    #   #   twirling_cost_weight: 10.0
+    
     FollowPath:
-      plugin: "nav2_mppi_controller::MPPIController"
-      time_steps: 56
-      model_dt: 0.0167
-      batch_size: 2000
-      vx_std: 0.4   # Average linear velocity noise standard deviation, this controls the real velocity standard
-      vy_std: 0.4     # Average linear velocity noise standard deviation, this controls the real velocity standard
-      wz_std: 0.1
-      vx_max: 1.0
-      vx_min: -1.0
-      vy_max: 1.0
-      wz_max: 0.1
-      iteration_count: 1
-      prune_distance: 1.7
-      transform_tolerance: 0.1
-      temperature: 0.3
-      gamma: 0.015
-      motion_model: "Omni"
-      visualize: false
-      reset_period: 1.0 # (only in Humble)
-      TrajectoryVisualizer:
-        trajectory_step: 5
-        time_step: 3
-      AckermannConstrains:
-        min_turning_r: 0.2
-      critics: ["ObstaclesCritic", "GoalCritic", "PathAlignCritic", "PathFollowCritic", "PreferForwardCritic", "VelocityDeadbandCritic"]
-      GoalCritic:
-        enabled: true
-        cost_power: 1
-        cost_weight: 5.0
-        threshold_to_consider: 1.0
-      PreferForwardCritic:
-        enabled: true
-        cost_power: 1
-        cost_weight: 5.0
-        threshold_to_consider: 1.0
-      ## Only choose one between ObstaclesCritic and CostCritic
-      ObstaclesCritic:
-        enabled: true
-        cost_power: 1
-        repulsion_weight: 2.0
-        critical_weight: 30.0
-        consider_footprint: false
-        collision_cost: 1000.0
-        collision_margin_distance: 0.2
-        near_goal_distance: 0.1
-        inflation_layer_name: "inflation_layer"
-      # CostCritic:
-      #   enabled: true
-      #   cost_power: 1
-      #   cost_weight: 3.81
-      #   critical_cost: 300.0
-      #   consider_footprint: true
-      #   collision_cost: 1000000.0
-      #   near_goal_distance: 1.0
-      #   trajectory_point_step: 2
-      PathAlignCritic:
-        enabled: true
-        cost_power: 1
-        cost_weight: 14.0
-        max_path_occupancy_ratio: 0.05
-        trajectory_point_step: 3
-        threshold_to_consider: 0.40   # Distance between robot and goal above which path align cost stops being considered
-        offset_from_furthest: 20      # Distance checks that the candidate trajectories are sufficiently far along their way tracking the path to apply the alignment critic.
-      PathFollowCritic:
-        enabled: true
-        cost_power: 1
-        cost_weight: 5.0
-        offset_from_furthest: 10
-        threshold_to_consider: 0.6
-      # PathAngleCritic:
-      #   enabled: true
-      #   cost_power: 1
-      #   cost_weight: 2.0
-      #   offset_from_furthest: 4
-      #   threshold_to_consider: 0.40
-      #   max_angle_to_furthest: 1.0
-      VelocityDeadbandCritic:
-        enabled: true
-        cost_power: 1
-        cost_weight: 5.0
-        deadband_velocities: [0.05, 0.05, 0.05]
-      # TwirlingCritic:
-      #   enabled: true
-      #   twirling_cost_power: 1
-      #   twirling_cost_weight: 10.0
+      plugin: "minco_controller::MincoMpcController"
+      # MPC sampling period (s) and horizon steps
+      dt: 0.05
+      horizon: 10
+
+      # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
+      Q: [5.0, 5.0, 2.0]
+      R: [1.0, 1.0, 0.5]
+
+      # Velocity bounds (applied in body/base frame inside MPC)
+      vx_min: -2.5
+      vx_max: 2.5
+      vy_min: -2.5
+      vy_max: 2.5
+      omega_min: -0.5
+      omega_max: 0.5
+
+      # Optional acceleration constraints (difference constraints inside MPC)
+      use_acc_constraints: false
+      ax_min: -2.5
+      ax_max: 2.5
+      ay_min: -2.5
+      ay_max: 2.5
+      alpha_min: -1.0
+      alpha_max: 1.0
+
 
 local_costmap:
   local_costmap:
@@ -391,7 +419,7 @@ planner_server:
       use_astar: true
       allow_unknown: false
       minco_optimizer:
-        safe_dist: 0.8
+        safe_dist: 0.6
         max_velocity: 2.0
         max_acceleration: 5.0
         time_allocation_iters: 15
