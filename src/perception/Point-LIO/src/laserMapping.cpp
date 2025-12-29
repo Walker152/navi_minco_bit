@@ -278,7 +278,7 @@ void publish_odometry(
   static int frame_count = 0;
   frame_count++;
   if (frame_count < 100) {
-    return;  // Skip the first 100 frames
+    return;  
   } else {
   frame_count = 0;
   }
