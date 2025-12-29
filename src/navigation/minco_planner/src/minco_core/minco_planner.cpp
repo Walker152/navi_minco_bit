@@ -432,9 +432,9 @@ bool MincoPlanner::makePlan(
   // 传播波前
   // 循环调用 propNavFnAstar 直到找到 Start 或队列为空
   // 给定一个足够大的总循环次数上限，防止死循环
-  int max_total_cycles = nx * ny; 
+  int max_total_cycles = nx * ny*9999; 
   int cycles_per_step = std::max(nx * ny / 20, nx + ny);
-  
+  auto time = rclcpp::Clock().now().seconds();
   while (max_total_cycles > 0) {
     if (cancel_checker && cancel_checker()) {
       return false;
@@ -444,7 +444,8 @@ bool MincoPlanner::makePlan(
     }
     max_total_cycles -= cycles_per_step;
   }
-
+  auto time_end = rclcpp::Clock().now().seconds();
+  RCLCPP_INFO(logger_, "A* planning time: %f seconds", time_end - time);
   // 提取路径
   if (!astar_planner_->calcPath(nx * ny / 2) || astar_planner_->getPathLen() < 2) {
     return false;
@@ -475,6 +476,7 @@ bool MincoPlanner::makePlan(
   std::vector<Eigen::Vector3d> sparse_path = getSparseWaypoints(guide_path);
   lock.unlock();
   // 3. 使用 Minco 优化器优化路径
+  auto opt_time = rclcpp::Clock().now().seconds();
   traj_opt::Trajectory opt_traj;
   end_state.col(0) = sparse_path.back();
   while (sparse_path.size() > 2)
@@ -497,7 +499,8 @@ bool MincoPlanner::makePlan(
     RCLCPP_WARN(node_.lock()->get_logger(), "Minco optimization failed");
     return false;
   } 
-
+  auto opt_time_end = rclcpp::Clock().now().seconds();
+  RCLCPP_INFO(logger_, "Minco optimization time: %f seconds, cost: %f", opt_time_end - opt_time, cost);
   // 4. 将优化后的轨迹转换为导航路径
   double t_start = plan_start_time;
   double t_end = t_start + opt_traj.getTotalDuration();
@@ -507,7 +510,6 @@ bool MincoPlanner::makePlan(
   }
 
   // Re-sample based on fixed resolution to ensure path quality
-  // double resolution = costmap_->getResolution();
   int steps = std::max(2, static_cast<int>(opt_traj.getTotalDuration() / 0.1)); // Min 2 points, or 5Hz
   // Or better, use spatial resolution
   if (len < steps) {
