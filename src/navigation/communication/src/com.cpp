@@ -184,7 +184,7 @@ namespace ns_com
                             NV(event_status->x),
                             NV(event_status->y),
                             NV(event_status->z),
-                            NV(event_status->armor_id);
+                            NV(event_status->armor_id),
                             NV(event_status->position));
           }
           auto ros_ptr = ros_if_;
