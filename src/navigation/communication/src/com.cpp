@@ -95,12 +95,14 @@ namespace ns_com
     using Clock = std::chrono::steady_clock;
     static auto last_debug_tp = Clock::now();
     bool allow_debug = false;
+#ifdef COM_DEBUG
     auto now_tp = Clock::now();
     if(now_tp - last_debug_tp >= std::chrono::seconds(1))
     {
       allow_debug = true;
       last_debug_tp = now_tp;
     }
+#endif
 
     while(true)
     {
@@ -171,8 +173,10 @@ namespace ns_com
         case ENUM_PACKET_GAMESTATUS_DATA:
         {
           const EventStatus* event_status = (const EventStatus*)(buf + sizeof(PacketHeader));
+#ifdef COM_DEBUG
           std::cout << RED << "position收到的是" << event_status->position << RESET
                   << std::endl;
+#endif
           if(allow_debug)
           {
             LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Evt] ",
