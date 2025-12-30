@@ -26,7 +26,6 @@ namespace Sentry_BT
     //   RCLCPP_ERROR(rclcpp::get_logger("PublishNavigationGoal"), "missing nav_goal on blackboard");
     //   return BT::NodeStatus::FAILURE;
     // }
-
     // 发布目标点
     auto ros_interface_ptr = blackboard->get<std::shared_ptr<ros_interface>>("ros_interface");
     if(!ros_interface_ptr)
@@ -93,7 +92,6 @@ namespace Sentry_BT
     std::cout << "---------- SetTargetCoordinate ----------" << std::endl;
     auto blackboard = config().blackboard;
     auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
-
     Sentry_BT::Point2D point;
     point.x = target_pose.position.x;
     point.y = target_pose.position.y;
