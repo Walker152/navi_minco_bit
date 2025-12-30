@@ -15,8 +15,8 @@ sleep 1s
 # Navigation2
 source ~/2025-sentry-navi/install/setup.bash
 
-gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py ; exec bash"
-sleep 26s
+#gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py ; exec bash"
+#sleep 26s
 gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"
 sleep 2s
 # BT-manager
