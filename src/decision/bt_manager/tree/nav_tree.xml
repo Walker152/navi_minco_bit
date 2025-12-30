@@ -1,5 +1,4 @@
 <root main_tree_to_execute="MainTree">
-  <include path="./change_position_subtree.xml" />
   <BehaviorTree ID="MainTree">
     <Fallback>
       <!-- 紧急撤退模式（最高优先级） -->
@@ -139,7 +138,6 @@
           <SelectPatrolPoint name="SelectPatrolPoint" />
           <PublishNavigationGoal name="PublishPatrolGoal" />
           <WaitUntilStopped name="WaitAfterNavigation" />
-          <SubTree ID="ChangePositionTree" blackboard="shared"/>
           <Wait name="PostNavigationWait" />
         </Sequence>
       </Fallback>
