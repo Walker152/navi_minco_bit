@@ -6,7 +6,8 @@ ament_auto_find_build_dependencies()
 
 find_package(Eigen3 REQUIRED)
 
-# qpOASES: 尝试 find_package；如果系统未提供 CMake config，则回退到手动查找。
+option(MINCO_DEBUG "Enable Minco debug printing" OFF)
+
 find_package(qpOASES QUIET)
 if(NOT qpOASES_FOUND)
   find_path(QPOASES_INCLUDE_DIR qpOASES.hpp PATH_SUFFIXES qpOASES qpoases)
@@ -27,6 +28,10 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
   Eigen3::Eigen
 )
+
+if(MINCO_DEBUG)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE MINCO_DEBUG)
+endif()
 
 set(_QPOASES_LINKED FALSE)
 
