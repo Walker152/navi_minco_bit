@@ -36,7 +36,7 @@ namespace Sentry_BT
             outpost_msg.data = true;
             blackboard_->set<bool>("outpost_msg", true);
             std::cout << "我在" << current_pose_.position.x << "," << current_pose_.position.y << std::endl;
-            std::cout << "TRUE" << outpost_msg.data << std::endl;
+            //std::cout << "TRUE" << outpost_msg.data << std::endl;
             outpost_pub->publish(outpost_msg);
           }
           else if(std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) >=
@@ -45,10 +45,11 @@ namespace Sentry_BT
             outpost_msg.data = false;
             blackboard_->set<bool>("outpost_msg", false);
             std::cout << "我在" << current_pose_.position.x << "," << current_pose_.position.y << std::endl;
-            std::cout << "FALSE" << outpost_msg.data << std::endl;
+            //std::cout << "FALSE" << outpost_msg.data << std::endl;
             outpost_pub->publish(outpost_msg);
           }
           int want_position_ = blackboard_->get<int>("want_position");
+          //std::cout << "注意看这里" << want_position_ << std::endl;
           std_msgs::msg::Int32 want_position;
           if(want_position_ == 1)
           {
