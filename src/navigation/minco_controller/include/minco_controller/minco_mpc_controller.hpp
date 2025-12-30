@@ -20,6 +20,7 @@
 #include "ros_interfaces/msg/mpc_position_command.hpp"
 
 #include "minco_controller/mpc_solver.hpp"
+#include "log.hpp"
 
 namespace minco_controller
 {
@@ -58,12 +59,25 @@ private:
     const State & curr,
     std::vector<ReferencePoint> & out_ref) const;
 
-  // fallback：从 nav2 的 global plan 简单构造参考（无前馈速度）
-  bool buildReferenceFromPlan(
-    const State & curr,
-    std::vector<ReferencePoint> & out_ref) const;
-
   static double normalizeYaw(double yaw);
+  inline static double interpolateYaw(double yaw1, double yaw2, double alpha) {
+    double diff = yaw2 - yaw1;
+    while (diff > M_PI) diff -= 2.0 * M_PI;
+    while (diff < -M_PI) diff += 2.0 * M_PI;
+    return yaw1 + diff * alpha;
+  }
+
+  inline static double interpolate(double v1, double v2, double alpha) {
+    return v1 + (v2 - v1) * alpha;
+  }
+
+  inline static Eigen::Vector2d interpolate(
+    const Eigen::Vector2d & v1,
+    const Eigen::Vector2d & v2,
+    double alpha)
+  {
+    return v1 + (v2 - v1) * alpha;
+  }
 
 private:
   rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
