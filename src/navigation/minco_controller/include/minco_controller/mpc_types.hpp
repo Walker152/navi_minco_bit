@@ -38,6 +38,9 @@ struct MPCConfig
 {
   // 采样周期与预测步长
   double dt{0.05};
+  double planner_freq{20.0};
+  double lookahead_time{0.5};
+
   int horizon{10};
 
   // 代价权重：Q(状态误差) / R(控制误差)
