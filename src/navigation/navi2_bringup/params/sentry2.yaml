@@ -236,9 +236,9 @@ controller_server:
 
       # Velocity bounds (applied in body/base frame inside MPC)
       vx_min: -2.5
-      vx_max: 2.5
+      vx_max: 5.0
       vy_min: -2.5
-      vy_max: 2.5
+      vy_max: 5.0
       omega_min: -0.5
       omega_max: 0.5
 

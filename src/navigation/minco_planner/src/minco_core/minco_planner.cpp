@@ -104,7 +104,10 @@ void MincoPlanner::publishOptimizedTrajectory(
   const uint32_t traj_id = ++opt_trajectory_id_;
   for (int i = 0; i < steps; ++i)
   {
-    const double t = i * t_step;
+    double t = i * t_step;
+    if (t > opt_traj.getTotalDuration()) {
+      t = opt_traj.getTotalDuration();
+    }
     const Eigen::Vector3d pos = opt_traj.getPos(t);
     const Eigen::Vector3d vel = opt_traj.getVel(t);
     const Eigen::Vector3d acc = opt_traj.getAcc(t);
@@ -503,20 +506,10 @@ bool MincoPlanner::makePlan(
   RCLCPP_INFO(logger_, "Minco optimization time: %f seconds, cost: %f", opt_time_end - opt_time, cost);
   // 4. 将优化后的轨迹转换为导航路径
   double t_start = plan_start_time;
-  double t_end = t_start + opt_traj.getTotalDuration();
-  
-  if (opt_traj.getTotalDuration() <= 1e-3) {
-      t_end = t_start + 1e-3; // Ensure non-zero duration
-  }
-
-  // Re-sample based on fixed resolution to ensure path quality
-  int steps = std::max(2, static_cast<int>(opt_traj.getTotalDuration() / 0.1)); // Min 2 points, or 5Hz
-  // Or better, use spatial resolution
-  if (len < steps) {
-      steps = std::max(len, static_cast<int>(opt_traj.getTotalDuration() / 0.05));
-  } else {
-      steps = len;
-  }
+  // Re-sample based on fixed time step
+  double t_step = 0.05;
+  int steps = std::ceil(opt_traj.getTotalDuration() / t_step) + 1;
+  steps = std::max(2, steps);
   
   // Resize plan
   plan.poses.resize(steps);
@@ -524,9 +517,11 @@ bool MincoPlanner::makePlan(
       plan.poses[i].header = plan.header;
   }
 
-  double t_step = (t_end - t_start) / (steps - 1);
   for (int i = 0; i < steps; ++i) {
     double t = i * t_step;
+    if (t > opt_traj.getTotalDuration()) {
+      t = opt_traj.getTotalDuration();
+    }
     Eigen::Vector3d pos = opt_traj.getPos(t);
     Eigen::Vector3d vel = opt_traj.getVel(t);
 
