@@ -234,7 +234,7 @@ controller_server:
       Q: [5.0, 5.0, 2.0]
       R: [1.0, 1.0, 0.5]
 
-      # Velocity bounds (applied in body/base frame inside MPC)
+      # Velocity bounds
       vx_min: -2.5
       vx_max: 5.0
       vy_min: -2.5
@@ -242,7 +242,7 @@ controller_server:
       omega_min: -0.5
       omega_max: 0.5
 
-      # Optional acceleration constraints (difference constraints inside MPC)
+      # Optional acceleration constraints
       use_acc_constraints: false
       ax_min: -2.5
       ax_max: 2.5
@@ -250,6 +250,10 @@ controller_server:
       ay_max: 2.5
       alpha_min: -1.0
       alpha_max: 1.0
+
+      # Frame settings (Explicitly match your costmap configurations)
+      odom_frame: "camera_init"
+      map_frame: "map"
 
 
 local_costmap:
