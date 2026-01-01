@@ -504,6 +504,9 @@ bool MincoPlanner::makePlan(
   } 
   auto opt_time_end = rclcpp::Clock().now().seconds();
   RCLCPP_INFO(logger_, "Minco optimization time: %f seconds, cost: %f", opt_time_end - opt_time, cost);
+  RCLCPP_INFO(logger_, "Start goal: (%.2f, %.2f) -> (%.2f, %.2f), original path length: %d, sparse path length: %d, traj duration: %.2f s",
+    start.position.x, start.position.y, goal.position.x, goal.position.y,
+    len, static_cast<int>(sparse_path.size()), opt_traj.getTotalDuration());
   // 4. 将优化后的轨迹转换为导航路径
   double t_start = plan_start_time;
   // Re-sample based on fixed time step

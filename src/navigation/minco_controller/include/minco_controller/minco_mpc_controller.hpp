@@ -59,6 +59,10 @@ private:
     const State & curr,
     std::vector<ReferencePoint> & out_ref) const;
 
+  bool transformPathToOdom(
+    const ros_interfaces::msg::MpcPositionCommand::SharedPtr & opt,
+    std::vector<ros_interfaces::msg::PositionCommand> & out_cmds) const;
+
   static double normalizeYaw(double yaw);
   inline static double interpolateYaw(double yaw1, double yaw2, double alpha) {
     double diff = yaw2 - yaw1;
@@ -89,6 +93,8 @@ private:
 
   std::string global_frame_;
   std::string base_frame_;
+  std::string odom_frame_;
+  std::string map_frame_;
 
   // 订阅：Minco 优化轨迹 / 里程计
   rclcpp::Subscription<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_sub_;
