@@ -68,6 +68,6 @@ def generate_launch_description():
     ld.add_action(declare_rviz)
     ld.add_action(declare_point_lio_cfg_dir)
     ld.add_action(start_point_lio_node)
-    ld.add_action(start_rviz_node)
+    # ld.add_action(start_rviz_node)
 
     return ld

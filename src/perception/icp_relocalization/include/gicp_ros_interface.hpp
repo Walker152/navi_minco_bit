@@ -13,6 +13,8 @@
 #include "tf2_ros/static_transform_broadcaster.h"
 #include "tf2_ros/transform_listener.h"
 
+#include "std_srvs/srv/trigger.hpp"
+
 #include <deque>
 #include <mutex>
 
@@ -65,9 +67,16 @@ namespace icp_relocalization
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     rclcpp::CallbackGroup::SharedPtr callback_group_lidar_;
+    rclcpp::CallbackGroup::SharedPtr callback_group_service_;
     rclcpp::TimerBase::SharedPtr fsm_timer_;
+    rclcpp::TimerBase::SharedPtr map_timer_;
+    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr relocalize_srv_;
+
     void fsmTimerCallback();
+    void mapTimerCallback();
     void runFSM();
+    void relocalizeServiceCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+                                   std::shared_ptr<std_srvs::srv::Trigger::Response> response);
 
     // 状态与缓存
     State state_ = State::UNINITIALIZED;
