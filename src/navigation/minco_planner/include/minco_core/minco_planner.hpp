@@ -24,6 +24,8 @@
 #include "minco_core/astar.hpp"
 #include "minco_core/static_esdf_map.hpp"
 #include "traj_opt/minco_optimizer.hpp"
+
+#include "utils/header/color_text.hpp"
 namespace minco_planner
 {
 
@@ -61,7 +63,27 @@ public:
   bool worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my);
   void mapToWorld(double mx, double my, double & wx, double & wy);
   void clearRobotCell(unsigned int wx, unsigned int wy);
+
 private:
+  enum class PlanningState {
+    COLD_START,     // 完全重规划 (Zero V/A)
+    HOT_START       // 继承重规划 (Inherit V/A)
+  };
+
+  // State Machine Logic
+  PlanningState determinePlanningState(
+    const geometry_msgs::msg::Pose & start_pose,
+    const std::vector<Eigen::Vector3d> & new_path);
+
+  void prepareColdStart(
+    const geometry_msgs::msg::Pose & start_pose,
+    Eigen::Matrix3d & start_state);
+
+  void prepareHotStart(
+    const geometry_msgs::msg::Pose & start_pose,
+    double t_dur,
+    Eigen::Matrix3d & start_state);
+
   void publishOptimizedTrajectory(
     const traj_opt::Trajectory & opt_traj,
     const std_msgs::msg::Header & header,

@@ -14,7 +14,7 @@ gicp_relocalization_node:
     
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
     initial_pose: [0.6, 0.7, 0.0, 0.0, 0.0, 0.4]
-
+    # initial_pose: [0.6, 0.7, 0.0, 0.0, 0.0, 0.4] （for RMUC）
     # Feature Extraction
     feature_k_search: 20
 
