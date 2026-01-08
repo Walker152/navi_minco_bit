@@ -65,9 +65,7 @@ private:
 
   static double normalizeYaw(double yaw);
   inline static double interpolateYaw(double yaw1, double yaw2, double alpha) {
-    double diff = yaw2 - yaw1;
-    while (diff > M_PI) diff -= 2.0 * M_PI;
-    while (diff < -M_PI) diff += 2.0 * M_PI;
+    double diff = std::atan2(std::sin(yaw2 - yaw1), std::cos(yaw2 - yaw1));
     return yaw1 + diff * alpha;
   }
 
@@ -99,6 +97,16 @@ private:
   // 订阅：Minco 优化轨迹 / 里程计
   rclcpp::Subscription<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+
+  // 发布：可视化路径
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mpc_predict_path_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mpc_real_path_pub_;
+  // 记录实际行走路径
+  std::vector<geometry_msgs::msg::PoseStamped> real_path_history_;
+  rclcpp::Time last_real_path_pub_time_;
+  
+  // 用于可视化发布封装
+  void publishVisualization(const std::vector<State> & pred_path, const State & curr_state);
 
   // 缓存：最新轨迹/里程计
   mutable std::mutex data_mtx_;
