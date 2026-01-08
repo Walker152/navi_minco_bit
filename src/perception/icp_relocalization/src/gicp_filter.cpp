@@ -126,7 +126,7 @@ namespace icp_relocalization
 
   GicpFilter::Result GicpFilter::align(const PointCloud::Ptr& source_cloud, const Eigen::Matrix4f& initial_guess)
   {
-    // 高度滤波（可选）：先裁剪再降采样，减少计算量
+    // 高度滤波
     PointCloud::Ptr source_filtered_height = applyHeightFilter(source_cloud);
 
     // 对源点云进行降采样
