@@ -144,6 +144,62 @@ namespace icp_relocalization
     fsm_timer_ = this->create_wall_timer(std::chrono::duration<double>(period),
                                          std::bind(&GicpRosInterface::fsmTimerCallback, this),
                                          callback_group_lidar_);
+    
+    // 初始化地图发布定时器
+    map_timer_ = this->create_wall_timer(std::chrono::seconds(2),
+                                         std::bind(&GicpRosInterface::mapTimerCallback, this));
+    // 初始化重定位服务
+    callback_group_service_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    relocalize_srv_ = this->create_service<std_srvs::srv::Trigger>(
+        "/gicp_recall",
+        std::bind(&GicpRosInterface::relocalizeServiceCallback, this, std::placeholders::_1, std::placeholders::_2),
+        rmw_qos_profile_services_default,
+        callback_group_service_);
+  }
+
+  void GicpRosInterface::relocalizeServiceCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+                                                  std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+  {
+      (void)request;
+      RCLCPP_INFO(this->get_logger(), "%sReceived request to re-trigger relocalization.%s", color_text::MAGENTA.c_str(), color_text::RESET.c_str());
+
+      // 1. Reset State
+      state_ = State::UNINITIALIZED;
+      converged_count_ = 0;
+      current_accumulated_frames_ = 0;
+      if (accumulated_cloud_) accumulated_cloud_->clear();
+      gicp_initialized_ = false;
+
+      // 2. Reactivate Lidar Subscription if needed
+      if (!lidar_sub_) {
+          rclcpp::SubscriptionOptions lidar_sub_options;
+          lidar_sub_options.callback_group = callback_group_lidar_;
+          lidar_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+              "/livox/stdpc",
+              rclcpp::SensorDataQoS(),
+              std::bind(&GicpRosInterface::lidarCallback, this, std::placeholders::_1),
+              lidar_sub_options);
+          RCLCPP_INFO(this->get_logger(), "Lidar subscription reactivated.");
+      }
+
+      // 3. Restart FSM Timer
+      if (fsm_timer_->is_canceled()) {
+          fsm_timer_->reset();
+          RCLCPP_INFO(this->get_logger(), "FSM timer restarted.");
+      }
+
+      response->success = true;
+      response->message = "Relocalization process restarted.";  }
+
+  void GicpRosInterface::mapTimerCallback()
+  {
+      if (map_pub_->get_subscription_count() > 0 && gicp_filter_) {
+          sensor_msgs::msg::PointCloud2 map_msg;
+          pcl::toROSMsg(*gicp_filter_->getTargetCloud(), map_msg);
+          map_msg.header.frame_id = map_frame_;
+          map_msg.header.stamp = this->now();
+          map_pub_->publish(map_msg);
+      }
   }
 
   void GicpRosInterface::setupGicp(const std::string& target_pcd_file)
@@ -176,8 +232,6 @@ namespace icp_relocalization
     PointCloud::Ptr temp_cloud(new PointCloud());
     pcl::fromROSMsg(*msg, *temp_cloud);
     
-    // Assuming input cloud is already in the correct frame (camera_init/odom)
-    // If not, we might need to transform it, but user said it's ensured.
     *accumulated_cloud_ += *temp_cloud;
     current_accumulated_frames_++;
     last_cloud_stamp_ = msg->header.stamp;
@@ -186,11 +240,6 @@ namespace icp_relocalization
     // Reset if too large (safety)
     if(accumulated_cloud_->size() > 100000) 
     {
-        // Keep last N points or just clear? 
-        // For relocalization, we usually want a specific window.
-        // If we just keep adding, it grows indefinitely until FSM runs.
-        // FSM runs at 1Hz (default), lidar at 10Hz. 
-        // accumulate_frames_ is 5.
     }
   }
 
@@ -300,23 +349,34 @@ namespace icp_relocalization
       {
         printEvaluation(initial_guess, result.final_transformation, result.fitness_score, time_ms);
 
-        RCLCPP_INFO(this->get_logger(), "GICP converged with score: %f", result.fitness_score);
-        
+        std::cout << MAGENTA << "[GICP] Converged! Score: " << result.fitness_score << RESET << std::endl;
+
         map_to_camera_init_ = result.final_transformation;
         
         converged_count_++;
         if(converged_count_ >= converged_count_threshold_)
         {
-          RCLCPP_INFO(this->get_logger(), "Relocalization converged successfully! Switching to LOCALIZED state.");
+          std::cout << GREEN << "[GICP] Localization confirmed after " << converged_count_ << " consecutive convergences!" << RESET << std::endl;
           state_ = State::LOCALIZED;
           
           // Publish Static TF once converged
           publishStaticTf(this->now());
+
+          // Suspend operations to save resources
+          RCLCPP_INFO(this->get_logger(), "Suspending GICP update timer and lidar subscription.");
+          if (fsm_timer_) {
+              fsm_timer_->cancel();
+          }
+          // Reset subscriber to stop receiving data completely
+          if (lidar_sub_) {
+             lidar_sub_.reset(); 
+             RCLCPP_INFO(this->get_logger(), "Lidar subscription reset. No more point cloud processing.");
+          }
         }
       }
       else
       {
-        RCLCPP_WARN(this->get_logger(), "GICP failed to converge or score too high (%f). Resetting count.", result.fitness_score);
+        std::cout << YELLOW << "[GICP] Failed to converge or score too high (" << result.fitness_score << "). Resetting count." << RESET << std::endl;
         converged_count_ = 0;
         // If we were in SAC_IA mode, maybe we should restart?
         // If we were in INITIAL_GUESS mode, maybe we should wait for new guess?
@@ -363,7 +423,8 @@ namespace icp_relocalization
     t.transform.rotation.w = tf_quat.w();
 
     static_tf_broadcaster_->sendTransform(t);
-    RCLCPP_INFO(this->get_logger(), "Published static TF: %s -> %s", t.header.frame_id.c_str(), t.child_frame_id.c_str());
+    std::cout << MAGENTA << "[GICP] Published static TF: " 
+              << map_frame_ << " -> " << cloud_frame_id_ << RESET << std::endl;
   }  
   
   void GicpRosInterface::publishVisualization(const PointCloud::Ptr& cloud, const rclcpp::Time& stamp)
@@ -415,9 +476,6 @@ namespace icp_relocalization
     while (dyaw > PI) dyaw -= 2 * PI;
     while (dyaw < -PI) dyaw += 2 * PI;
 
-    const std::string GREEN = "\033[32m";
-    const std::string RESET = "\033[0m";
-    
     std::cout << GREEN << "--------------------------------------------------" << RESET << std::endl;
     printf("%s[GICP Eval] Score: %.4f, Time: %.2f ms%s\n", GREEN.c_str(), fitness_score, time_ms, RESET.c_str());
     printf("%sExpected(Init): x=%.3f, y=%.3f, yaw=%.3f%s\n", GREEN.c_str(), init_x, init_y, init_yaw, RESET.c_str());
