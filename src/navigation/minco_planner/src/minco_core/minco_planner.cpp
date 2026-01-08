@@ -272,12 +272,22 @@ void MincoPlanner::configure(
   if (!esdf_map_->loadMap(esdf_pcd_path_, esdf_resolution_)) {
     RCLCPP_ERROR(logger_, "MincoPlanner: Failed to load static ESDF map from PCD: %s", esdf_pcd_path_.c_str());
   } else {
-  RCLCPP_INFO(logger_, "MincoPlanner: Static ESDF map loaded from PCD: %s", esdf_pcd_path_.c_str());
+    RCLCPP_INFO(logger_, "MincoPlanner: Static ESDF map loaded from PCD: %s", esdf_pcd_path_.c_str());
 
-  std_msgs::msg::Header header;
-  header.stamp = rclcpp::Clock().now();
-  header.frame_id = global_frame_;
-  publishEsdfCloud(header);
+    // Create 1Hz timer to publish ESDF cloud if there are subscribers
+    esdf_timer_ = node->create_wall_timer(
+      std::chrono::milliseconds(1000),
+      [this]() {
+        if (esdf_cloud_pub_ && esdf_cloud_pub_->get_subscription_count() > 0) {
+          auto node_ptr = node_.lock();
+          if (node_ptr) {
+            std_msgs::msg::Header header;
+            header.stamp = node_ptr->now();
+            header.frame_id = global_frame_;
+            publishEsdfCloud(header);
+          }
+        }
+      });
   }
 
   // Initialize Minco Optimizer
@@ -310,8 +320,6 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
   nav_msgs::msg::Path path;
   path.header.stamp = rclcpp::Clock().now();
   path.header.frame_id = global_frame_;
-
-  publishEsdfCloud(path.header);
 
   // We use rclcpp::ok() as a basic check.
   auto cancel_checker = []() {
@@ -486,7 +494,7 @@ bool MincoPlanner::makePlan(
   {
     Eigen::Vector3d first_pt = sparse_path[1];
     Eigen::Vector3d dir = first_pt - start_state.col(0);
-    if ((dir.norm() < 0.2 || start_state.col(1).dot(dir) < 0)) // 30度偏移
+    if ((dir.norm() < 0.2 )) 
     {
       sparse_path.erase(sparse_path.begin() + 1);
     }

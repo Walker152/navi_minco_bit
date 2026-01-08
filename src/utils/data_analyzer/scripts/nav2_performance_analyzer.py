@@ -13,6 +13,8 @@ from matplotlib.widgets import Button
 import matplotlib.gridspec as gridspec
 import sys
 import platform
+import csv
+import os
 
 # --- Dependency Check ---
 try:
@@ -39,6 +41,8 @@ THEME = {
     'freq': '#a6e3a1',        # Green (Frequency)
     'ok': '#a6e3a1',          # Green (Status OK)
     'err': '#f38ba8',         # Red (Status Error)
+    'btn': '#313244',         # Button Background
+    'btn_hover': '#45475a',   # Button Hover
     'fill_alpha': 0.2         # Fill Opacity
 }
 
@@ -65,7 +69,6 @@ class Nav2Analyzer(Node):
         self.pos_errors = []
         self.vel_errors = []
         self.acc_errors = []
-        # Changed: Store Planner Frequency instead of Velocity
         self.planner_freqs = [] 
         self.control_freqs = []
         
@@ -84,11 +87,11 @@ class Nav2Analyzer(Node):
         
         # Frequency Calculation Counters
         self.cmd_vel_count = 0
-        self.plan_count = 0 # New: Count plan messages
+        self.plan_count = 0 
         self.last_freq_calc_time = time.time()
         
         self.current_ctrl_freq = 0.0
-        self.current_plan_freq = 0.0 # New: Store plan freq
+        self.current_plan_freq = 0.0 
         
         self.start_time = time.time()
 
@@ -101,12 +104,12 @@ class Nav2Analyzer(Node):
         # Create a separate timer for data recording
         self.create_timer(1.0 / RECORD_RATE_HZ, self.data_recording_loop)
 
-        self.get_logger().info("Nav2 Analyzer Started (Frequency Monitoring Mode)")
+        self.get_logger().info("Nav2 Analyzer Started (Full Metrics Mode)")
 
     def plan_cb(self, msg):
         with self.lock:
             self.latest_plan = msg
-            self.plan_count += 1 # Count for frequency calc
+            self.plan_count += 1 
             self.topic_status['Plan'] = time.time()
 
     def imu_cb(self, msg):
@@ -130,14 +133,11 @@ class Nav2Analyzer(Node):
         current_time = time.time()
         
         with self.lock:
-            # 1. Frequency Calculation (Both Control and Planner)
+            # 1. Frequency Calculation
             dt_freq = current_time - self.last_freq_calc_time
             if dt_freq >= 1.0:
-                # Calculate Hz
                 self.current_ctrl_freq = self.cmd_vel_count / dt_freq
                 self.current_plan_freq = self.plan_count / dt_freq
-                
-                # Reset counters
                 self.cmd_vel_count = 0
                 self.plan_count = 0
                 self.last_freq_calc_time = current_time
@@ -177,7 +177,7 @@ class Nav2Analyzer(Node):
                 ref_acc = np.hypot(best_cmd.acceleration.x, best_cmd.acceleration.y)
                 acc_err = abs(ref_acc - self.latest_imu_acc)
 
-            # 3. Store Data (Append to lists)
+            # 3. Store Data
             rt = current_time - self.start_time
             self.times.append(rt)
             self.pos_errors.append(pos_err)
@@ -192,7 +192,7 @@ class Nav2Analyzer(Node):
                     lst.pop(0)
 
     def get_topic_health(self):
-        """Check if topics are active (received data within TIMEOUT_SEC)"""
+        """Check if topics are active"""
         now = time.time()
         health = {}
         for topic, last_t in self.topic_status.items():
@@ -210,12 +210,12 @@ class ModernVisualizer:
         plt.rcParams['toolbar'] = 'None' 
 
         # --- Plot Initialization ---
-        self.fig = plt.figure(figsize=(12, 10), facecolor=THEME['bg'])
+        self.fig = plt.figure(figsize=(12, 11), facecolor=THEME['bg'])
         self.fig.canvas.manager.set_window_title('NAV2 Minco Performance Analyzer')
         self.fig.canvas.mpl_connect('close_event', self.on_close)
 
-        # Layout: Header (bigger), 3 plots
-        gs = gridspec.GridSpec(4, 1, height_ratios=[0.8, 1, 1, 1], hspace=0.4, top=0.95, bottom=0.08, left=0.08, right=0.92)
+        # Layout: Header (0.8), 4 Plots (1.0 each)
+        gs = gridspec.GridSpec(5, 1, height_ratios=[0.8, 1, 1, 1, 1], hspace=0.45, top=0.96, bottom=0.07, left=0.08, right=0.92)
 
         # 1. Dashboard Header (HUD)
         self.ax_header = self.fig.add_subplot(gs[0])
@@ -225,7 +225,7 @@ class ModernVisualizer:
         self.txt_title = self.ax_header.text(0.0, 0.9, "NAV2 PERFORMANCE MONITOR", color=THEME['text'], fontsize=14, fontweight='bold', ha='left')
         self.txt_time = self.ax_header.text(1.0, 0.9, "T: 00:00", color=THEME['text_dim'], fontsize=12, ha='right', family='monospace')
 
-        # -- Topic Status Indicators (Traffic Lights) --
+        # -- Topic Status Indicators --
         self.topic_indicators = {}
         topics = ['Plan', 'Odom', 'IMU', 'Cmd']
         start_x = 0.0
@@ -237,10 +237,11 @@ class ModernVisualizer:
             lbl = self.ax_header.text(x + 0.03, 0.65, topic, color=THEME['text_dim'], fontsize=10, ha='left', va='center')
             self.topic_indicators[topic] = dot
         
-        # -- Big Stats Display --
-        self.stat_pos = self._create_stat_text(0.15, "Pos Error (m)", THEME['pos'])
-        self.stat_vel = self._create_stat_text(0.50, "Vel Error (m/s)", THEME['vel'])
-        self.stat_freq = self._create_stat_text(0.85, "Control Freq (Hz)", THEME['freq'])
+        # -- Big Stats Display (Updated for 4 metrics) --
+        self.stat_pos = self._create_stat_text(0.12, "Pos Error (m)", THEME['pos'])
+        self.stat_vel = self._create_stat_text(0.37, "Vel Error (m/s)", THEME['vel'])
+        self.stat_acc = self._create_stat_text(0.62, "Acc Error (m/s²)", THEME['acc'])
+        self.stat_freq = self._create_stat_text(0.87, "Ctrl Freq (Hz)", THEME['freq'])
 
         # 2. Plot Areas
         self.axes = []
@@ -265,32 +266,49 @@ class ModernVisualizer:
         self.lines['vel'] = ln2
         self.fills['vel'] = fill2
 
-        # Plot 3: System Frequency (Plan Freq vs Ctrl Freq)
-        # Changed: Now single axis for Frequency, but keeping visual distinction
+        # Plot 3: Acceleration Error (Restored!)
         ax3 = self.fig.add_subplot(gs[3], facecolor=THEME['plot_bg'], sharex=ax1)
-        self._style_axis(ax3, "System Frequencies (Plan vs Ctrl)", "Frequency (Hz)")
-        
-        # Line 1: Control Freq (Solid Line)
-        ln3_c, = ax3.plot([], [], color=THEME['freq'], lw=2, linestyle='-', alpha=0.9, label='Ctrl Freq')
-        
-        # Line 2: Plan Freq (Dashed Line, on top)
-        # Using zorder to ensure it draws on top, and linestyle '--' to allow seeing the line below
-        ln3_p, = ax3.plot([], [], color=THEME['plan'], lw=2, linestyle='--', alpha=1.0, zorder=10, label='Plan Freq')
-        
-        fill3 = ax3.fill_between([], [], color=THEME['freq'], alpha=0.1)
-        
-        # Legend
-        ax3.legend([ln3_p, ln3_c], ['Plan Freq', 'Ctrl Freq'], loc='upper left', frameon=False, labelcolor=THEME['text'])
-        
+        self._style_axis(ax3, "Acceleration Tracking Error", "Error (m/s²)")
+        ln3, = ax3.plot([], [], color=THEME['acc'], lw=2)
+        fill3 = ax3.fill_between([], [], color=THEME['acc'], alpha=THEME['fill_alpha'])
         self.axes.append(ax3)
-        self.lines['plan'] = ln3_p
-        self.lines['freq'] = ln3_c
-        self.fills['freq'] = fill3
+        self.lines['acc'] = ln3
+        self.fills['acc'] = fill3
+
+        # Plot 4: System Frequency
+        ax4 = self.fig.add_subplot(gs[4], facecolor=THEME['plot_bg'], sharex=ax1)
+        self._style_axis(ax4, "System Frequencies (Plan vs Ctrl)", "Frequency (Hz)")
+        
+        ln4_c, = ax4.plot([], [], color=THEME['freq'], lw=2, linestyle='-', alpha=0.9, label='Ctrl Freq')
+        ln4_p, = ax4.plot([], [], color=THEME['plan'], lw=2, linestyle='--', alpha=1.0, zorder=10, label='Plan Freq')
+        fill4 = ax4.fill_between([], [], color=THEME['freq'], alpha=0.1)
+        
+        ax4.legend([ln4_p, ln4_c], ['Plan Freq', 'Ctrl Freq'], loc='upper left', frameon=False, labelcolor=THEME['text'])
+        
+        self.axes.append(ax4)
+        self.lines['plan'] = ln4_p
+        self.lines['freq'] = ln4_c
+        self.fills['freq'] = fill4
 
         # Input Events
         self.fig.canvas.mpl_connect('key_press_event', self.on_key)
 
-        # Start Animation
+        # Buttons
+        ax_save = plt.axes([0.65, 0.02, 0.1, 0.04])
+        self.btn_save = Button(ax_save, 'Save IMG', color=THEME['btn'], hovercolor=THEME['btn_hover'])
+        self.btn_save.label.set_color(THEME['text'])
+        self.btn_save.on_clicked(self.save_screenshot)
+
+        ax_csv = plt.axes([0.50, 0.02, 0.1, 0.04])
+        self.btn_csv = Button(ax_csv, 'Save CSV', color=THEME['btn'], hovercolor=THEME['btn_hover'])
+        self.btn_csv.label.set_color(THEME['text'])
+        self.btn_csv.on_clicked(self.save_csv)
+
+        ax_pause = plt.axes([0.80, 0.02, 0.1, 0.04])
+        self.btn_pause = Button(ax_pause, 'Pause', color=THEME['btn'], hovercolor=THEME['btn_hover'])
+        self.btn_pause.label.set_color(THEME['text'])
+        self.btn_pause.on_clicked(self.toggle_pause)
+
         self.ani = FuncAnimation(self.fig, self.update, interval=UPDATE_INTERVAL_MS, blit=False)
         plt.show()
 
@@ -300,11 +318,11 @@ class ModernVisualizer:
 
     def _create_stat_text(self, x, label, color):
         self.ax_header.text(x, 0.35, label, color=THEME['text_dim'], fontsize=10, ha='center')
-        text_obj = self.ax_header.text(x, 0.1, "0.000", color=color, fontsize=24, fontweight='bold', ha='center', family='monospace')
+        text_obj = self.ax_header.text(x, 0.1, "0.000", color=color, fontsize=20, fontweight='bold', ha='center', family='monospace')
         return text_obj
 
     def _style_axis(self, ax, title, ylabel, is_right=False):
-        ax.set_title(title, color=THEME['text'], loc='left', fontsize=10, pad=10)
+        ax.set_title(title, color=THEME['text'], loc='left', fontsize=10, pad=5)
         ax.set_ylabel(ylabel, color=THEME['text_dim'], fontsize=9)
         ax.tick_params(axis='x', colors=THEME['text_dim'], labelsize=8)
         ax.tick_params(axis='y', colors=THEME['text_dim'], labelsize=8)
@@ -317,30 +335,52 @@ class ModernVisualizer:
         
         if is_right: ax.yaxis.set_label_position("right")
 
+    def toggle_pause(self, event):
+        self.paused = not self.paused
+        print(f"UI {'PAUSED' if self.paused else 'RESUMED'}")
+
+    def save_screenshot(self, event):
+        filename = f"nav2_analysis_{int(time.time())}.png"
+        self.fig.savefig(filename, facecolor=THEME['bg'])
+        print(f"Screenshot saved: {filename}")
+
+    def save_csv(self, event):
+        filename = f"nav2_data_{int(time.time())}.csv"
+        try:
+            with self.node.lock:
+                if len(self.node.times) == 0:
+                    print("No data to save!")
+                    return
+                rows = zip(self.node.times, self.node.pos_errors, self.node.vel_errors, self.node.acc_errors, self.node.planner_freqs, self.node.control_freqs)
+            
+            with open(filename, 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(['Time', 'Pos_Error', 'Vel_Error', 'Acc_Error', 'Plan_Freq', 'Ctrl_Freq'])
+                writer.writerows(rows)
+            print(f"Data saved to {filename}")
+        except Exception as e:
+            print(f"Error saving CSV: {e}")
+
     def on_key(self, event):
-        if event.key == ' ':
-            self.paused = not self.paused
-        elif event.key == 's':
-            filename = f"nav2_analysis_{int(time.time())}.png"
-            self.fig.savefig(filename, facecolor=THEME['bg'])
-            print(f"Screenshot saved: {filename}")
+        if event.key == ' ': self.toggle_pause(None)
+        elif event.key == 's': self.save_screenshot(None)
 
     def update(self, frame):
         if not self.node.running: return
         if self.paused: return
 
-        # 1. Update Topic Status Indicators
+        # 1. Update Indicators
         health = self.node.get_topic_health()
         for topic, is_ok in health.items():
             if topic in self.topic_indicators:
-                color = THEME['ok'] if is_ok else THEME['err']
-                self.topic_indicators[topic].set_color(color)
+                self.topic_indicators[topic].set_color(THEME['ok'] if is_ok else THEME['err'])
 
         with self.node.lock:
             if not self.node.times: return
             times = np.array(self.node.times)
             pos = np.array(self.node.pos_errors)
             vel = np.array(self.node.vel_errors)
+            acc = np.array(self.node.acc_errors)
             plan_freqs = np.array(self.node.planner_freqs)
             ctrl_freqs = np.array(self.node.control_freqs)
 
@@ -348,13 +388,13 @@ class ModernVisualizer:
         self.txt_time.set_text(f"T: {times[-1]:.1f}s")
         self.stat_pos.set_text(f"{pos[-1]:.4f}")
         self.stat_vel.set_text(f"{vel[-1]:.3f}")
+        self.stat_acc.set_text(f"{acc[-1]:.3f}")
         self.stat_freq.set_text(f"{ctrl_freqs[-1]:.1f}")
 
         # 3. Update Lines
         self.lines['pos'].set_data(times, pos)
         self.lines['vel'].set_data(times, vel)
-        
-        # New Frequency Lines
+        self.lines['acc'].set_data(times, acc)
         self.lines['plan'].set_data(times, plan_freqs)
         self.lines['freq'].set_data(times, ctrl_freqs)
 
@@ -362,12 +402,14 @@ class ModernVisualizer:
         try:
             self.fills['pos'].remove()
             self.fills['vel'].remove()
+            self.fills['acc'].remove()
             self.fills['freq'].remove()
         except: pass 
         
         self.fills['pos'] = self.axes[0].fill_between(times, 0, pos, color=THEME['pos'], alpha=THEME['fill_alpha'])
         self.fills['vel'] = self.axes[1].fill_between(times, 0, vel, color=THEME['vel'], alpha=THEME['fill_alpha'])
-        self.fills['freq'] = self.axes[2].fill_between(times, 0, ctrl_freqs, color=THEME['freq'], alpha=0.1)
+        self.fills['acc'] = self.axes[2].fill_between(times, 0, acc, color=THEME['acc'], alpha=THEME['fill_alpha'])
+        self.fills['freq'] = self.axes[3].fill_between(times, 0, ctrl_freqs, color=THEME['freq'], alpha=0.1)
 
         # 5. Dynamic Scaling
         if len(times) > 1:
@@ -380,27 +422,23 @@ class ModernVisualizer:
             
             self.axes[0].set_ylim(0, pos.max() * 1.2 + 0.01)
             self.axes[1].set_ylim(0, vel.max() * 1.2 + 0.01)
+            self.axes[2].set_ylim(0, acc.max() * 1.2 + 0.01)
             
-            # Freq Axis scaling (taking both plan and ctrl into account)
             max_f = max(plan_freqs.max(), ctrl_freqs.max()) if len(plan_freqs) > 0 else 20.0
-            self.axes[2].set_ylim(0, max_f * 1.3 + 1.0)
+            self.axes[3].set_ylim(0, max_f * 1.3 + 1.0)
 
 def main():
     rclpy.init()
     node = Nav2Analyzer()
-    
     thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
     thread.start()
-
     try:
         viz = ModernVisualizer(node)
-    except KeyboardInterrupt:
-        pass
+    except KeyboardInterrupt: pass
     finally:
         node.running = False
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if rclpy.ok(): rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
