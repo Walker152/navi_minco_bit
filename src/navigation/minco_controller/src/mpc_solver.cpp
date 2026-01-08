@@ -1,11 +1,13 @@
 #include "minco_controller/mpc_solver.hpp"
 
+#include <iostream>
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <vector>
 
 #include <qpOASES.hpp>
+#include "color_text.hpp"
 
 namespace minco_controller
 {
@@ -207,7 +209,7 @@ bool MpcSolver::buildCondensedQP(
   return true;
 }
 
-bool MpcSolver::solve(const State & curr, const std::vector<ReferencePoint> & ref_traj, Control & out_u)
+bool MpcSolver::solve(const State & curr, const std::vector<ReferencePoint> & ref_traj, Control & out_u, std::vector<State> * out_pred)
 {
   const int N = config_.horizon;
   if (N <= 0) {
@@ -231,11 +233,6 @@ bool MpcSolver::solve(const State & curr, const std::vector<ReferencePoint> & re
 
   const int nV = static_cast<int>(g.size());
   const int nC = static_cast<int>(lbA.size());
-
-  // qpOASES 使用 real_t* 的稠密矩阵/向量接口。
-  // 关键点：我们用 std::vector<real_t> 保存连续内存，并将 Eigen 的值逐元素拷贝进去。
-  // 为避免行列主序歧义，这里显式按“行优先(row-major)”写入：arr[i*nCols + j]。
-  // 这样就与 qpOASES 的 C 风格二维数组期望一致。
 
   std::vector<qpOASES::real_t> H_qp(static_cast<size_t>(nV) * static_cast<size_t>(nV), 0.0);
   for (int i = 0; i < nV; ++i) {
@@ -296,11 +293,53 @@ bool MpcSolver::solve(const State & curr, const std::vector<ReferencePoint> & re
     nWSR);
 
   if (ret != qpOASES::SUCCESSFUL_RETURN) {
+    if (ret == qpOASES::RET_MAX_NWSR_REACHED) {
+      std::cout << color_text::RED << "[MpcSolver] qpOASES Max NWSR Reached!" << color_text::RESET << std::endl;
+    } else if (ret == qpOASES::RET_INIT_FAILED_INFEASIBILITY) {
+      std::cout << color_text::RED << "[MpcSolver] qpOASES Infeasible!" << color_text::RESET << std::endl;
+    } else {
+      std::cout << color_text::RED << "[MpcSolver] qpOASES Error Code: " << static_cast<int>(ret) << color_text::RESET << std::endl;
+    }
     return false;
   }
 
   std::vector<qpOASES::real_t> xOpt(static_cast<size_t>(nV), 0.0);
   qp.getPrimalSolution(xOpt.data());
+
+  // 如果需要输出预测轨迹
+  if (out_pred) {
+    out_pred->clear();
+    out_pred->reserve(N + 1);
+    out_pred->push_back(curr);
+
+    State s = curr;
+    Eigen::Matrix3d A; // Identity inside buildStepModel
+    Eigen::Matrix<double, 3, 3> B;
+
+    for (int i = 0; i < N; ++i) {
+      const double ux = static_cast<double>(xOpt[static_cast<size_t>(3 * i + 0)]);
+      const double uy = static_cast<double>(xOpt[static_cast<size_t>(3 * i + 1)]);
+      const double uw = static_cast<double>(xOpt[static_cast<size_t>(3 * i + 2)]);
+      
+      // 使用 QP 构建时的线性化点 (reference yaw) 进行推演
+      buildStepModel(ref_traj[i].yaw, A, B);
+
+      // x_{k+1} = x_k + B * u_k (因为 A=I)
+      // 注意：这里 B 是 3x3，u 是 3维
+      // B = [ c*dt, -s*dt, 0 ]
+      //     [ s*dt,  c*dt, 0 ]
+      //     [ 0,     0,    dt]
+      // 手动乘或者由 Eigen 乘
+      double dx = B(0, 0) * ux + B(0, 1) * uy + B(0, 2) * uw;
+      double dy = B(1, 0) * ux + B(1, 1) * uy + B(1, 2) * uw;
+      double dyaw = B(2, 0) * ux + B(2, 1) * uy + B(2, 2) * uw;
+
+      s.x += dx;
+      s.y += dy;
+      s.yaw += dyaw;
+      out_pred->push_back(s);
+    }
+  }
 
   // 取第一个控制量 u0 (body)
   const Eigen::Vector3d u0_body(
