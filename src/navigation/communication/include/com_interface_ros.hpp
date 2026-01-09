@@ -101,8 +101,8 @@ namespace ns_com
     void sendChassisCtrlCB(const geometry_msgs::msg::Twist::ConstSharedPtr& velPtr, std_msgs::msg::Int32 _position, std_msgs::msg::Bool _outpost_msg)
     {
       cmd_vel_ = *velPtr;
-      float vx_mps = cmd_vel_.linear.x/2;
-      float vy_mps = cmd_vel_.linear.y/2;
+      float vx_mps = cmd_vel_.linear.x;
+      float vy_mps = cmd_vel_.linear.y;
       float vw_rpm = 0;
       int32_t position = _position.data;
       bool outpost_msg = _outpost_msg.data;
