@@ -21,8 +21,9 @@ public:
   // @param curr 当前状态 (map)
   // @param ref_traj 参考轨迹 (horizon 个点，若不足由插件层补齐)
   // @param out_u 输出控制 (map)
+  // @param out_pred (可选) 输出预测轨迹
   // @return 是否求解成功
-  bool solve(const State & curr, const std::vector<ReferencePoint> & ref_traj, Control & out_u);
+  bool solve(const State & curr, const std::vector<ReferencePoint> & ref_traj, Control & out_u, std::vector<State> * out_pred = nullptr);
 
 private:
   // 将 map 系速度旋转到 body 系（用于在模型里使用：x_{k+1}=x_k+(v_x cosθ - v_y sinθ)dt ...）

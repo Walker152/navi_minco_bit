@@ -360,7 +360,7 @@ void MincoOptimizer::DefaultInit()
     // 根据距离和最大速度分配初始时间
     const VecDf dis = (opt_vars_.waypoint_attractor.leftCols(opt_vars_.piece_num) -
                            opt_vars_.waypoint_attractor.rightCols(opt_vars_.piece_num)).colwise().norm().transpose();
-    double speed = cfg_.max_vel;
+    double speed = cfg_.max_vel * 0.8;
     opt_vars_.times = (dis / speed).cwiseMax(0.1); // 防止除零
     opt_vars_.points = opt_vars_.waypoint_attractor.block(0, 1, 3, opt_vars_.piece_num - 1);
 }
