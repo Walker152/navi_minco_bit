@@ -11,6 +11,7 @@
 
 namespace minco_planner
 {
+using namespace color_text;
 
 void MincoPlanner::publishEsdfCloud(const std_msgs::msg::Header & header)
 {
@@ -270,14 +271,25 @@ void MincoPlanner::configure(
   // Load Static ESDF Map
   esdf_map_ = std::make_shared<StaticESDFMap>();
   if (!esdf_map_->loadMap(esdf_pcd_path_, esdf_resolution_)) {
-    RCLCPP_ERROR(logger_, "MincoPlanner: Failed to load static ESDF map from PCD: %s", esdf_pcd_path_.c_str());
+    std::cout << RED << "[MincoPlanner] "
+              << "Failed to load Static ESDF map from PCD: " << esdf_pcd_path_ << RESET << std::endl;
   } else {
-  RCLCPP_INFO(logger_, "MincoPlanner: Static ESDF map loaded from PCD: %s", esdf_pcd_path_.c_str());
-
-  std_msgs::msg::Header header;
-  header.stamp = rclcpp::Clock().now();
-  header.frame_id = global_frame_;
-  publishEsdfCloud(header);
+    std::cout << MAGENTA << "[MincoPlanner] "
+              << "Successfully loaded Static ESDF map from PCD: " << esdf_pcd_path_ << RESET << std::endl;
+    // Create 1Hz timer to publish ESDF cloud if there are subscribers
+    esdf_timer_ = node->create_wall_timer(
+      std::chrono::milliseconds(1000),
+      [this]() {
+        if (esdf_cloud_pub_ && esdf_cloud_pub_->get_subscription_count() > 0) {
+          auto node_ptr = node_.lock();
+          if (node_ptr) {
+            std_msgs::msg::Header header;
+            header.stamp = node_ptr->now();
+            header.frame_id = global_frame_;
+            publishEsdfCloud(header);
+          }
+        }
+      });
   }
 
   // Initialize Minco Optimizer
@@ -311,20 +323,18 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
   path.header.stamp = rclcpp::Clock().now();
   path.header.frame_id = global_frame_;
 
-  publishEsdfCloud(path.header);
-
   // We use rclcpp::ok() as a basic check.
   auto cancel_checker = []() {
     return !rclcpp::ok();
   };
 
   if (!astar_planner_ || !costmap_) {
-    RCLCPP_ERROR(logger_, "MincoPlanner: planner is not properly configured");
+    std::cout << RED << "MincoPlanner: planner is not properly configured" << RESET << std::endl;
     throw std::runtime_error("MincoPlanner: planner is not properly configured");
   }
 
   if (!minco_optimizer_) {
-    RCLCPP_ERROR(logger_, "MincoPlanner: minco_optimizer is not initialized");
+    std::cout << RED << "MincoPlanner: minco_optimizer is not initialized" << RESET << std::endl;
     throw std::runtime_error("MincoPlanner: minco_optimizer is not initialized");
   }
 
@@ -382,36 +392,8 @@ bool MincoPlanner::makePlan(
   plan.header.frame_id = global_frame_;
 
   double plan_start_time = rclcpp::Clock().now().seconds() + 0.03;
-  Eigen::Matrix3d start_state, end_state;
-  start_state.setZero();
-  end_state.setZero();
-
-  start_state.col(0) = Eigen::Vector3d(start.position.x, start.position.y, 0.0);
-
-  bool hot_start = false;
-  if (has_last_traj_)
-  {
-    double t_dur = plan_start_time - last_traj_.start_WT;
-    if (t_dur > 0.0 && t_dur < last_traj_.getTotalDuration())
-    {
-      Eigen::Vector3d pos = last_traj_.getPos(t_dur);
-      double dist = (pos - start_state.col(0)).norm();
-      if (dist < 0.3)
-      {
-        // start_state.col(0) = last_traj_.getPos(t_dur);
-        start_state.col(1) = last_traj_.getVel(t_dur);
-        start_state.col(2) = last_traj_.getAcc(t_dur);
-        hot_start = true;
-      }
-    }
-  }
   
-  if (!hot_start)
-  {
-    start_state.col(0) = Eigen::Vector3d(start.position.x, start.position.y, 0.0);
-  }
-
-  // 2. 使用 A* 算法找到路径
+  // 1. 使用 A* 算法找到路径
   double wx = start.position.x;
   double wy = start.position.y;
   unsigned int mx_start, my_start;
@@ -434,7 +416,6 @@ bool MincoPlanner::makePlan(
 
   // 传播波前
   // 循环调用 propNavFnAstar 直到找到 Start 或队列为空
-  // 给定一个足够大的总循环次数上限，防止死循环
   int max_total_cycles = nx * ny*9999; 
   int cycles_per_step = std::max(nx * ny / 20, nx + ny);
   auto time = rclcpp::Clock().now().seconds();
@@ -448,7 +429,8 @@ bool MincoPlanner::makePlan(
     max_total_cycles -= cycles_per_step;
   }
   auto time_end = rclcpp::Clock().now().seconds();
-  RCLCPP_INFO(logger_, "A* planning time: %f seconds", time_end - time);
+  std::cout << GREEN << "[MincoPlanner] A* planning time: "
+            << (time_end - time) << " seconds" << RESET << std::endl;
   // 提取路径
   if (!astar_planner_->calcPath(nx * ny / 2) || astar_planner_->getPathLen() < 2) {
     return false;
@@ -476,17 +458,36 @@ bool MincoPlanner::makePlan(
     plan.poses.push_back(pose);
   }
 
+  // 2. 状态机逻辑
+  Eigen::Matrix3d start_state;
   std::vector<Eigen::Vector3d> sparse_path = getSparseWaypoints(guide_path);
   lock.unlock();
+
+  PlanningState state = determinePlanningState(start, sparse_path);
+  
+  if (state == PlanningState::HOT_START)
+  {
+      double t_dur = plan_start_time - last_traj_.start_WT;
+      prepareHotStart(start, t_dur, start_state);
+      std::cout << MAGENTA << "[MincoPlanner] Mode: HOT_START (Partial Replan)" << RESET << std::endl;
+  }
+  else
+  {
+      prepareColdStart(start, start_state);
+      std::cout << MAGENTA << "[MincoPlanner] Mode: COLD_START (Full Replan)" << RESET << std::endl;
+  }
+
   // 3. 使用 Minco 优化器优化路径
   auto opt_time = rclcpp::Clock().now().seconds();
   traj_opt::Trajectory opt_traj;
+  Eigen::Matrix3d end_state;
+  end_state.setZero();
   end_state.col(0) = sparse_path.back();
   while (sparse_path.size() > 2)
   {
     Eigen::Vector3d first_pt = sparse_path[1];
     Eigen::Vector3d dir = first_pt - start_state.col(0);
-    if ((dir.norm() < 0.2 || start_state.col(1).dot(dir) < 0)) // 30度偏移
+    if ((dir.norm() < 0.2 )) 
     {
       sparse_path.erase(sparse_path.begin() + 1);
     }
@@ -499,11 +500,12 @@ bool MincoPlanner::makePlan(
   double cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
   if (std::isinf(cost))
   {
-    RCLCPP_WARN(node_.lock()->get_logger(), "Minco optimization failed");
+    std::cout << RED << "[MincoPlanner] Minco optimization failed!" << RESET << std::endl;
     return false;
   } 
   auto opt_time_end = rclcpp::Clock().now().seconds();
-  RCLCPP_INFO(logger_, "Minco optimization time: %f seconds, cost: %f", opt_time_end - opt_time, cost);
+  std::cout << GREEN << "[MincoPlanner] Minco optimization time: "
+            << (opt_time_end - opt_time) << " seconds, cost: " << cost << RESET << std::endl;
   // 4. 将优化后的轨迹转换为导航路径
   double t_start = plan_start_time;
   // Re-sample based on fixed time step
@@ -546,9 +548,9 @@ bool MincoPlanner::makePlan(
     plan.poses[i].pose.orientation.w = cos(yaw / 2.0);
   }
 
-  RCLCPP_INFO(logger_, "MincoPlanner: Successfully created plan with %d poses, duration %f", steps, opt_traj.getTotalDuration());
+  std::cout << GREEN << "[MincoPlanner] Successfully created plan with " << steps
+            << " waypoints." << RESET << std::endl;
 
-  // Publish optimized trajectory using custom message on opt_path
   publishOptimizedTrajectory(opt_traj, plan.header, steps, t_step);
 
   // 5. 保存优化后的轨迹
@@ -602,7 +604,7 @@ std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<
         
         // 如果距离太近 (例如 < 1.0m)，且直接连线 (last -> next) 是无碰撞的，则跳过当前点
         if (dist < 1.0 && isLineFree(last_pt, next_pt)) {
-             continue; // 跳过这个点，直接尝试连下一个
+             continue;
         }
         
         final_sparse.push_back(curr_pt);
@@ -656,10 +658,80 @@ void MincoPlanner::mapToWorld(double mx, double my, double & wx, double & wy)
 
 void MincoPlanner::clearRobotCell(unsigned int mx, unsigned int my)
 {
-  // TODO(orduno): check usage of this function, might instead be a request to
-  //               world_model / map server
   costmap_->setCost(mx, my, nav2_costmap_2d::FREE_SPACE);
 }
+
+MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
+    const geometry_msgs::msg::Pose & start_pose,
+    const std::vector<Eigen::Vector3d> & new_path)
+{
+    // 1. Check if we have history
+    if (!has_last_traj_) {
+        return PlanningState::COLD_START;
+    }
+
+    // 2. Check Time Validity
+    double now = rclcpp::Clock().now().seconds() + 0.03;
+    double t_dur = now - last_traj_.start_WT;
+    if (t_dur <= 0.0 || t_dur >= last_traj_.getTotalDuration()) {
+        std::cout << YELLOW << "[MincoPlanner] Hot Start Rejected: Invalid time duration (t_dur="
+                  << t_dur << "s)" << RESET << std::endl;
+        return PlanningState::COLD_START;
+    }
+
+    // 3. Check Position Consistency
+    Eigen::Vector3d current_pos(start_pose.position.x, start_pose.position.y, 0.0);
+    Eigen::Vector3d pred_pos = last_traj_.getPos(t_dur);
+    double tracking_error = (current_pos - pred_pos).norm();
+    
+    // Threshold: 0.5m.
+    if (tracking_error > 0.5) {
+        std::cout << YELLOW << "[MincoPlanner] Hot Start Rejected: Large tracking error (" << tracking_error << "m)" << RESET << std::endl;
+        return PlanningState::COLD_START;
+    }
+
+    // 4. Check Direction Consistency
+    if (new_path.size() >= 2) {
+        Eigen::Vector3d pred_vel = last_traj_.getVel(t_dur);
+        // If moving slowly, direction check is noisy and less important -> allow hot start
+        if (pred_vel.norm() > 0.1) {
+            Eigen::Vector3d path_dir = (new_path[1] - new_path[0]).normalized();
+            Eigen::Vector3d vel_dir = pred_vel.normalized();
+            double dot = vel_dir.dot(path_dir);
+
+            // If angle > 60 degrees (dot < 0.5), it's a significant turn/replan.
+            if (dot < 0.5) {
+                std::cout << YELLOW << "[MincoPlanner] Hot Start Rejected: Direction mismatch (dot=" << dot
+                          << ", angle=" << std::acos(dot) * 180.0 / M_PI << " deg)" << RESET << std::endl;
+                return PlanningState::COLD_START;
+            }
+        }
+    }
+
+    return PlanningState::HOT_START;
+}
+
+void MincoPlanner::prepareColdStart(
+    const geometry_msgs::msg::Pose & start_pose,
+    Eigen::Matrix3d & start_state)
+{
+    start_state.setZero();
+    start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
+    // Vel and Acc are implicitly zero
+}
+
+void MincoPlanner::prepareHotStart(
+    const geometry_msgs::msg::Pose & start_pose,
+    double t_dur,
+    Eigen::Matrix3d & start_state)
+{
+    start_state.setZero();
+    start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
+    
+    start_state.col(1) = last_traj_.getVel(t_dur);
+    start_state.col(2) = last_traj_.getAcc(t_dur);
+}
+
 }  // namespace minco_planner
 
 #include "pluginlib/class_list_macros.hpp"
