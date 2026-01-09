@@ -10,5 +10,5 @@ cmake-build-*/
 build-*/
 .cache
 .vscode
-.pcd
-.bash
+*.pcd
+*.bash
