@@ -324,12 +324,6 @@ bool MpcSolver::solve(const State & curr, const std::vector<ReferencePoint> & re
       // 使用 QP 构建时的线性化点 (reference yaw) 进行推演
       buildStepModel(ref_traj[i].yaw, A, B);
 
-      // x_{k+1} = x_k + B * u_k (因为 A=I)
-      // 注意：这里 B 是 3x3，u 是 3维
-      // B = [ c*dt, -s*dt, 0 ]
-      //     [ s*dt,  c*dt, 0 ]
-      //     [ 0,     0,    dt]
-      // 手动乘或者由 Eigen 乘
       double dx = B(0, 0) * ux + B(0, 1) * uy + B(0, 2) * uw;
       double dy = B(1, 0) * ux + B(1, 1) * uy + B(1, 2) * uw;
       double dyaw = B(2, 0) * ux + B(2, 1) * uy + B(2, 2) * uw;
@@ -352,7 +346,7 @@ bool MpcSolver::solve(const State & curr, const std::vector<ReferencePoint> & re
   has_last_u_ = true;
 
   // 对外输出为 map 系速度，插件层再转到 base。
-  const Eigen::Vector2d v0_map = bodyToGlobalVel(u0_body.head<2>(), curr.yaw);
+  const Eigen::Vector2d v0_map = bodyToGlobalVel(u0_body.head<2>(), ref_traj[0].yaw);
   out_u.vx = v0_map.x();
   out_u.vy = v0_map.y();
   out_u.omega = u0_body.z();
