@@ -699,8 +699,8 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
             Eigen::Vector3d vel_dir = pred_vel.normalized();
             double dot = vel_dir.dot(path_dir);
 
-            // If angle > 60 degrees (dot < 0.5), it's a significant turn/replan.
-            if (dot < 0.5) {
+            // If angle > 25 degrees (dot < 0.9), it's a significant turn/replan.
+            if (dot < 0.9) {
                 std::cout << YELLOW << "[MincoPlanner] Hot Start Rejected: Direction mismatch (dot=" << dot
                           << ", angle=" << std::acos(dot) * 180.0 / M_PI << " deg)" << RESET << std::endl;
                 return PlanningState::COLD_START;
