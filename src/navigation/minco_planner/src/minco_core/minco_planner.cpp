@@ -294,6 +294,7 @@ void MincoPlanner::configure(
 
   // Initialize Minco Optimizer
   minco_optimizer_ = std::make_unique<MincoOptimizer>(minco_config);
+  corridor_gen_ = std::make_shared<SimpleCorridorGenerator>(esdf_map_);
   minco_optimizer_->setESDFMap(esdf_map_); 
 }
 
