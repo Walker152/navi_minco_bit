@@ -37,6 +37,7 @@ file(GLOB UTILS_SOURCES "src/utils/*.cpp")
 add_library(${library_name} SHARED
   src/minco_core/minco_planner.cpp
   src/minco_core/astar.cpp
+  src/minco_core/corridor_generator.cpp
   src/traj_opt/minco_optimizer.cpp
   # MINCO / 轨迹优化核心实现（只保留规划实际用到的最小子集）
   ${UTILS_SOURCES}
