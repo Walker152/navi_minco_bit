@@ -23,6 +23,7 @@
 
 #include "minco_core/astar.hpp"
 #include "minco_core/static_esdf_map.hpp"
+#include "minco_core/corridor_generator.hpp"
 #include "traj_opt/minco_optimizer.hpp"
 
 #include "utils/header/color_text.hpp"
@@ -106,6 +107,7 @@ private:
   
   // Static ESDF Map
   StaticESDFMap::Ptr esdf_map_;
+  SimpleCorridorGenerator::Ptr corridor_gen_;
   std::string esdf_pcd_path_;
   double esdf_resolution_;
   // Parameters
