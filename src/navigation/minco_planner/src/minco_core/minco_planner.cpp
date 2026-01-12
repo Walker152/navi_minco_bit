@@ -151,6 +151,126 @@ void MincoPlanner::publishOptimizedTrajectory(
   opt_path_pub_->publish(traj_msg);
 }
 
+void MincoPlanner::publishBackupTrajectory(
+  const traj_opt::Trajectory & backup_traj,
+  const std_msgs::msg::Header & header,
+  int steps,
+  double t_step)
+{
+  if (!opt_path_pub_ || steps <= 0) {
+    return;
+  }
+
+  ros_interfaces::msg::MpcPositionCommand traj_msg;
+  traj_msg.header = header;
+  traj_msg.command_flag = ros_interfaces::msg::MpcPositionCommand::BLOCK_COMMAND;
+  traj_msg.cmds.resize(steps);
+
+  const uint32_t traj_id = ++backup_trajectory_id_;
+  for (int i = 0; i < steps; ++i)
+  {
+    double t = i * t_step;
+    if (t > backup_traj.getTotalDuration()) {
+      t = backup_traj.getTotalDuration();
+    }
+
+    Eigen::Vector3d pos = backup_traj.getPos(t);
+    Eigen::Vector3d vel = backup_traj.getVel(t);
+    Eigen::Vector3d acc = backup_traj.getAcc(t);
+    Eigen::Vector3d jer = backup_traj.getJer(t);
+
+    // Force 2D consistency for ground robot.
+    pos.z() = 0.0;
+    vel.z() = 0.0;
+    acc.z() = 0.0;
+    jer.z() = 0.0;
+
+    double yaw = 0.0;
+    if (vel.head<2>().norm() > 1e-4) {
+      yaw = std::atan2(vel(1), vel(0));
+    } else if (i > 0) {
+      yaw = traj_msg.cmds[i - 1].yaw;
+    }
+
+    auto & cmd = traj_msg.cmds[i];
+    cmd.header = traj_msg.header;
+    cmd.position.x = pos(0);
+    cmd.position.y = pos(1);
+    cmd.position.z = 0.0;
+    cmd.velocity.x = vel(0);
+    cmd.velocity.y = vel(1);
+    cmd.velocity.z = 0.0;
+    cmd.acceleration.x = acc(0);
+    cmd.acceleration.y = acc(1);
+    cmd.acceleration.z = 0.0;
+    cmd.jerk.x = jer(0);
+    cmd.jerk.y = jer(1);
+    cmd.jerk.z = 0.0;
+    cmd.angular_velocity.x = 0.0;
+    cmd.angular_velocity.y = 0.0;
+    cmd.angular_velocity.z = 0.0;
+    cmd.yaw = yaw;
+    cmd.yaw_dot = 0.0;
+    cmd.vel_norm = vel.head<2>().norm();
+    cmd.acc_norm = acc.head<2>().norm();
+    cmd.kx = {0.0, 0.0, 0.0};
+    cmd.kv = {0.0, 0.0, 0.0};
+    cmd.trajectory_id = traj_id;
+  }
+
+  traj_msg.mpc_horizon = static_cast<uint32_t>(traj_msg.cmds.size());
+  opt_path_pub_->publish(traj_msg);
+}
+
+void MincoPlanner::TrajectoryViz(
+  const traj_opt::Trajectory & traj,
+  const std_msgs::msg::Header & header,
+  int steps,
+  double t_step)
+{
+  if (!backup_path_pub_ || steps <= 0) {
+    return;
+  }
+
+  nav_msgs::msg::Path path_msg;
+  path_msg.header = header;
+  path_msg.poses.resize(static_cast<size_t>(steps));
+
+  for (int i = 0; i < steps; ++i)
+  {
+    double t = i * t_step;
+    if (t > traj.getTotalDuration()) {
+      t = traj.getTotalDuration();
+    }
+
+    Eigen::Vector3d pos = traj.getPos(t);
+    Eigen::Vector3d vel = traj.getVel(t);
+
+    pos.z() = 0.0;
+    vel.z() = 0.0;
+
+    double yaw = 0.0;
+    if (vel.head<2>().norm() > 1e-4) {
+      yaw = std::atan2(vel(1), vel(0));
+    } else if (i > 0) {
+      const auto & last_q = path_msg.poses[static_cast<size_t>(i - 1)].pose.orientation;
+      yaw = 2.0 * std::atan2(last_q.z, last_q.w);
+    }
+
+    auto & pose = path_msg.poses[static_cast<size_t>(i)];
+    pose.header = header;
+    pose.pose.position.x = pos(0);
+    pose.pose.position.y = pos(1);
+    pose.pose.position.z = 0.0;
+    pose.pose.orientation.x = 0.0;
+    pose.pose.orientation.y = 0.0;
+    pose.pose.orientation.z = std::sin(yaw / 2.0);
+    pose.pose.orientation.w = std::cos(yaw / 2.0);
+  }
+
+  backup_path_pub_->publish(path_msg);
+}
+
 MincoPlanner::MincoPlanner()
 : tf_(nullptr), costmap_(nullptr)
 {
@@ -158,6 +278,80 @@ MincoPlanner::MincoPlanner()
 
 MincoPlanner::~MincoPlanner()
 {
+}
+
+traj_opt::Trajectory MincoPlanner::generateBackupTraj(const Eigen::Matrix3d& start_state)
+{
+  auto make_stop_traj = [&start_state]() -> traj_opt::Trajectory {
+    traj_opt::Trajectory stop_traj;
+    const Eigen::Vector3d p = start_state.col(0);
+
+    Eigen::MatrixXd cMat(3, 1);
+    cMat.col(0) = p;
+
+    // Two very short constant pieces ("2 points" semantics).
+    stop_traj.emplace_back(0.02, cMat);
+    stop_traj.emplace_back(0.02, cMat);
+    return stop_traj;
+  };
+
+  if (!corridor_gen_ || !backup_opt_) {
+    std::cout << RED << "[MincoPlanner] Backup optimizer not initialized!" << RESET << std::endl;
+    auto stop_traj = make_stop_traj();
+    auto node = node_.lock();
+    if (node) {
+      std_msgs::msg::Header header;
+      header.stamp = node->now();
+      header.frame_id = global_frame_;
+      const double t_step = 0.05;
+      int steps = static_cast<int>(std::ceil(stop_traj.getTotalDuration() / t_step)) + 1;
+      steps = std::max(2, steps);
+      TrajectoryViz(stop_traj, header, steps, t_step);
+    }
+    return stop_traj;
+  }
+
+  // Step 1: Generate SFC (safe box)
+  auto safe_poly = corridor_gen_->generateSafeBox(start_state.col(0), 1.0);
+
+  // Step 2: Setup backup optimizer
+  backup_opt_->setInitState(start_state);
+  backup_opt_->setStopConstraints();
+  backup_opt_->setPolygons({safe_poly});
+
+  // Step 3: Optimize
+  traj_opt::Trajectory backup_traj;
+  bool success = backup_opt_->optimize(backup_traj);
+
+  // Step 4: Return
+  if (success) {
+    auto node = node_.lock();
+    if (node) {
+      std_msgs::msg::Header header;
+      header.stamp = node->now();
+      header.frame_id = global_frame_;
+      const double t_step = 0.05;
+      int steps = static_cast<int>(std::ceil(backup_traj.getTotalDuration() / t_step)) + 1;
+      steps = std::max(2, steps);
+      TrajectoryViz(backup_traj, header, steps, t_step);
+    }
+    return backup_traj;
+  }
+
+  std::cout << RED << "[MincoPlanner] Backup trajectory optimization failed, fallback to stop." << RESET
+            << std::endl;
+  auto stop_traj = make_stop_traj();
+  auto node = node_.lock();
+  if (node) {
+    std_msgs::msg::Header header;
+    header.stamp = node->now();
+    header.frame_id = global_frame_;
+    const double t_step = 0.05;
+    int steps = static_cast<int>(std::ceil(stop_traj.getTotalDuration() / t_step)) + 1;
+    steps = std::max(2, steps);
+    TrajectoryViz(stop_traj, header, steps, t_step);
+  }
+  return stop_traj;
 }
 
 void MincoPlanner::configure(
@@ -265,6 +459,9 @@ void MincoPlanner::configure(
   opt_path_pub_ = node->create_publisher<ros_interfaces::msg::MpcPositionCommand>(
     "/opt_path", rclcpp::QoS(rclcpp::KeepLast(1)));
 
+  backup_path_pub_ = node->create_publisher<nav_msgs::msg::Path>(
+    "/backup_path", rclcpp::QoS(rclcpp::KeepLast(1)));
+
   esdf_cloud_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>(
     "/esdf_cloud", 10);
 
@@ -295,6 +492,7 @@ void MincoPlanner::configure(
   // Initialize Minco Optimizer
   minco_optimizer_ = std::make_unique<MincoOptimizer>(minco_config);
   corridor_gen_ = std::make_shared<SimpleCorridorGenerator>(esdf_map_);
+  backup_opt_ = std::make_unique<traj_opt::BackupTrajOpt>();
   minco_optimizer_->setESDFMap(esdf_map_); 
 }
 
@@ -302,7 +500,9 @@ void MincoPlanner::cleanup()
 {
   astar_planner_.reset();
   minco_optimizer_.reset();
+  backup_opt_.reset();
   opt_path_pub_.reset();
+  backup_path_pub_.reset();
   esdf_cloud_pub_.reset();
   esdf_timer_.reset();
 }
@@ -478,6 +678,9 @@ bool MincoPlanner::makePlan(
       std::cout << MAGENTA << "[MincoPlanner] Mode: COLD_START (Full Replan)" << RESET << std::endl;
   }
 
+  // 每次规划都生成备份轨迹
+  traj_opt::Trajectory backup_traj = generateBackupTraj(start_state);
+
   // 3. 使用 Minco 优化器优化路径
   auto opt_time = rclcpp::Clock().now().seconds();
   traj_opt::Trajectory opt_traj;
@@ -509,7 +712,6 @@ bool MincoPlanner::makePlan(
             << (opt_time_end - opt_time) << " seconds, cost: " << cost << RESET << std::endl;
   // 4. 将优化后的轨迹转换为导航路径
   double t_start = plan_start_time;
-  // Re-sample based on fixed time step
   double t_step = 0.05;
   int steps = std::ceil(opt_traj.getTotalDuration() / t_step) + 1;
   steps = std::max(2, steps);
@@ -517,7 +719,7 @@ bool MincoPlanner::makePlan(
   // Resize plan
   plan.poses.resize(steps);
   for (int i = 0; i < steps; ++i) {
-      plan.poses[i].header = plan.header;
+    plan.poses[i].header = plan.header;
   }
 
   for (int i = 0; i < steps; ++i) {
@@ -532,7 +734,7 @@ bool MincoPlanner::makePlan(
     if (vel.norm() > 1e-4) {
       yaw = std::atan2(vel(1), vel(0));
     } else if (i > 0) {
-      yaw = 2.0 * std::atan2(plan.poses[i-1].pose.orientation.z, plan.poses[i-1].pose.orientation.w);
+      yaw = 2.0 * std::atan2(plan.poses[i - 1].pose.orientation.z, plan.poses[i - 1].pose.orientation.w);
     } else {
       Eigen::Vector3d vel_next = opt_traj.getVel(t + 1e-3);
       if (vel_next.norm() > 1e-4) {
@@ -687,8 +889,8 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
     
     // Threshold: 0.5m.
     if (tracking_error > 0.5) {
-        std::cout << YELLOW << "[MincoPlanner] Hot Start Rejected: Large tracking error (" << tracking_error << "m)" << RESET << std::endl;
-        return PlanningState::COLD_START;
+      std::cout << YELLOW << "[MincoPlanner] EMERGENCY_STOP: Large tracking error (" << tracking_error << "m)" << RESET << std::endl;
+      return PlanningState::EMERGENCY_STOP;
     }
 
     // 4. Check Direction Consistency

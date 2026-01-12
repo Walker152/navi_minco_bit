@@ -8,10 +8,8 @@ Panels:
         - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
-        - /Global Planner1/Path1
-        - /Controller1
-        - /Controller1/Local Plan1
-        - /GICP1/Prior_map1
+        - /Global Planner1
+        - /GICP1
       Splitter Ratio: 0.5833333134651184
     Tree Height: 740
   - Class: rviz_common/Selection
@@ -164,7 +162,7 @@ Visualization Manager:
           Max Intensity: 10
           Min Color: 0; 0; 0
           Min Intensity: 0
-          Name: Global_ESDF
+          Name: Global ESDF
           Position Transformer: XYZ
           Selectable: true
           Size (Pixels): 3
@@ -183,6 +181,34 @@ Visualization Manager:
         - Alpha: 1
           Buffer Length: 1
           Class: rviz_default_plugins/Path
+          Color: 99; 69; 44
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Billboards
+          Line Width: 0.10000000149011612
+          Name: Backup Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /backup_path
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
           Color: 26; 95; 180
           Enabled: true
           Head Diameter: 0.029999999329447746
@@ -190,7 +216,7 @@ Visualization Manager:
           Length: 0.5
           Line Style: Billboards
           Line Width: 0.05000000074505806
-          Name: Path
+          Name: Global Path
           Offset:
             X: 0
             Y: 0
@@ -290,7 +316,7 @@ Visualization Manager:
           Length: 0.30000001192092896
           Line Style: Billboards
           Line Width: 0.029999999329447746
-          Name: Local Plan
+          Name: Local Path
           Offset:
             X: 0
             Y: 0
@@ -389,7 +415,7 @@ Visualization Manager:
           Max Intensity: 4096
           Min Color: 0; 0; 0
           Min Intensity: 0
-          Name: Prior_map
+          Name: Prior Map
           Position Transformer: XYZ
           Selectable: true
           Size (Pixels): 3
@@ -423,7 +449,7 @@ Visualization Manager:
           Max Intensity: 4096
           Min Color: 0; 0; 0
           Min Intensity: 0
-          Name: Aligned_map
+          Name: Aligned Map
           Position Transformer: ""
           Selectable: true
           Size (Pixels): 3
@@ -457,7 +483,7 @@ Visualization Manager:
           Max Intensity: 4096
           Min Color: 0; 0; 0
           Min Intensity: 0
-          Name: Lidar_cloud
+          Name: Lidar Cloud
           Position Transformer: ""
           Selectable: true
           Size (Pixels): 3
@@ -520,25 +546,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 47.557884216308594
+      Distance: 12.592803955078125
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 15.641183853149414
-        Y: 2.867056131362915
-        Z: -7.736133575439453
+        X: 7.995816230773926
+        Y: 6.553024768829346
+        Z: -9.005908012390137
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.3947970867156982
+      Pitch: 1.2747966051101685
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 3.2385802268981934
+      Yaw: 3.053579330444336
     Saved: ~
 Window Geometry:
   Displays:
