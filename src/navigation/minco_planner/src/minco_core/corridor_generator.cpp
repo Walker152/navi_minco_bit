@@ -27,8 +27,9 @@ PolyhedronH SimpleCorridorGenerator::generateSafeBox(
     dist = 0.0;
   }
 
+  double safe_dist = std::max(dist - 0.4, 0.0);  // robot radius margin
   // Inscribed square of a circle (2D): half_size = r / sqrt(2), with safety factor.
-  double box_half_size = (dist / 1.414) * 0.9;
+  double box_half_size = (safe_dist / 1.414) * 0.9;
 
   if (!std::isfinite(box_half_size) || box_half_size < kMinHalfSize) {
     box_half_size = kMinHalfSize;
