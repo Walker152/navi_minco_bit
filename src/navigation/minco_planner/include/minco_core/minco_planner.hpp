@@ -103,6 +103,12 @@ private:
     int steps,
     double t_step);
 
+  nav_msgs::msg::Path convertTrajectoryToPath(
+    const traj_opt::Trajectory & traj,
+    const std_msgs::msg::Header & header,
+    int steps,
+    double t_step) const;
+
   // Visualization helpers
   void TrajectoryViz(
     const traj_opt::Trajectory & traj,

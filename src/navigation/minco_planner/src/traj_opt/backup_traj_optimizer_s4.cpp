@@ -65,8 +65,6 @@ inline bool insideBounds(const Aabb & b, const Eigen::Vector3d & p)
           p.z() > b.zmin + eps && p.z() < b.zmax - eps);
 }
 
-// Raycast distance from an interior point to AABB boundary along a forward ray direction.
-// Returns the exit distance (>0) if valid; otherwise 0.
 inline double raycastBox(
   const Eigen::Vector3d & start_pos,
   const Eigen::Vector3d & direction,
