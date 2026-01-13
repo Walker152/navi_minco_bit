@@ -222,25 +222,27 @@ void MincoPlanner::publishBackupTrajectory(
   opt_path_pub_->publish(traj_msg);
 }
 
-void MincoPlanner::TrajectoryViz(
+nav_msgs::msg::Path MincoPlanner::convertTrajectoryToPath(
   const traj_opt::Trajectory & traj,
   const std_msgs::msg::Header & header,
   int steps,
-  double t_step)
+  double t_step) const
 {
-  if (!backup_path_pub_ || steps <= 0) {
-    return;
-  }
-
   nav_msgs::msg::Path path_msg;
   path_msg.header = header;
+
+  if (steps <= 0 || t_step <= 0.0) {
+    return path_msg;
+  }
+
   path_msg.poses.resize(static_cast<size_t>(steps));
 
+  const double total_duration = traj.getTotalDuration();
   for (int i = 0; i < steps; ++i)
   {
     double t = i * t_step;
-    if (t > traj.getTotalDuration()) {
-      t = traj.getTotalDuration();
+    if (t > total_duration) {
+      t = total_duration;
     }
 
     Eigen::Vector3d pos = traj.getPos(t);
@@ -268,6 +270,23 @@ void MincoPlanner::TrajectoryViz(
     pose.pose.orientation.w = std::cos(yaw / 2.0);
   }
 
+  return path_msg;
+}
+
+void MincoPlanner::TrajectoryViz(
+  const traj_opt::Trajectory & traj,
+  const std_msgs::msg::Header & header,
+  int steps,
+  double t_step)
+{
+  if (!backup_path_pub_) {
+    return;
+  }
+
+  auto path_msg = convertTrajectoryToPath(traj, header, steps, t_step);
+  if (path_msg.poses.empty()) {
+    return;
+  }
   backup_path_pub_->publish(path_msg);
 }
 
@@ -687,6 +706,8 @@ bool MincoPlanner::makePlan(
   Eigen::Matrix3d end_state;
   end_state.setZero();
   end_state.col(0) = sparse_path.back();
+
+  // 移除起点附近的冗余路径点
   while (sparse_path.size() > 2)
   {
     Eigen::Vector3d first_pt = sparse_path[1];
@@ -694,9 +715,7 @@ bool MincoPlanner::makePlan(
     if ((dir.norm() < 0.2 )) 
     {
       sparse_path.erase(sparse_path.begin() + 1);
-    }
-    else
-    {
+    } else {
       break;
     }
   }
@@ -710,56 +729,24 @@ bool MincoPlanner::makePlan(
   auto opt_time_end = rclcpp::Clock().now().seconds();
   std::cout << GREEN << "[MincoPlanner] Minco optimization time: "
             << (opt_time_end - opt_time) << " seconds, cost: " << cost << RESET << std::endl;
-  // 4. 将优化后的轨迹转换为导航路径
-  double t_start = plan_start_time;
-  double t_step = 0.05;
-  int steps = std::ceil(opt_traj.getTotalDuration() / t_step) + 1;
+
+  // 4. 发布优化后的轨迹
+  const double t_start = plan_start_time;
+  const double t_step = 0.05;
+  int steps = static_cast<int>(std::ceil(opt_traj.getTotalDuration() / t_step)) + 1;
   steps = std::max(2, steps);
-  
-  // Resize plan
-  plan.poses.resize(steps);
-  for (int i = 0; i < steps; ++i) {
-    plan.poses[i].header = plan.header;
-  }
-
-  for (int i = 0; i < steps; ++i) {
-    double t = i * t_step;
-    if (t > opt_traj.getTotalDuration()) {
-      t = opt_traj.getTotalDuration();
-    }
-    Eigen::Vector3d pos = opt_traj.getPos(t);
-    Eigen::Vector3d vel = opt_traj.getVel(t);
-
-    double yaw = 0.0;
-    if (vel.norm() > 1e-4) {
-      yaw = std::atan2(vel(1), vel(0));
-    } else if (i > 0) {
-      yaw = 2.0 * std::atan2(plan.poses[i - 1].pose.orientation.z, plan.poses[i - 1].pose.orientation.w);
-    } else {
-      Eigen::Vector3d vel_next = opt_traj.getVel(t + 1e-3);
-      if (vel_next.norm() > 1e-4) {
-        yaw = std::atan2(vel_next(1), vel_next(0));
-      }
-    }
-
-    plan.poses[i].pose.position.x = pos(0);
-    plan.poses[i].pose.position.y = pos(1);
-    plan.poses[i].pose.position.z = 0.0;
-    plan.poses[i].pose.orientation.x = 0.0;
-    plan.poses[i].pose.orientation.y = 0.0;
-    plan.poses[i].pose.orientation.z = sin(yaw / 2.0);
-    plan.poses[i].pose.orientation.w = cos(yaw / 2.0);
-  }
-
-  std::cout << GREEN << "[MincoPlanner] Successfully created plan with " << steps
-            << " waypoints." << RESET << std::endl;
-
   publishOptimizedTrajectory(opt_traj, plan.header, steps, t_step);
+
+  // Return sampled global plan(for visualization)
+  plan = convertTrajectoryToPath(opt_traj, plan.header, steps, t_step);
 
   // 5. 保存优化后的轨迹
   last_traj_ = opt_traj;
   last_traj_.start_WT = t_start;
   has_last_traj_ = true;
+
+  std::cout << GREEN << "[MincoPlanner] Successfully created plan with " << plan.poses.size()
+            << " waypoints." << RESET << std::endl;
 
   return !plan.poses.empty();
 }
