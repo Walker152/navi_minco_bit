@@ -12,3 +12,8 @@ build-*/
 .vscode
 *.pcd
 *.bash
+*.csv
+*.db
+*.sqlite
+*.png
+.venv/
