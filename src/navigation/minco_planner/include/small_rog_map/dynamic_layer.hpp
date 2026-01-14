@@ -2,13 +2,14 @@
 
 #include <Eigen/Core>
 
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp_lifecycle/lifecycle_node.hpp>
+
 #include <mutex>
+#include <string>
 #include <vector>
 
-#include "nav_msgs/msg/occupancy_grid.hpp"
-
-#include "nav2_costmap_2d/cost_values.hpp"
-#include "nav2_costmap_2d/costmap_2d.hpp"
+#include "sensor_msgs/msg/point_cloud2.hpp"
 
 namespace small_rog_map
 {
@@ -18,22 +19,18 @@ class DynamicLayer
 public:
   DynamicLayer();
 
-  // Update from nav_msgs::msg::OccupancyGrid.
-  // Obstacles: cells with value >= 99.
-  // Dilation: expand obstacles by dilation_radius_m before EDT.
-  void updateFromOccupancyGrid(
-    const nav_msgs::msg::OccupancyGrid & grid,
-    double dilation_radius_m,
-    bool treat_unknown_as_obstacle = false);
+  void configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr & node, const std::string & topic);
+  void setGeometry(int w, int h, double res, const Eigen::Vector2d & origin);
 
-  // Update directly from Nav2 Costmap2D.
-  // Obstacles: LETHAL_OBSTACLE (254) and INSCRIBED_INFLATED_OBSTACLE (253).
-  // Unknown: NO_INFORMATION (255) handled by treat_unknown_as_obstacle.
-  // Dilation: expand obstacles by dilation_radius_m before EDT.
-  void updateFromCostmap2D(
-    nav2_costmap_2d::Costmap2D * costmap,
-    double dilation_radius_m,
-    bool treat_unknown_as_obstacle);
+  // Update from sparse dynamic obstacle point cloud (e.g. STVL voxel_grid).
+  // The grid size/resolution/origin should be aligned with the static layer.
+  void updateFromPointCloud(
+    const sensor_msgs::msg::PointCloud2 & cloud,
+    int width,
+    int height,
+    double resolution,
+    const Eigen::Vector2d & origin,
+    double dilation_radius_m);
 
   // Query distance (meters) and gradient. If pos is outside the grid, returns far distance.
   void evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const;
@@ -49,6 +46,8 @@ public:
 private:
   static constexpr double kFarDistance = 10.0;
 
+  void cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
+
   void buildDilationOffsets(int radius_cells, std::vector<Eigen::Vector2i> & offsets) const;
 
   mutable std::mutex mutex_;
@@ -58,6 +57,9 @@ private:
   int height_{0};
   double resolution_{0.0};
   Eigen::Vector2d origin_{0.0, 0.0};
+
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
+  rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
 };
 
 }  // namespace small_rog_map
