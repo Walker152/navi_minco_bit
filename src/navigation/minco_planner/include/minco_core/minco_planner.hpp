@@ -20,11 +20,13 @@
 
 #include "sensor_msgs/msg/point_cloud2.hpp"
 
+#include "visualization_msgs/msg/marker.hpp"
+
 #include "ros_interfaces/msg/position_command.hpp"
 #include "ros_interfaces/msg/mpc_position_command.hpp"
 
 #include "minco_core/astar.hpp"
-#include "minco_core/static_esdf_map.hpp"
+#include "small_rog_map/hybrid_esdf_map.hpp"
 #include "minco_core/corridor_generator.hpp"
 #include "traj_opt/minco_optimizer.hpp"
 #include "traj_opt/backup_traj_optimizer_s4.h"
@@ -118,6 +120,11 @@ private:
 
   void publishEsdfCloud(const std_msgs::msg::Header & header);
 
+  void publishAstarPath(const nav_msgs::msg::Path & astar_path);
+  void publishControlPoints(
+    const std::vector<Eigen::Vector3d> & control_points,
+    const std_msgs::msg::Header & header);
+
   std::shared_ptr<tf2_ros::Buffer> tf_;
   nav2_util::LifecycleNode::WeakPtr node_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
@@ -134,7 +141,7 @@ private:
   std::unique_ptr<traj_opt::BackupTrajOpt> backup_opt_;
   
   // Static ESDF Map
-  StaticESDFMap::Ptr esdf_map_;
+  small_rog_map::HybridESDFMap::Ptr esdf_map_;
   SimpleCorridorGenerator::Ptr corridor_gen_;
   std::string esdf_pcd_path_;
   double esdf_resolution_;
@@ -146,7 +153,11 @@ private:
   
   rclcpp::Publisher<ros_interfaces::msg::PositionCommand>::SharedPtr traj_pub_;
   rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_pub_;
+
+  // For Visualization
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr backup_path_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr astar_path_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr control_points_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr esdf_cloud_pub_;
   rclcpp::TimerBase::SharedPtr esdf_timer_;
   uint32_t opt_trajectory_id_{0};
