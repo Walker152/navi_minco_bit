@@ -16,6 +16,11 @@ import platform
 import csv
 import os
 
+# --- Output Path Configuration ---
+# CSV will be saved to: <OUTPUT_ROOT_DIR>/csv
+# PNG will be saved to: <OUTPUT_ROOT_DIR>/png
+OUTPUT_ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
 # --- Dependency Check ---
 try:
     from ros_interfaces.msg import MpcPositionCommand
@@ -204,6 +209,19 @@ class ModernVisualizer:
         self.node = node
         self.paused = False
 
+        # Output directories
+        self.save_root = OUTPUT_ROOT_DIR
+        self.csv_dir = os.path.join(self.save_root, 'csv')
+        self.png_dir = os.path.join(self.save_root, 'png')
+        try:
+            os.makedirs(self.csv_dir, exist_ok=True)
+            os.makedirs(self.png_dir, exist_ok=True)
+            print(f"Output root: {self.save_root}")
+            print(f" - CSV dir: {self.csv_dir}")
+            print(f" - PNG dir: {self.png_dir}")
+        except Exception as e:
+            print(f"Warning: failed to create output directories under '{self.save_root}': {e}")
+
         # --- Font Configuration ---
         plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial', 'sans-serif']
         plt.rcParams['axes.unicode_minus'] = False
@@ -340,18 +358,23 @@ class ModernVisualizer:
         print(f"UI {'PAUSED' if self.paused else 'RESUMED'}")
 
     def save_screenshot(self, event):
-        filename = f"nav2_analysis_{int(time.time())}.png"
-        self.fig.savefig(filename, facecolor=THEME['bg'])
-        print(f"Screenshot saved: {filename}")
+        try:
+            os.makedirs(self.png_dir, exist_ok=True)
+            filename = os.path.join(self.png_dir, f"nav2_analysis_{int(time.time())}.png")
+            self.fig.savefig(filename, facecolor=THEME['bg'])
+            print(f"Screenshot saved: {filename}")
+        except Exception as e:
+            print(f"Error saving screenshot: {e}")
 
     def save_csv(self, event):
-        filename = f"nav2_data_{int(time.time())}.csv"
         try:
+            os.makedirs(self.csv_dir, exist_ok=True)
+            filename = os.path.join(self.csv_dir, f"nav2_data_{int(time.time())}.csv")
             with self.node.lock:
                 if len(self.node.times) == 0:
                     print("No data to save!")
                     return
-                rows = zip(self.node.times, self.node.pos_errors, self.node.vel_errors, self.node.acc_errors, self.node.planner_freqs, self.node.control_freqs)
+                rows = list(zip(self.node.times, self.node.pos_errors, self.node.vel_errors, self.node.acc_errors, self.node.planner_freqs, self.node.control_freqs))
             
             with open(filename, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
@@ -428,7 +451,8 @@ class ModernVisualizer:
             self.axes[3].set_ylim(0, max_f * 1.3 + 1.0)
 
 def main():
-    rclpy.init()
+    # rclpy will handle ROS 2 arguments (e.g. --ros-args).
+    rclpy.init(args=sys.argv)
     node = Nav2Analyzer()
     thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
     thread.start()
