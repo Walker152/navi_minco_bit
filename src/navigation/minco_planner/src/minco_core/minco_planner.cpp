@@ -20,14 +20,31 @@ void MincoPlanner::publishEsdfCloud(const std_msgs::msg::Header & header)
     return;
   }
 
-  const int width = esdf_map_->getWidth();
-  const int height = esdf_map_->getHeight();
-  if (width <= 0 || height <= 0) {
-    return;
+  // Visualize fused ESDF (static + dynamic). We sample on the dynamic layer grid if available,
+  // otherwise fall back to the static layer grid.
+  int width = 0;
+  int height = 0;
+  double res = 0.0;
+  Eigen::Vector2d origin(0.0, 0.0);
+
+  const auto dynamic_layer = esdf_map_->dynamicLayer();
+  if (dynamic_layer && dynamic_layer->isValid()) {
+    width = dynamic_layer->width();
+    height = dynamic_layer->height();
+    res = dynamic_layer->resolution();
+    origin = dynamic_layer->origin();
+  } else {
+    const auto static_layer = esdf_map_->staticLayer();
+    if (!static_layer || !static_layer->isValid()) {
+      return;
+    }
+    width = static_layer->width();
+    height = static_layer->height();
+    res = static_layer->resolution();
+    origin = static_layer->origin();
   }
 
-  const auto & data = esdf_map_->getData();
-  if (data.empty()) {
+  if (width <= 0 || height <= 0) {
     return;
   }
 
@@ -63,19 +80,21 @@ void MincoPlanner::publishEsdfCloud(const std_msgs::msg::Header & header)
   cloud.row_step = cloud.point_step * cloud.width;
   cloud.data.resize(static_cast<size_t>(cloud.row_step) * cloud.height);
 
-  const double res = esdf_map_->getResolution();
-  const auto origin = esdf_map_->getOrigin();
-
   size_t point_index = 0;
   for (int iy = 0; iy < height; ++iy)
   {
     for (int ix = 0; ix < width; ++ix, ++point_index)
     {
-      const size_t idx = static_cast<size_t>(iy) * static_cast<size_t>(width) + static_cast<size_t>(ix);
       const float x = static_cast<float>(origin.x() + ix * res);
       const float y = static_cast<float>(origin.y() + iy * res);
       const float z = 0.0f;
-      const float intensity = static_cast<float>((idx < data.size()) ? data[idx] : 0.0);
+      double dist = 0.0;
+      Eigen::Vector3d grad;
+      esdf_map_->evaluate(Eigen::Vector3d(static_cast<double>(x), static_cast<double>(y), 0.0), dist, grad);
+      if (!std::isfinite(dist)) {
+        dist = 0.0;
+      }
+      const float intensity = static_cast<float>(dist);
 
       const size_t base = point_index * static_cast<size_t>(cloud.point_step);
       std::memcpy(&cloud.data[base + 0], &x, sizeof(float));
@@ -492,8 +511,12 @@ void MincoPlanner::configure(
     "/esdf_cloud", 10);
 
   // Load Static ESDF Map
-  esdf_map_ = std::make_shared<StaticESDFMap>();
-  if (!esdf_map_->loadMap(esdf_pcd_path_, esdf_resolution_)) {
+  esdf_map_ = std::make_shared<small_rog_map::HybridESDFMap>();
+
+  // Initialize ESDF dynamic layer ROS subscription (STVL voxel_grid).
+  esdf_map_->initRos(parent, "/global_costmap/spatio_temporal_voxel_layer/voxel_grid");
+
+  if (!esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_)) {
     std::cout << RED << "[MincoPlanner] "
               << "Failed to load Static ESDF map from PCD: " << esdf_pcd_path_ << RESET << std::endl;
   } else {
@@ -548,6 +571,8 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
   const geometry_msgs::msg::PoseStamped & goal)
 {
   std::lock_guard<std::mutex> lock(mutex_);
+
+  // 1. Initialize the plan message
   nav_msgs::msg::Path path;
   path.header.stamp = rclcpp::Clock().now();
   path.header.frame_id = global_frame_;
@@ -567,7 +592,7 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
     throw std::runtime_error("MincoPlanner: minco_optimizer is not initialized");
   }
 
-  // 将起点和终点转换到地图坐标系
+  // 2. convert start and goal to global frame
   unsigned int mx_start, my_start, mx_goal, my_goal;
   if (!costmap_->worldToMap(start.pose.position.x, start.pose.position.y, mx_start, my_start)) {
     throw std::runtime_error(
@@ -589,7 +614,7 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
       std::to_string(goal.pose.position.y) + ") was in lethal cost");
   }
 
-  // 特殊情况：起点和终点重合，直接返回单点路径
+  // 3. Handle the trivial case (start == goal)
   if (start.pose.position.x == goal.pose.position.x &&
     start.pose.position.y == goal.pose.position.y)
   {
@@ -600,6 +625,7 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
     return path;
   }
 
+  // 4. Run the main planning pipeline
   if (!makePlan(start.pose, goal.pose, tolerance_, cancel_checker, path)) {
     throw std::runtime_error(
             "Failed to create plan with tolerance of: " + std::to_string(tolerance_) );
@@ -615,14 +641,15 @@ bool MincoPlanner::makePlan(
   nav_msgs::msg::Path & plan)
 {
   (void)tolerance;
-  // 1. Prepare the plan
+  // 1. Reset plan output and header
   plan.poses.clear();
   plan.header.stamp = rclcpp::Clock().now();
   plan.header.frame_id = global_frame_;
 
   double plan_start_time = rclcpp::Clock().now().seconds() + 0.03;
   
-  // 1. 使用 A* 算法找到路径
+  // 2. Search a discrete guide path using A*
+  // Convert world coords to map coords
   double wx = start.position.x;
   double wy = start.position.y;
   unsigned int mx_start, my_start;
@@ -637,14 +664,15 @@ bool MincoPlanner::makePlan(
   std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
   unsigned int nx = costmap_->getSizeInCellsX();
   unsigned int ny = costmap_->getSizeInCellsY();
+
+  // Setup A* inputs
   astar_planner_->setSize(nx, ny);
   astar_planner_->setStart(static_cast<int>(mx_start), static_cast<int>(my_start));
   astar_planner_->setGoal(static_cast<int>(mx_goal), static_cast<int>(my_goal));
   astar_planner_->setupNavFn(true);
   astar_planner_->setCostmap(costmap_->getCharMap(), true, allow_unknown_);
 
-  // 传播波前
-  // 循环调用 propNavFnAstar 直到找到 Start 或队列为空
+  // Run A* wavefront expansion
   int max_total_cycles = nx * ny*9999; 
   int cycles_per_step = std::max(nx * ny / 20, nx + ny);
   auto time = rclcpp::Clock().now().seconds();
@@ -660,12 +688,13 @@ bool MincoPlanner::makePlan(
   auto time_end = rclcpp::Clock().now().seconds();
   std::cout << GREEN << "[MincoPlanner] A* planning time: "
             << (time_end - time) << " seconds" << RESET << std::endl;
-  // 提取路径
+
+  // Extract the A* path and convert it to world coords
   if (!astar_planner_->calcPath(nx * ny / 2) || astar_planner_->getPathLen() < 2) {
     return false;
   }
 
-  // 取出 A* 路径（地图坐标），转换到世界坐标并构造导航路径
+  // Convert map path to nav_msgs::Path
   float * path_x = astar_planner_->getPathX();
   float * path_y = astar_planner_->getPathY();
   const int len = astar_planner_->getPathLen();
@@ -689,13 +718,15 @@ bool MincoPlanner::makePlan(
 
   publishAstarPath(plan);
 
-  // 2. 状态机逻辑
+  // 3. Sparsify the path and decide the planning mode
+  // Reduce the number of waypoints using line-of-sight checks
   Eigen::Matrix3d start_state;
   std::vector<Eigen::Vector3d> sparse_path = getSparseWaypoints(guide_path);
 
   publishControlPoints(sparse_path, plan.header);
   lock.unlock();
 
+  // Select HOT_START (partial replan) or COLD_START (full replan)
   PlanningState state = determinePlanningState(start, sparse_path);
   
   if (state == PlanningState::HOT_START)
@@ -710,17 +741,17 @@ bool MincoPlanner::makePlan(
       std::cout << MAGENTA << "[MincoPlanner] Mode: COLD_START (Full Replan)" << RESET << std::endl;
   }
 
-  // 每次规划都生成备份轨迹
+  // 4. Build a backup stop trajectory
   traj_opt::Trajectory backup_traj = generateBackupTraj(start_state);
 
-  // 3. 使用 Minco 优化器优化路径
+  // 5. Optimize a smooth trajectory using MINCO
   auto opt_time = rclcpp::Clock().now().seconds();
   traj_opt::Trajectory opt_traj;
   Eigen::Matrix3d end_state;
   end_state.setZero();
   end_state.col(0) = sparse_path.back();
 
-  // 移除起点附近的冗余路径点
+  // Remove near-start redundant points
   while (sparse_path.size() > 2)
   {
     Eigen::Vector3d first_pt = sparse_path[1];
@@ -732,6 +763,9 @@ bool MincoPlanner::makePlan(
       break;
     }
   }
+
+  // [原理] MINCO（Minimum Control）用多项式段（常见为五次）参数化轨迹，并以“控制量”（如 jerk/snap）的能量为主目标。
+  //        将安全距离（ESDF）、速度/加速度等硬约束转为光滑惩罚项后，可用 L-BFGS 在无约束空间里高效迭代求解。
   
   double cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
   if (std::isinf(cost))
@@ -743,7 +777,7 @@ bool MincoPlanner::makePlan(
   std::cout << GREEN << "[MincoPlanner] Minco optimization time: "
             << (opt_time_end - opt_time) << " seconds, cost: " << cost << RESET << std::endl;
 
-  // 4. 发布优化后的轨迹
+  // 6. Publish the optimized trajectory and return a sampled Path
   const double t_start = plan_start_time;
   const double t_step = 0.05;
   int steps = static_cast<int>(std::ceil(opt_traj.getTotalDuration() / t_step)) + 1;
@@ -753,7 +787,7 @@ bool MincoPlanner::makePlan(
   // Return sampled global plan(for visualization)
   plan = convertTrajectoryToPath(opt_traj, plan.header, steps, t_step);
 
-  // 5. 保存优化后的轨迹
+  // 7. Cache the last trajectory for HOT_START
   last_traj_ = opt_traj;
   last_traj_.start_WT = t_start;
   has_last_traj_ = true;
@@ -765,6 +799,7 @@ bool MincoPlanner::makePlan(
 }
 
 std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<Eigen::Vector3d>& path) {
+  // 1. Handle degenerate inputs
     std::vector<Eigen::Vector3d> sparse;
     if (path.empty()) return sparse;
     
@@ -774,6 +809,7 @@ std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<
         return sparse;
     }
     
+    // 2. Greedy sparsify using line-of-sight checks
     const int lookahead_step = 2.0 / costmap_->getResolution();
     size_t current_idx = 0;
 
@@ -795,6 +831,7 @@ std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<
       sparse.push_back(path.back());
     }
 
+    // 3. Merge very close points and keep the final goal
     std::vector<Eigen::Vector3d> final_sparse;
     final_sparse.push_back(sparse.front());
     
@@ -805,7 +842,7 @@ std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<
         
         double dist = (curr_pt - last_pt).norm();
         
-        // 如果距离太近 (例如 < 1.0m)，且直接连线 (last -> next) 是无碰撞的，则跳过当前点
+           // Skip close points if the direct segment is collision-free
         if (dist < 1.0 && isLineFree(last_pt, next_pt)) {
              continue;
         }
@@ -813,12 +850,15 @@ std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<
         final_sparse.push_back(curr_pt);
     }
     
-    // 确保终点被加入
+    // Always keep the goal
     final_sparse.push_back(sparse.back());
     return final_sparse;
 }
 
 bool MincoPlanner::isLineFree(const Eigen::Vector3d& p1, const Eigen::Vector3d& p2) {
+  // 1. 用 costmap 栅格做直线离散采样碰撞检查（用于路径抽稀/走廊生成等）
+  //    1.1 以分辨率为步长采样线段
+  //    1.2 任一点落入膨胀障碍（>= INSCRIBED）则判为不可直连
     if (!costmap_) return true; 
     unsigned int mx, my;
     double dist = (p2 - p1).norm();
@@ -916,12 +956,12 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
     const geometry_msgs::msg::Pose & start_pose,
     const std::vector<Eigen::Vector3d> & new_path)
 {
-    // 1. Check if we have history
+    // 1. Check history availability
     if (!has_last_traj_) {
         return PlanningState::COLD_START;
     }
 
-    // 2. Check Time Validity
+    // 2. Check time validity
     double now = rclcpp::Clock().now().seconds() + 0.03;
     double t_dur = now - last_traj_.start_WT;
     if (t_dur <= 0.0 || t_dur >= last_traj_.getTotalDuration()) {
@@ -930,27 +970,27 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
         return PlanningState::COLD_START;
     }
 
-    // 3. Check Position Consistency
+    // 3. Check position consistency
     Eigen::Vector3d current_pos(start_pose.position.x, start_pose.position.y, 0.0);
     Eigen::Vector3d pred_pos = last_traj_.getPos(t_dur);
     double tracking_error = (current_pos - pred_pos).norm();
     
-    // Threshold: 0.5m.
+    // Error threshold
     if (tracking_error > 0.5) {
       std::cout << YELLOW << "[MincoPlanner] EMERGENCY_STOP: Large tracking error (" << tracking_error << "m)" << RESET << std::endl;
       return PlanningState::EMERGENCY_STOP;
     }
 
-    // 4. Check Direction Consistency
+    // 4. Check direction consistency
     if (new_path.size() >= 2) {
         Eigen::Vector3d pred_vel = last_traj_.getVel(t_dur);
-        // If moving slowly, direction check is noisy and less important -> allow hot start
+      // Skip direction check when speed is low
         if (pred_vel.norm() > 0.1) {
             Eigen::Vector3d path_dir = (new_path[1] - new_path[0]).normalized();
             Eigen::Vector3d vel_dir = pred_vel.normalized();
             double dot = vel_dir.dot(path_dir);
 
-            // If angle > 25 degrees (dot < 0.9), it's a significant turn/replan.
+        // Reject if the heading changes too much
             if (dot < 0.9) {
                 std::cout << YELLOW << "[MincoPlanner] Hot Start Rejected: Direction mismatch (dot=" << dot
                           << ", angle=" << std::acos(dot) * 180.0 / M_PI << " deg)" << RESET << std::endl;
