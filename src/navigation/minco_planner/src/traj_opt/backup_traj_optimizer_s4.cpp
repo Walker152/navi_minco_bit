@@ -31,7 +31,7 @@ inline bool extractAxisAlignedBounds(const PolyhedronH & h, Aabb & out)
     return false;
   }
 
-  // Inequality per row: n_x x + n_y y + n_z z < d
+  // Parse half-space rows: n_x x + n_y y + n_z z < d
   for (int i = 0; i < h.rows(); ++i) {
     const double nx = h(i, 0);
     const double ny = h(i, 1);
@@ -146,7 +146,7 @@ inline bool buildForwardStopQuintic(
     const double a0a = a0(axis);
     const double pTa = p_end(axis);
 
-    // MINCO standard quintic interpolation (closed-form):
+    // Closed-form quintic interpolation:
     // p(t)=c0+c1 t+c2 t^2+c3 t^3+c4 t^4+c5 t^5
     const double c0 = p0a;
     const double c1 = v0a;
@@ -209,10 +209,11 @@ bool BackupTrajOpt::optimize(Trajectory & out_traj) const
   Eigen::Vector3d v0 = start_state_.col(1);
   Eigen::Vector3d a0 = start_state_.col(2);
 
-  // Force 2D planar behavior.
+  // Force 2D planar behavior
   v0.z() = 0.0;
   a0.z() = 0.0;
 
+  // Extract an axis-aligned safe box from the first polyhedron
   Aabb bounds;
   const bool has_bounds = (!polys_.empty()) ? extractAxisAlignedBounds(polys_.front(), bounds) : false;
 
@@ -221,11 +222,11 @@ bool BackupTrajOpt::optimize(Trajectory & out_traj) const
     return false;
   }
 
-  // Physical braking distance.
+  // Compute physical braking distance
   constexpr double a_max = 2.0;
   const double L_phy = (v_mag > 1e-4) ? (v_mag * v_mag) / (2.0 * a_max) : 0.0;
 
-  // Geometric distance to safe box boundary along velocity direction.
+  // Compute geometric free distance inside the safe box
   double L_geo = std::numeric_limits<double>::infinity();
   if (has_bounds && v_mag > 1e-4) {
     const Eigen::Vector3d dir = v0 / v_mag;
