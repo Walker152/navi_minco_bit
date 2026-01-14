@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "sensor_msgs/msg/point_field.hpp"
+#include "visualization_msgs/msg/marker.hpp"
 
 namespace minco_planner
 {
@@ -481,6 +482,12 @@ void MincoPlanner::configure(
   backup_path_pub_ = node->create_publisher<nav_msgs::msg::Path>(
     "/backup_path", rclcpp::QoS(rclcpp::KeepLast(1)));
 
+  astar_path_pub_ = node->create_publisher<nav_msgs::msg::Path>(
+    "/astar_path", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
+
+  control_points_pub_ = node->create_publisher<visualization_msgs::msg::Marker>(
+    "/minco_control_points", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
+
   esdf_cloud_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>(
     "/esdf_cloud", 10);
 
@@ -522,6 +529,8 @@ void MincoPlanner::cleanup()
   backup_opt_.reset();
   opt_path_pub_.reset();
   backup_path_pub_.reset();
+  astar_path_pub_.reset();
+  control_points_pub_.reset();
   esdf_cloud_pub_.reset();
   esdf_timer_.reset();
 }
@@ -678,9 +687,13 @@ bool MincoPlanner::makePlan(
     plan.poses.push_back(pose);
   }
 
+  publishAstarPath(plan);
+
   // 2. 状态机逻辑
   Eigen::Matrix3d start_state;
   std::vector<Eigen::Vector3d> sparse_path = getSparseWaypoints(guide_path);
+
+  publishControlPoints(sparse_path, plan.header);
   lock.unlock();
 
   PlanningState state = determinePlanningState(start, sparse_path);
@@ -821,6 +834,54 @@ bool MincoPlanner::isLineFree(const Eigen::Vector3d& p1, const Eigen::Vector3d& 
         }
     }
     return true;
+}
+
+void MincoPlanner::publishAstarPath(const nav_msgs::msg::Path & astar_path)
+{
+  // Publisher is transient_local, so publish even if there are no subscribers yet.
+  if (!astar_path_pub_) {
+    return;
+  }
+  astar_path_pub_->publish(astar_path);
+}
+
+void MincoPlanner::publishControlPoints(
+  const std::vector<Eigen::Vector3d> & control_points,
+  const std_msgs::msg::Header & header)
+{
+  if (!control_points_pub_ || control_points_pub_->get_subscription_count() == 0) {
+    return;
+  }
+
+  visualization_msgs::msg::Marker mk;
+  mk.header = header;
+  mk.ns = "minco_control_points";
+  mk.id = 0;
+  mk.type = visualization_msgs::msg::Marker::SPHERE_LIST;
+  mk.action = visualization_msgs::msg::Marker::ADD;
+  mk.pose.orientation.w = 1.0;
+
+  // Diameter in meters
+  mk.scale.x = 0.25;
+  mk.scale.y = 0.25;
+  mk.scale.z = 0.25;
+
+  // Orange-ish
+  mk.color.r = 1.0f;
+  mk.color.g = 0.55f;
+  mk.color.b = 0.0f;
+  mk.color.a = 1.0f;
+
+  mk.points.reserve(control_points.size());
+  for (const auto & p : control_points) {
+    geometry_msgs::msg::Point pt;
+    pt.x = p.x();
+    pt.y = p.y();
+    pt.z = 0.05;  // lift slightly for visibility
+    mk.points.push_back(pt);
+  }
+
+  control_points_pub_->publish(mk);
 }
 
 bool MincoPlanner::worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my)
