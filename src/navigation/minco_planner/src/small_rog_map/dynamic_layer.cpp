@@ -4,13 +4,78 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <limits>
+#include <string>
 #include <stdexcept>
+
+#include "sensor_msgs/msg/point_field.hpp"
+
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp_lifecycle/lifecycle_node.hpp>
 
 namespace small_rog_map
 {
 
 DynamicLayer::DynamicLayer() = default;
+
+void DynamicLayer::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr & node, const std::string & topic)
+{
+  node_ = node;
+  auto node_ptr = node_.lock();
+  if (!node_ptr) {
+    cloud_sub_.reset();
+    return;
+  }
+
+  cloud_sub_ = node_ptr->create_subscription<sensor_msgs::msg::PointCloud2>(
+    topic,
+    rclcpp::SensorDataQoS(),
+    std::bind(&DynamicLayer::cloudCallback, this, std::placeholders::_1));
+}
+
+void DynamicLayer::setGeometry(int w, int h, double res, const Eigen::Vector2d & origin)
+{
+  if (w <= 0 || h <= 0 || res <= 0.0) {
+    return;
+  }
+
+  const size_t expected = static_cast<size_t>(w) * static_cast<size_t>(h);
+  std::lock_guard<std::mutex> lock(mutex_);
+  width_ = w;
+  height_ = h;
+  resolution_ = res;
+  origin_ = origin;
+  dist_m_.assign(expected, kFarDistance);
+}
+
+void DynamicLayer::cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+{
+  if (!msg) {
+    return;
+  }
+
+  int w = 0;
+  int h = 0;
+  double res = 0.0;
+  Eigen::Vector2d origin(0.0, 0.0);
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    w = width_;
+    h = height_;
+    res = resolution_;
+    origin = origin_;
+  }
+
+  if (w <= 0 || h <= 0 || res <= 0.0) {
+    return;
+  }
+
+  // Update the ESDF from the point cloud
+  // Default dilation: connect sparse points without making walls too thick
+  constexpr double kDilationRadiusM = 0.2;
+  updateFromPointCloud(*msg, w, h, res, origin, kDilationRadiusM);
+}
 
 bool DynamicLayer::isValid() const
 {
@@ -70,51 +135,79 @@ void DynamicLayer::buildDilationOffsets(int radius_cells, std::vector<Eigen::Vec
   }
 }
 
-void DynamicLayer::updateFromOccupancyGrid(
-  const nav_msgs::msg::OccupancyGrid & grid,
-  double dilation_radius_m,
-  bool treat_unknown_as_obstacle)
+void DynamicLayer::updateFromPointCloud(
+  const sensor_msgs::msg::PointCloud2 & cloud,
+  int width,
+  int height,
+  double resolution,
+  const Eigen::Vector2d & origin,
+  double dilation_radius_m)
 {
-  const int w = static_cast<int>(grid.info.width);
-  const int h = static_cast<int>(grid.info.height);
-  const double res = static_cast<double>(grid.info.resolution);
-
-  if (w <= 0 || h <= 0 || res <= 0.0) {
-    throw std::invalid_argument("DynamicLayer::updateFromOccupancyGrid: invalid grid metadata");
+  if (width <= 0 || height <= 0 || resolution <= 0.0) {
+    throw std::invalid_argument("DynamicLayer::updateFromPointCloud: invalid grid metadata");
   }
 
-  const size_t expected = static_cast<size_t>(w) * static_cast<size_t>(h);
-  if (grid.data.size() != expected) {
-    throw std::invalid_argument("DynamicLayer::updateFromOccupancyGrid: data size mismatch");
-  }
+  const size_t expected = static_cast<size_t>(width) * static_cast<size_t>(height);
 
-  const double ox = grid.info.origin.position.x;
-  const double oy = grid.info.origin.position.y;
-
-  // Build obstacle mask (0=obstacle, 1=free)
+  // 1. Build a 2D occupancy mask
+  // 0 = obstacle, 1 = free
+  // [Theory] A 2D ESDF can be computed by an Euclidean Distance Transform (EDT) on this mask.
   std::vector<uint8_t> occ01(expected, 1U);
   std::vector<Eigen::Vector2i> obstacle_cells;
-  obstacle_cells.reserve(expected / 32U);
+  obstacle_cells.reserve(std::min(expected / 64U, static_cast<size_t>(4096)));
 
-  for (int y = 0; y < h; ++y) {
-    for (int x = 0; x < w; ++x) {
-      const size_t idx = static_cast<size_t>(y) * static_cast<size_t>(w) + static_cast<size_t>(x);
-      const int8_t v = grid.data[idx];
-
-      bool is_obstacle = (v >= 99);
-      if (!is_obstacle && treat_unknown_as_obstacle && v < 0) {
-        is_obstacle = true;
+  // 2. Mark obstacle cells from sparse point cloud hits
+  // Find x/y fields by name
+  if (!cloud.is_bigendian && cloud.point_step > 0U && !cloud.data.empty()) {
+    auto find_field = [&cloud](const char * name) -> const sensor_msgs::msg::PointField * {
+      for (const auto & f : cloud.fields) {
+        if (f.name == name) {
+          return &f;
+        }
       }
+      return nullptr;
+    };
 
-      if (is_obstacle) {
-        occ01[idx] = 0U;
-        obstacle_cells.emplace_back(x, y);
+    const auto * fx = find_field("x");
+    const auto * fy = find_field("y");
+    const bool fields_ok =
+      fx && fy && fx->datatype == sensor_msgs::msg::PointField::FLOAT32 && fy->datatype == sensor_msgs::msg::PointField::FLOAT32 &&
+      fx->count == 1U && fy->count == 1U &&
+      (static_cast<size_t>(fx->offset) + sizeof(float) <= static_cast<size_t>(cloud.point_step)) &&
+      (static_cast<size_t>(fy->offset) + sizeof(float) <= static_cast<size_t>(cloud.point_step));
+
+    if (fields_ok) {
+      const size_t point_count = static_cast<size_t>(cloud.width) * static_cast<size_t>(cloud.height);
+      const size_t stride = static_cast<size_t>(cloud.point_step);
+      const size_t max_points_by_bytes = cloud.data.size() / stride;
+      const size_t n = std::min(point_count, max_points_by_bytes);
+
+      for (size_t i = 0; i < n; ++i) {
+        const uint8_t * p = &cloud.data[i * stride];
+        float x = 0.0f;
+        float y = 0.0f;
+        std::memcpy(&x, p + fx->offset, sizeof(float));
+        std::memcpy(&y, p + fy->offset, sizeof(float));
+        if (!std::isfinite(x) || !std::isfinite(y)) {
+          continue;
+        }
+
+        const int ix = static_cast<int>(std::floor((static_cast<double>(x) - origin.x()) / resolution));
+        const int iy = static_cast<int>(std::floor((static_cast<double>(y) - origin.y()) / resolution));
+        if (ix < 0 || iy < 0 || ix >= width || iy >= height) {
+          continue;
+        }
+        const size_t idx = static_cast<size_t>(iy) * static_cast<size_t>(width) + static_cast<size_t>(ix);
+        if (occ01[idx] != 0U) {
+          occ01[idx] = 0U;
+          obstacle_cells.emplace_back(ix, iy);
+        }
       }
     }
   }
 
-  // Dilation
-  const int radius_cells = std::max(0, static_cast<int>(std::ceil(dilation_radius_m / res)));
+  // 3. Dilate obstacle cells
+  const int radius_cells = std::max(0, static_cast<int>(std::ceil(dilation_radius_m / resolution)));
   if (radius_cells > 0 && !obstacle_cells.empty()) {
     std::vector<Eigen::Vector2i> offsets;
     buildDilationOffsets(radius_cells, offsets);
@@ -124,21 +217,20 @@ void DynamicLayer::updateFromOccupancyGrid(
       for (const auto & off : offsets) {
         const int nx = c.x() + off.x();
         const int ny = c.y() + off.y();
-        if (nx < 0 || ny < 0 || nx >= w || ny >= h) {
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
           continue;
         }
-        const size_t nidx = static_cast<size_t>(ny) * static_cast<size_t>(w) + static_cast<size_t>(nx);
+        const size_t nidx = static_cast<size_t>(ny) * static_cast<size_t>(width) + static_cast<size_t>(nx);
         occ01_dilated[nidx] = 0U;
       }
     }
     occ01.swap(occ01_dilated);
   }
 
-  // EDT (squared distance in cells^2)
+  // 4. Run EDT
   std::vector<double> dist_sq_cells;
-  ESDFUtils::computeEDT2D(w, h, occ01, dist_sq_cells);
+  ESDFUtils::computeEDT2D(width, height, occ01, dist_sq_cells);
 
-  // Convert to meters
   std::vector<double> dist_m(expected, kFarDistance);
   for (size_t i = 0; i < expected; ++i) {
     const double d2 = dist_sq_cells[i];
@@ -146,120 +238,19 @@ void DynamicLayer::updateFromOccupancyGrid(
       dist_m[i] = kFarDistance;
       continue;
     }
-    dist_m[i] = std::sqrt(d2) * res;
+    dist_m[i] = std::sqrt(d2) * resolution;
     if (!std::isfinite(dist_m[i]) || dist_m[i] > kFarDistance) {
       dist_m[i] = kFarDistance;
     }
   }
 
-  // Commit under lock
+  // 5. Commit the new distance field
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    width_ = w;
-    height_ = h;
-    resolution_ = res;
-    origin_ = Eigen::Vector2d(ox, oy);
-    dist_m_.swap(dist_m);
-  }
-}
-
-void DynamicLayer::updateFromCostmap2D(
-  nav2_costmap_2d::Costmap2D * costmap,
-  double dilation_radius_m,
-  bool treat_unknown_as_obstacle)
-{
-  if (costmap == nullptr) {
-    throw std::invalid_argument("DynamicLayer::updateFromCostmap2D: costmap is null");
-  }
-
-  const int w = static_cast<int>(costmap->getSizeInCellsX());
-  const int h = static_cast<int>(costmap->getSizeInCellsY());
-  const double res = static_cast<double>(costmap->getResolution());
-  const double ox = static_cast<double>(costmap->getOriginX());
-  const double oy = static_cast<double>(costmap->getOriginY());
-
-  if (w <= 0 || h <= 0 || res <= 0.0) {
-    throw std::invalid_argument("DynamicLayer::updateFromCostmap2D: invalid costmap metadata");
-  }
-
-  const unsigned char * char_map = costmap->getCharMap();
-  if (char_map == nullptr) {
-    throw std::runtime_error("DynamicLayer::updateFromCostmap2D: getCharMap returned null");
-  }
-
-  const size_t expected = static_cast<size_t>(w) * static_cast<size_t>(h);
-
-  // Build obstacle mask (0=obstacle, 1=free)
-  std::vector<uint8_t> occ01(expected, 1U);
-  std::vector<Eigen::Vector2i> obstacle_cells;
-  obstacle_cells.reserve(expected / 32U);
-
-  for (int y = 0; y < h; ++y) {
-    for (int x = 0; x < w; ++x) {
-      const size_t idx = static_cast<size_t>(y) * static_cast<size_t>(w) + static_cast<size_t>(x);
-      const unsigned char c = char_map[idx];
-
-      bool is_obstacle =
-        (c == nav2_costmap_2d::LETHAL_OBSTACLE) ||
-        (c == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE);
-
-      if (!is_obstacle && c == nav2_costmap_2d::NO_INFORMATION && treat_unknown_as_obstacle) {
-        is_obstacle = true;
-      }
-
-      if (is_obstacle) {
-        occ01[idx] = 0U;
-        obstacle_cells.emplace_back(x, y);
-      }
-    }
-  }
-
-  // Dilation
-  const int radius_cells = std::max(0, static_cast<int>(std::ceil(dilation_radius_m / res)));
-  if (radius_cells > 0 && !obstacle_cells.empty()) {
-    std::vector<Eigen::Vector2i> offsets;
-    buildDilationOffsets(radius_cells, offsets);
-
-    std::vector<uint8_t> occ01_dilated = occ01;
-    for (const auto & c : obstacle_cells) {
-      for (const auto & off : offsets) {
-        const int nx = c.x() + off.x();
-        const int ny = c.y() + off.y();
-        if (nx < 0 || ny < 0 || nx >= w || ny >= h) {
-          continue;
-        }
-        const size_t nidx = static_cast<size_t>(ny) * static_cast<size_t>(w) + static_cast<size_t>(nx);
-        occ01_dilated[nidx] = 0U;
-      }
-    }
-    occ01.swap(occ01_dilated);
-  }
-
-  // EDT (squared distance in cells^2)
-  std::vector<double> dist_sq_cells;
-  ESDFUtils::computeEDT2D(w, h, occ01, dist_sq_cells);
-
-  // Convert to meters
-  std::vector<double> dist_m(expected, kFarDistance);
-  for (size_t i = 0; i < expected; ++i) {
-    const double d2 = dist_sq_cells[i];
-    if (d2 >= 1.0e19) {
-      dist_m[i] = kFarDistance;
-      continue;
-    }
-    dist_m[i] = std::sqrt(d2) * res;
-    if (!std::isfinite(dist_m[i]) || dist_m[i] > kFarDistance) {
-      dist_m[i] = kFarDistance;
-    }
-  }
-
-  // Commit under lock
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    width_ = w;
-    height_ = h;
-    resolution_ = res;
-    origin_ = Eigen::Vector2d(ox, oy);
+    width_ = width;
+    height_ = height;
+    resolution_ = resolution;
+    origin_ = origin;
     dist_m_.swap(dist_m);
   }
 }
@@ -268,12 +259,14 @@ void DynamicLayer::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::V
 {
   std::lock_guard<std::mutex> lock(mutex_);
 
+  // 1. Check validity
   if (width_ <= 1 || height_ <= 1 || resolution_ <= 0.0 || dist_m_.empty()) {
     dist = kFarDistance;
     grad.setZero();
     return;
   }
 
+  // 2. Convert world coords to grid coords
   const double px = (pos.x() - origin_.x()) / resolution_;
   const double py = (pos.y() - origin_.y()) / resolution_;
 
@@ -300,6 +293,7 @@ void DynamicLayer::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::V
   const double d01 = dist_m_[idx01];
   const double d11 = dist_m_[idx11];
 
+  // 3. Bilinear interpolation for distance
   const double lerp_y0 = (1.0 - fx) * d00 + fx * d10;
   const double lerp_y1 = (1.0 - fx) * d01 + fx * d11;
   dist = (1.0 - fy) * lerp_y0 + fy * lerp_y1;
@@ -307,6 +301,7 @@ void DynamicLayer::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::V
   const double dd_dx_pix = (1.0 - fy) * (d10 - d00) + fy * (d11 - d01);
   const double dd_dy_pix = (1.0 - fx) * (d01 - d00) + fx * (d11 - d10);
 
+  // 4. Finite-difference gradient (meters)
   grad.x() = dd_dx_pix / resolution_;
   grad.y() = dd_dy_pix / resolution_;
   grad.z() = 0.0;
