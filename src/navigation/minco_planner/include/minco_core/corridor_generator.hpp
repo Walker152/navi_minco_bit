@@ -4,7 +4,7 @@
 #include <Eigen/Core>
 #include <memory>
 
-#include "minco_core/static_esdf_map.hpp"
+#include "small_rog_map/hybrid_esdf_map.hpp"
 
 namespace minco_planner
 {
@@ -18,12 +18,12 @@ class SimpleCorridorGenerator
 public:
   using Ptr = std::shared_ptr<SimpleCorridorGenerator>;
 
-  explicit SimpleCorridorGenerator(std::shared_ptr<StaticESDFMap> esdf_map);
+  explicit SimpleCorridorGenerator(small_rog_map::HybridESDFMap::Ptr esdf_map);
 
   PolyhedronH generateSafeBox(const Eigen::Vector3d & center, double max_radius = 2.0) const;
 
 private:
-  std::shared_ptr<StaticESDFMap> esdf_map_;
+  small_rog_map::HybridESDFMap::Ptr esdf_map_;
 };
 
 }  // namespace minco_planner
