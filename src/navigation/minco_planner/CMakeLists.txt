@@ -33,6 +33,7 @@ nav2_package()
 set(library_name minco_planner)
 
 file(GLOB UTILS_SOURCES "src/utils/*.cpp")
+file(GLOB SMALL_ROG_MAP_SOURCES "src/small_rog_map/*.cpp")
 
 add_library(${library_name} SHARED
   src/minco_core/minco_planner.cpp
@@ -42,6 +43,7 @@ add_library(${library_name} SHARED
   src/traj_opt/minco_optimizer.cpp
   # MINCO / 轨迹优化核心实现（只保留规划实际用到的最小子集）
   ${UTILS_SOURCES}
+  ${SMALL_ROG_MAP_SOURCES}
 )
 
 include_directories(
