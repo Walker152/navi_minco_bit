@@ -8,10 +8,7 @@ Panels:
         - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
-        - /Global Planner1/Path1
-        - /Controller1
-        - /Controller1/Local Plan1
-        - /GICP1/Prior_map1
+        - /Global Planner1
       Splitter Ratio: 0.5833333134651184
     Tree Height: 740
   - Class: rviz_common/Selection
@@ -88,7 +85,7 @@ Visualization Manager:
         camera_init:
           Value: true
         map:
-          Value: false
+          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
@@ -164,7 +161,7 @@ Visualization Manager:
           Max Intensity: 10
           Min Color: 0; 0; 0
           Min Intensity: 0
-          Name: Global_ESDF
+          Name: Global ESDF
           Position Transformer: XYZ
           Selectable: true
           Size (Pixels): 3
@@ -183,6 +180,34 @@ Visualization Manager:
         - Alpha: 1
           Buffer Length: 1
           Class: rviz_default_plugins/Path
+          Color: 99; 69; 44
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Billboards
+          Line Width: 0.10000000149011612
+          Name: Backup Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /backup_path
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
           Color: 26; 95; 180
           Enabled: true
           Head Diameter: 0.029999999329447746
@@ -190,7 +215,7 @@ Visualization Manager:
           Length: 0.5
           Line Style: Billboards
           Line Width: 0.05000000074505806
-          Name: Path
+          Name: Global Path
           Offset:
             X: 0
             Y: 0
@@ -243,6 +268,47 @@ Visualization Manager:
           Use rainbow: true
           Value: true
         - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 25; 255; 0
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.05000000074505806
+          Name: Astar Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /astar_path
+          Value: true
+        - Class: rviz_default_plugins/Marker
+          Enabled: true
+          Name: Control Points
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /minco_control_points
+          Value: true
+        - Alpha: 1
           Class: rviz_default_plugins/Polygon
           Color: 25; 255; 0
           Enabled: false
@@ -290,7 +356,7 @@ Visualization Manager:
           Length: 0.30000001192092896
           Line Style: Billboards
           Line Width: 0.029999999329447746
-          Name: Local Plan
+          Name: Local Path
           Offset:
             X: 0
             Y: 0
@@ -389,7 +455,7 @@ Visualization Manager:
           Max Intensity: 4096
           Min Color: 0; 0; 0
           Min Intensity: 0
-          Name: Prior_map
+          Name: Prior Map
           Position Transformer: XYZ
           Selectable: true
           Size (Pixels): 3
@@ -423,7 +489,7 @@ Visualization Manager:
           Max Intensity: 4096
           Min Color: 0; 0; 0
           Min Intensity: 0
-          Name: Aligned_map
+          Name: Aligned Map
           Position Transformer: ""
           Selectable: true
           Size (Pixels): 3
@@ -457,7 +523,7 @@ Visualization Manager:
           Max Intensity: 4096
           Min Color: 0; 0; 0
           Min Intensity: 0
-          Name: Lidar_cloud
+          Name: Lidar Cloud
           Position Transformer: ""
           Selectable: true
           Size (Pixels): 3
@@ -520,25 +586,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 47.557884216308594
+      Distance: 26.861461639404297
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 15.641183853149414
-        Y: 2.867056131362915
-        Z: -7.736133575439453
+        X: 10.439030647277832
+        Y: 2.959355115890503
+        Z: -8.992610931396484
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.3947970867156982
+      Pitch: 1.5647963285446167
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 3.2385802268981934
+      Yaw: 3.203579902648926
     Saved: ~
 Window Geometry:
   Displays:
@@ -548,7 +614,7 @@ Window Geometry:
   Hide Right Dock: false
   Navigation 2:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd0000000400000000000001f900000506fc020000000afb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003d00000321000000c900fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb00000018004e0061007600690067006100740069006f006e002000320100000364000001df0000012600fffffffb0000001e005200650061006c00730065006e0073006500430061006d00650072006101000002f7000000900000000000000000000000010000010f00000506fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073010000003d00000506000000a400fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004420000003efc0100000002fb0000000800540069006d00650100000000000004420000000000000000fb0000000800540069006d00650100000000000004500000000000000000000006a60000050600000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000400000000000001f900000506fc020000000afb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003d00000321000000c900fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb00000018004e0061007600690067006100740069006f006e002000320100000364000001df0000013900fffffffb0000001e005200650061006c00730065006e0073006500430061006d00650072006101000002f7000000900000000000000000000000010000010f00000506fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073010000003d00000506000000a400fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004420000003efc0100000002fb0000000800540069006d00650100000000000004420000000000000000fb0000000800540069006d00650100000000000004500000000000000000000006a60000050600000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Tool Properties:
@@ -556,5 +622,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 2490
-  X: 70
+  X: 2630
   Y: 27
