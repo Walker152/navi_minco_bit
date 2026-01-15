@@ -5,7 +5,6 @@
 #include <cmath>
 #include <algorithm>
 #include <functional>
-#include "nav2_costmap_2d/costmap_2d.hpp"
 
 namespace minco_planner
 {

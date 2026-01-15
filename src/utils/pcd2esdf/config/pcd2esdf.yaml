@@ -1,7 +1,7 @@
 pgm2esdf_generator:
   ros__parameters:
     map_yaml: "src/navigation/navi2_bringup/maps/2026/rmuc2026.yaml"
-    output_pcd: "src/utils/pcd2esdf/maps/2026_esdf.pcd"
+    output_pcd: "src/utils/pcd2esdf/maps/2026_esdf2.pcd"
     max_dist: 5.0
     occupied_thresh: 0.65
     free_thresh: 0.25
