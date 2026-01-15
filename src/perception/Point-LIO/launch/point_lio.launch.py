@@ -42,6 +42,8 @@ def generate_launch_description():
     start_point_lio_node = Node(
         package="point_lio",
         executable="pointlio_mapping",
+        respawn=True,
+        respawn_delay=5.0,
         namespace=namespace,
         parameters=[point_lio_cfg_dir],
         remappings=remappings,
