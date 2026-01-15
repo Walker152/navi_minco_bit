@@ -189,7 +189,7 @@ public:
         for (int r = 0; r < height_; ++r) {
             for (int c = 0; c < width_; ++c) {
                 double d2 = dist_buffer[r * width_ + c];
-                if (d2 > max_px_dist_sq) continue;
+                if (d2 > max_px_dist_sq) d2 = max_px_dist_sq;
 
                 pcl::PointXYZI pt;
                 // 注意：PGM 的 (0,0) 是左上角，行代表 Y 轴减方向。
