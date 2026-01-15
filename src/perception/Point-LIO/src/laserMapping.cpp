@@ -12,6 +12,10 @@
 
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/path.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <std_srvs/srv/trigger.hpp>
+#include <thread>
+#include <chrono>
 
 #include "li_initialization.h"
 
@@ -350,6 +354,7 @@ int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
   auto nh = std::make_shared<rclcpp::Node>("laserMapping");
+  auto icp_client = nh->create_client<std_srvs::srv::Trigger>("/gicp_recall");
 
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(nh);
@@ -436,6 +441,47 @@ int main(int argc, char ** argv)
     if (flg_exit) break;
     executor.spin_some();
     if (sync_packages(Measures)) {
+      static double last_proc_time = -1.0;
+      bool trigger_exit = false;
+      std::string exit_reason = "";
+
+      // 1. [故障监测] 时间戳乱序 (严重系统错误)
+      if (last_proc_time > 0 && Measures.lidar_beg_time < last_proc_time) {
+         exit_reason = "Time Disorder Detected (Curr < Last)";
+         trigger_exit = true;
+      }
+
+      // 2. [故障监测] 稀疏点云 (传感器故障/网线断连/严重遮挡)
+      if (!trigger_exit && Measures.lidar->points.size() < 100) { 
+         exit_reason = "Lidar Points Too Sparse (<100 points)";
+         trigger_exit = true;
+      }
+
+      // 3. [故障监测] 网络大延时 (严重丢包/网络拥塞)
+      if (!trigger_exit && last_proc_time > 0 && (Measures.lidar_beg_time - last_proc_time) > 0.5) {
+          exit_reason = "Large Time Gap (>0.5s)";
+          trigger_exit = true;
+      }
+
+      // [执行] 触发退出，由 ROS launch 的 respawn 机制接管
+      if (trigger_exit) {
+          RCLCPP_FATAL(LOGGER, "[CRASH MONITOR] %s. Respawning...", exit_reason.c_str());
+          
+          if (icp_client->wait_for_service(std::chrono::seconds(1))) {
+             auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
+             auto result = icp_client->async_send_request(request);
+             // 简单等待3s，期间维持通信，确保请求发出
+             auto start = std::chrono::steady_clock::now();
+             while(rclcpp::ok() && (std::chrono::steady_clock::now() - start) < std::chrono::seconds(3)) {
+                 if(result.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) break;
+                 executor.spin_some();
+                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
+             }
+          }
+          exit(EXIT_FAILURE); 
+      }
+
+      last_proc_time = Measures.lidar_beg_time;
       if (flg_reset) {
         RCLCPP_WARN(LOGGER, "reset when rosbag play back");
         p_imu->Reset();
