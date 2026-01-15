@@ -423,7 +423,7 @@ planner_server:
       use_astar: true
       allow_unknown: false
       minco_optimizer:
-        safe_dist: 0.6
+        safe_dist: 0.5
         max_velocity: 2.0
         max_acceleration: 5.0
         time_allocation_iters: 15
