@@ -514,7 +514,7 @@ void MincoPlanner::configure(
   esdf_map_ = std::make_shared<small_rog_map::HybridESDFMap>();
 
   // Initialize ESDF dynamic layer ROS subscription (STVL voxel_grid).
-  esdf_map_->initRos(parent, "/global_costmap/spatio_temporal_voxel_layer/voxel_grid");
+  esdf_map_->initRos(parent, "/global_costmap/voxel_grid");
 
   if (!esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_)) {
     std::cout << RED << "[MincoPlanner] "

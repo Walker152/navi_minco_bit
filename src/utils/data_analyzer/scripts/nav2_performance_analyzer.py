@@ -71,9 +71,12 @@ class Nav2Analyzer(Node):
         
         # Data Containers
         self.times = []
-        self.pos_errors = []
-        self.vel_errors = []
-        self.acc_errors = []
+        self.pos_errors_x = []
+        self.pos_errors_y = []
+        self.vel_errors_x = []
+        self.vel_errors_y = []
+        self.acc_errors_x = []
+        self.acc_errors_y = []
         self.planner_freqs = [] 
         self.control_freqs = []
         
@@ -88,7 +91,9 @@ class Nav2Analyzer(Node):
         # State
         self.latest_plan = None
         self.latest_odom = None 
-        self.latest_imu_acc = 0.0
+        self.latest_imu_acc_x = 0.0
+        self.latest_imu_acc_y = 0.0
+
         
         # Frequency Calculation Counters
         self.cmd_vel_count = 0
@@ -118,9 +123,8 @@ class Nav2Analyzer(Node):
             self.topic_status['Plan'] = time.time()
 
     def imu_cb(self, msg):
-        ax = msg.linear_acceleration.x
-        ay = msg.linear_acceleration.y
-        self.latest_imu_acc = np.hypot(ax, ay)
+        self.latest_imu_acc_x = msg.linear_acceleration.x
+        self.latest_imu_acc_y = msg.linear_acceleration.y
         self.topic_status['IMU'] = time.time()
 
     def cmd_vel_cb(self, msg):
@@ -148,9 +152,12 @@ class Nav2Analyzer(Node):
                 self.last_freq_calc_time = current_time
 
             # 2. Error Calculation
-            pos_err = 0.0
-            vel_err = 0.0
-            acc_err = 0.0
+            pos_err_x = 0.0
+            pos_err_y = 0.0
+            vel_err_x = 0.0
+            vel_err_y = 0.0
+            acc_err_x = 0.0
+            acc_err_y = 0.0
             
             # Only calculate errors if we have both Plan and Odom
             if self.latest_odom is not None and \
@@ -174,26 +181,33 @@ class Nav2Analyzer(Node):
                         best_cmd = cmd
                 
                 # Calculate Values
-                pos_err = min_dist
-                ref_vel = np.hypot(best_cmd.velocity.x, best_cmd.velocity.y)
-                act_vel = np.hypot(rvx, rvy)
-                vel_err = abs(ref_vel - act_vel)
+                pos_err_x = abs(best_cmd.position.x - rx)
+                pos_err_y = abs(best_cmd.position.y - ry)
                 
-                ref_acc = np.hypot(best_cmd.acceleration.x, best_cmd.acceleration.y)
-                acc_err = abs(ref_acc - self.latest_imu_acc)
+                vel_err_x = abs(best_cmd.velocity.x - rvx)
+                vel_err_y = abs(best_cmd.velocity.y - rvy)
+                
+                acc_err_x = abs(best_cmd.acceleration.x - self.latest_imu_acc_x)
+                acc_err_y = abs(best_cmd.acceleration.y - self.latest_imu_acc_y)
 
             # 3. Store Data
             rt = current_time - self.start_time
             self.times.append(rt)
-            self.pos_errors.append(pos_err)
-            self.vel_errors.append(vel_err)
-            self.acc_errors.append(acc_err)
+            self.pos_errors_x.append(pos_err_x)
+            self.pos_errors_y.append(pos_err_y)
+            self.vel_errors_x.append(vel_err_x)
+            self.vel_errors_y.append(vel_err_y)
+            self.acc_errors_x.append(acc_err_x)
+            self.acc_errors_y.append(acc_err_y)
             self.planner_freqs.append(self.current_plan_freq)
             self.control_freqs.append(self.current_ctrl_freq)
             
             # Maintain History Limit
             if len(self.times) > MAX_HISTORY:
-                for lst in [self.times, self.pos_errors, self.vel_errors, self.acc_errors, self.planner_freqs, self.control_freqs]:
+                for lst in [self.times, self.pos_errors_x, self.pos_errors_y, 
+                           self.vel_errors_x, self.vel_errors_y, 
+                           self.acc_errors_x, self.acc_errors_y, 
+                           self.planner_freqs, self.control_freqs]:
                     lst.pop(0)
 
     def get_topic_health(self):
@@ -251,52 +265,65 @@ class ModernVisualizer:
         
         for i, topic in enumerate(topics):
             x = start_x + i * gap_x
-            dot = self.ax_header.text(x, 0.65, "●", color=THEME['err'], fontsize=16, ha='left')
-            lbl = self.ax_header.text(x + 0.03, 0.65, topic, color=THEME['text_dim'], fontsize=10, ha='left', va='center')
+            dot = self.ax_header.text(x, 0.70, "●", color=THEME['err'], fontsize=16, ha='left')
+            lbl = self.ax_header.text(x + 0.03, 0.70, topic, color=THEME['text_dim'], fontsize=10, ha='left', va='center')
             self.topic_indicators[topic] = dot
         
         # -- Big Stats Display (Updated for 4 metrics) --
-        self.stat_pos = self._create_stat_text(0.12, "Pos Error (m)", THEME['pos'])
-        self.stat_vel = self._create_stat_text(0.37, "Vel Error (m/s)", THEME['vel'])
-        self.stat_acc = self._create_stat_text(0.62, "Acc Error (m/s²)", THEME['acc'])
+        self.stat_pos = self._create_stat_text(0.12, "Pos Error (X / Y)", THEME['pos'])
+        self.stat_vel = self._create_stat_text(0.37, "Vel Error (X / Y)", THEME['vel'])
+        self.stat_acc = self._create_stat_text(0.62, "Acc Error (X / Y)", THEME['acc'])
         self.stat_freq = self._create_stat_text(0.87, "Ctrl Freq (Hz)", THEME['freq'])
 
         # 2. Plot Areas
         self.axes = []
         self.lines = {}
-        self.fills = {}
+        # self.fills = {} # Filling is complicated with two lines, disabling fill for errors
 
         # Plot 1: Position Error
         ax1 = self.fig.add_subplot(gs[1], facecolor=THEME['plot_bg'])
-        self._style_axis(ax1, "Position Tracking Error", "Error (m)")
-        ln1, = ax1.plot([], [], color=THEME['pos'], lw=2)
-        fill1 = ax1.fill_between([], [], color=THEME['pos'], alpha=THEME['fill_alpha'])
+        self._style_axis(ax1, "Position Tracking Error (X/Y)", "Error (m)")
+        ln1_x, = ax1.plot([], [], color=THEME['pos'], lw=2, label='X')
+        ln1_y, = ax1.plot([], [], color=THEME['pos'], lw=2, linestyle='--', alpha=0.7, label='Y')
+        ax1.legend(loc='upper right', framealpha=0.3)
         self.axes.append(ax1)
-        self.lines['pos'] = ln1
-        self.fills['pos'] = fill1
+        self.lines['pos_x'] = ln1_x
+        self.lines['pos_y'] = ln1_y
 
         # Plot 2: Velocity Error
         ax2 = self.fig.add_subplot(gs[2], facecolor=THEME['plot_bg'], sharex=ax1)
-        self._style_axis(ax2, "Velocity Tracking Error", "Error (m/s)")
-        ln2, = ax2.plot([], [], color=THEME['vel'], lw=2)
-        fill2 = ax2.fill_between([], [], color=THEME['vel'], alpha=THEME['fill_alpha'])
+        self._style_axis(ax2, "Velocity Tracking Error (X/Y)", "Error (m/s)")
+        ln2_x, = ax2.plot([], [], color=THEME['vel'], lw=2, label='X')
+        ln2_y, = ax2.plot([], [], color=THEME['vel'], lw=2, linestyle='--', alpha=0.7, label='Y')
+        ax2.legend(loc='upper right', framealpha=0.3)
         self.axes.append(ax2)
-        self.lines['vel'] = ln2
-        self.fills['vel'] = fill2
+        self.lines['vel_x'] = ln2_x
+        self.lines['vel_y'] = ln2_y
 
         # Plot 3: Acceleration Error (Restored!)
         ax3 = self.fig.add_subplot(gs[3], facecolor=THEME['plot_bg'], sharex=ax1)
-        self._style_axis(ax3, "Acceleration Tracking Error", "Error (m/s²)")
-        ln3, = ax3.plot([], [], color=THEME['acc'], lw=2)
-        fill3 = ax3.fill_between([], [], color=THEME['acc'], alpha=THEME['fill_alpha'])
+        self._style_axis(ax3, "Acceleration Tracking Error (X/Y)", "Error (m/s²)")
+        ln3_x, = ax3.plot([], [], color=THEME['acc'], lw=2, label='X')
+        ln3_y, = ax3.plot([], [], color=THEME['acc'], lw=2, linestyle='--', alpha=0.7, label='Y')
+        ax3.legend(loc='upper right', framealpha=0.3)
         self.axes.append(ax3)
-        self.lines['acc'] = ln3
-        self.fills['acc'] = fill3
+        self.lines['acc_x'] = ln3_x
+        self.lines['acc_y'] = ln3_y
 
         # Plot 4: System Frequency
         ax4 = self.fig.add_subplot(gs[4], facecolor=THEME['plot_bg'], sharex=ax1)
         self._style_axis(ax4, "System Frequencies (Plan vs Ctrl)", "Frequency (Hz)")
         
+        ln4_c, = ax4.plot([], [], color=THEME['freq'], lw=2, linestyle='-', alpha=0.9, label='Ctrl Freq')
+        ln4_p, = ax4.plot([], [], color=THEME['plan'], lw=2, linestyle='--', alpha=1.0, zorder=10, label='Plan Freq')
+        fill4 = ax4.fill_between([], [], color=THEME['freq'], alpha=0.1)
+        
+        ax4.legend([ln4_p, ln4_c], ['Plan Freq', 'Ctrl Freq'], loc='upper left', frameon=False, labelcolor=THEME['text'])
+        
+        self.axes.append(ax4)
+        self.lines['plan'] = ln4_p
+        self.lines['freq'] = ln4_c
+        self.fills = {'freq': fill4}
         ln4_c, = ax4.plot([], [], color=THEME['freq'], lw=2, linestyle='-', alpha=0.9, label='Ctrl Freq')
         ln4_p, = ax4.plot([], [], color=THEME['plan'], lw=2, linestyle='--', alpha=1.0, zorder=10, label='Plan Freq')
         fill4 = ax4.fill_between([], [], color=THEME['freq'], alpha=0.1)
@@ -335,8 +362,8 @@ class ModernVisualizer:
         plt.close(self.fig)
 
     def _create_stat_text(self, x, label, color):
-        self.ax_header.text(x, 0.35, label, color=THEME['text_dim'], fontsize=10, ha='center')
-        text_obj = self.ax_header.text(x, 0.1, "0.000", color=color, fontsize=20, fontweight='bold', ha='center', family='monospace')
+        self.ax_header.text(x, 0.45, label, color=THEME['text_dim'], fontsize=9, ha='center')
+        text_obj = self.ax_header.text(x, 0.15, "0.0 / 0.0", color=color, fontsize=14, fontweight='bold', ha='center', family='monospace')
         return text_obj
 
     def _style_axis(self, ax, title, ylabel, is_right=False):
@@ -374,11 +401,15 @@ class ModernVisualizer:
                 if len(self.node.times) == 0:
                     print("No data to save!")
                     return
-                rows = list(zip(self.node.times, self.node.pos_errors, self.node.vel_errors, self.node.acc_errors, self.node.planner_freqs, self.node.control_freqs))
+                rows = list(zip(self.node.times, 
+                               self.node.pos_errors_x, self.node.pos_errors_y,
+                               self.node.vel_errors_x, self.node.vel_errors_y,
+                               self.node.acc_errors_x, self.node.acc_errors_y,
+                               self.node.planner_freqs, self.node.control_freqs))
             
             with open(filename, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
-                writer.writerow(['Time', 'Pos_Error', 'Vel_Error', 'Acc_Error', 'Plan_Freq', 'Ctrl_Freq'])
+                writer.writerow(['Time', 'Pos_Err_X', 'Pos_Err_Y', 'Vel_Err_X', 'Vel_Err_Y', 'Acc_Err_X', 'Acc_Err_Y', 'Plan_Freq', 'Ctrl_Freq'])
                 writer.writerows(rows)
             print(f"Data saved to {filename}")
         except Exception as e:
@@ -401,37 +432,37 @@ class ModernVisualizer:
         with self.node.lock:
             if not self.node.times: return
             times = np.array(self.node.times)
-            pos = np.array(self.node.pos_errors)
-            vel = np.array(self.node.vel_errors)
-            acc = np.array(self.node.acc_errors)
+            pos_x = np.array(self.node.pos_errors_x)
+            pos_y = np.array(self.node.pos_errors_y)
+            vel_x = np.array(self.node.vel_errors_x)
+            vel_y = np.array(self.node.vel_errors_y)
+            acc_x = np.array(self.node.acc_errors_x)
+            acc_y = np.array(self.node.acc_errors_y)
             plan_freqs = np.array(self.node.planner_freqs)
             ctrl_freqs = np.array(self.node.control_freqs)
 
         # 2. Update Stats
         self.txt_time.set_text(f"T: {times[-1]:.1f}s")
-        self.stat_pos.set_text(f"{pos[-1]:.4f}")
-        self.stat_vel.set_text(f"{vel[-1]:.3f}")
-        self.stat_acc.set_text(f"{acc[-1]:.3f}")
+        self.stat_pos.set_text(f"{pos_x[-1]:.2f} / {pos_y[-1]:.2f}")
+        self.stat_vel.set_text(f"{vel_x[-1]:.2f} / {vel_y[-1]:.2f}")
+        self.stat_acc.set_text(f"{acc_x[-1]:.2f} / {acc_y[-1]:.2f}")
         self.stat_freq.set_text(f"{ctrl_freqs[-1]:.1f}")
 
         # 3. Update Lines
-        self.lines['pos'].set_data(times, pos)
-        self.lines['vel'].set_data(times, vel)
-        self.lines['acc'].set_data(times, acc)
+        self.lines['pos_x'].set_data(times, pos_x)
+        self.lines['pos_y'].set_data(times, pos_y)
+        self.lines['vel_x'].set_data(times, vel_x)
+        self.lines['vel_y'].set_data(times, vel_y)
+        self.lines['acc_x'].set_data(times, acc_x)
+        self.lines['acc_y'].set_data(times, acc_y)
         self.lines['plan'].set_data(times, plan_freqs)
         self.lines['freq'].set_data(times, ctrl_freqs)
 
         # 4. Update Fills
         try:
-            self.fills['pos'].remove()
-            self.fills['vel'].remove()
-            self.fills['acc'].remove()
             self.fills['freq'].remove()
         except: pass 
         
-        self.fills['pos'] = self.axes[0].fill_between(times, 0, pos, color=THEME['pos'], alpha=THEME['fill_alpha'])
-        self.fills['vel'] = self.axes[1].fill_between(times, 0, vel, color=THEME['vel'], alpha=THEME['fill_alpha'])
-        self.fills['acc'] = self.axes[2].fill_between(times, 0, acc, color=THEME['acc'], alpha=THEME['fill_alpha'])
         self.fills['freq'] = self.axes[3].fill_between(times, 0, ctrl_freqs, color=THEME['freq'], alpha=0.1)
 
         # 5. Dynamic Scaling
@@ -443,9 +474,10 @@ class ModernVisualizer:
             for ax in self.axes:
                 ax.set_xlim(xmin, xmax)
             
-            self.axes[0].set_ylim(0, pos.max() * 1.2 + 0.01)
-            self.axes[1].set_ylim(0, vel.max() * 1.2 + 0.01)
-            self.axes[2].set_ylim(0, acc.max() * 1.2 + 0.01)
+            # Use max of x and y for scaling
+            self.axes[0].set_ylim(0, max(pos_x.max(), pos_y.max()) * 1.2 + 0.01)
+            self.axes[1].set_ylim(0, max(vel_x.max(), vel_y.max()) * 1.2 + 0.01)
+            self.axes[2].set_ylim(0, max(acc_x.max(), acc_y.max()) * 1.2 + 0.01)
             
             max_f = max(plan_freqs.max(), ctrl_freqs.max()) if len(plan_freqs) > 0 else 20.0
             self.axes[3].set_ylim(0, max_f * 1.3 + 1.0)
