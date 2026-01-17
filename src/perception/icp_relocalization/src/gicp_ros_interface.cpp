@@ -164,6 +164,7 @@ namespace icp_relocalization
       RCLCPP_INFO(this->get_logger(), "%sReceived request to re-trigger relocalization.%s", color_text::MAGENTA.c_str(), color_text::RESET.c_str());
 
       // 1. Reset State
+      mode_ = Mode::SAC_IA;
       state_ = State::UNINITIALIZED;
       converged_count_ = 0;
       current_accumulated_frames_ = 0;
