@@ -1,12 +1,16 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
+#include <std_msgs/msg/detail/bool__struct.hpp>
 #include <string>
 
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float32.hpp>
+#include <std_msgs/msg/int32.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -58,40 +62,51 @@ namespace ns_com
       msg.self_health = in.self_health;
       msg.own_outpost_destroyed = in.own_outpost_destroyed;
       msg.buff_active = in.buff_active;
+      msg.enemy_outpost_health = in.enemy_outpost_health;
       msg.enemy_detected.is_detect = in.is_get;
       msg.enemy_detected.position.x = in.x;
       msg.enemy_detected.position.y = in.y;
       msg.enemy_detected.position.z = in.z;
       msg.enemy_detected.armor_id = in.armor_id;
+      msg.position = in.position;
       msg.header.stamp = now();
       event_status_pub_->publish(msg);
     }
 
   private:
+    std_msgs::msg::Int32 position_;
+    std_msgs::msg::Bool outpost_msg_;
     void initRos()
     {
       cmd_vel_.linear.x = 0.0;
       cmd_vel_.linear.y = 0.0;
 
+      
       chassis_sub_ = create_subscription<geometry_msgs::msg::Twist>(
-          "/cmd_vel", 1, [this](geometry_msgs::msg::Twist::ConstSharedPtr msg) { sendChassisCtrlCB(msg); });
+          "/cmd_vel", 1, [this](geometry_msgs::msg::Twist::ConstSharedPtr msg) { sendChassisCtrlCB(msg, position_, outpost_msg_); });
       odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
           "/aft_mapped_to_init", 1, [this](nav_msgs::msg::Odometry::ConstSharedPtr msg) { odomCB(msg); });
       gimbal_yaw_sub_ = create_subscription<std_msgs::msg::Float32>(
           "/gimbal_yaw", 1, [this](std_msgs::msg::Float32::ConstSharedPtr msg) { desiredYawCB(msg); });
-
+      position_sub_ = create_subscription<std_msgs::msg::Int32>(
+          "/sentry/want_position", 1, [this](std_msgs::msg::Int32::ConstSharedPtr msg) { position_.data = msg->data; });
+      outpost_msg_sub_ = create_subscription<std_msgs::msg::Bool>(
+          "/sentry/outpost_status", 1, [this](std_msgs::msg::Bool::ConstSharedPtr msg) { outpost_msg_.data = msg->data; });
       nav_pub_ = create_publisher<ros_interfaces::msg::Nav>("/NavRequest", 10);
       event_status_pub_ = create_publisher<ros_interfaces::msg::EventStatus>("/sentry/event_status", 10);
 
       RCLCPP_INFO(this->get_logger(), "ComInterfaceRos initialized");
     }
 
-    void sendChassisCtrlCB(const geometry_msgs::msg::Twist::ConstSharedPtr& velPtr)
+    void sendChassisCtrlCB(const geometry_msgs::msg::Twist::ConstSharedPtr& velPtr, std_msgs::msg::Int32 _position, std_msgs::msg::Bool _outpost_msg)
     {
       cmd_vel_ = *velPtr;
       float vx_mps = cmd_vel_.linear.x;
       float vy_mps = cmd_vel_.linear.y;
-      float vw_rpm = 60;
+      float vw_rpm = 0;
+      int32_t position = _position.data;
+      bool outpost_msg = _outpost_msg.data;
+      uint8_t _is_use_mid360 = 0;
       if(std::sqrt(vx_mps * vx_mps + vy_mps * vy_mps) <= 0.5f)
       {
         vw_rpm = 0;
@@ -108,7 +123,9 @@ namespace ns_com
                            odom_.pose.pose.position.y,
                            current_yaw_deg,
                            gimbal_yaw_.data,
-                           0);
+                           _is_use_mid360,
+                           outpost_msg,
+                           position);
       auto flag = Communication::send2stm32<ChassisTarget>(target);
       if(flag == 0)
       {
@@ -138,7 +155,9 @@ namespace ns_com
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr chassis_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr gimbal_yaw_sub_;
-
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr position_sub_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr outpost_msg_sub_;
+    
     // Publishers
     rclcpp::Publisher<ros_interfaces::msg::Nav>::SharedPtr nav_pub_;
     rclcpp::Publisher<ros_interfaces::msg::EventStatus>::SharedPtr event_status_pub_;
