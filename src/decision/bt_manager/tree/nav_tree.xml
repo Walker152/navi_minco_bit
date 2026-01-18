@@ -1,6 +1,32 @@
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <Fallback>
+      <!--撤退模式直接下台阶不走隧道-->
+      <Sequence name="StairsEvacuation">
+        <!-- 条件1: 处于撤退模式 -->
+        <CheckRetreatCondition name="CheckRetreatCondition"/>
+        
+        <!-- 条件2: 在台阶区域 -->
+        <CheckInStairsZone name="CheckInStairsZone"/>
+        
+        <!-- 动作1: 导航到台阶前准备位置 -->
+        <SetStairsPosition name="SetStairsPosition"/>
+        <PublishNavigationGoal name="PublishPreStairsGoal"/>
+        <WaitUntilStopped name="WaitAtPreStairs"/>
+        
+        <!-- 动作2: 冲下台阶 -->
+        <DirectVelocityControl name="DescendStairs"
+                              linear_x="0.8"
+                              angular_z="0.0" 
+                              duration="1.5"/>
+        
+        <!-- 动作3: 台阶后停止 -->
+        <DirectVelocityControl name="StopAfterStairs"
+                              linear_x="0.0"
+                              angular_z="0.0"
+                              duration="0.5"/>
+      </Sequence>
+
       <!-- 紧急撤退模式（最高优先级） -->
       <Sequence name="EmergencyRetreat">
         <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
