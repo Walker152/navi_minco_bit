@@ -96,4 +96,13 @@ class CheckWhetherChange : public BT::ConditionNode
     static BT::PortsList providedPorts();
     BT::NodeStatus tick() override;
 };
-}  // namespace robot_behavior_tree
+
+// 检查是否在台阶区域的条件节点
+class CheckInStairsZone : public BT::ConditionNode
+{
+public:
+  CheckInStairsZone(const std::string& name, const BT::NodeConfiguration& config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+}  // namespace Sentry_BT
