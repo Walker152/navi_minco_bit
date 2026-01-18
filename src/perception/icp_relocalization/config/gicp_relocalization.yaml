@@ -2,8 +2,8 @@ gicp_relocalization_node:
   ros__parameters:
     # General Configuration
     mode: "initial_guess" # Options: "sac_ia", "initial_guess"
-    target_pcd_file: "src/perception/icp_relocalization/maps/processed.pcd"
-    # target_pcd_file: "src/perception/Point-LIO/PCD/scans.pcd"
+    # target_pcd_file: "src/perception/icp_relocalization/maps/processed.pcd"
+    target_pcd_file: "src/perception/Point-LIO/PCD/scans.pcd"
     map_frame: "map"
     alignment_frequency: 5.0
     accumulate_frames: 5
