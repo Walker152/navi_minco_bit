@@ -2,6 +2,8 @@
 #include "bt_manager/blackboard.hpp"
 #include "nav_zone.hpp"
 #include <string>
+#include <cmath>
+#include <chrono>
 
 namespace Sentry_BT
 {
@@ -260,4 +262,127 @@ namespace Sentry_BT
   {   
     return BT::NodeStatus::SUCCESS;
   }
+
+  // -------------------- DirectVelocityControl ---------------------------
+DirectVelocityControl::DirectVelocityControl(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::StatefulActionNode(name, config)
+{ 
+  // 创建简单的节点
+  node_ = std::make_shared<rclcpp::Node>("direct_control_" + name);
+  
+  // 创建速度发布器 - 直接发布到/cmd_vel
+  cmd_vel_pub_ = node_->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+
+  linear_x_ = 0.0;
+  angular_z_ = 0.0;
+  duration_ = 0.0;
+  start_time_ = rclcpp::Time(0, 0);
+  last_pub_time_ = rclcpp::Time(0, 0);
+}
+
+BT::PortsList DirectVelocityControl::providedPorts()
+{
+  return {
+    BT::InputPort<double>("linear_x", 0.5, "前进速度 m/s"),
+    BT::InputPort<double>("angular_z", 0.0, "转向速度 rad/s"), 
+    BT::InputPort<double>("duration", 2.0, "持续时间秒")
+  };
+}
+
+BT::NodeStatus DirectVelocityControl::onStart()
+{
+  // 1. 获取参数
+  auto linear_x = getInput<double>("linear_x");
+  auto angular_z = getInput<double>("angular_z"); 
+  auto duration = getInput<double>("duration");
+  
+  if (!linear_x || !duration) {
+    RCLCPP_ERROR(node_->get_logger(), "参数缺失: linear_x 或 duration");
+    return BT::NodeStatus::FAILURE; // 参数缺失
+  }
+  
+  // 2. 存储参数
+  linear_x_ = linear_x.value();
+  angular_z_ = angular_z.value_or(0.0);
+  duration_ = duration.value();
+  
+  // 3. 记录开始时间
+  start_time_ = node_->now();
+  last_pub_time_ = rclcpp::Time(0, 0, node_->get_clock()->get_clock_type());
+  
+  // 4. 发布停止指令，确保从静止开始
+  geometry_msgs::msg::Twist stop_msg;
+  stop_msg.linear.x = 0.0;
+  stop_msg.angular.z = 0.0;
+  cmd_vel_pub_->publish(stop_msg);
+  
+  // 给一点时间让机器人停止
+  rclcpp::sleep_for(std::chrono::milliseconds(100));
+  
+  return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus DirectVelocityControl::onRunning()
+{
+  // 计算经过的时间
+  auto current_time = node_->now();
+  auto elapsed = (current_time - start_time_).seconds();
+  
+  // 检查是否超时
+  if (elapsed >= duration_) {
+    // 时间到，发布停止指令
+    geometry_msgs::msg::Twist stop_msg;
+    stop_msg.linear.x = 0.0;
+    stop_msg.angular.z = 0.0;
+    cmd_vel_pub_->publish(stop_msg);
+    return BT::NodeStatus::SUCCESS;
+  }
+  
+  // 发布速度指令
+  geometry_msgs::msg::Twist cmd_vel;
+  if ((current_time - last_pub_time_).seconds() >= 0.05) { // 20Hz发布频率
+    cmd_vel.linear.x = linear_x_;
+    cmd_vel.angular.z = angular_z_;
+    cmd_vel_pub_->publish(cmd_vel);
+    last_pub_time_ = current_time;
+    }
+
+  return BT::NodeStatus::RUNNING;
+}
+
+void DirectVelocityControl::onHalted()
+{
+  // 被中断时立即停止
+  geometry_msgs::msg::Twist stop_msg;
+  stop_msg.linear.x = 0.0;
+  stop_msg.angular.z = 0.0;
+  cmd_vel_pub_->publish(stop_msg);
+}
+
+// ------------------- SetStairsPosition -------------------
+SetStairsPosition::SetStairsPosition(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::SyncActionNode(name, config)
+{}
+
+BT::PortsList SetStairsPosition::providedPorts()
+{
+  return {}; 
+}
+
+BT::NodeStatus SetStairsPosition::tick()
+{
+ 
+  auto blackboard = config().blackboard;
+
+  // 创建一个固定目标点（台阶前准备位置）（硬编码）
+  geometry_msgs::msg::Point goal_point;
+  goal_point.x = 2.5;  
+  goal_point.y = 1.2;  
+  goal_point.z = 0.0;  
+
+  blackboard->set("nav_goal", goal_point);
+  
+  return BT::NodeStatus::SUCCESS; // 总是成功
+}
+
 }  // namespace Sentry_BT
