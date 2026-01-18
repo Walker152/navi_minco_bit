@@ -4,7 +4,7 @@ bt_navigator:
     global_frame: map
     robot_base_frame: "base_link"
     odom_topic: /aft_mapped_to_init
-    bt_loop_duration: 20 # ms
+    bt_loop_duration: 1 # ms
     # 行为树超时时间，秒
     default_server_timeout: 20
     # 毫秒
@@ -286,7 +286,7 @@ local_costmap:
         voxel_size: 0.05
         track_unknown_space: true
         unknown_threshold: 15
-        mark_threshold: 0
+        mark_threshold: 5
         update_footprint_enabled: true
         combination_method: 0
         origin_z: 0.0
@@ -345,7 +345,7 @@ global_costmap:
         voxel_size: 0.15
         track_unknown_space: true
         unknown_threshold: 15
-        mark_threshold: 0
+        mark_threshold: 5
         update_footprint_enabled: true
         combination_method: 0
         origin_z: 0.0
