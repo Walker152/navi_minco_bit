@@ -1,8 +1,26 @@
 #include "gicp_filter.hpp"
 #include <iostream>
 
+#include <pcl/filters/passthrough.h>
+
 namespace icp_relocalization
 {
+
+  PointCloud::Ptr GicpFilter::applyHeightFilter(const PointCloud::Ptr& cloud) const
+  {
+    if(!options_.height_filter_enabled || !cloud || cloud->empty())
+    {
+      return cloud;
+    }
+
+    PointCloud::Ptr filtered(new PointCloud());
+    pcl::PassThrough<pcl::PointXYZ> pass;
+    pass.setInputCloud(cloud);
+    pass.setFilterFieldName("z");
+    pass.setFilterLimits(options_.height_filter_min_z, options_.height_filter_max_z);
+    pass.filter(*filtered);
+    return filtered;
+  }
 
   GicpFilter::GicpFilter(const std::string& target_pcd_path, const Options& options)
     : options_(options)
@@ -28,10 +46,13 @@ namespace icp_relocalization
     pcl::Indices indices;
     pcl::removeNaNFromPointCloud(*cloud, *cloud_no_nan, indices);
 
+    // 高度滤波（可选）：先裁剪再降采样/特征，减少计算量
+    PointCloud::Ptr cloud_filtered = applyHeightFilter(cloud_no_nan);
+
     // 对地图进行降采样
     pcl::VoxelGrid<pcl::PointXYZ> vg;
     vg.setLeafSize(options_.target_voxel_leaf_size, options_.target_voxel_leaf_size, options_.target_voxel_leaf_size);
-    vg.setInputCloud(cloud_no_nan);
+    vg.setInputCloud(cloud_filtered);
     target_cloud_filtered_ = std::make_shared<PointCloud>();
     vg.filter(*target_cloud_filtered_);
 
@@ -61,11 +82,14 @@ namespace icp_relocalization
 
   GicpFilter::Result GicpFilter::initialAlign(const PointCloud::Ptr& source_cloud)
   {
+    // 高度滤波（可选）：先裁剪再降采样/特征，减少计算量
+    PointCloud::Ptr source_filtered_height = applyHeightFilter(source_cloud);
+
     // 1. 对源点云进行降采样
     PointCloud::Ptr source_cloud_filtered(new PointCloud());
     pcl::VoxelGrid<pcl::PointXYZ> vg;
     vg.setLeafSize(options_.source_voxel_leaf_size, options_.source_voxel_leaf_size, options_.source_voxel_leaf_size);
-    vg.setInputCloud(source_cloud);
+    vg.setInputCloud(source_filtered_height);
     vg.filter(*source_cloud_filtered);
 
     // 2. 为源点云计算FPFH特征
@@ -102,11 +126,14 @@ namespace icp_relocalization
 
   GicpFilter::Result GicpFilter::align(const PointCloud::Ptr& source_cloud, const Eigen::Matrix4f& initial_guess)
   {
+    // 高度滤波
+    PointCloud::Ptr source_filtered_height = applyHeightFilter(source_cloud);
+
     // 对源点云进行降采样
     PointCloud::Ptr source_cloud_filtered(new PointCloud());
     pcl::VoxelGrid<pcl::PointXYZ> vg;
     vg.setLeafSize(options_.source_voxel_leaf_size, options_.source_voxel_leaf_size, options_.source_voxel_leaf_size);
-    vg.setInputCloud(source_cloud);
+    vg.setInputCloud(source_filtered_height);
     vg.filter(*source_cloud_filtered);
 
     // 配置GICP
