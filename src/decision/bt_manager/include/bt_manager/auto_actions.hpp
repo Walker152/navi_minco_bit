@@ -86,4 +86,32 @@ public:
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
 };
+
+// 速度控制节点
+class DirectVelocityControl : public BT::StatefulActionNode
+{
+public:
+  DirectVelocityControl(const std::string& name, const BT::NodeConfiguration& config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus onStart() override;
+  BT::NodeStatus onRunning() override;
+  void onHalted() override;
+private:
+  rclcpp::Node::SharedPtr node_;
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
+  double linear_x_;
+  double angular_z_;
+  double duration_;
+  rclcpp::Time start_time_;
+  rclcpp::Time last_pub_time_;
+};
+
+//设定固定位置节点
+class SetStairsPosition : public BT::SyncActionNode
+{
+public:
+  SetStairsPosition(const std::string& name, const BT::NodeConfiguration& config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
 }  // namespace Sentry_BT

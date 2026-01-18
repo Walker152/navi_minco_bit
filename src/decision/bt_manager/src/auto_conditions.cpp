@@ -2,6 +2,8 @@
 #include "bt_manager/blackboard.hpp"
 #include <iostream>
 #include <string>
+#include <cmath>
+#include <chrono>
 
 namespace Sentry_BT
 {
@@ -314,4 +316,39 @@ namespace Sentry_BT
     }
     return BT::NodeStatus::FAILURE;
   }
+
+  // --------------------- CheckInStairsZone ----------------------
+CheckInStairsZone::CheckInStairsZone(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::ConditionNode(name, config)
+{
+  // 构造函数：初始化节点，不需要复杂操作
+}
+
+BT::PortsList CheckInStairsZone::providedPorts()
+{
+  return {}; // 不需要输入端口，直接从黑板读取位置
+}
+
+BT::NodeStatus CheckInStairsZone::tick()
+{
+  // 1. 获取黑板对象
+  auto blackboard = config().blackboard;
+  
+  // 2. 从黑板读取当前位置
+  auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  
+  // 3. 提取坐标
+  double x = current_pose.position.x;
+  double y = current_pose.position.y;
+
+  // 4. 定义台阶区域（根据实际场地调整）
+   bool in_stairs_zone = (x > 3.0 && x < 5.0 && y > 0.5 && y < 1.5);
+
+  // 5. 判断是否在台阶相关区域
+  if (in_stairs_zone) {
+    return BT::NodeStatus::SUCCESS; // 在台阶区域，可以执行撤离
+  }
+  
+  return BT::NodeStatus::FAILURE; // 不在台阶区域
+}
 }  // namespace Sentry_BT
