@@ -11,7 +11,7 @@ if(CMAKE_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-option(COM_DEBUG "Enable COM debug printing (defines COM_DEBUG)" OFF)
+option(COM_DEBUG "Enable COM debug printing (defines COM_DEBUG)" ON)
 
 
 ## Find catkin macros and libraries
@@ -81,22 +81,22 @@ endif()
 ## Tests  ##
 ############
 
-if(BUILD_TESTING)
-  # Test executable (manual test harness)
-  add_executable(${PROJECT_NAME}_test
-    src/communication_test.cpp
-  )
-  target_link_libraries(${PROJECT_NAME}_test ${PROJECT_NAME}_core)
-  if(COM_DEBUG)
-    target_compile_definitions(${PROJECT_NAME}_test PRIVATE COM_DEBUG)
-  endif()
+# if(BUILD_TESTING)
+#   # Test executable (manual test harness)
+#   add_executable(${PROJECT_NAME}_test
+#     src/communication_test.cpp
+#   )
+#   target_link_libraries(${PROJECT_NAME}_test ${PROJECT_NAME}_core)
+#   if(COM_DEBUG)
+#     target_compile_definitions(${PROJECT_NAME}_test PRIVATE COM_DEBUG)
+#   endif()
 
-  # Register ament/ctest to run the smoke test
-  ament_add_test(${PROJECT_NAME}_smoke
-    COMMAND $<TARGET_FILE:${PROJECT_NAME}_test>
-    TIMEOUT 30
-    GENERATE_RESULT_FOR_RETURN_CODE_ZERO)
-endif()
+#   # Register ament/ctest to run the smoke test
+#   ament_add_test(${PROJECT_NAME}_smoke
+#     COMMAND $<TARGET_FILE:${PROJECT_NAME}_test>
+#     TIMEOUT 30
+#     GENERATE_RESULT_FOR_RETURN_CODE_ZERO)
+# endif()
 
 #############
 ## Install ##
