@@ -1,0 +1,7 @@
+<library path="minco_planner">
+  <class name="minco_planner/MincoPlanner" type="minco_planner::MincoPlanner" base_class_type="nav2_core::GlobalPlanner">
+    <description>
+      A global planner that uses A* search and Minco trajectory optimization.
+    </description>
+  </class>
+</library>
