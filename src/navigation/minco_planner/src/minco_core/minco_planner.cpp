@@ -570,6 +570,20 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
   const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal)
 {
+  {
+    static auto start = rclcpp::Clock().now();
+    static int count = 0;
+    ++count;
+    if (count % 100 == 0) {
+      auto now = rclcpp::Clock().now();
+      double duration = (now - start).seconds();
+      std::cout << BLUE << "[MincoPlanner] createPlan called " << count
+                << " times over " << duration << " seconds. Avg rate: "
+                << static_cast<double>(count) / duration << " Hz." << RESET << std::endl;
+      start = now;
+      count = 0;
+    }
+  }
   std::lock_guard<std::mutex> lock(mutex_);
 
   // 1. Initialize the plan message
