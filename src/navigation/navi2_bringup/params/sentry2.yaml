@@ -4,7 +4,7 @@ bt_navigator:
     global_frame: map
     robot_base_frame: "base_link"
     odom_topic: /aft_mapped_to_init
-    bt_loop_duration: 1 # ms
+    bt_loop_duration: 5 # ms
     # 行为树超时时间，秒
     default_server_timeout: 20
     # 毫秒
