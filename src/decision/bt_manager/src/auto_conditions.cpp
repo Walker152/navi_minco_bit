@@ -2,6 +2,8 @@
 #include "bt_manager/blackboard.hpp"
 #include <iostream>
 #include <string>
+#include <cmath>
+#include <chrono>
 
 namespace Sentry_BT
 {
@@ -82,9 +84,9 @@ namespace Sentry_BT
     auto target_armor_id = blackboard->get<int>("target_armor_id");
     auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
     auto target_valid = blackboard->get<bool>("target_valid");
-    std::cout << "Target armor ID: " << target_armor_id << std::endl;
-    std::cout << "Target position: (" << target_pose.position.x << ", " << target_pose.position.y << ", "
-              << target_pose.position.z << ")" << std::endl;
+    // std::cout << "Target armor ID: " << target_armor_id << std::endl;
+    // std::cout << "Target position: (" << target_pose.position.x << ", " << target_pose.position.y << ", "
+    //           << target_pose.position.z << ")" << std::endl;
 
     // 检查目标是否有效
     if(!target_valid)
@@ -208,7 +210,7 @@ namespace Sentry_BT
 
   BT::NodeStatus CheckMPCondition::tick()
   {
-    std::cout << "---------- CheckMPCondition ----------" << std::endl;
+    //std::cout << "---------- CheckMPCondition ----------" << std::endl;
     auto blackboard = config().blackboard;
     auto enemy_outpost_health = blackboard->get<int>("enemy_outpost_health");
     auto current_mode = blackboard->get<int>("current_mode");
@@ -239,7 +241,7 @@ namespace Sentry_BT
 
   BT::NodeStatus CheckAPCondition::tick()
   {
-    std::cout << "---------- CheckAPCondition ----------" << std::endl;
+    //std::cout << "---------- CheckAPCondition ----------" << std::endl;
     auto blackboard = config().blackboard;
     auto my_position = blackboard->get<int>("my_position");
     auto enemy_outpost_health = blackboard->get<int>("enemy_outpost_health");
@@ -273,14 +275,14 @@ namespace Sentry_BT
 
   BT::NodeStatus CheckDPCondition::tick()
   {
-    std::cout << "---------- CheckDPCondition ----------" << std::endl;
+    //std::cout << "---------- CheckDPCondition ----------" << std::endl;
     auto blackboard = config().blackboard;
 
     auto my_position = blackboard->get<int>("my_position");     
     auto current_mode = blackboard->get<int>("current_mode");
     auto nav_status = blackboard->get<int>("nav_status");
     auto current_health = blackboard->get<float>("health");
-    if(((current_mode == Sentry_BT::NavStatus::FAILURE) && (current_health <= 50.0f))
+    if(((current_mode == Sentry_BT::NavStatus::FAILURE) && (current_health <= 30.0f) || current_health <= 25.0f)
       )
     {
       blackboard->set("want_position", 3); // defend   
@@ -303,7 +305,7 @@ namespace Sentry_BT
 
   BT::NodeStatus CheckWhetherChange::tick()
   {
-    std::cout << "---------- CheckWhetherChange ----------" << std::endl;
+    //std::cout << "---------- CheckWhetherChange ----------" << std::endl;
     auto blackboard = config().blackboard;
 
     auto my_position = blackboard->get<int>("my_position");
@@ -314,4 +316,39 @@ namespace Sentry_BT
     }
     return BT::NodeStatus::FAILURE;
   }
+
+  // --------------------- CheckInStairsZone ----------------------
+CheckInStairsZone::CheckInStairsZone(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::ConditionNode(name, config)
+{
+  // 构造函数：初始化节点，不需要复杂操作
+}
+
+BT::PortsList CheckInStairsZone::providedPorts()
+{
+  return {}; // 不需要输入端口，直接从黑板读取位置
+}
+
+BT::NodeStatus CheckInStairsZone::tick()
+{
+  // 1. 获取黑板对象
+  auto blackboard = config().blackboard;
+  
+  // 2. 从黑板读取当前位置
+  auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  
+  // 3. 提取坐标
+  double x = current_pose.position.x;
+  double y = current_pose.position.y;
+
+  // 4. 定义台阶区域（根据实际场地调整）
+   bool in_stairs_zone = (x > 3.0 && x < 5.0 && y > 0.5 && y < 1.5);
+
+  // 5. 判断是否在台阶相关区域
+  if (in_stairs_zone) {
+    return BT::NodeStatus::SUCCESS; // 在台阶区域，可以执行撤离
+  }
+  
+  return BT::NodeStatus::FAILURE; // 不在台阶区域
+}
 }  // namespace Sentry_BT
