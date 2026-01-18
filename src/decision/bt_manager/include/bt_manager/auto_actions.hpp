@@ -6,6 +6,7 @@
 #include "nav_zone.hpp"
 
 #include <geometry_msgs/msg/pose.hpp>
+#include <std_msgs/msg/int32.hpp>
 
 namespace Sentry_BT
 {
@@ -60,6 +61,27 @@ class Wait : public BT::SyncActionNode
 {
 public:
   Wait(const std::string& name, const BT::NodeConfiguration& config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class ChangePosition : public BT::SyncActionNode
+{
+public:
+  ChangePosition(const std::string& name, const BT::NodeConfiguration& config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr position_pub_;
+};
+
+class JustProtect : public BT::SyncActionNode
+{
+public:
+  JustProtect(const std::string& name, const BT::NodeConfiguration& config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;

@@ -24,9 +24,10 @@ find_package(rosidl_default_generators REQUIRED)
 set(msg_files
   "msg/Detector.msg"
   "msg/MultiDetect.msg"
-  "msg/ScsSignal.msg"
   "msg/EventStatus.msg"
   "msg/Nav.msg"
+  "msg/minco_traj/PositionCommand.msg"
+  "msg/minco_traj/MpcPositionCommand.msg"
 )
 
 # set(srv_files
