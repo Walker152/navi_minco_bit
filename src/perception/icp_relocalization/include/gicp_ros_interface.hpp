@@ -13,6 +13,8 @@
 #include "tf2_ros/static_transform_broadcaster.h"
 #include "tf2_ros/transform_listener.h"
 
+#include "std_srvs/srv/trigger.hpp"
+
 #include <deque>
 #include <mutex>
 
@@ -53,6 +55,7 @@ namespace icp_relocalization
 
     void publishStaticTf(const rclcpp::Time& stamp);
     void publishVisualization(const PointCloud::Ptr& cloud, const rclcpp::Time& stamp);
+    void printEvaluation(const Eigen::Matrix4f& initial_guess, const Eigen::Matrix4f& final_transformation, double fitness_score, double time_ms);
 
     // ROS 接口
     std::unique_ptr<GicpFilter> gicp_filter_;
@@ -64,9 +67,16 @@ namespace icp_relocalization
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     rclcpp::CallbackGroup::SharedPtr callback_group_lidar_;
+    rclcpp::CallbackGroup::SharedPtr callback_group_service_;
     rclcpp::TimerBase::SharedPtr fsm_timer_;
+    rclcpp::TimerBase::SharedPtr map_timer_;
+    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr relocalize_srv_;
+
     void fsmTimerCallback();
+    void mapTimerCallback();
     void runFSM();
+    void relocalizeServiceCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+                                   std::shared_ptr<std_srvs::srv::Trigger::Response> response);
 
     // 状态与缓存
     State state_ = State::UNINITIALIZED;
