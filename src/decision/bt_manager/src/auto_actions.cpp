@@ -26,7 +26,6 @@ namespace Sentry_BT
     //   RCLCPP_ERROR(rclcpp::get_logger("PublishNavigationGoal"), "missing nav_goal on blackboard");
     //   return BT::NodeStatus::FAILURE;
     // }
-
     // 发布目标点
     auto ros_interface_ptr = blackboard->get<std::shared_ptr<ros_interface>>("ros_interface");
     if(!ros_interface_ptr)
@@ -93,7 +92,6 @@ namespace Sentry_BT
     std::cout << "---------- SetTargetCoordinate ----------" << std::endl;
     auto blackboard = config().blackboard;
     auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
-
     Sentry_BT::Point2D point;
     point.x = target_pose.position.x;
     point.y = target_pose.position.y;
@@ -229,6 +227,37 @@ namespace Sentry_BT
 
     std::cout << "Waiting for " << wait_time << " milliseconds" << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(wait_time));
+    return BT::NodeStatus::SUCCESS;
+  }
+
+    // ------------------- ChangePosition -------------------
+  ChangePosition::ChangePosition(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::SyncActionNode(name, config)
+  {
+  }
+
+  BT::PortsList ChangePosition::providedPorts()
+  {
+    return {};
+  }
+  BT::NodeStatus ChangePosition::tick()
+  {   
+    auto blackboard = config().blackboard;
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  //    justprotect
+  JustProtect::JustProtect(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::SyncActionNode(name, config)
+  {
+  }
+
+  BT::PortsList JustProtect::providedPorts()
+  {
+    return {};
+  }
+  BT::NodeStatus JustProtect::tick()
+  {   
     return BT::NodeStatus::SUCCESS;
   }
 }  // namespace Sentry_BT

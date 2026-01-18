@@ -27,6 +27,11 @@ namespace icp_relocalization
   public:
     struct Options
     {
+      // Height filter (PassThrough on z)
+      bool height_filter_enabled = false;
+      double height_filter_min_z = -1000.0;
+      double height_filter_max_z = 1000.0;
+
       // Voxel Grid
       double target_voxel_leaf_size = 2.0;
       double source_voxel_leaf_size = 2.0;
@@ -71,6 +76,10 @@ namespace icp_relocalization
     }
 
   private:
+    // Apply optional height(z) pass-through filter.
+    // Returns the original cloud when disabled.
+    PointCloud::Ptr applyHeightFilter(const PointCloud::Ptr& cloud) const;
+
     // 初始化处理流程
     void preprocessMap(const PointCloud::Ptr& cloud);
 

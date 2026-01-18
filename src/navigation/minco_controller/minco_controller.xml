@@ -1,0 +1,9 @@
+<class_libraries>
+  <library path="minco_controller">
+    <class type="minco_controller::MincoMpcController" base_class_type="nav2_core::Controller">
+      <description>
+        基于 qpOASES 的 Minco MPC 控制器
+      </description>
+    </class>
+  </library>
+</class_libraries>
