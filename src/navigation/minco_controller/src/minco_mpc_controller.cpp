@@ -435,9 +435,9 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
 #ifdef MINCO_DEBUG
   auto t_start = std::chrono::high_resolution_clock::now();
 #endif
-  std::cout << color_text::BLUE << "[MincoMpc] Start Solving..." << color_text::RESET << std::endl;
+  // std::cout << color_text::BLUE << "[MincoMpc] Start Solving..." << color_text::RESET << std::endl;
   bool success = solver_->solve(curr, ref, u_global, &pred_states);
-  std::cout << color_text::BLUE << "[MincoMpc] Solve Finished." << color_text::RESET << std::endl;
+  // std::cout << color_text::BLUE << "[MincoMpc] Solve Finished." << color_text::RESET << std::endl;
   
   publishVisualization(pred_states, curr);
 
@@ -485,7 +485,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     cmd.twist.angular.z = 0.0;
     return cmd;
   }
-  std::cout << color_text::GREEN << "[MincoMpc] Solver Success!" << color_text::RESET << std::endl;
+  // std::cout << color_text::GREEN << "[MincoMpc] Solver Success!" << color_text::RESET << std::endl;
   // 4) 将全局控制律 [vx, vy, omega] 转换为机器人坐标系 (base)
   // 这里不再进行 rotate2d 全局转局部，而是直接使用全局速度
   const Eigen::Vector2d u_global_v(u_global.vx, u_global.vy);
