@@ -25,6 +25,10 @@ namespace Sentry_BT
     factory_.registerNodeType<CheckWhetherChange>("CheckWhetherChange");
     factory_.registerNodeType<ChangePosition>("ChangePosition");
     factory_.registerNodeType<ChangePosition>("JustProtect");
+    
+    factory_.registerNodeType<DirectVelocityControl>("DirectVelocityControl");
+    factory_.registerNodeType<SetStairsPosition>("SetStairsPosition");
+    factory_.registerNodeType<CheckInStairsZone>("CheckInStairsZone");
     // 创建行为树
     try
     {
