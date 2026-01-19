@@ -423,15 +423,17 @@ planner_server:
       use_astar: true
       allow_unknown: false
       minco_optimizer:
+        opt_freq: 20.0
         safe_dist: 0.5
+        lookahead_dist: 4.0  # 前视距离,用于minco部分优化
         max_velocity: 2.0
         max_acceleration: 5.0
         time_allocation_iters: 15
-        penalty_weight_time: 100.0
         smooth_eps: 0.01
         integral_res: 16
         opt_accuracy: 0.0001
         print_optimizer_log: true
+        penalty_weight_time: 100.0
         penalty_weight_pos: 10000.0
         penalty_weight_vel: 10000.0
         penalty_weight_acc: 2000.0
