@@ -3,21 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentry BT Visualizer</title>
-    <!-- 引入 React 和 ReactDOM -->
+    <title>Sentry BT Visualizer Pro</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- 引入 Babel 用于解析 JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body, html { height: 100%; margin: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-        /* 自定义滚动条样式 */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        @keyframes flash-green { 0% { background-color: #dcfce7; } 100% { background-color: transparent; } }
+        .animate-flash { animation: flash-green 1s ease-out; }
     </style>
 </head>
 <body>
@@ -26,24 +24,8 @@
     <script type="text/babel">
         const { useState, useCallback, useRef, useEffect, useMemo } = React;
 
-        // --- 图标组件库 (替代 lucide-react) ---
-        const Icon = ({ path, className, size = 16, ...props }) => (
-            <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width={size} height={size} 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                className={className}
-                {...props}
-            >
-                {path}
-            </svg>
-        );
-
+        // --- Icons ---
+        const Icon = ({ path, className, size = 16, ...props }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{path}</svg>);
         const Icons = {
             Activity: (p) => <Icon {...p} path={<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>} />,
             Zap: (p) => <Icon {...p} path={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />,
@@ -65,12 +47,12 @@
             Copy: (p) => <Icon {...p} path={<><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>} />,
             Check: (p) => <Icon {...p} path={<polyline points="20 6 9 17 4 12"/>} />,
             List: (p) => <Icon {...p} path={<><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>} />,
-            Download: (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>} />
+            Download: (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>} />,
+            Code: (p) => <Icon {...p} path={<><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></>} />,
+            Lock: (p) => <Icon {...p} path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>} />,
+            Unlock: (p) => <Icon {...p} path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>} />
         };
 
-        // -----------------------------------------------------------------------------
-        // 常量定义
-        // -----------------------------------------------------------------------------
         const NODE_TYPES = {
             ROOT: { label: 'Root', color: '#1e293b', icon: Icons.Zap, type: 'ROOT', desc: '树的根节点' },
             SEQUENCE: { label: 'Sequence', color: '#f59e0b', icon: Icons.ArrowRight, type: 'SEQUENCE', desc: '按顺序执行，全成功才成功' },
@@ -84,38 +66,22 @@
         const NODE_HEIGHT = 80;
         const CANVAS_OFFSET = 5000;
 
-        const INITIAL_NODES = [
-            { id: 'root', type: 'ROOT', x: 100, y: 300, data: { label: 'Root', status: 'IDLE' } }
-        ];
-
+        const INITIAL_NODES = [{ id: 'root', type: 'ROOT', x: 100, y: 300, data: { label: 'Root', status: 'IDLE' } }];
         const INITIAL_BLACKBOARD = [
             { key: 'health', value: 400, type: 'int' },
             { key: 'speed', value: 1.5, type: 'float' },
             { key: 'target_valid', value: false, type: 'boolean' },
-            { 
-                key: 'nav_status', 
-                value: 'IDLE', 
-                type: 'enum', 
-                enumName: 'NavStatus',
-                options: ['IDLE', 'PATROL', 'ATTACK'] 
-            }
+            { key: 'nav_status', value: 'IDLE', type: 'enum', enumName: 'NavStatus', options: ['IDLE', 'PATROL', 'ATTACK'] }
         ];
 
-        // -----------------------------------------------------------------------------
-        // 辅助函数
-        // -----------------------------------------------------------------------------
+        // Global Helper Functions
         const getBezierPath = (x1, y1, x2, y2) => {
             const dist = Math.abs(x2 - x1);
             const controlOffset = Math.max(dist * 0.5, 60);
             return `M ${x1} ${y1} C ${x1} ${y1 + controlOffset} ${x2} ${y2 - controlOffset} ${x2} ${y2}`;
         };
-
-        const getEdgeCenter = (x1, y1, x2, y2) => {
-           return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
-        };
-
+        const getEdgeCenter = (x1, y1, x2, y2) => ({ x: (x1 + x2) / 2, y: (y1 + y2) / 2 });
         const generateId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
         const downloadFile = (filename, content) => {
             const element = document.createElement('a');
             const file = new Blob([content], {type: 'text/plain'});
@@ -126,22 +92,16 @@
             document.body.removeChild(element);
         };
 
-        // -----------------------------------------------------------------------------
-        // 代码生成逻辑
-        // -----------------------------------------------------------------------------
+        // Code Generators
         const generateROSCpp = (nodes, blackboard) => {
             const actions = [];
             const conditions = [];
             const seenLabels = new Set();
             const enumDefinitions = [];
 
-            // 提取 Enum 定义
             blackboard.forEach(item => {
-                if (item.type === 'enum' && item.enumName && item.options && item.options.length > 0) {
-                    enumDefinitions.push({
-                        name: item.enumName,
-                        options: item.options
-                    });
+                if (item.type === 'enum' && item.enumName && item.options?.length > 0) {
+                    enumDefinitions.push({ name: item.enumName, options: item.options });
                 }
             });
 
@@ -156,205 +116,117 @@
                 }
             });
 
-            // --- nav_zone.hpp ---
-            const navZoneHpp = `#pragma once
+            const navZoneHpp = `#pragma once\n\n#include <vector>\n#include <string>\n\nnamespace Sentry_BT\n{\n  // Enum Definitions\n${enumDefinitions.map(e => `  enum class ${e.name} {\n    ${e.options.join(',\n    ')}\n  };`).join('\n\n')}\n} // namespace Sentry_BT\n`;
 
-#include <vector>
-#include <string>
-
-namespace Sentry_BT
-{
-  // Enum Definitions
-${enumDefinitions.map(e => `  enum class ${e.name} {
-    ${e.options.join(',\n    ')}
-  };`).join('\n\n')}
-} // namespace Sentry_BT
-`;
-
-            // --- blackboard.hpp ---
-            const blackboardHpp = `#pragma once
-
-#include "nav_zone.hpp"
-#include <behaviortree_cpp_v3/blackboard.h>
-#include <behaviortree_cpp_v3/bt_factory.h>
-#include <geometry_msgs/msg/point.hpp>
-#include <geometry_msgs/msg/pose.hpp>
-
-namespace Sentry_BT
-{
-  class Blackboard
-  {
-  private:
-    std::shared_ptr<BT::Blackboard> blackboard_;
-
-  public:
-    Blackboard()
-    {
-      blackboard_ = BT::Blackboard::create();
-
-      // 初始化黑板变量
-${blackboard.map(item => {
-    let valStr = item.value;
-    if (item.type === 'string') valStr = `"${item.value}"`;
-    else if (item.type === 'boolean') valStr = item.value ? 'true' : 'false';
-    else if (item.type === 'float') valStr = `${item.value}f`;
-    else if (item.type === 'enum') {
-        valStr = `static_cast<int>(${item.enumName}::${item.value})`;
-    }
-    return `      blackboard_->set("${item.key}", ${valStr});`;
-}).join('\n')}
-    }
-
-    template <typename T> void set(const std::string& key, const T& value)
-    {
-      blackboard_->set(key, value);
-    }
-
-    template <typename T> auto get(const std::string& key)
-    {
-      return blackboard_->get<T>(key);
-    }
-
-    std::shared_ptr<BT::Blackboard> getBTBlackboard()
-    {
-      return blackboard_;
-    }
-  };
-} // namespace Sentry_BT
-`;
+            const blackboardHpp = `#pragma once\n\n#include "nav_zone.hpp"\n#include <behaviortree_cpp_v3/blackboard.h>\n#include <behaviortree_cpp_v3/bt_factory.h>\n#include <geometry_msgs/msg/point.hpp>\n#include <geometry_msgs/msg/pose.hpp>\n\nnamespace Sentry_BT\n{\n  class Blackboard\n  {\n  private:\n    std::shared_ptr<BT::Blackboard> blackboard_;\n\n  public:\n    Blackboard()\n    {\n      blackboard_ = BT::Blackboard::create();\n\n      // 初始化黑板变量\n${blackboard.map(item => {
+                let valStr = item.value;
+                if (item.type === 'string') valStr = `"${item.value}"`;
+                else if (item.type === 'boolean') valStr = item.value ? 'true' : 'false';
+                else if (item.type === 'float') valStr = `${item.value}f`;
+                else if (item.type === 'double') valStr = `${item.value}`;
+                else if (item.type === 'enum') valStr = `static_cast<int>(${item.enumName}::${item.value})`;
+                return `      blackboard_->set("${item.key}", ${valStr});`;
+            }).join('\n')}\n    }\n\n    template <typename T> void set(const std::string& key, const T& value) { blackboard_->set(key, value); }\n    template <typename T> auto get(const std::string& key) { return blackboard_->get<T>(key); }\n    std::shared_ptr<BT::Blackboard> getBTBlackboard() { return blackboard_; }\n  };\n} // namespace Sentry_BT\n`;
 
             const getCppType = (item) => {
                 switch(item.type) {
-                    case 'int': return 'int';
+                    case 'int': case 'enum': return 'int';
                     case 'float': return 'float';
                     case 'double': return 'double';
                     case 'boolean': return 'bool';
                     case 'string': return 'std::string';
-                    case 'enum': return 'int'; // Enum stored as int
                     default: return 'double';
                 }
             };
 
-            // --- auto_actions.hpp ---
-            const actionsHpp = `#pragma once
+            const actionsHpp = `#pragma once\n\n#include <behaviortree_cpp_v3/action_node.h>\n#include "bt_manager/blackboard.hpp"\n\nnamespace Sentry_BT\n{\n${actions.map(node => `class ${node.className} : public BT::SyncActionNode\n{\npublic:\n  ${node.className}(const std::string& name, const BT::NodeConfiguration& config)\n    : BT::SyncActionNode(name, config) {}\n  static BT::PortsList providedPorts() { return {}; } \n  BT::NodeStatus tick() override;\n};`).join('\n')}\n} // namespace Sentry_BT\n`;
 
-#include <behaviortree_cpp_v3/action_node.h>
-#include "bt_manager/blackboard.hpp"
+            const actionsCpp = `#include "auto_actions.hpp"\n\nnamespace Sentry_BT\n{\n${actions.map(node => {
+                const mode = node.data.logicMode || 'simple';
+                let logic = '';
+                
+                if (mode === 'custom') {
+                    logic = `// USER CUSTOM LOGIC\n    // Implement your logic here\n    // ${node.data.customCode ? node.data.customCode.replace(/\n/g, '\n    // ') : 'No code provided'}\n    \n    // Remember to return BT::NodeStatus::SUCCESS/FAILURE/RUNNING`;
+                } else if (mode === 'complex') {
+                    const exprs = node.data.expressions || [];
+                    logic = exprs.map(ex => {
+                        const bbItem = blackboard.find(b => b.key === ex.variable);
+                        const type = bbItem ? getCppType(bbItem) : 'auto';
+                        let val = ex.value;
+                        if(bbItem?.type==='string') val=`"${val}"`;
+                        else if(bbItem?.type==='float') val=`${val}f`;
+                        else if(bbItem?.type==='enum') val=`static_cast<int>(${bbItem.enumName}::${val})`;
+                        
+                        let opCode = '';
+                        if (ex.op === '=') opCode = `config().blackboard->set<${type}>("${ex.variable}", ${val});`;
+                        else if (ex.op === '+=') opCode = `auto v = config().blackboard->get<${type}>("${ex.variable}"); if(v) config().blackboard->set<${type}>("${ex.variable}", *v + ${val});`;
+                        else if (ex.op === '-=') opCode = `auto v = config().blackboard->get<${type}>("${ex.variable}"); if(v) config().blackboard->set<${type}>("${ex.variable}", *v - ${val});`;
+                        return opCode;
+                    }).join('\n    ');
+                } else {
+                    const variable = node.data.variable || 'unknown_var';
+                    const op = node.data.op || '=';
+                    let val = node.data.value; 
+                    const bbItem = blackboard.find(b => b.key === variable);
+                    const cppType = bbItem ? getCppType(bbItem) : 'int';
+                    
+                    if (bbItem?.type === 'string') val = `"${val}"`;
+                    else if (bbItem?.type === 'boolean') val = (val === 'true' || val === true) ? 'true' : 'false';
+                    else if (bbItem?.type === 'float') val = `${val}f`;
+                    else if (bbItem?.type === 'enum') val = `static_cast<int>(${bbItem.enumName}::${val})`;
+                    else if (!val) val = '0'; 
 
-namespace Sentry_BT
-{
-${actions.map(node => `
-class ${node.className} : public BT::SyncActionNode
-{
-public:
-  ${node.className}(const std::string& name, const BT::NodeConfiguration& config)
-    : BT::SyncActionNode(name, config) {}
-  
-  static BT::PortsList providedPorts() { return {}; } 
-  BT::NodeStatus tick() override;
-};`).join('\n')}
-} // namespace Sentry_BT
-`;
+                    if (op === '=') logic = `config().blackboard->set<${cppType}>("${variable}", ${val});`;
+                    else if (['int', 'float', 'double'].includes(bbItem?.type)) {
+                        if (op === '+=') logic = `auto current = config().blackboard->get<${cppType}>("${variable}");\n    if(current) config().blackboard->set<${cppType}>("${variable}", current.value() + ${val});`;
+                        else if (op === '-=') logic = `auto current = config().blackboard->get<${cppType}>("${variable}");\n    if(current) config().blackboard->set<${cppType}>("${variable}", current.value() - ${val});`;
+                    }
+                }
+                return `BT::NodeStatus ${node.className}::tick()\n{\n    ${logic}\n    return BT::NodeStatus::SUCCESS;\n}`;
+            }).join('\n')}\n} // namespace Sentry_BT\n`;
 
-            // --- auto_actions.cpp ---
-            const actionsCpp = `#include "auto_actions.hpp"
+            const conditionsHpp = `#pragma once\n\n#include <behaviortree_cpp_v3/condition_node.h>\n#include "bt_manager/blackboard.hpp"\n\nnamespace Sentry_BT\n{\n${conditions.map(node => `class ${node.className} : public BT::ConditionNode\n{\npublic:\n  ${node.className}(const std::string& name, const BT::NodeConfiguration& config)\n    : BT::ConditionNode(name, config) {}\n  static BT::PortsList providedPorts() { return {}; }\n  BT::NodeStatus tick() override;\n};`).join('\n')}\n} // namespace Sentry_BT\n`;
 
-namespace Sentry_BT
-{
-${actions.map(node => {
-    const variable = node.data.variable || 'unknown_var';
-    const op = node.data.op || '=';
-    let val = node.data.value; 
-    
-    const bbItem = blackboard.find(b => b.key === variable);
-    const type = bbItem ? bbItem.type : 'number';
-    const cppType = bbItem ? getCppType(bbItem) : 'int';
-    
-    // Value formatting
-    if (type === 'string') val = `"${val}"`;
-    else if (type === 'boolean') val = (val === 'true' || val === true) ? 'true' : 'false';
-    else if (type === 'float') val = `${val}f`;
-    else if (type === 'enum') val = `static_cast<int>(${bbItem.enumName}::${val})`;
-    else if (!val) val = '0'; 
+            const conditionsCpp = `#include "auto_conditions.hpp"\n\nnamespace Sentry_BT\n{\n${conditions.map(node => {
+                const mode = node.data.logicMode || 'simple';
+                let logic = '';
 
-    let logic = '';
-    if (op === '=') {
-        logic = `config().blackboard->set<${cppType}>("${variable}", ${val});`;
-    } else if (['int', 'float', 'double'].includes(type)) {
-        if (op === '+=') {
-            logic = `
-    auto current = config().blackboard->get<${cppType}>("${variable}");
-    if(current) config().blackboard->set<${cppType}>("${variable}", current.value() + ${val});`;
-        } else if (op === '-=') {
-            logic = `
-    auto current = config().blackboard->get<${cppType}>("${variable}");
-    if(current) config().blackboard->set<${cppType}>("${variable}", current.value() - ${val});`;
-        }
-    }
+                if (mode === 'custom') {
+                     logic = `// USER CUSTOM LOGIC\n    // ${node.data.customCode ? node.data.customCode.replace(/\n/g, '\n    // ') : 'No code provided'}\n    // return BT::NodeStatus::SUCCESS; // Placeholder`;
+                } else if (mode === 'complex') {
+                    const exprs = node.data.expressions || [];
+                    const logicOp = node.data.logicOp || '&&'; // AND/OR
+                    const joiner = logicOp === '&&' ? ' && ' : ' || ';
+                    
+                    const conditionsCode = exprs.map((ex, idx) => {
+                         const bbItem = blackboard.find(b => b.key === ex.variable);
+                         const type = bbItem ? getCppType(bbItem) : 'auto';
+                         let val = ex.value;
+                         if(bbItem?.type==='string') val=`"${val}"`;
+                         else if(bbItem?.type==='float') val=`${val}f`;
+                         else if(bbItem?.type==='enum') val=`static_cast<int>(${bbItem.enumName}::${val})`;
+                         
+                         return `(config().blackboard->get<${type}>("${ex.variable}").value() ${ex.operator} ${val})`;
+                    }).join(joiner);
+                    
+                    logic = `if (${conditionsCode}) return BT::NodeStatus::SUCCESS;\n    return BT::NodeStatus::FAILURE;`;
+                } else {
+                    const variable = node.data.variable || 'unknown_var';
+                    const op = node.data.operator || '==';
+                    let val = node.data.value;
+                    const bbItem = blackboard.find(b => b.key === variable);
+                    const cppType = bbItem ? getCppType(bbItem) : 'int';
 
-    return `
-BT::NodeStatus ${node.className}::tick()
-{
-    ${logic}
-    return BT::NodeStatus::SUCCESS;
-}`;
-}).join('\n')}
-} // namespace Sentry_BT
-`;
+                    if (bbItem?.type === 'string') val = `"${val}"`;
+                    else if (bbItem?.type === 'boolean') val = (val === 'true' || val === true) ? 'true' : 'false';
+                    else if (bbItem?.type === 'float') val = `${val}f`;
+                    else if (bbItem?.type === 'enum') val = `static_cast<int>(${bbItem.enumName}::${val})`;
+                    else if (!val) val = '0';
 
-            // --- auto_conditions.hpp ---
-            const conditionsHpp = `#pragma once
-
-#include <behaviortree_cpp_v3/condition_node.h>
-#include "bt_manager/blackboard.hpp"
-
-namespace Sentry_BT
-{
-${conditions.map(node => `
-class ${node.className} : public BT::ConditionNode
-{
-public:
-  ${node.className}(const std::string& name, const BT::NodeConfiguration& config)
-    : BT::ConditionNode(name, config) {}
-  
-  static BT::PortsList providedPorts() { return {}; }
-  BT::NodeStatus tick() override;
-};`).join('\n')}
-} // namespace Sentry_BT
-`;
-
-            // --- auto_conditions.cpp ---
-            const conditionsCpp = `#include "auto_conditions.hpp"
-
-namespace Sentry_BT
-{
-${conditions.map(node => {
-    const variable = node.data.variable || 'unknown_var';
-    const op = node.data.operator || '==';
-    let val = node.data.value;
-    
-    const bbItem = blackboard.find(b => b.key === variable);
-    const type = bbItem ? bbItem.type : 'number';
-    const cppType = bbItem ? getCppType(bbItem) : 'int';
-
-    if (type === 'string') val = `"${val}"`;
-    else if (type === 'boolean') val = (val === 'true' || val === true) ? 'true' : 'false';
-    else if (type === 'float') val = `${val}f`;
-    else if (type === 'enum') val = `static_cast<int>(${bbItem.enumName}::${val})`;
-    else if (!val) val = '0';
-
-    return `
-BT::NodeStatus ${node.className}::tick()
-{
-    auto res = config().blackboard->get<${cppType}>("${variable}");
-    if (!res) return BT::NodeStatus::FAILURE;
-    
-    bool result = (res.value() ${op} ${val});
-    return result ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
-}`;
-}).join('\n')}
-} // namespace Sentry_BT
-`;
+                    logic = `auto res = config().blackboard->get<${cppType}>("${variable}");\n    if (!res) return BT::NodeStatus::FAILURE;\n    bool result = (res.value() ${op} ${val});\n    return result ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;`;
+                }
+                return `BT::NodeStatus ${node.className}::tick()\n{\n    ${logic}\n}`;
+            }).join('\n')}\n} // namespace Sentry_BT\n`;
 
             return {
                 'nav_zone.hpp': navZoneHpp,
@@ -369,20 +241,14 @@ BT::NodeStatus ${node.className}::tick()
         const generateXML = (nodes, edges) => {
             const buildTree = (parentId) => {
                 const childrenEdges = edges.filter(e => e.source === parentId);
-                const childrenNodes = childrenEdges.map(e => nodes.find(n => n.id === e.target))
-                    .filter(n => n)
-                    .sort((a, b) => a.x - b.x);
-
+                const childrenNodes = childrenEdges.map(e => nodes.find(n => n.id === e.target)).filter(n => n).sort((a, b) => a.x - b.x);
                 let xml = "";
                 childrenNodes.forEach(node => {
                     const typeLabel = NODE_TYPES[node.type]?.label || "Action";
                     const attributes = `name="${node.data.label}"`;
                     const childrenXML = buildTree(node.id);
-                    if (childrenXML) {
-                        xml += `<${typeLabel} ${attributes}>\n${childrenXML}</${typeLabel}>\n`;
-                    } else {
-                        xml += `<${typeLabel} ${attributes} />\n`;
-                    }
+                    if (childrenXML) xml += `<${typeLabel} ${attributes}>\n${childrenXML}</${typeLabel}>\n`;
+                    else xml += `<${typeLabel} ${attributes} />\n`;
                 });
                 return xml.split('\n').map(line => line ? '    ' + line : '').join('\n');
             };
@@ -391,124 +257,44 @@ BT::NodeStatus ${node.className}::tick()
             return `<root main_tree_to_execute="MainTree">\n  <BehaviorTree ID="MainTree">\n    <Root>\n${buildTree(rootNode.id)}    </Root>\n  </BehaviorTree>\n</root>`;
         };
 
-        // -----------------------------------------------------------------------------
-        // 组件：枚举编辑弹窗
-        // -----------------------------------------------------------------------------
+        // --- Modals ---
         const EnumEditorModal = ({ item, onSave, onClose }) => {
             const [name, setName] = useState(item.enumName || 'MyEnum');
             const [optionsStr, setOptionsStr] = useState((item.options || ['OPTION_A']).join('\n'));
-
-            const handleSave = () => {
-                const options = optionsStr.split('\n').map(s => s.trim()).filter(s => s);
-                onSave(name, options);
-            };
-
+            const handleSave = () => { onSave(name, optionsStr.split('\n').map(s => s.trim()).filter(s => s)); };
             return (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
                     <div className="bg-white p-6 rounded-lg shadow-lg w-80">
-                        <h3 className="font-bold mb-4 text-slate-700">配置枚举 (Enum)</h3>
-                        <div className="mb-3">
-                            <label className="block text-xs text-gray-500 mb-1">枚举类名 (Class Name)</label>
-                            <input 
-                                className="w-full border p-2 rounded text-sm" 
-                                value={name} 
-                                onChange={(e) => setName(e.target.value)}
-                                placeholder="NavStatus"
-                            />
-                        </div>
-                        <div className="mb-4">
-                            <label className="block text-xs text-gray-500 mb-1">选项 (每行一个)</label>
-                            <textarea 
-                                className="w-full border p-2 rounded text-sm h-32 font-mono"
-                                value={optionsStr}
-                                onChange={(e) => setOptionsStr(e.target.value)}
-                            ></textarea>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <button onClick={onClose} className="px-3 py-1 text-sm text-gray-500 hover:bg-gray-100 rounded">取消</button>
-                            <button onClick={handleSave} className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">保存</button>
-                        </div>
+                        <h3 className="font-bold mb-4 text-slate-700">配置枚举</h3>
+                        <div className="mb-3"><label className="block text-xs text-gray-500 mb-1">枚举类名</label><input className="w-full border p-2 rounded text-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder="NavStatus"/></div>
+                        <div className="mb-4"><label className="block text-xs text-gray-500 mb-1">选项 (每行一个)</label><textarea className="w-full border p-2 rounded text-sm h-32 font-mono" value={optionsStr} onChange={(e) => setOptionsStr(e.target.value)}></textarea></div>
+                        <div className="flex justify-end gap-2"><button onClick={onClose} className="px-3 py-1 text-sm text-gray-500 hover:bg-gray-100 rounded">取消</button><button onClick={handleSave} className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">保存</button></div>
                     </div>
                 </div>
             );
         };
 
-        // -----------------------------------------------------------------------------
-        // 组件：代码预览模态框
-        // -----------------------------------------------------------------------------
         const CodePreviewModal = ({ files, onClose }) => {
             const [activeTab, setActiveTab] = useState(Object.keys(files)[0]);
             const [copied, setCopied] = useState(false);
-
-            const handleCopy = () => {
-                navigator.clipboard.writeText(files[activeTab]);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-            };
-            
-            const handleDownloadActive = () => {
-                downloadFile(activeTab, files[activeTab]);
-            };
-
-            const handleDownloadAll = () => {
-                Object.entries(files).forEach(([name, content]) => {
-                    downloadFile(name, content);
-                });
-            };
-
+            const handleCopy = () => { navigator.clipboard.writeText(files[activeTab]); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+            const handleDownloadActive = () => { downloadFile(activeTab, files[activeTab]); };
+            const handleDownloadAll = () => { Object.entries(files).forEach(([name, content]) => { downloadFile(name, content); }); };
             return (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-10">
                     <div className="bg-white w-full max-w-5xl h-[80vh] rounded-lg shadow-2xl flex flex-col overflow-hidden">
                         <div className="flex items-center justify-between p-4 border-b bg-gray-50">
-                            <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                                <Icons.FileCode className="text-blue-600" /> C++ 代码生成 (ROS2)
-                            </h3>
-                            <div className="flex gap-2">
-                                <button onClick={handleDownloadAll} className="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700">
-                                    <Icons.Download size={14} /> 下载所有
-                                </button>
-                                <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded"><Icons.X size={20}/></button>
-                            </div>
+                            <h3 className="font-bold text-slate-700 flex items-center gap-2"><Icons.FileCode className="text-blue-600" /> C++ 代码生成</h3>
+                            <div className="flex gap-2"><button onClick={handleDownloadAll} className="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"><Icons.Download size={14} /> 下载所有</button><button onClick={onClose} className="p-1 hover:bg-gray-200 rounded"><Icons.X size={20}/></button></div>
                         </div>
-                        <div className="flex border-b bg-gray-100 overflow-x-auto">
-                            {Object.keys(files).map(fileName => (
-                                <button
-                                    key={fileName}
-                                    onClick={() => setActiveTab(fileName)}
-                                    className={`px-4 py-2 text-xs font-mono border-r whitespace-nowrap ${activeTab === fileName ? 'bg-white text-blue-600 font-bold border-t-2 border-t-blue-500' : 'text-gray-600 hover:bg-gray-200'}`}
-                                >
-                                    {fileName}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="flex-1 overflow-hidden relative group">
-                            <pre className="h-full overflow-auto p-4 text-xs font-mono bg-[#1e1e1e] text-gray-300">
-                                {files[activeTab]}
-                            </pre>
-                            <div className="absolute top-4 right-4 flex gap-2">
-                                <button 
-                                    onClick={handleDownloadActive}
-                                    className="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded text-xs flex items-center gap-2 backdrop-blur-sm transition"
-                                >
-                                    <Icons.Download size={14} /> 下载文件
-                                </button>
-                                <button 
-                                    onClick={handleCopy}
-                                    className="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded text-xs flex items-center gap-2 backdrop-blur-sm transition"
-                                >
-                                    {copied ? <Icons.Check size={14} /> : <Icons.Copy size={14} />}
-                                    {copied ? '已复制' : '复制内容'}
-                                </button>
-                            </div>
-                        </div>
+                        <div className="flex border-b bg-gray-100 overflow-x-auto">{Object.keys(files).map(fileName => (<button key={fileName} onClick={() => setActiveTab(fileName)} className={`px-4 py-2 text-xs font-mono border-r whitespace-nowrap ${activeTab === fileName ? 'bg-white text-blue-600 font-bold border-t-2 border-t-blue-500' : 'text-gray-600 hover:bg-gray-200'}`}>{fileName}</button>))}</div>
+                        <div className="flex-1 overflow-hidden relative group"><pre className="h-full overflow-auto p-4 text-xs font-mono bg-[#1e1e1e] text-gray-300">{files[activeTab]}</pre><div className="absolute top-4 right-4 flex gap-2"><button onClick={handleDownloadActive} className="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded text-xs flex items-center gap-2 backdrop-blur-sm transition"><Icons.Download size={14} /> 下载文件</button><button onClick={handleCopy} className="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded text-xs flex items-center gap-2 backdrop-blur-sm transition">{copied ? <Icons.Check size={14} /> : <Icons.Copy size={14} />}{copied ? '已复制' : '复制内容'}</button></div></div>
                     </div>
                 </div>
             );
         };
 
-        // -----------------------------------------------------------------------------
-        // 主组件
-        // -----------------------------------------------------------------------------
+        // ----------------------- MAIN COMPONENT -----------------------
         function BehaviorTreeEditor() {
             const [nodes, setNodes] = useState(INITIAL_NODES);
             const [edges, setEdges] = useState([]);
@@ -516,8 +302,6 @@ BT::NodeStatus ${node.className}::tick()
             const [blackboard, setBlackboard] = useState(INITIAL_BLACKBOARD);
             const [showCodeModal, setShowCodeModal] = useState(false);
             const [generatedFiles, setGeneratedFiles] = useState({});
-            
-            // Enum Editor State
             const [editingEnumIndex, setEditingEnumIndex] = useState(null);
             
             const [view, setView] = useState({ x: 0, y: 0, k: 1 });
@@ -531,73 +315,62 @@ BT::NodeStatus ${node.className}::tick()
             const [bottomPanelHeight, setBottomPanelHeight] = useState(250);
             const [isResizingPanel, setIsResizingPanel] = useState(false);
             const [isResizingBottom, setIsResizingBottom] = useState(false);
-
             const [isSimulating, setIsSimulating] = useState(false);
             
             const simulationRef = useRef(null);
             const canvasRef = useRef(null);
-
             const nodesRef = useRef(nodes);
             useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 
-            const simState = useRef({
-                stack: [],           
-                nodeStatuses: {},    
-                actionTicks: {},     
-                waitCounter: 0,      
-                isResetting: false,  
-            });
-
+            const simState = useRef({ stack: [], nodeStatuses: {}, actionTicks: {}, waitCounter: 0, isResetting: false });
             const blackboardRef = useRef(blackboard);
             useEffect(() => { if (!isSimulating) blackboardRef.current = blackboard; }, [blackboard, isSimulating]);
 
-            // 仿真逻辑
+            // Handlers defined BEFORE usage
+            const handleWheel = (e) => {
+                if (e.ctrlKey || e.metaKey || true) {
+                    e.preventDefault();
+                    const zoomSensitivity = 0.001;
+                    const delta = -e.deltaY * zoomSensitivity;
+                    setView(v => ({ ...v, k: Math.min(3, Math.max(0.1, v.k + delta)) }));
+                }
+            };
+
+            const openCodeModal = () => {
+                setGeneratedFiles(generateROSCpp(nodes, blackboard));
+                setShowCodeModal(true);
+            };
+
+            // Simulation Step Logic
             const runStep = useCallback(() => {
                 const currentNodes = nodesRef.current;
                 const nodeMap = new Map(currentNodes.map(n => [n.id, n]));
                 const childrenMap = {};
-                edges.forEach(edge => {
-                    if (!childrenMap[edge.source]) childrenMap[edge.source] = [];
-                    childrenMap[edge.source].push(edge.target);
-                });
-                Object.keys(childrenMap).forEach(parentId => {
-                    childrenMap[parentId].sort((a, b) => (nodeMap.get(a)?.x || 0) - (nodeMap.get(b)?.x || 0));
-                });
+                edges.forEach(edge => { if (!childrenMap[edge.source]) childrenMap[edge.source] = []; childrenMap[edge.source].push(edge.target); });
+                Object.keys(childrenMap).forEach(parentId => { childrenMap[parentId].sort((a, b) => (nodeMap.get(a)?.x || 0) - (nodeMap.get(b)?.x || 0)); });
 
                 const state = simState.current;
                 
                 if (state.isResetting) {
                     state.waitCounter++;
                     if (state.waitCounter > 3) {
-                        state.isResetting = false;
-                        state.stack = [];
-                        state.nodeStatuses = {};
-                        state.actionTicks = {};
-                        state.waitCounter = 0;
+                        state.isResetting = false; state.stack = []; state.nodeStatuses = {}; state.actionTicks = {}; state.waitCounter = 0;
                         const root = currentNodes.find(n => n.type === 'ROOT');
                         if (root) state.stack.push({ nodeId: root.id, childIndex: 0 });
                     }
                     setNodes(ns => ns.map(n => ({...n, data: {...n.data, status: state.nodeStatuses[n.id] || 'IDLE'}})));
                     return;
                 }
-
                 if (state.stack.length === 0 && !state.isResetting) {
                     const root = currentNodes.find(n => n.type === 'ROOT');
-                    if (root) {
-                        state.stack.push({ nodeId: root.id, childIndex: 0 });
-                        state.nodeStatuses = {};
-                    } else {
-                        return;
-                    }
+                    if (root) { state.stack.push({ nodeId: root.id, childIndex: 0 }); state.nodeStatuses = {}; } else { return; }
                 }
 
                 const frame = state.stack[state.stack.length - 1];
                 if (!frame) return;
-
                 const nodeId = frame.nodeId;
                 const node = nodeMap.get(nodeId);
                 if (!node) { state.stack.pop(); return; }
-
                 const children = childrenMap[nodeId] || [];
                 let currentStatus = state.nodeStatuses[nodeId] || 'IDLE';
 
@@ -608,144 +381,152 @@ BT::NodeStatus ${node.className}::tick()
                 }
 
                 let result = 'RUNNING';
-
-                if (node.type === 'SEQUENCE' || node.type === 'ROOT' || node.type === 'FALLBACK') {
-                    if (frame.childIndex >= children.length) {
-                        result = node.type === 'FALLBACK' ? 'FAILURE' : 'SUCCESS';
-                    } else {
+                if (node.data.forcedStatus && node.data.forcedStatus !== 'NONE') {
+                    result = node.data.forcedStatus;
+                } else if (node.type === 'SEQUENCE' || node.type === 'ROOT' || node.type === 'FALLBACK') {
+                    if (frame.childIndex >= children.length) { result = node.type === 'FALLBACK' ? 'FAILURE' : 'SUCCESS'; } 
+                    else {
                         const childId = children[frame.childIndex];
                         const childStatus = state.nodeStatuses[childId] || 'IDLE';
-
-                        if (childStatus === 'IDLE') {
-                            state.stack.push({ nodeId: childId, childIndex: 0 });
-                            return;
-                        } else if (childStatus === 'RUNNING') {
-                            return;
-                        } else {
-                            if (node.type === 'SEQUENCE' || node.type === 'ROOT') {
-                                if (childStatus === 'FAILURE') result = 'FAILURE';
-                                else frame.childIndex++;
-                            } else { 
-                                if (childStatus === 'SUCCESS') result = 'SUCCESS';
-                                else frame.childIndex++;
-                            }
+                        if (childStatus === 'IDLE') { state.stack.push({ nodeId: childId, childIndex: 0 }); return; } 
+                        else if (childStatus === 'RUNNING') { return; } 
+                        else {
+                            if (node.type === 'SEQUENCE' || node.type === 'ROOT') { if (childStatus === 'FAILURE') result = 'FAILURE'; else frame.childIndex++; } 
+                            else { if (childStatus === 'SUCCESS') result = 'SUCCESS'; else frame.childIndex++; }
                         }
                     }
-                }
-                else if (node.type === 'CONDITION') {
-                    if (!state.actionTicks[nodeId]) state.actionTicks[nodeId] = 0;
-                    state.actionTicks[nodeId]++;
-
-                    if (state.actionTicks[nodeId] > 1) { 
-                        const variable = node.data.variable;
-                        const operator = node.data.operator || '==';
-                        let targetVal = node.data.value;
-                        const bbItem = blackboardRef.current.find(b => b.key === variable);
-                        const currentVal = bbItem ? bbItem.value : undefined;
+                } else if (node.type === 'CONDITION' || node.type === 'ACTION') {
+                    if(node.data.logicMode === 'custom') {
+                         if (!state.actionTicks[nodeId]) state.actionTicks[nodeId] = 0;
+                        state.actionTicks[nodeId]++;
+                        if(state.actionTicks[nodeId] > 2) { result = 'SUCCESS'; state.actionTicks[nodeId] = 0; }
+                    } else if (node.data.logicMode === 'complex') {
+                        const exprs = node.data.expressions || [];
+                        const logicOp = node.data.logicOp || '&&';
+                        if (!state.actionTicks[nodeId]) state.actionTicks[nodeId] = 0;
+                        state.actionTicks[nodeId]++;
                         
-                        // 类型转换
-                        if (bbItem) {
-                            if (bbItem.type === 'int' || bbItem.type === 'float' || bbItem.type === 'double') {
-                                targetVal = parseFloat(targetVal);
-                            }
-                            if (bbItem.type === 'boolean') {
-                                targetVal = (targetVal === 'true' || targetVal === true);
-                            }
-                            // Enum 直接比较字符串或映射的整数
+                        if(state.actionTicks[nodeId] > 1) {
+                             if(node.type === 'ACTION') {
+                                const newList = blackboardRef.current.map(item => ({...item}));
+                                let changed = false;
+                                exprs.forEach(ex => {
+                                    const idx = newList.findIndex(i => i.key === ex.variable);
+                                    if(idx !== -1) {
+                                        const item = newList[idx];
+                                        let val = ex.value;
+                                        if (item.type === 'int') val = parseInt(val);
+                                        else if (item.type === 'float' || item.type === 'double') val = parseFloat(val);
+                                        else if (item.type === 'boolean') val = (String(val) === 'true');
+                                        
+                                        if (ex.op === '=') item.value = val;
+                                        else if (ex.op === '+=' && ['int','float','double'].includes(item.type)) item.value += val;
+                                        else if (ex.op === '-=' && ['int','float','double'].includes(item.type)) item.value -= val;
+                                        
+                                        if(item.type === 'float' || item.type === 'double') item.value = Math.round(item.value * 1000) / 1000;
+                                        changed = true;
+                                    }
+                                });
+                                if(changed) { blackboardRef.current = newList; setBlackboard(newList); }
+                                result = 'SUCCESS';
+                             } else {
+                                let overall = logicOp === '&&';
+                                for(let ex of exprs) {
+                                    const bbItem = blackboardRef.current.find(b => b.key === ex.variable);
+                                    if(!bbItem) { overall = false; break; }
+                                    let tVal = ex.value;
+                                    if(['int','float','double'].includes(bbItem.type)) tVal = parseFloat(tVal);
+                                    if(bbItem.type==='boolean') tVal = (String(tVal) === 'true');
+                                    
+                                    let subPass = false;
+                                    const cVal = bbItem.value;
+                                    switch(ex.operator) {
+                                        case '==': subPass = cVal == tVal; break;
+                                        case '!=': subPass = cVal != tVal; break;
+                                        case '>': subPass = cVal > tVal; break;
+                                        case '<': subPass = cVal < tVal; break;
+                                        case '>=': subPass = cVal >= tVal; break;
+                                        case '<=': subPass = cVal <= tVal; break;
+                                    }
+                                    if(logicOp === '&&' && !subPass) { overall = false; break; }
+                                    if(logicOp === '||' && subPass) { overall = true; break; }
+                                }
+                                result = overall ? 'SUCCESS' : 'FAILURE';
+                             }
+                             state.actionTicks[nodeId] = 0;
                         }
-
-                        let pass = false;
-                        switch(operator) {
-                            case '==': pass = currentVal == targetVal; break;
-                            case '!=': pass = currentVal != targetVal; break;
-                            case '>': pass = currentVal > targetVal; break;
-                            case '<': pass = currentVal < targetVal; break;
-                            case '>=': pass = currentVal >= targetVal; break;
-                            case '<=': pass = currentVal <= targetVal; break;
-                            default: pass = false;
-                        }
-                        result = pass ? 'SUCCESS' : 'FAILURE';
-                        state.actionTicks[nodeId] = 0;
-                    }
-                }
-                else if (node.type === 'ACTION') {
-                    if (!state.actionTicks[nodeId]) state.actionTicks[nodeId] = 0;
-                    state.actionTicks[nodeId]++;
-
-                    if (state.actionTicks[nodeId] > 2) { 
-                        const variable = node.data.variable;
-                        const op = node.data.op || '=';
-                        let val = node.data.value;
-                        
-                        if (variable) {
-                            const newList = blackboardRef.current.map(item => ({...item}));
-                            const idx = newList.findIndex(i => i.key === variable);
-                            
-                            if (idx !== -1) {
-                                const item = newList[idx];
-                                
-                                if (item.type === 'int') val = parseInt(val);
-                                else if (item.type === 'float' || item.type === 'double') val = parseFloat(val);
-                                else if (item.type === 'boolean') val = (val === 'true' || val === true);
-                                // Enum value is string in blackboard state
-
-                                if (op === '=') newList[idx].value = val;
-                                else if (op === '+=' && (item.type === 'int' || item.type === 'float' || item.type === 'double')) {
-                                    newList[idx].value = item.value + val;
-                                }
-                                else if (op === '-=' && (item.type === 'int' || item.type === 'float' || item.type === 'double')) {
-                                    newList[idx].value = item.value - val;
-                                }
-                                else if (op === '+=' && item.type === 'string') {
-                                    newList[idx].value = item.value + val;
-                                }
-
-                                if(item.type === 'float' || item.type === 'double') {
-                                    newList[idx].value = Math.round(newList[idx].value * 1000) / 1000;
-                                }
-
-                                blackboardRef.current = newList; 
-                                setBlackboard(newList); 
-                            }
-                        }
-                        result = 'SUCCESS';
-                        state.actionTicks[nodeId] = 0;
-                    }
-                }
-                else if (node.type === 'DECORATOR') {
-                    if (children.length === 0) {
-                        result = 'SUCCESS';
                     } else {
-                        const childId = children[0];
-                        const childStatus = state.nodeStatuses[childId] || 'IDLE';
-                        if (childStatus === 'IDLE') {
-                            state.stack.push({ nodeId: childId, childIndex: 0 });
-                            return;
-                        } else if (childStatus === 'RUNNING') {
-                            return;
-                        } else {
-                            if (node.data.subType === 'Inverter') {
-                                result = childStatus === 'SUCCESS' ? 'FAILURE' : 'SUCCESS';
-                            } else if (node.data.subType === 'AlwaysFail') {
-                                result = 'FAILURE';
-                            } else {
+                        if (!state.actionTicks[nodeId]) state.actionTicks[nodeId] = 0;
+                        state.actionTicks[nodeId]++;
+                        const requiredTicks = node.type === 'ACTION' ? 2 : 1;
+
+                        if (state.actionTicks[nodeId] > requiredTicks) { 
+                            const variable = node.data.variable;
+                            const bbItem = blackboardRef.current.find(b => b.key === variable);
+                            
+                            if (node.type === 'CONDITION') {
+                                const operator = node.data.operator || '==';
+                                let targetVal = node.data.value;
+                                const currentVal = bbItem ? bbItem.value : undefined;
+                                if (bbItem) {
+                                    if (['int', 'float', 'double'].includes(bbItem.type)) targetVal = parseFloat(targetVal);
+                                    if (bbItem.type === 'boolean') targetVal = (String(targetVal) === 'true');
+                                }
+                                let pass = false;
+                                switch(operator) {
+                                    case '==': pass = currentVal == targetVal; break;
+                                    case '!=': pass = currentVal != targetVal; break;
+                                    case '>': pass = currentVal > targetVal; break;
+                                    case '<': pass = currentVal < targetVal; break;
+                                    case '>=': pass = currentVal >= targetVal; break;
+                                    case '<=': pass = currentVal <= targetVal; break;
+                                    default: pass = false;
+                                }
+                                result = pass ? 'SUCCESS' : 'FAILURE';
+                            } else { 
+                                const op = node.data.op || '=';
+                                let val = node.data.value;
+                                if (variable && bbItem) {
+                                    const newList = blackboardRef.current.map(item => ({...item}));
+                                    const idx = newList.findIndex(i => i.key === variable);
+                                    if (idx !== -1) {
+                                        const item = newList[idx];
+                                        if (item.type === 'int') val = parseInt(val);
+                                        else if (item.type === 'float' || item.type === 'double') val = parseFloat(val);
+                                        else if (item.type === 'boolean') val = (String(val) === 'true');
+                                        
+                                        if (op === '=') newList[idx].value = val;
+                                        else if (op === '+=' && ['int','float','double'].includes(item.type)) newList[idx].value += val;
+                                        else if (op === '-=' && ['int','float','double'].includes(item.type)) newList[idx].value -= val;
+                                        
+                                        if(item.type === 'float' || item.type === 'double') newList[idx].value = Math.round(newList[idx].value * 1000) / 1000;
+                                        
+                                        blackboardRef.current = newList; 
+                                        setBlackboard(newList); 
+                                    }
+                                }
                                 result = 'SUCCESS';
                             }
+                            state.actionTicks[nodeId] = 0;
+                        }
+                    }
+                } else if (node.type === 'DECORATOR') {
+                    if (children.length === 0) result = 'SUCCESS';
+                    else {
+                        const childId = children[0];
+                        const childStatus = state.nodeStatuses[childId] || 'IDLE';
+                        if (childStatus === 'IDLE') { state.stack.push({ nodeId: childId, childIndex: 0 }); return; } 
+                        else if (childStatus === 'RUNNING') return;
+                        else {
+                             if (node.data.subType === 'Inverter') result = childStatus === 'SUCCESS' ? 'FAILURE' : 'SUCCESS';
+                             else if (node.data.subType === 'AlwaysFail') result = 'FAILURE';
+                             else result = 'SUCCESS';
                         }
                     }
                 }
 
-                if (result !== 'RUNNING') {
-                    state.nodeStatuses[nodeId] = result;
-                    state.stack.pop();
-                    if (state.stack.length === 0) state.isResetting = true;
-                }
-
-                setNodes(ns => ns.map(n => ({
-                    ...n, 
-                    data: { ...n.data, status: state.nodeStatuses[n.id] || 'IDLE' }
-                })));
-
+                if (result !== 'RUNNING') { state.nodeStatuses[nodeId] = result; state.stack.pop(); if (state.stack.length === 0) state.isResetting = true; }
+                setNodes(ns => ns.map(n => ({...n, data: {...n.data, status: state.nodeStatuses[n.id] || 'IDLE'}})));
             }, [edges]); 
 
             useEffect(() => {
@@ -755,20 +536,14 @@ BT::NodeStatus ${node.className}::tick()
                 }
                 return () => {
                     clearInterval(simulationRef.current);
-                    if (isSimulating) {
-                        setNodes(prev => prev.map(n => ({ ...n, data: { ...n.data, status: 'IDLE' } })));
-                    }
+                    if (isSimulating) setNodes(prev => prev.map(n => ({ ...n, data: { ...n.data, status: 'IDLE' } })));
                 };
             }, [isSimulating, runStep]);
 
-            // UI 交互
             const screenToWorld = useCallback((sx, sy) => {
                 if (!canvasRef.current) return { x: 0, y: 0 };
                 const rect = canvasRef.current.getBoundingClientRect();
-                return {
-                    x: (sx - rect.left - view.x) / view.k,
-                    y: (sy - rect.top - view.y) / view.k
-                };
+                return { x: (sx - rect.left - view.x) / view.k, y: (sy - rect.top - view.y) / view.k };
             }, [view]);
 
             const handleCanvasMouseDown = (e) => {
@@ -782,69 +557,28 @@ BT::NodeStatus ${node.className}::tick()
             const handleGlobalMouseMove = (e) => {
                 const worldPos = screenToWorld(e.clientX, e.clientY);
                 setMousePos(worldPos);
-
-                if (isPanning) {
-                    const dx = e.clientX - lastMousePos.x;
-                    const dy = e.clientY - lastMousePos.y;
-                    setView(v => ({ ...v, x: v.x + dx, y: v.y + dy }));
-                    setLastMousePos({ x: e.clientX, y: e.clientY });
-                    return;
-                }
-
+                if (isPanning) { setView(v => ({ ...v, x: v.x + e.clientX - lastMousePos.x, y: v.y + e.clientY - lastMousePos.y })); setLastMousePos({ x: e.clientX, y: e.clientY }); return; }
                 if (draggingNodeId) {
                     setNodes(prev => prev.map(n => {
-                        if (n.id === draggingNodeId) {
-                            const snap = 20; 
-                            return { 
-                                ...n, 
-                                x: Math.round((worldPos.x - NODE_WIDTH/2) / snap) * snap, 
-                                y: Math.round((worldPos.y - 20) / snap) * snap
-                            };
-                        }
+                        if (n.id === draggingNodeId) return { ...n, x: Math.round((worldPos.x - NODE_WIDTH/2) / 20) * 20, y: Math.round((worldPos.y - 20) / 20) * 20 };
                         return n;
                     }));
                 }
-                
-                if (isResizingPanel) {
-                    e.preventDefault();
-                    const newWidth = document.body.clientWidth - e.clientX;
-                    setRightPanelWidth(Math.max(250, Math.min(newWidth, 600)));
-                }
-                if (isResizingBottom) {
-                    e.preventDefault();
-                    const newHeight = document.body.clientHeight - e.clientY;
-                    setBottomPanelHeight(Math.max(150, Math.min(newHeight, 600)));
-                }
+                if (isResizingPanel) { e.preventDefault(); setRightPanelWidth(Math.max(250, Math.min(document.body.clientWidth - e.clientX, 600))); }
+                if (isResizingBottom) { e.preventDefault(); setBottomPanelHeight(Math.max(150, Math.min(document.body.clientHeight - e.clientY, 600))); }
             };
 
-            const handleGlobalMouseUp = () => {
-                setIsPanning(false);
-                setDraggingNodeId(null);
-                setIsResizingPanel(false);
-                setIsResizingBottom(false);
-            };
-            
-            const handleCanvasClick = () => {
-                if (!isPanning) setConnectingSourceId(null);
-            };
+            const handleGlobalMouseUp = () => { setIsPanning(false); setDraggingNodeId(null); setIsResizingPanel(false); setIsResizingBottom(false); };
+            const handleCanvasClick = () => { if (!isPanning) setConnectingSourceId(null); };
 
             const onNodeMouseDown = (e, id) => {
-                e.stopPropagation();
-                if (e.button !== 0) return;
-                if (connectingSourceId && connectingSourceId !== id) {
-                    attemptConnection(connectingSourceId, id);
-                    setConnectingSourceId(null);
-                    return;
-                }
-                setSelectedNodeId(id);
-                setDraggingNodeId(id);
+                e.stopPropagation(); if (e.button !== 0) return;
+                if (connectingSourceId && connectingSourceId !== id) { attemptConnection(connectingSourceId, id); setConnectingSourceId(null); return; }
+                setSelectedNodeId(id); setDraggingNodeId(id);
             };
 
             const onNodeMouseUp = (e, targetId) => {
-                if (connectingSourceId && connectingSourceId !== targetId) {
-                    attemptConnection(connectingSourceId, targetId);
-                    setConnectingSourceId(null);
-                }
+                if (connectingSourceId && connectingSourceId !== targetId) { attemptConnection(connectingSourceId, targetId); setConnectingSourceId(null); }
             };
 
             const attemptConnection = (sourceId, targetId) => {
@@ -858,98 +592,62 @@ BT::NodeStatus ${node.className}::tick()
                 }
             };
 
-            const onPortMouseDown = (e, id) => {
-                e.stopPropagation();
-                e.preventDefault();
-                if (e.button === 0) {
-                    setConnectingSourceId(prev => prev === id ? null : id);
-                }
-            };
-
-            const handleWheel = (e) => {
-                if (e.ctrlKey || e.metaKey || true) {
-                    e.preventDefault();
-                    const zoomSensitivity = 0.001;
-                    const delta = -e.deltaY * zoomSensitivity;
-                    setView(v => ({ ...v, k: Math.min(3, Math.max(0.1, v.k + delta)) }));
-                }
-            };
-
+            const onPortMouseDown = (e, id) => { e.stopPropagation(); e.preventDefault(); if (e.button === 0) setConnectingSourceId(prev => prev === id ? null : id); };
             const handleDrop = (e) => {
-                e.preventDefault();
-                const type = e.dataTransfer.getData('nodeType');
-                if (!type) return;
+                e.preventDefault(); const type = e.dataTransfer.getData('nodeType'); if (!type) return;
                 const worldPos = screenToWorld(e.clientX, e.clientY);
-                const newNode = {
-                    id: generateId('n'),
-                    type,
-                    x: worldPos.x - NODE_WIDTH/2,
-                    y: worldPos.y - 20,
-                    data: { label: NODE_TYPES[type].label, status: 'IDLE' }
-                };
-                setNodes(prev => [...prev, newNode]);
-                setSelectedNodeId(newNode.id);
+                setNodes(prev => [...prev, { id: generateId('n'), type, x: worldPos.x - NODE_WIDTH/2, y: worldPos.y - 20, data: { label: NODE_TYPES[type].label, status: 'IDLE' } }]);
             };
 
-            const deleteNode = (id) => {
-                if (id === 'root') return;
-                setNodes(prev => prev.filter(n => n.id !== id));
-                setEdges(prev => prev.filter(e => e.source !== id && e.target !== id));
-                if (selectedNodeId === id) setSelectedNodeId(null);
-            };
-
-            const updateNodeData = (key, value) => {
-                setNodes(ns => ns.map(n => n.id === selectedNodeId ? {...n, data: {...n.data, [key]: value}} : n));
-            };
-
-            const addBlackboardItem = () => {
-                setBlackboard(prev => [...prev, { key: `var_${prev.length}`, value: 0, type: 'int' }]);
-            };
+            const deleteNode = (id) => { if (id === 'root') return; setNodes(prev => prev.filter(n => n.id !== id)); setEdges(prev => prev.filter(e => e.source !== id && e.target !== id)); if (selectedNodeId === id) setSelectedNodeId(null); };
             
+            const updateNodeData = (key, value) => { setNodes(ns => ns.map(n => n.id === selectedNodeId ? {...n, data: {...n.data, [key]: value}} : n)); };
+            const addExpression = () => {
+                setNodes(ns => ns.map(n => {
+                    if (n.id === selectedNodeId) {
+                        const exprs = n.data.expressions || [];
+                        return {...n, data: {...n.data, expressions: [...exprs, { variable: blackboard[0]?.key, operator: '==', op: '=', value: '' }]}};
+                    }
+                    return n;
+                }));
+            };
+            const updateExpression = (idx, field, val) => {
+                setNodes(ns => ns.map(n => {
+                    if (n.id === selectedNodeId) {
+                        const exprs = [...(n.data.expressions || [])];
+                        exprs[idx] = { ...exprs[idx], [field]: val };
+                        return {...n, data: {...n.data, expressions: exprs}};
+                    }
+                    return n;
+                }));
+            };
+            const removeExpression = (idx) => {
+                setNodes(ns => ns.map(n => {
+                    if (n.id === selectedNodeId) {
+                        return {...n, data: {...n.data, expressions: n.data.expressions.filter((_, i) => i !== idx)}};
+                    }
+                    return n;
+                }));
+            };
+
+            const addBlackboardItem = () => { setBlackboard(prev => [...prev, { key: `var_${prev.length}`, value: 0, type: 'int' }]); };
             const updateBlackboardItem = (index, field, val) => {
                 setBlackboard(prev => {
-                    const next = [...prev];
-                    const item = { ...next[index], [field]: val };
+                    const next = [...prev]; const item = { ...next[index], [field]: val };
                     if (field === 'type') {
                         if (['int', 'float', 'double'].includes(val)) item.value = 0;
                         if (val === 'string') item.value = '';
                         if (val === 'boolean') item.value = false;
-                        if (val === 'enum') {
-                            item.value = 'IDLE';
-                            item.enumName = 'MyEnum';
-                            item.options = ['IDLE', 'RUNNING'];
-                        }
+                        if (val === 'enum') { item.value = 'IDLE'; item.enumName = 'MyEnum'; item.options = ['IDLE', 'RUNNING']; }
                     }
-                    next[index] = item;
-                    return next;
+                    next[index] = item; return next;
                 });
             };
-
+            const deleteBlackboardItem = (index) => { setBlackboard(prev => prev.filter((_, i) => i !== index)); };
             const saveEnum = (name, options) => {
-                if (editingEnumIndex !== null) {
-                    setBlackboard(prev => {
-                        const next = [...prev];
-                        next[editingEnumIndex] = { 
-                            ...next[editingEnumIndex], 
-                            enumName: name, 
-                            options: options,
-                            value: options[0] || '' 
-                        };
-                        return next;
-                    });
-                    setEditingEnumIndex(null);
-                }
+                if (editingEnumIndex !== null) { setBlackboard(prev => { const next = [...prev]; next[editingEnumIndex] = { ...next[editingEnumIndex], enumName: name, options: options, value: options[0] || '' }; return next; }); setEditingEnumIndex(null); }
             };
-
-            const deleteBlackboardItem = (index) => {
-                setBlackboard(prev => prev.filter((_, i) => i !== index));
-            };
-
-            const openCodeModal = () => {
-                setGeneratedFiles(generateROSCpp(nodes, blackboard));
-                setShowCodeModal(true);
-            };
-
+            
             const getEdgeOrderIndex = useMemo(() => {
                 const orderMap = {};
                 const parentGroups = {};
@@ -973,47 +671,17 @@ BT::NodeStatus ${node.className}::tick()
             const selectedBBVar = selectedNode && blackboard.find(b => b.key === selectedNode.data.variable);
 
             return (
-                <div 
-                    className="flex flex-col h-screen w-full bg-slate-100 text-slate-800 font-sans select-none overflow-hidden"
-                    onMouseMove={handleGlobalMouseMove}
-                    onMouseUp={handleGlobalMouseUp}
-                >
+                <div className="flex flex-col h-screen w-full bg-slate-100 text-slate-800 font-sans select-none overflow-hidden" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp}>
                     {showCodeModal && <CodePreviewModal files={generatedFiles} onClose={() => setShowCodeModal(false)} />}
-                    {editingEnumIndex !== null && (
-                        <EnumEditorModal 
-                            item={blackboard[editingEnumIndex]} 
-                            onSave={saveEnum} 
-                            onClose={() => setEditingEnumIndex(null)} 
-                        />
-                    )}
-
+                    {editingEnumIndex !== null && <EnumEditorModal item={blackboard[editingEnumIndex]} onSave={saveEnum} onClose={() => setEditingEnumIndex(null)} />}
+                    
                     <div className="h-14 bg-white border-b flex items-center px-4 justify-between shadow-sm z-30 flex-shrink-0">
-                        <div className="flex items-center gap-2 font-bold text-xl text-slate-700">
-                            <Icons.Activity className="text-blue-600" />
-                            <span>BT Visualizer</span>
-                        </div>
+                        <div className="flex items-center gap-2 font-bold text-xl text-slate-700"><Icons.Activity className="text-blue-600" /><span>BT Visualizer</span></div>
                         <div className="flex items-center gap-2">
-                            <div className="mr-4 px-3 py-1 bg-gray-100 rounded text-xs text-gray-500 font-mono border hidden md:block">
-                                Tick: {isSimulating ? 'Running' : 'Stopped'} | Nodes: {nodes.length}
-                            </div>
-                            {isSimulating ? (
-                                <button onClick={() => setIsSimulating(false)} className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200 transition mr-2">
-                                    <Icons.Square size={16} /> 停止仿真
-                                </button>
-                            ) : (
-                                <button onClick={() => setIsSimulating(true)} className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-600 rounded hover:bg-green-200 transition mr-2">
-                                    <Icons.Play size={16} /> 开始仿真
-                                </button>
-                            )}
-                            <button onClick={openCodeModal} className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded transition text-sm">
-                                <Icons.FileCode size={16} /> 代码预览 (C++)
-                            </button>
-                            <button onClick={() => {
-                                const xml = generateXML(nodes, edges);
-                                downloadFile('behavior_tree.xml', xml);
-                            }} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded transition text-sm border border-blue-200">
-                                <Icons.Download size={16} /> 下载 XML
-                            </button>
+                           <div className="mr-4 px-3 py-1 bg-gray-100 rounded text-xs text-gray-500 font-mono border hidden md:block">Tick: {isSimulating ? 'Running' : 'Stopped'} | Nodes: {nodes.length}</div>
+                           <button onClick={() => setIsSimulating(!isSimulating)} className={`flex items-center gap-1 px-3 py-1.5 rounded transition mr-2 ${isSimulating ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-600 hover:bg-green-200'}`}>{isSimulating ? <><Icons.Square size={16} /> 停止</> : <><Icons.Play size={16} /> 仿真</>}</button>
+                           <button onClick={openCodeModal} className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded transition text-sm"><Icons.FileCode size={16} /> 代码</button>
+                           <button onClick={() => downloadFile('behavior_tree.xml', generateXML(nodes, edges))} className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded transition text-sm border border-blue-200"><Icons.Download size={16} /> XML</button>
                         </div>
                     </div>
 
@@ -1022,16 +690,8 @@ BT::NodeStatus ${node.className}::tick()
                             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">节点库</h3>
                             <div className="space-y-2">
                                 {Object.entries(NODE_TYPES).filter(([key]) => key !== 'ROOT').map(([key, def]) => (
-                                    <div
-                                        key={key}
-                                        draggable
-                                        onDragStart={(e) => e.dataTransfer.setData('nodeType', key)}
-                                        className="group flex flex-col p-2 rounded cursor-grab border border-gray-200 bg-gray-50 hover:bg-white hover:border-blue-300 hover:shadow-md transition active:cursor-grabbing"
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            {React.createElement(def.icon, { size: 16, color: def.color })}
-                                            <span className="text-sm font-medium">{def.label}</span>
-                                        </div>
+                                    <div key={key} draggable onDragStart={(e) => e.dataTransfer.setData('nodeType', key)} className="group flex flex-col p-2 rounded cursor-grab border border-gray-200 bg-gray-50 hover:bg-white hover:border-blue-300 hover:shadow-md transition active:cursor-grabbing">
+                                        <div className="flex items-center gap-2">{React.createElement(def.icon, { size: 16, color: def.color })}<span className="text-sm font-medium">{def.label}</span></div>
                                         <span className="text-[10px] text-gray-400 mt-1 pl-6">{def.desc}</span>
                                     </div>
                                 ))}
@@ -1044,432 +704,126 @@ BT::NodeStatus ${node.className}::tick()
                             </div>
                         </div>
 
-                        <div 
-                            className="flex-1 bg-slate-100 relative overflow-hidden cursor-default"
-                            ref={canvasRef}
-                            onMouseDown={handleCanvasMouseDown}
-                            onClick={handleCanvasClick}
-                            onWheel={handleWheel}
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={handleDrop}
-                        >
-                            <div 
-                                style={{ 
-                                    transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`,
-                                    transformOrigin: '0 0',
-                                    width: '100%',
-                                    height: '100%'
-                                }}
-                            >
-                                <div className="absolute pointer-events-none opacity-20"
-                                    style={{ top: -CANVAS_OFFSET, left: -CANVAS_OFFSET, width: CANVAS_OFFSET * 2, height: CANVAS_OFFSET * 2, backgroundImage: 'radial-gradient(#94a3b8 1px, transparent 1px)', backgroundSize: '20px 20px' }}
-                                />
-
-                                <svg 
-                                    className="absolute pointer-events-none overflow-visible z-0"
-                                    style={{ top: -CANVAS_OFFSET, left: -CANVAS_OFFSET, width: CANVAS_OFFSET * 2, height: CANVAS_OFFSET * 2 }}
-                                >
+                        <div className="flex-1 bg-slate-100 relative overflow-hidden cursor-default" ref={canvasRef} onMouseDown={handleCanvasMouseDown} onClick={handleCanvasClick} onWheel={handleWheel} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+                            <div style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`, transformOrigin: '0 0', width: '100%', height: '100%' }}>
+                                <div className="absolute pointer-events-none opacity-20" style={{ top: -CANVAS_OFFSET, left: -CANVAS_OFFSET, width: CANVAS_OFFSET * 2, height: CANVAS_OFFSET * 2, backgroundImage: 'radial-gradient(#94a3b8 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+                                <svg className="absolute pointer-events-none overflow-visible z-0" style={{ top: -CANVAS_OFFSET, left: -CANVAS_OFFSET, width: CANVAS_OFFSET * 2, height: CANVAS_OFFSET * 2 }}>
                                     {edges.map(edge => {
-                                        const source = nodes.find(n => n.id === edge.source);
-                                        const target = nodes.find(n => n.id === edge.target);
+                                        const source = nodes.find(n => n.id === edge.source); const target = nodes.find(n => n.id === edge.target);
                                         if (!source || !target) return null;
-                                        const startX = source.x + NODE_WIDTH / 2 + CANVAS_OFFSET;
-                                        const startY = source.y + NODE_HEIGHT + 4 + CANVAS_OFFSET; 
-                                        const endX = target.x + NODE_WIDTH / 2 + CANVAS_OFFSET;
-                                        const endY = target.y - 4 + CANVAS_OFFSET; 
-                                        const path = getBezierPath(startX, startY, endX, endY);
-                                        const center = getEdgeCenter(startX, startY, endX, endY);
-                                        const orderIndex = getEdgeOrderIndex[edge.id];
-
-                                        return (
-                                            <g key={edge.id} className="pointer-events-auto group">
-                                                <path d={path} stroke="transparent" strokeWidth="20" fill="none" className="cursor-pointer" onClick={(e) => { e.stopPropagation(); setEdges(es => es.filter(x => x.id !== edge.id)); }} />
-                                                <path d={path} stroke="#475569" strokeWidth="2.5" fill="none" className="group-hover:stroke-red-500 transition-colors" />
-                                                <circle cx={endX} cy={endY} r="3" fill="#475569" />
-                                                {orderIndex && (
-                                                    <g transform={`translate(${center.x}, ${center.y})`}>
-                                                        <circle r="8" fill="white" stroke="#475569" strokeWidth="1.5" />
-                                                        <text x="0" y="3" textAnchor="middle" fontSize="10" fill="#475569" fontWeight="bold">{orderIndex}</text>
-                                                    </g>
-                                                )}
-                                            </g>
-                                        );
+                                        const startX = source.x + NODE_WIDTH / 2 + CANVAS_OFFSET; const startY = source.y + NODE_HEIGHT + 4 + CANVAS_OFFSET;
+                                        const endX = target.x + NODE_WIDTH / 2 + CANVAS_OFFSET; const endY = target.y - 4 + CANVAS_OFFSET;
+                                        return <path key={edge.id} d={getBezierPath(startX, startY, endX, endY)} stroke="#475569" strokeWidth="2.5" fill="none" className="cursor-pointer hover:stroke-red-500 transition-colors pointer-events-auto" onClick={(e) => { e.stopPropagation(); setEdges(es => es.filter(x => x.id !== edge.id)); }} />;
                                     })}
-                                    {connectingSourceId && (
-                                        <path 
-                                            d={getBezierPath(
-                                                nodes.find(n => n.id === connectingSourceId).x + NODE_WIDTH / 2 + CANVAS_OFFSET,
-                                                nodes.find(n => n.id === connectingSourceId).y + NODE_HEIGHT + 4 + CANVAS_OFFSET,
-                                                mousePos.x + CANVAS_OFFSET,
-                                                mousePos.y + CANVAS_OFFSET
-                                            )}
-                                            stroke="#3b82f6" strokeWidth="3" strokeDasharray="6,4" fill="none"
-                                            className="pointer-events-none" 
-                                        />
-                                    )}
+                                    {connectingSourceId && <path d={getBezierPath(nodes.find(n => n.id === connectingSourceId).x + NODE_WIDTH / 2 + CANVAS_OFFSET, nodes.find(n => n.id === connectingSourceId).y + NODE_HEIGHT + 4 + CANVAS_OFFSET, mousePos.x + CANVAS_OFFSET, mousePos.y + CANVAS_OFFSET)} stroke="#3b82f6" strokeWidth="3" strokeDasharray="6,4" fill="none" className="pointer-events-none" />}
                                 </svg>
-
-                                {nodes.map(node => {
-                                    const def = NODE_TYPES[node.type];
-                                    const isSelected = selectedNodeId === node.id;
-                                    const isTargetCandidate = connectingSourceId && connectingSourceId !== node.id && node.type !== 'ROOT';
-                                    const isSource = connectingSourceId === node.id;
-                                    
-                                    let statusStyles = 'border-gray-200';
-                                    if (isSource) statusStyles = 'border-blue-500 ring-4 ring-blue-100';
-                                    else if (isTargetCandidate) statusStyles = 'border-blue-400 border-dashed ring-4 ring-blue-50 cursor-pointer';
-                                    else if (node.data.status === 'RUNNING') statusStyles = 'border-yellow-400 ring-2 ring-yellow-100 shadow-[0_0_15px_rgba(250,204,21,0.3)]';
-                                    else if (node.data.status === 'SUCCESS') statusStyles = 'border-green-500 ring-2 ring-green-100 shadow-[0_0_15px_rgba(34,197,94,0.3)]';
-                                    else if (node.data.status === 'FAILURE') statusStyles = 'border-red-500 ring-2 ring-red-100 shadow-[0_0_15px_rgba(239,68,68,0.3)]';
-                                    if (isSelected && !isSource) statusStyles = 'border-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,0.3)]';
-
-                                    return (
-                                        <div
-                                            key={node.id}
-                                            onMouseDown={(e) => onNodeMouseDown(e, node.id)}
-                                            onMouseUp={(e) => onNodeMouseUp(e, node.id)}
-                                            onClick={(e) => e.stopPropagation()}
-                                            style={{
-                                                transform: `translate(${node.x}px, ${node.y}px)`,
-                                                width: `${NODE_WIDTH}px`,
-                                                height: `${NODE_HEIGHT}px`,
-                                            }}
-                                            className={`absolute flex flex-col bg-white rounded-md shadow-sm border transition-all duration-200 group z-10 ${statusStyles}`}
-                                        >
-                                            {node.type !== 'ROOT' && (
-                                                <div 
-                                                    onMouseUp={(e) => onNodeMouseUp(e, node.id)}
-                                                    className={`absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border border-gray-400 rounded-full z-20 flex items-center justify-center transition-transform ${isTargetCandidate ? 'scale-150 bg-blue-50 border-blue-500' : ''}`} 
-                                                >
-                                                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full" />
-                                                </div>
-                                            )}
-
-                                            <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 rounded-t-md pointer-events-none" style={{backgroundColor: `${def.color}15`}}>
-                                                {React.createElement(def.icon, { size: 14, color: def.color })}
-                                                <span className="text-xs font-bold uppercase tracking-tight" style={{color: def.color}}>{def.label}</span>
-                                            </div>
-                                            
-                                            <div className="p-2 text-center pointer-events-none flex-1 flex flex-col justify-center">
-                                                <div className="text-sm font-medium text-slate-700 truncate">{node.data.label}</div>
-                                                {(node.type === 'CONDITION' || node.type === 'ACTION') && node.data.variable && (
-                                                    <div className="text-[10px] text-gray-500 bg-gray-50 px-1 rounded mt-1 truncate max-w-full">
-                                                        {node.data.variable} {node.data.operator || node.data.op} {node.data.value}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div 
-                                                onMouseDown={(e) => onPortMouseDown(e, node.id)}
-                                                className={`absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 flex items-center justify-center cursor-pointer z-20 transition-transform hover:scale-125 ${isSource ? 'scale-125' : ''}`}
-                                                title="Connect Output"
-                                            >
-                                                <div className={`w-4 h-4 bg-white border border-gray-400 rounded-full flex items-center justify-center shadow-sm ${isSource ? 'bg-blue-500 border-blue-600' : 'hover:border-blue-500'}`}>
-                                                    {isSource ? <div className="w-2 h-2 bg-white rounded-full"/> : <div className="w-1.5 h-1.5 bg-gray-400 rounded-full" />}
-                                                </div>
-                                            </div>
+                                {nodes.map(node => (
+                                    <div key={node.id} onMouseDown={(e) => onNodeMouseDown(e, node.id)} onMouseUp={(e) => onNodeMouseUp(e, node.id)} onClick={(e) => e.stopPropagation()} style={{ transform: `translate(${node.x}px, ${node.y}px)`, width: `${NODE_WIDTH}px`, height: `${NODE_HEIGHT}px` }} className={`absolute flex flex-col bg-white rounded-md shadow-sm border transition-all duration-200 group z-10 ${selectedNodeId === node.id ? 'border-blue-500 shadow-md ring-2 ring-blue-100' : 'border-gray-200'} ${node.data.status === 'RUNNING' ? 'border-yellow-400 ring-2 ring-yellow-100' : node.data.status === 'SUCCESS' ? 'border-green-500 ring-2 ring-green-100' : node.data.status === 'FAILURE' ? 'border-red-500 ring-2 ring-red-100' : ''}`}>
+                                        <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 rounded-t-md pointer-events-none" style={{backgroundColor: `${NODE_TYPES[node.type].color}15`}}>{React.createElement(NODE_TYPES[node.type].icon, { size: 14, color: NODE_TYPES[node.type].color })}<span className="text-xs font-bold uppercase tracking-tight" style={{color: NODE_TYPES[node.type].color}}>{NODE_TYPES[node.type].label}</span></div>
+                                        <div className="p-2 text-center pointer-events-none flex-1 flex flex-col justify-center"><div className="text-sm font-medium text-slate-700 truncate">{node.data.label}</div>
+                                        <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded mt-1 inline-block ${node.data.status === 'RUNNING' ? 'bg-yellow-100 text-yellow-700' : node.data.status === 'SUCCESS' ? 'bg-green-100 text-green-700' : node.data.status === 'FAILURE' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>{node.data.status || 'IDLE'}</div>
                                         </div>
-                                    );
-                                })}
+                                        <div onMouseDown={(e) => onPortMouseDown(e, node.id)} className={`absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 flex items-center justify-center cursor-pointer z-20 transition-transform hover:scale-125 ${connectingSourceId === node.id ? 'scale-125' : ''}`}><div className={`w-4 h-4 bg-white border border-gray-400 rounded-full flex items-center justify-center shadow-sm ${connectingSourceId === node.id ? 'bg-blue-500 border-blue-600' : 'hover:border-blue-500'}`}/></div>
+                                        {node.type !== 'ROOT' && <div onMouseUp={(e) => onNodeMouseUp(e, node.id)} className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border border-gray-400 rounded-full z-20 flex items-center justify-center"/>}
+                                    </div>
+                                ))}
                             </div>
                         </div>
 
                         <div className="flex flex-col z-20 shadow-xl border-l h-full relative" style={{ width: rightPanelWidth }}>
-                            <div 
-                                className="absolute left-0 top-0 bottom-0 w-1 bg-transparent hover:bg-blue-400 cursor-col-resize z-50 flex items-center justify-center transition-colors"
-                                onMouseDown={(e) => { e.preventDefault(); setIsResizingPanel(true); }}
-                            ></div>
-
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent hover:bg-blue-400 cursor-col-resize z-50" onMouseDown={(e) => { e.preventDefault(); setIsResizingPanel(true); }}></div>
                             <div className="flex-1 bg-white overflow-y-auto flex flex-col" style={{ height: `calc(100% - ${bottomPanelHeight}px)` }}>
                                 {selectedNode ? (
                                     <div className="flex flex-col h-full">
-                                        <div className="p-4 border-b flex items-center justify-between bg-gray-50">
-                                            <div className="flex items-center gap-2 font-bold text-slate-700">
-                                                {NODE_TYPES[selectedNode.type] && React.createElement(NODE_TYPES[selectedNode.type].icon, { size: 16, color: NODE_TYPES[selectedNode.type].color })}
-                                                属性编辑
-                                            </div>
-                                            {selectedNode.type !== 'ROOT' && (
-                                                <button onClick={() => deleteNode(selectedNode.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded transition">
-                                                    <Icons.Trash2 size={16} />
-                                                </button>
-                                            )}
-                                        </div>
-                                        <div className="p-4 space-y-5 overflow-y-auto flex-1">
-                                            <div className="space-y-1">
-                                                <label className="text-xs font-semibold text-gray-500 uppercase">节点名称</label>
-                                                <input 
-                                                    type="text" 
-                                                    className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                                                    value={selectedNode.data.label}
-                                                    onChange={(e) => updateNodeData('label', e.target.value)}
-                                                />
+                                        <div className="p-4 border-b flex items-center justify-between bg-gray-50"><div className="flex items-center gap-2 font-bold text-slate-700">{NODE_TYPES[selectedNode.type] && React.createElement(NODE_TYPES[selectedNode.type].icon, { size: 16, color: NODE_TYPES[selectedNode.type].color })} 属性编辑</div>{selectedNode.type !== 'ROOT' && <button onClick={() => deleteNode(selectedNode.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded transition"><Icons.Trash2 size={16} /></button>}</div>
+                                        <div className="p-4 space-y-4 overflow-y-auto flex-1">
+                                            <div className="space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase">节点名称</label><input type="text" className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" value={selectedNode.data.label} onChange={(e) => updateNodeData('label', e.target.value)} /></div>
+
+                                            <div className="p-3 bg-purple-50 border border-purple-100 rounded space-y-2">
+                                                <div className="text-xs font-bold text-purple-700 flex items-center gap-1"><Icons.Activity size={12}/> 调试控制 (Force Status)</div>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {['NONE', 'SUCCESS', 'FAILURE', 'RUNNING'].map(st => (
+                                                        <button key={st} onClick={() => updateNodeData('forcedStatus', st)} className={`px-2 py-1 text-xs rounded border ${selectedNode.data.forcedStatus === st ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{st}</button>
+                                                    ))}
+                                                </div>
+                                                <div className="text-[10px] text-gray-500">* 用于在仿真中强制指定该节点的返回状态</div>
                                             </div>
 
-                                            {selectedNode.type === 'CONDITION' && (
-                                                <div className="p-3 bg-green-50 border border-green-100 rounded space-y-3">
-                                                    <div className="text-xs font-bold text-green-700 flex items-center gap-1"><Icons.Settings size={12}/> 条件配置</div>
-                                                    <div>
-                                                        <label className="text-[10px] text-gray-500">变量 (Variable)</label>
-                                                        <select 
-                                                            className="w-full border rounded px-2 py-1 text-sm bg-white"
-                                                            value={selectedNode.data.variable || ''}
-                                                            onChange={(e) => updateNodeData('variable', e.target.value)}
-                                                        >
-                                                            <option value="">选择变量...</option>
-                                                            {blackboard.map(b => <option key={b.key} value={b.key}>{b.key} ({b.type})</option>)}
-                                                        </select>
+                                            {(selectedNode.type === 'CONDITION' || selectedNode.type === 'ACTION') && (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center gap-2 p-1 bg-gray-100 rounded">
+                                                        {['simple', 'complex', 'custom'].map(m => (
+                                                            <button key={m} onClick={() => updateNodeData('logicMode', m)} className={`flex-1 py-1 text-xs rounded ${selectedNode.data.logicMode === m ? 'bg-white shadow text-blue-600 font-bold' : 'text-gray-500 hover:text-gray-700'}`}>{m === 'simple' ? '简单' : m === 'complex' ? '组合' : '自定义'}</button>
+                                                        ))}
                                                     </div>
-                                                    <div className="flex gap-2">
-                                                        <div className="w-1/3">
-                                                            <label className="text-[10px] text-gray-500">操作符</label>
-                                                            <select 
-                                                                className="w-full border rounded px-2 py-1 text-sm bg-white"
-                                                                value={selectedNode.data.operator || '=='}
-                                                                onChange={(e) => updateNodeData('operator', e.target.value)}
-                                                            >
-                                                                <option value="==">==</option>
-                                                                <option value="!=">!=</option>
-                                                                {['int', 'float', 'double'].includes(selectedBBVar?.type) && (
-                                                                    <>
-                                                                    <option value=">">&gt;</option>
-                                                                    <option value="<">&lt;</option>
-                                                                    <option value=">=">&ge;</option>
-                                                                    <option value="<=">&le;</option>
-                                                                    </>
-                                                                )}
-                                                            </select>
+
+                                                    {selectedNode.data.logicMode === 'custom' ? (
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs font-semibold text-gray-500">C++ 实现逻辑 (Snippet)</label>
+                                                            <textarea className="w-full border rounded p-2 text-xs font-mono h-32" placeholder="// Write your logic here..." value={selectedNode.data.customCode || ''} onChange={(e) => updateNodeData('customCode', e.target.value)}></textarea>
                                                         </div>
-                                                        <div className="w-2/3">
-                                                            <label className="text-[10px] text-gray-500">目标值</label>
-                                                            {selectedBBVar?.type === 'boolean' ? (
-                                                                <select 
-                                                                    className="w-full border rounded px-2 py-1 text-sm"
-                                                                    value={selectedNode.data.value}
-                                                                    onChange={(e) => updateNodeData('value', e.target.value)}
-                                                                >
-                                                                    <option value="true">True</option>
-                                                                    <option value="false">False</option>
-                                                                </select>
-                                                            ) : selectedBBVar?.type === 'enum' ? (
-                                                                <select
-                                                                    className="w-full border rounded px-2 py-1 text-sm"
-                                                                    value={selectedNode.data.value}
-                                                                    onChange={(e) => updateNodeData('value', e.target.value)}
-                                                                >
-                                                                    {selectedBBVar.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                                </select>
-                                                            ) : (
-                                                                <input 
-                                                                    type={['int', 'float', 'double'].includes(selectedBBVar?.type) ? 'number' : 'text'}
-                                                                    className="w-full border rounded px-2 py-1 text-sm"
-                                                                    value={selectedNode.data.value || ''}
-                                                                    onChange={(e) => updateNodeData('value', e.target.value)}
-                                                                />
+                                                    ) : selectedNode.data.logicMode === 'complex' ? (
+                                                        <div className="space-y-2">
+                                                            {selectedNode.type === 'CONDITION' && (
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <span className="text-xs font-bold text-gray-500">逻辑关系:</span>
+                                                                    <select className="border rounded text-xs p-1" value={selectedNode.data.logicOp || '&&'} onChange={(e) => updateNodeData('logicOp', e.target.value)}><option value="&&">AND (满足所有)</option><option value="||">OR (满足任一)</option></select>
+                                                                </div>
                                                             )}
+                                                            <div className="space-y-2">
+                                                                {(selectedNode.data.expressions || []).map((ex, idx) => (
+                                                                    <div key={idx} className="flex gap-1 items-center bg-gray-50 p-1 rounded border">
+                                                                        <select className="w-24 text-xs border rounded p-1" value={ex.variable} onChange={(e) => updateExpression(idx, 'variable', e.target.value)}>{blackboard.map(b => <option key={b.key} value={b.key}>{b.key}</option>)}</select>
+                                                                        {selectedNode.type === 'CONDITION' ? 
+                                                                            <select className="w-12 text-xs border rounded p-1" value={ex.operator} onChange={(e) => updateExpression(idx, 'operator', e.target.value)}><option value="==">==</option><option value="!=">!=</option><option value=">">&gt;</option><option value="<">&lt;</option></select> 
+                                                                            : <select className="w-12 text-xs border rounded p-1" value={ex.op} onChange={(e) => updateExpression(idx, 'op', e.target.value)}><option value="=">=</option><option value="+=">+=</option><option value="-=">-=</option></select>
+                                                                        }
+                                                                        <input type="text" className="flex-1 text-xs border rounded p-1 w-10" value={ex.value} onChange={(e) => updateExpression(idx, 'value', e.target.value)} />
+                                                                        <button onClick={() => removeExpression(idx)} className="text-red-500 hover:bg-red-100 p-1 rounded"><Icons.Trash2 size={12} /></button>
+                                                                    </div>
+                                                                ))}
+                                                                <button onClick={addExpression} className="w-full py-1 border dashed border-gray-300 rounded text-xs text-gray-500 hover:bg-gray-50 flex items-center justify-center gap-1"><Icons.Plus size={12}/> 添加条目</button>
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    ) : (
+                                                        <div className={`p-3 border rounded space-y-3 ${selectedNode.type==='CONDITION'?'bg-green-50 border-green-100':'bg-blue-50 border-blue-100'}`}>
+                                                            <div><label className="text-[10px] text-gray-500">变量</label><select className="w-full border rounded px-2 py-1 text-sm bg-white" value={selectedNode.data.variable || ''} onChange={(e) => updateNodeData('variable', e.target.value)}><option value="">选择变量...</option>{blackboard.map(b => <option key={b.key} value={b.key}>{b.key} ({b.type})</option>)}</select></div>
+                                                            <div className="flex gap-2">
+                                                                <div className="w-1/3"><label className="text-[10px] text-gray-500">操作符</label><select className="w-full border rounded px-2 py-1 text-sm bg-white" value={selectedNode.type==='CONDITION'?(selectedNode.data.operator||'=='):(selectedNode.data.op||'=')} onChange={(e) => updateNodeData(selectedNode.type==='CONDITION'?'operator':'op', e.target.value)}>{selectedNode.type==='CONDITION' ? <><option value="==">==</option><option value="!=">!=</option>{['int','float','double'].includes(selectedBBVar?.type) && <><option value=">">&gt;</option><option value="<">&lt;</option></>}</> : <><option value="=">Set</option>{selectedBBVar?.type!=='boolean' && selectedBBVar?.type!=='enum' && <option value="+=">Add</option>}{['int','float','double'].includes(selectedBBVar?.type) && <option value="-=">Sub</option>}</>}</select></div>
+                                                                <div className="w-2/3"><label className="text-[10px] text-gray-500">值</label>{selectedBBVar?.type === 'boolean' ? <select className="w-full border rounded px-2 py-1 text-sm" value={selectedNode.data.value} onChange={(e) => updateNodeData('value', e.target.value)}><option value="true">True</option><option value="false">False</option></select> : selectedBBVar?.type === 'enum' ? <select className="w-full border rounded px-2 py-1 text-sm" value={selectedNode.data.value} onChange={(e) => updateNodeData('value', e.target.value)}>{selectedBBVar.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select> : <input type="text" className="w-full border rounded px-2 py-1 text-sm" value={selectedNode.data.value || ''} onChange={(e) => updateNodeData('value', e.target.value)} />}</div>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
-
-                                            {selectedNode.type === 'ACTION' && (
-                                                <div className="p-3 bg-blue-50 border border-blue-100 rounded space-y-3">
-                                                    <div className="text-xs font-bold text-blue-700 flex items-center gap-1"><Icons.Settings size={12}/> 动作配置</div>
-                                                    <div>
-                                                        <label className="text-[10px] text-gray-500">修改变量</label>
-                                                        <select 
-                                                            className="w-full border rounded px-2 py-1 text-sm bg-white"
-                                                            value={selectedNode.data.variable || ''}
-                                                            onChange={(e) => updateNodeData('variable', e.target.value)}
-                                                        >
-                                                            <option value="">选择变量...</option>
-                                                            {blackboard.map(b => <option key={b.key} value={b.key}>{b.key} ({b.type})</option>)}
-                                                        </select>
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <div className="w-1/3">
-                                                            <label className="text-[10px] text-gray-500">操作</label>
-                                                            <select 
-                                                                className="w-full border rounded px-2 py-1 text-sm bg-white"
-                                                                value={selectedNode.data.op || '='}
-                                                                onChange={(e) => updateNodeData('op', e.target.value)}
-                                                            >
-                                                                <option value="=">Set (=)</option>
-                                                                {selectedBBVar?.type !== 'boolean' && selectedBBVar?.type !== 'enum' && <option value="+=">Add (+=)</option>}
-                                                                {['int', 'float', 'double'].includes(selectedBBVar?.type) && <option value="-=">Sub (-=)</option>}
-                                                            </select>
-                                                        </div>
-                                                        <div className="w-2/3">
-                                                            <label className="text-[10px] text-gray-500">值</label>
-                                                            {selectedBBVar?.type === 'boolean' ? (
-                                                                <select 
-                                                                    className="w-full border rounded px-2 py-1 text-sm"
-                                                                    value={selectedNode.data.value}
-                                                                    onChange={(e) => updateNodeData('value', e.target.value)}
-                                                                >
-                                                                    <option value="true">True</option>
-                                                                    <option value="false">False</option>
-                                                                </select>
-                                                            ) : selectedBBVar?.type === 'enum' ? (
-                                                                <select
-                                                                    className="w-full border rounded px-2 py-1 text-sm"
-                                                                    value={selectedNode.data.value}
-                                                                    onChange={(e) => updateNodeData('value', e.target.value)}
-                                                                >
-                                                                    {selectedBBVar.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                                </select>
-                                                            ) : (
-                                                                <input 
-                                                                    type={['int', 'float', 'double'].includes(selectedBBVar?.type) ? 'number' : 'text'}
-                                                                    className="w-full border rounded px-2 py-1 text-sm"
-                                                                    value={selectedNode.data.value || ''}
-                                                                    onChange={(e) => updateNodeData('value', e.target.value)}
-                                                                />
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {selectedNode.type === 'DECORATOR' && (
-                                                <div className="space-y-1">
-                                                    <label className="text-xs font-semibold text-gray-500 uppercase">装饰器类型</label>
-                                                    <select 
-                                                        className="w-full border rounded px-2 py-1.5 text-sm bg-white"
-                                                        value={selectedNode.data.subType || 'Inverter'}
-                                                        onChange={(e) => updateNodeData('subType', e.target.value)}
-                                                    >
-                                                        <option value="Inverter">Inverter (取反)</option>
-                                                        <option value="AlwaysSucceed">Always Succeed</option>
-                                                        <option value="AlwaysFail">Always Fail</option>
-                                                    </select>
-                                                </div>
-                                            )}
-
-                                            <div className="space-y-1">
-                                                <label className="text-xs font-semibold text-gray-500 uppercase">状态监控</label>
-                                                <div className={`px-2 py-1.5 rounded text-sm font-bold border text-center
-                                                    ${selectedNode.data.status === 'RUNNING' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : 
-                                                    selectedNode.data.status === 'SUCCESS' ? 'bg-green-50 text-green-600 border-green-200' :
-                                                    selectedNode.data.status === 'FAILURE' ? 'bg-red-50 text-red-600 border-red-200' :
-                                                    'bg-gray-50 text-gray-500 border-gray-200'}`}>
-                                                    {selectedNode.data.status || 'IDLE'}
-                                                </div>
-                                            </div>
+                                            {selectedNode.type === 'DECORATOR' && <div className="space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase">装饰器类型</label><select className="w-full border rounded px-2 py-1.5 text-sm bg-white" value={selectedNode.data.subType || 'Inverter'} onChange={(e) => updateNodeData('subType', e.target.value)}><option value="Inverter">Inverter (取反)</option><option value="AlwaysSucceed">Always Succeed</option><option value="AlwaysFail">Always Fail</option></select></div>}
+                                            <div className="space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase">状态监控</label><div className={`px-2 py-1.5 rounded text-sm font-bold border text-center ${selectedNode.data.status === 'RUNNING' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : selectedNode.data.status === 'SUCCESS' ? 'bg-green-50 text-green-600 border-green-200' : selectedNode.data.status === 'FAILURE' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>{selectedNode.data.status || 'IDLE'}</div></div>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                                        <Icons.Activity size={64} className="text-gray-200 mb-4" />
-                                        <p className="font-medium">未选择节点</p>
-                                    </div>
-                                )}
+                                ) : <div className="flex flex-col items-center justify-center h-full text-gray-400"><Icons.Activity size={64} className="text-gray-200 mb-4" /><p className="font-medium">未选择节点</p></div>}
                             </div>
 
                             <div className="bg-gray-50 border-t flex flex-col relative shadow-inner" style={{ height: bottomPanelHeight }}>
-                                <div 
-                                    className="absolute left-0 top-0 right-0 h-1 bg-transparent hover:bg-blue-400 cursor-row-resize z-50 flex items-center justify-center transition-colors"
-                                    onMouseDown={(e) => { e.preventDefault(); setIsResizingBottom(true); }}
-                                ></div>
-
-                                <div className="p-3 border-b bg-gray-100 flex items-center justify-between">
-                                    <div className="font-bold text-xs text-slate-700 flex items-center gap-2">
-                                        <Icons.Database size={14} /> 黑板 (Blackboard) - {isSimulating ? '监视模式 (只读)' : '编辑模式'}
-                                    </div>
-                                    {!isSimulating && (
-                                        <button onClick={addBlackboardItem} className="text-xs flex items-center gap-1 bg-white border px-2 py-1 rounded hover:bg-blue-50 text-blue-600">
-                                            <Icons.Plus size={12} /> 添加变量
-                                        </button>
-                                    )}
-                                </div>
+                                <div className="absolute left-0 top-0 right-0 h-1 bg-transparent hover:bg-blue-400 cursor-row-resize z-50" onMouseDown={(e) => { e.preventDefault(); setIsResizingBottom(true); }}></div>
+                                <div className="p-3 border-b bg-gray-100 flex items-center justify-between"><div className="font-bold text-xs text-slate-700 flex items-center gap-2"><Icons.Database size={14} /> 黑板 (Blackboard) - {isSimulating ? '监视模式 (只读)' : '编辑模式'}</div>{!isSimulating && <button onClick={addBlackboardItem} className="text-xs flex items-center gap-1 bg-white border px-2 py-1 rounded hover:bg-blue-50 text-blue-600"><Icons.Plus size={12} /> 添加变量</button>}</div>
                                 <div className="flex-1 overflow-y-auto p-2">
                                     <table className="w-full text-xs text-left border-collapse">
-                                        <thead>
-                                            <tr className="text-gray-500 border-b">
-                                                <th className="py-1 pl-2">Key</th>
-                                                <th className="py-1">Type</th>
-                                                <th className="py-1">Value</th>
-                                                <th className="py-1 w-8"></th>
-                                            </tr>
-                                        </thead>
+                                        <thead><tr className="text-gray-500 border-b"><th className="py-1 pl-2">Key</th><th className="py-1">Type</th><th className="py-1">Value</th><th className="py-1 w-8"></th></tr></thead>
                                         <tbody>
                                             {blackboard.map((item, idx) => (
-                                                <tr key={idx} className="border-b last:border-0 hover:bg-white transition-colors">
+                                                <tr key={idx} className={`border-b last:border-0 hover:bg-white transition-colors ${isSimulating ? 'animate-flash' : ''}`}>
+                                                    <td className="p-1"><input type="text" disabled={isSimulating} className="w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none px-1 disabled:text-gray-500" value={item.key} onChange={(e) => updateBlackboardItem(idx, 'key', e.target.value)} /></td>
+                                                    <td className="p-1"><select disabled={isSimulating} className="w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none disabled:text-gray-500" value={item.type} onChange={(e) => updateBlackboardItem(idx, 'type', e.target.value)}><option value="int">Int</option><option value="float">Float</option><option value="double">Double</option><option value="string">String</option><option value="boolean">Boolean</option><option value="enum">Enum</option></select></td>
                                                     <td className="p-1">
-                                                        <input 
-                                                            type="text" 
-                                                            disabled={isSimulating}
-                                                            className="w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none px-1 disabled:text-gray-500"
-                                                            value={item.key}
-                                                            onChange={(e) => updateBlackboardItem(idx, 'key', e.target.value)}
-                                                        />
+                                                        {item.type === 'boolean' ? <select disabled={isSimulating} className={`w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none font-bold ${isSimulating ? 'text-gray-600' : 'text-blue-600'}`} value={String(item.value)} onChange={(e) => updateBlackboardItem(idx, 'value', e.target.value === 'true')}><option value="true">True</option><option value="false">False</option></select> : 
+                                                         item.type === 'enum' ? <select disabled={isSimulating} className={`w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none font-bold ${isSimulating ? 'text-gray-600' : 'text-blue-600'}`} value={item.value} onChange={(e) => updateBlackboardItem(idx, 'value', e.target.value)}>{item.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select> :
+                                                         <input type="text" disabled={isSimulating} className={`w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none px-1 font-mono transition-colors duration-300 ${isSimulating ? 'text-green-600 font-bold bg-green-50' : 'text-blue-600'}`} value={item.value} onChange={(e) => updateBlackboardItem(idx, 'value', ['int', 'float', 'double'].includes(item.type) ? parseFloat(e.target.value) : e.target.value)} />}
                                                     </td>
-                                                    <td className="p-1">
-                                                        <div className="flex items-center gap-1">
-                                                            <select 
-                                                                disabled={isSimulating}
-                                                                className="w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none disabled:text-gray-500"
-                                                                value={item.type}
-                                                                onChange={(e) => updateBlackboardItem(idx, 'type', e.target.value)}
-                                                            >
-                                                                <option value="int">Int</option>
-                                                                <option value="float">Float</option>
-                                                                <option value="double">Double</option>
-                                                                <option value="string">String</option>
-                                                                <option value="boolean">Boolean</option>
-                                                                <option value="enum">Enum</option>
-                                                            </select>
-                                                            {item.type === 'enum' && !isSimulating && (
-                                                                <button onClick={() => setEditingEnumIndex(idx)} className="text-gray-400 hover:text-blue-500">
-                                                                    <Icons.Settings size={12} />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-1">
-                                                        {item.type === 'boolean' ? (
-                                                            <select 
-                                                                disabled={isSimulating}
-                                                                className={`w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none font-bold ${isSimulating ? 'text-gray-600' : 'text-blue-600'}`}
-                                                                value={item.value.toString()}
-                                                                onChange={(e) => updateBlackboardItem(idx, 'value', e.target.value === 'true')}
-                                                            >
-                                                                <option value="true">True</option>
-                                                                <option value="false">False</option>
-                                                            </select>
-                                                        ) : item.type === 'enum' ? (
-                                                            <select 
-                                                                disabled={isSimulating}
-                                                                className={`w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none font-bold ${isSimulating ? 'text-gray-600' : 'text-blue-600'}`}
-                                                                value={item.value}
-                                                                onChange={(e) => updateBlackboardItem(idx, 'value', e.target.value)}
-                                                            >
-                                                                {item.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                                            </select>
-                                                        ) : (
-                                                            <input 
-                                                                type={['int', 'float', 'double'].includes(item.type) ? 'number' : 'text'}
-                                                                disabled={isSimulating}
-                                                                className={`w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none px-1 font-mono transition-colors duration-300 ${isSimulating ? 'text-green-600 font-bold bg-green-50' : 'text-blue-600'}`}
-                                                                value={item.value}
-                                                                step={item.type === 'int' ? 1 : 0.1}
-                                                                onChange={(e) => updateBlackboardItem(idx, 'value', ['int', 'float', 'double'].includes(item.type) ? parseFloat(e.target.value) : e.target.value)}
-                                                            />
-                                                        )}
-                                                    </td>
-                                                    <td className="p-1 text-center">
-                                                        {!isSimulating && (
-                                                            <button onClick={() => deleteBlackboardItem(idx)} className="text-gray-400 hover:text-red-500">
-                                                                <Icons.Minus size={12} />
-                                                            </button>
-                                                        )}
+                                                    <td className="p-1 text-center">{!isSimulating ? <button onClick={() => deleteBlackboardItem(idx)} className="text-gray-400 hover:text-red-500"><Icons.Minus size={12} /></button> : (item.type === 'enum' ? null : null)}
+                                                        {item.type === 'enum' && !isSimulating && <button onClick={() => setEditingEnumIndex(idx)} className="text-gray-400 hover:text-blue-500 ml-1"><Icons.Settings size={12} /></button>}
                                                     </td>
                                                 </tr>
                                             ))}
-                                            {blackboard.length === 0 && (
-                                                <tr>
-                                                    <td colSpan="4" className="text-center py-4 text-gray-400 italic">暂无变量</td>
-                                                </tr>
-                                            )}
                                         </tbody>
                                     </table>
                                 </div>
