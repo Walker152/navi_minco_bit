@@ -72,6 +72,10 @@ public:
   void mapToWorld(double mx, double my, double & wx, double & wy);
   void clearRobotCell(unsigned int wx, unsigned int wy);
 
+  void optimizationTimerCallback();
+  void visualTimerCallback();
+  std::vector<Eigen::Vector3d> extractLocalPath(const Eigen::Vector3d& cur_pos);
+
 private:
   enum class PlanningState {
     COLD_START,     // 完全重规划 (Zero V/A)
@@ -111,26 +115,19 @@ private:
     int steps,
     double t_step) const;
 
-  // Visualization helpers
-  void TrajectoryViz(
-    const traj_opt::Trajectory & traj,
-    const std_msgs::msg::Header & header,
-    int steps,
-    double t_step);
+  void updateVisCache(
+    const std::vector<Eigen::Vector3d> & control_points,
+    const traj_opt::Trajectory & backup_traj,
+    const traj_opt::Trajectory & opt_traj,
+    double opt_time);
 
   void publishEsdfCloud(const std_msgs::msg::Header & header);
-
-  void publishAstarPath(const nav_msgs::msg::Path & astar_path);
-  void publishControlPoints(
-    const std::vector<Eigen::Vector3d> & control_points,
-    const std_msgs::msg::Header & header);
 
   std::shared_ptr<tf2_ros::Buffer> tf_;
   nav2_util::LifecycleNode::WeakPtr node_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   nav2_costmap_2d::Costmap2D * costmap_;
   std::string global_frame_, name_;
-  
   // A* Planner
   std::unique_ptr<Astar> astar_planner_;
   
@@ -149,22 +146,43 @@ private:
   double tolerance_;
   bool use_astar_;
   bool allow_unknown_;
+  double opt_freq_;
+  double lookahead_dist_;
+
   MincoOptimizer::Config minco_config;
   
-  rclcpp::Publisher<ros_interfaces::msg::PositionCommand>::SharedPtr traj_pub_;
-  rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_pub_;
-
-  // For Visualization
-  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr backup_path_pub_;
-  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr astar_path_pub_;
-  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr control_points_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr esdf_cloud_pub_;
+  rclcpp::TimerBase::SharedPtr opt_timer_;
+  rclcpp::TimerBase::SharedPtr visual_timer_;
   rclcpp::TimerBase::SharedPtr esdf_timer_;
+  
+  std::vector<geometry_msgs::msg::PoseStamped> latest_global_path_;
+  std::mutex path_mutex_;
+
+  // Command Publishers
+  rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_pub_;
+  rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr backup_path_pub_;
+
+  // Visualization Publishers
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr backup_path_vis_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr opt_path_vis_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr astar_path_vis_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr control_points_vis_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr esdf_cloud_pub_;
   uint32_t opt_trajectory_id_{0};
   uint32_t backup_trajectory_id_{0};
 
   geometry_utils::Trajectory last_traj_;
   bool has_last_traj_ = false;
+
+  // Visualization Cache
+  std::mutex vis_mutex_;
+  traj_opt::Trajectory vis_opt_traj_;
+  traj_opt::Trajectory vis_backup_traj_;
+  std::vector<Eigen::Vector3d> vis_control_points_;
+  nav_msgs::msg::Path vis_astar_path_;
+  double vis_opt_time_ = -1.0;
+  bool has_vis_opt_traj_ = false;
+  bool has_vis_backup_traj_ = false;
   
   rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
   std::mutex mutex_;

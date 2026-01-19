@@ -6,6 +6,8 @@
 #include <stdexcept>
 #include <cmath>
 #include <cstring>
+#include <iomanip>
+#include <sstream>
 
 #include "sensor_msgs/msg/point_field.hpp"
 #include "visualization_msgs/msg/marker.hpp"
@@ -177,7 +179,7 @@ void MincoPlanner::publishBackupTrajectory(
   int steps,
   double t_step)
 {
-  if (!opt_path_pub_ || steps <= 0) {
+  if (!backup_path_pub_ || steps <= 0) {
     return;
   }
 
@@ -239,7 +241,7 @@ void MincoPlanner::publishBackupTrajectory(
   }
 
   traj_msg.mpc_horizon = static_cast<uint32_t>(traj_msg.cmds.size());
-  opt_path_pub_->publish(traj_msg);
+  backup_path_pub_->publish(traj_msg);
 }
 
 nav_msgs::msg::Path MincoPlanner::convertTrajectoryToPath(
@@ -293,21 +295,30 @@ nav_msgs::msg::Path MincoPlanner::convertTrajectoryToPath(
   return path_msg;
 }
 
-void MincoPlanner::TrajectoryViz(
-  const traj_opt::Trajectory & traj,
-  const std_msgs::msg::Header & header,
-  int steps,
-  double t_step)
+void MincoPlanner::updateVisCache(
+  const std::vector<Eigen::Vector3d> & control_points,
+  const traj_opt::Trajectory & backup_traj,
+  const traj_opt::Trajectory & opt_traj,
+  double opt_time)
 {
-  if (!backup_path_pub_) {
-    return;
+  nav_msgs::msg::Path astar_path_msg;
+  {
+    std::lock_guard<std::mutex> path_lock(path_mutex_);
+    astar_path_msg.header.stamp = rclcpp::Clock().now();
+    astar_path_msg.header.frame_id = global_frame_;
+    astar_path_msg.poses = latest_global_path_;
   }
 
-  auto path_msg = convertTrajectoryToPath(traj, header, steps, t_step);
-  if (path_msg.poses.empty()) {
-    return;
-  }
-  backup_path_pub_->publish(path_msg);
+  std::lock_guard<std::mutex> vis_lock(vis_mutex_);
+  vis_control_points_ = control_points;
+  vis_backup_traj_ = backup_traj;
+  has_vis_backup_traj_ = (backup_traj.getTotalDuration() > 1e-3);
+
+  vis_opt_traj_ = opt_traj;
+  vis_opt_time_ = opt_time;
+  has_vis_opt_traj_ = (opt_traj.getTotalDuration() > 1e-3);
+
+  vis_astar_path_ = astar_path_msg;
 }
 
 MincoPlanner::MincoPlanner()
@@ -337,16 +348,6 @@ traj_opt::Trajectory MincoPlanner::generateBackupTraj(const Eigen::Matrix3d& sta
   if (!corridor_gen_ || !backup_opt_) {
     std::cout << RED << "[MincoPlanner] Backup optimizer not initialized!" << RESET << std::endl;
     auto stop_traj = make_stop_traj();
-    auto node = node_.lock();
-    if (node) {
-      std_msgs::msg::Header header;
-      header.stamp = node->now();
-      header.frame_id = global_frame_;
-      const double t_step = 0.05;
-      int steps = static_cast<int>(std::ceil(stop_traj.getTotalDuration() / t_step)) + 1;
-      steps = std::max(2, steps);
-      TrajectoryViz(stop_traj, header, steps, t_step);
-    }
     return stop_traj;
   }
 
@@ -364,32 +365,12 @@ traj_opt::Trajectory MincoPlanner::generateBackupTraj(const Eigen::Matrix3d& sta
 
   // Step 4: Return
   if (success) {
-    auto node = node_.lock();
-    if (node) {
-      std_msgs::msg::Header header;
-      header.stamp = node->now();
-      header.frame_id = global_frame_;
-      const double t_step = 0.05;
-      int steps = static_cast<int>(std::ceil(backup_traj.getTotalDuration() / t_step)) + 1;
-      steps = std::max(2, steps);
-      TrajectoryViz(backup_traj, header, steps, t_step);
-    }
     return backup_traj;
   }
 
   std::cout << RED << "[MincoPlanner] Backup trajectory optimization failed, fallback to stop." << RESET
             << std::endl;
   auto stop_traj = make_stop_traj();
-  auto node = node_.lock();
-  if (node) {
-    std_msgs::msg::Header header;
-    header.stamp = node->now();
-    header.frame_id = global_frame_;
-    const double t_step = 0.05;
-    int steps = static_cast<int>(std::ceil(stop_traj.getTotalDuration() / t_step)) + 1;
-    steps = std::max(2, steps);
-    TrajectoryViz(stop_traj, header, steps, t_step);
-  }
   return stop_traj;
 }
 
@@ -481,6 +462,14 @@ void MincoPlanner::configure(
     node, name + ".static_esdf.esdf_resolution", rclcpp::ParameterValue(0.1));
   node->get_parameter(name + ".static_esdf.esdf_resolution", esdf_resolution_);
 
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.opt_freq", rclcpp::ParameterValue(20.0));
+  node->get_parameter(name + ".minco_optimizer.opt_freq", opt_freq_);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.lookahead_dist", rclcpp::ParameterValue(5.0));
+  node->get_parameter(name + ".minco_optimizer.lookahead_dist", lookahead_dist_);
+
   minco_config.penaltyWeights.resize(4);
   minco_config.penaltyWeights(0) = penalty_weight_pos;
   minco_config.penaltyWeights(1) = penalty_weight_vel;
@@ -494,18 +483,26 @@ void MincoPlanner::configure(
 
   astar_planner_ = std::make_unique<Astar>(
     costmap_->getSizeInCellsX(), costmap_->getSizeInCellsY());
-
+  
+  // Control publisher
   opt_path_pub_ = node->create_publisher<ros_interfaces::msg::MpcPositionCommand>(
     "/opt_path", rclcpp::QoS(rclcpp::KeepLast(1)));
 
-  backup_path_pub_ = node->create_publisher<nav_msgs::msg::Path>(
+  backup_path_pub_ = node->create_publisher<ros_interfaces::msg::MpcPositionCommand>(
     "/backup_path", rclcpp::QoS(rclcpp::KeepLast(1)));
 
-  astar_path_pub_ = node->create_publisher<nav_msgs::msg::Path>(
-    "/astar_path", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
+  // Vis publishers
+  opt_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
+    "/opt_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)));
 
-  control_points_pub_ = node->create_publisher<visualization_msgs::msg::Marker>(
-    "/minco_control_points", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
+  backup_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
+    "/backup_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)));
+
+  astar_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
+    "/astar_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
+
+  control_points_vis_pub_ = node->create_publisher<visualization_msgs::msg::Marker>(
+    "/minco_control_points_vis", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
 
   esdf_cloud_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>(
     "/esdf_cloud", 10);
@@ -543,19 +540,31 @@ void MincoPlanner::configure(
   corridor_gen_ = std::make_shared<SimpleCorridorGenerator>(esdf_map_);
   backup_opt_ = std::make_unique<traj_opt::BackupTrajOpt>();
   minco_optimizer_->setESDFMap(esdf_map_); 
+  opt_timer_ = node->create_wall_timer(
+    std::chrono::duration<double>(1.0 / opt_freq_),
+    std::bind(&MincoPlanner::optimizationTimerCallback, this));
+  visual_timer_ = node->create_wall_timer(
+      std::chrono::milliseconds(66), // 15Hz
+      std::bind(&MincoPlanner::visualTimerCallback, this));
 }
 
 void MincoPlanner::cleanup()
 {
+  visual_timer_.reset();
+  opt_timer_.reset();
+  esdf_timer_.reset();
+
   astar_planner_.reset();
   minco_optimizer_.reset();
   backup_opt_.reset();
   opt_path_pub_.reset();
   backup_path_pub_.reset();
-  astar_path_pub_.reset();
-  control_points_pub_.reset();
+
+  opt_path_vis_pub_.reset();
+  backup_path_vis_pub_.reset();
+  astar_path_vis_pub_.reset();
+  control_points_vis_pub_.reset();
   esdf_cloud_pub_.reset();
-  esdf_timer_.reset();
 }
 
 void MincoPlanner::activate()
@@ -660,8 +669,6 @@ bool MincoPlanner::makePlan(
   plan.header.stamp = rclcpp::Clock().now();
   plan.header.frame_id = global_frame_;
 
-  double plan_start_time = rclcpp::Clock().now().seconds() + 0.03;
-  
   // 2. Search a discrete guide path using A*
   // Convert world coords to map coords
   double wx = start.position.x;
@@ -713,8 +720,10 @@ bool MincoPlanner::makePlan(
   float * path_y = astar_planner_->getPathY();
   const int len = astar_planner_->getPathLen();
 
-  std::vector<Eigen::Vector3d> guide_path;
-  guide_path.reserve(len);
+  std::lock_guard<std::mutex> path_lock(path_mutex_);
+  latest_global_path_.clear();
+  latest_global_path_.reserve(len);
+  plan.poses.reserve(len);
 
   for (int i = 0; i < len; ++i) {
     geometry_msgs::msg::PoseStamped pose;
@@ -726,90 +735,240 @@ bool MincoPlanner::makePlan(
     pose.pose.position.x = wx;
     pose.pose.position.y = wy;
     pose.pose.position.z = 0.0;
-    guide_path.emplace_back(wx, wy, 0.0);
+    pose.pose.orientation.w = 1.0;
+    latest_global_path_.push_back(pose);
     plan.poses.push_back(pose);
   }
 
-  publishAstarPath(plan);
 
-  // 3. Sparsify the path and decide the planning mode
-  // Reduce the number of waypoints using line-of-sight checks
-  Eigen::Matrix3d start_state;
-  std::vector<Eigen::Vector3d> sparse_path = getSparseWaypoints(guide_path);
-
-  publishControlPoints(sparse_path, plan.header);
-  lock.unlock();
-
-  // Select HOT_START (partial replan) or COLD_START (full replan)
-  PlanningState state = determinePlanningState(start, sparse_path);
   
-  if (state == PlanningState::HOT_START)
-  {
-      double t_dur = plan_start_time - last_traj_.start_WT;
-      prepareHotStart(start, t_dur, start_state);
-      std::cout << MAGENTA << "[MincoPlanner] Mode: HOT_START (Partial Replan)" << RESET << std::endl;
-  }
-  else
-  {
-      prepareColdStart(start, start_state);
-      std::cout << MAGENTA << "[MincoPlanner] Mode: COLD_START (Full Replan)" << RESET << std::endl;
+  std::cout << GREEN << "[MincoPlanner] Successfully created global plan (A* only) with " << plan.poses.size()
+            << " waypoints." << RESET << std::endl;
+
+  return !plan.poses.empty();
+}
+
+std::vector<Eigen::Vector3d> MincoPlanner::extractLocalPath(const Eigen::Vector3d& cur_pos)
+{
+  std::vector<Eigen::Vector3d> local_segment;
+  std::lock_guard<std::mutex> lock(path_mutex_);
+
+  if (latest_global_path_.empty()) {
+    return local_segment;
   }
 
-  // 4. Build a backup stop trajectory
+  // 1. Find the nearest point on the global path
+  size_t start_idx = 0;
+  double min_dist_sq = std::numeric_limits<double>::max();
+
+  for (size_t i = 0; i < latest_global_path_.size(); ++i) {
+    const auto& pt = latest_global_path_[i].pose.position;
+    double dist_sq = (cur_pos.x() - pt.x) * (cur_pos.x() - pt.x) + 
+                     (cur_pos.y() - pt.y) * (cur_pos.y() - pt.y);
+    if (dist_sq < min_dist_sq) {
+      min_dist_sq = dist_sq;
+      start_idx = i;
+    }
+  }
+
+  // 2. Extract path from nearest point up to lookahead_dist_
+  double accum_dist = 0.0;
+  
+  // Add nearest point
+  local_segment.push_back(Eigen::Vector3d(
+    latest_global_path_[start_idx].pose.position.x,
+    latest_global_path_[start_idx].pose.position.y,
+    0.0
+  ));
+
+  for (size_t i = start_idx + 1; i < latest_global_path_.size(); ++i) {
+    const auto& p1 = latest_global_path_[i - 1].pose.position;
+    const auto& p2 = latest_global_path_[i].pose.position;
+    
+    double dist = std::hypot(p2.x - p1.x, p2.y - p1.y);
+    accum_dist += dist;
+
+    local_segment.push_back(Eigen::Vector3d(p2.x, p2.y, 0.0));
+
+    if (accum_dist >= lookahead_dist_) {
+      break;
+    }
+  }
+
+  return local_segment;
+}
+
+void MincoPlanner::optimizationTimerCallback()
+{
+  if (!costmap_ros_ || latest_global_path_.empty()) {
+    return;
+  }
+
+  // 1. Get current robot pose
+  geometry_msgs::msg::PoseStamped current_pose;
+  if (!costmap_ros_->getRobotPose(current_pose)) {
+    return;
+  }
+  
+  Eigen::Vector3d cur_pos(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
+
+  // 2. Extract local dense path
+  std::vector<Eigen::Vector3d> dense_local_path = extractLocalPath(cur_pos);
+  if (dense_local_path.size() < 2) {
+    return;
+  }
+
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  // 3. Sparsify local path
+  std::vector<Eigen::Vector3d> sparse_path = getSparseWaypoints(dense_local_path);
+  
+  std_msgs::msg::Header header_msg;
+  header_msg.frame_id = global_frame_;
+  header_msg.stamp = rclcpp::Clock().now();
+
+  // 4. Determine state (HOT/COLD)
+  PlanningState state = determinePlanningState(current_pose.pose, sparse_path);
+  
+  // 5. Prepare Start State
+  Eigen::Matrix3d start_state;
+  if (state == PlanningState::HOT_START) {
+    double now = rclcpp::Clock().now().seconds() + 0.005; // small buffer
+    double t_dur = now - last_traj_.start_WT;
+    prepareHotStart(current_pose.pose, t_dur, start_state);
+  } else {
+    prepareColdStart(current_pose.pose, start_state);
+  }
+
+  // 6. Generate Backup Trajectory (Safety)
   traj_opt::Trajectory backup_traj = generateBackupTraj(start_state);
+  publishBackupTrajectory(backup_traj, header_msg, 20, 0.1);
 
-  // 5. Optimize a smooth trajectory using MINCO
-  auto opt_time = rclcpp::Clock().now().seconds();
+  // 7. Prepare MINCO Optimization
   traj_opt::Trajectory opt_traj;
   Eigen::Matrix3d end_state;
   end_state.setZero();
   end_state.col(0) = sparse_path.back();
 
-  // Remove near-start redundant points
+  // Remove near-start redundant points from sparse_path
   while (sparse_path.size() > 2)
   {
-    Eigen::Vector3d first_pt = sparse_path[1];
-    Eigen::Vector3d dir = first_pt - start_state.col(0);
-    if ((dir.norm() < 0.2 )) 
-    {
-      sparse_path.erase(sparse_path.begin() + 1);
-    } else {
-      break;
-    }
+      if ((sparse_path[1] - start_state.col(0)).norm() < 0.2)
+      {
+          sparse_path.erase(sparse_path.begin() + 1);
+      }
+      else
+      {
+          break;
+      }
   }
 
-  // [原理] MINCO（Minimum Control）用多项式段（常见为五次）参数化轨迹，并以“控制量”（如 jerk/snap）的能量为主目标。
-  //        将安全距离（ESDF）、速度/加速度等硬约束转为光滑惩罚项后，可用 L-BFGS 在无约束空间里高效迭代求解。
-  
+  // 8. Optimize
+  auto opt_start_time = rclcpp::Clock().now().seconds();
   double cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
-  if (std::isinf(cost))
-  {
+  
+  if (std::isinf(cost)) {
     std::cout << RED << "[MincoPlanner] Minco optimization failed!" << RESET << std::endl;
-    return false;
-  } 
-  auto opt_time_end = rclcpp::Clock().now().seconds();
+    return;
+  }
+  auto opt_end_time = rclcpp::Clock().now().seconds();
+  double opt_duration = opt_end_time - opt_start_time;
   std::cout << GREEN << "[MincoPlanner] Minco optimization time: "
-            << (opt_time_end - opt_time) << " seconds, cost: " << cost << RESET << std::endl;
-
-  // 6. Publish the optimized trajectory and return a sampled Path
-  const double t_start = plan_start_time;
+            << opt_duration << " seconds, "
+            << "cost: " << cost << RESET << std::endl;
+  // 9. Publish and Cache
   const double t_step = 0.05;
   int steps = static_cast<int>(std::ceil(opt_traj.getTotalDuration() / t_step)) + 1;
   steps = std::max(2, steps);
-  publishOptimizedTrajectory(opt_traj, plan.header, steps, t_step);
+  
+  publishOptimizedTrajectory(opt_traj, header_msg, steps, t_step);
 
-  // Return sampled global plan(for visualization)
-  plan = convertTrajectoryToPath(opt_traj, plan.header, steps, t_step);
-
-  // 7. Cache the last trajectory for HOT_START
+  updateVisCache(sparse_path, backup_traj, opt_traj, opt_duration);
   last_traj_ = opt_traj;
-  last_traj_.start_WT = t_start;
+  last_traj_.start_WT = rclcpp::Clock().now().seconds();
   has_last_traj_ = true;
+}
 
-  std::cout << GREEN << "[MincoPlanner] Successfully created plan with " << plan.poses.size()
-            << " waypoints." << RESET << std::endl;
+void MincoPlanner::visualTimerCallback()
+{
+  std_msgs::msg::Header header;
+  auto node = node_.lock();
+  if (node) {
+    header.stamp = node->now();
+    header.frame_id = global_frame_;
+  } else {
+    return;
+  }
 
-  return !plan.poses.empty();
+  std::lock_guard<std::mutex> lock(vis_mutex_);
+
+  // 1. A* Path
+  if (astar_path_vis_pub_ && !vis_astar_path_.poses.empty()) {
+    vis_astar_path_.header = header;
+    for (auto & p : vis_astar_path_.poses) {
+      p.header = header;
+    }
+    astar_path_vis_pub_->publish(vis_astar_path_);
+  }
+
+  // 2. Control Points
+  if (control_points_vis_pub_ && !vis_control_points_.empty()) {
+    visualization_msgs::msg::Marker mk;
+    mk.header = header;
+    mk.ns = "minco_control_points";
+    mk.id = 0;
+    mk.type = visualization_msgs::msg::Marker::SPHERE_LIST;
+    mk.action = visualization_msgs::msg::Marker::ADD;
+    mk.pose.orientation.w = 1.0;
+    mk.scale.x = 0.25; mk.scale.y = 0.25; mk.scale.z = 0.25;
+    mk.color.r = 1.0f; mk.color.g = 0.55f; mk.color.b = 0.0f; mk.color.a = 1.0f;
+
+    mk.points.reserve(vis_control_points_.size());
+    for (const auto & p : vis_control_points_) {
+      geometry_msgs::msg::Point pt;
+      pt.x = p.x(); pt.y = p.y(); pt.z = 0.05;
+      mk.points.push_back(pt);
+    }
+    control_points_vis_pub_->publish(mk);
+  }
+
+  // 3. Backup Path
+  if (backup_path_vis_pub_ && has_vis_backup_traj_ && vis_backup_traj_.getTotalDuration() > 1e-3) {
+    const double t_step = 0.05;
+    const int steps = static_cast<int>(std::ceil(vis_backup_traj_.getTotalDuration() / t_step)) + 1;
+    auto path_msg = convertTrajectoryToPath(vis_backup_traj_, header, steps, t_step);
+    backup_path_vis_pub_->publish(path_msg);
+  }
+  
+  // 4. Optimized Path & Time
+  if (opt_path_vis_pub_ && has_vis_opt_traj_ && vis_opt_traj_.getTotalDuration() > 1e-3) {
+    const double t_step = 0.05;
+    const int steps = static_cast<int>(std::ceil(vis_opt_traj_.getTotalDuration() / t_step)) + 1;
+    auto path_msg = convertTrajectoryToPath(vis_opt_traj_, header, steps, t_step);
+    opt_path_vis_pub_->publish(path_msg);
+  }
+
+  if (control_points_vis_pub_ && has_vis_opt_traj_ && vis_opt_traj_.getTotalDuration() > 1e-3 && vis_opt_time_ > 0.0) {
+    visualization_msgs::msg::Marker mk;
+    mk.header = header;
+    mk.ns = "opt_time";
+    mk.id = 0;
+    mk.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+    mk.action = visualization_msgs::msg::Marker::ADD;
+
+    Eigen::Vector3d start_pos = vis_opt_traj_.getPos(0.0);
+    mk.pose.position.x = start_pos(0);
+    mk.pose.position.y = start_pos(1);
+    mk.pose.position.z = 1.0;
+    mk.pose.orientation.w = 1.0;
+    mk.scale.z = 0.3;
+    mk.color.r = 1.0f; mk.color.g = 1.0f; mk.color.b = 0.0f; mk.color.a = 1.0f;
+
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(2) << (vis_opt_time_ * 1000.0) << " ms";
+    mk.text = ss.str();
+    control_points_vis_pub_->publish(mk);
+  }
 }
 
 std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<Eigen::Vector3d>& path) {
@@ -888,54 +1047,6 @@ bool MincoPlanner::isLineFree(const Eigen::Vector3d& p1, const Eigen::Vector3d& 
         }
     }
     return true;
-}
-
-void MincoPlanner::publishAstarPath(const nav_msgs::msg::Path & astar_path)
-{
-  // Publisher is transient_local, so publish even if there are no subscribers yet.
-  if (!astar_path_pub_) {
-    return;
-  }
-  astar_path_pub_->publish(astar_path);
-}
-
-void MincoPlanner::publishControlPoints(
-  const std::vector<Eigen::Vector3d> & control_points,
-  const std_msgs::msg::Header & header)
-{
-  if (!control_points_pub_ || control_points_pub_->get_subscription_count() == 0) {
-    return;
-  }
-
-  visualization_msgs::msg::Marker mk;
-  mk.header = header;
-  mk.ns = "minco_control_points";
-  mk.id = 0;
-  mk.type = visualization_msgs::msg::Marker::SPHERE_LIST;
-  mk.action = visualization_msgs::msg::Marker::ADD;
-  mk.pose.orientation.w = 1.0;
-
-  // Diameter in meters
-  mk.scale.x = 0.25;
-  mk.scale.y = 0.25;
-  mk.scale.z = 0.25;
-
-  // Orange-ish
-  mk.color.r = 1.0f;
-  mk.color.g = 0.55f;
-  mk.color.b = 0.0f;
-  mk.color.a = 1.0f;
-
-  mk.points.reserve(control_points.size());
-  for (const auto & p : control_points) {
-    geometry_msgs::msg::Point pt;
-    pt.x = p.x();
-    pt.y = p.y();
-    pt.z = 0.05;  // lift slightly for visibility
-    mk.points.push_back(pt);
-  }
-
-  control_points_pub_->publish(mk);
 }
 
 bool MincoPlanner::worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my)
