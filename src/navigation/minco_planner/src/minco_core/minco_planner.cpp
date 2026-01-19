@@ -1,4 +1,5 @@
 #include "minco_core/minco_planner.hpp"
+#include "minco_core/visualizer.hpp"
 #include "nav2_util/node_utils.hpp"
 #include "nav2_costmap_2d/cost_values.hpp"
 
@@ -6,6 +7,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <cstring>
+#include <algorithm>
 #include <iomanip>
 #include <sstream>
 
@@ -16,98 +18,100 @@ namespace minco_planner
 {
 using namespace color_text;
 
-void MincoPlanner::publishEsdfCloud(const std_msgs::msg::Header & header)
+namespace
 {
-  if (!esdf_cloud_pub_ || !esdf_map_) {
-    return;
-  }
-
-  // Visualize fused ESDF (static + dynamic). We sample on the dynamic layer grid if available,
-  // otherwise fall back to the static layer grid.
-  int width = 0;
-  int height = 0;
-  double res = 0.0;
-  Eigen::Vector2d origin(0.0, 0.0);
-
-  const auto dynamic_layer = esdf_map_->dynamicLayer();
-  if (dynamic_layer && dynamic_layer->isValid()) {
-    width = dynamic_layer->width();
-    height = dynamic_layer->height();
-    res = dynamic_layer->resolution();
-    origin = dynamic_layer->origin();
-  } else {
-    const auto static_layer = esdf_map_->staticLayer();
-    if (!static_layer || !static_layer->isValid()) {
-      return;
-    }
-    width = static_layer->width();
-    height = static_layer->height();
-    res = static_layer->resolution();
-    origin = static_layer->origin();
-  }
-
-  if (width <= 0 || height <= 0) {
-    return;
-  }
-
-  sensor_msgs::msg::PointCloud2 cloud;
-  cloud.header = header;
-  cloud.height = 1;
-  cloud.width = static_cast<uint32_t>(static_cast<size_t>(width) * static_cast<size_t>(height));
-  cloud.is_bigendian = false;
-  cloud.is_dense = false;
-
-  cloud.fields.resize(4);
-  cloud.fields[0].name = "x";
-  cloud.fields[0].offset = 0;
-  cloud.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
-  cloud.fields[0].count = 1;
-
-  cloud.fields[1].name = "y";
-  cloud.fields[1].offset = 4;
-  cloud.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
-  cloud.fields[1].count = 1;
-
-  cloud.fields[2].name = "z";
-  cloud.fields[2].offset = 8;
-  cloud.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
-  cloud.fields[2].count = 1;
-
-  cloud.fields[3].name = "intensity";
-  cloud.fields[3].offset = 12;
-  cloud.fields[3].datatype = sensor_msgs::msg::PointField::FLOAT32;
-  cloud.fields[3].count = 1;
-
-  cloud.point_step = 16;
-  cloud.row_step = cloud.point_step * cloud.width;
-  cloud.data.resize(static_cast<size_t>(cloud.row_step) * cloud.height);
-
-  size_t point_index = 0;
-  for (int iy = 0; iy < height; ++iy)
-  {
-    for (int ix = 0; ix < width; ++ix, ++point_index)
-    {
-      const float x = static_cast<float>(origin.x() + ix * res);
-      const float y = static_cast<float>(origin.y() + iy * res);
-      const float z = 0.0f;
-      double dist = 0.0;
-      Eigen::Vector3d grad;
-      esdf_map_->evaluate(Eigen::Vector3d(static_cast<double>(x), static_cast<double>(y), 0.0), dist, grad);
-      if (!std::isfinite(dist)) {
-        dist = 0.0;
-      }
-      const float intensity = static_cast<float>(dist);
-
-      const size_t base = point_index * static_cast<size_t>(cloud.point_step);
-      std::memcpy(&cloud.data[base + 0], &x, sizeof(float));
-      std::memcpy(&cloud.data[base + 4], &y, sizeof(float));
-      std::memcpy(&cloud.data[base + 8], &z, sizeof(float));
-      std::memcpy(&cloud.data[base + 12], &intensity, sizeof(float));
-    }
-  }
-
-  esdf_cloud_pub_->publish(cloud);
+template<typename T>
+inline T clampValue(T v, T lo, T hi)
+{
+  return std::min(std::max(v, lo), hi);
 }
+
+double getDistFromTrapezoid(
+  double t,
+  double total_length,
+  double a_ref,
+  double v_peak,
+  double t_acc,
+  double t_flat)
+{
+  if (!(std::isfinite(t) && std::isfinite(total_length) && std::isfinite(a_ref) && std::isfinite(v_peak) &&
+        std::isfinite(t_acc) && std::isfinite(t_flat))) {
+    return 0.0;
+  }
+
+  if (total_length <= 0.0) {
+    return 0.0;
+  }
+  if (a_ref <= 0.0 || v_peak <= 0.0 || t_acc <= 0.0) {
+    return 0.0;
+  }
+
+  const double t_total = 2.0 * t_acc + std::max(0.0, t_flat);
+  if (t <= 0.0) {
+    return 0.0;
+  }
+  if (t >= t_total) {
+    return total_length;
+  }
+
+  const double d_acc = 0.5 * v_peak * v_peak / a_ref;
+  const double d_flat = v_peak * std::max(0.0, t_flat);
+
+  double s = 0.0;
+  if (t < t_acc) {
+    // s = 1/2 a t^2
+    s = 0.5 * a_ref * t * t;
+  } else if (t < t_acc + t_flat) {
+    // s = d_acc + v * (t - t_acc)
+    s = d_acc + v_peak * (t - t_acc);
+  } else {
+    // Decel: s = d_acc + d_flat + v*t_dec - 1/2 a t_dec^2
+    const double t_dec = t - (t_acc + t_flat);
+    s = d_acc + d_flat + v_peak * t_dec - 0.5 * a_ref * t_dec * t_dec;
+  }
+
+  if (!std::isfinite(s)) {
+    return 0.0;
+  }
+  return clampValue(s, 0.0, total_length);
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((unused))
+#endif
+Eigen::Vector3d interpolateByArcLength(
+  const std::vector<Eigen::Vector3d> & path,
+  const std::vector<double> & accumulated_dist,
+  double s)
+{
+  if (path.empty()) {
+    return Eigen::Vector3d::Zero();
+  }
+  if (path.size() == 1 || accumulated_dist.size() != path.size()) {
+    return path.front();
+  }
+
+  const double s_clamped = clampValue(s, 0.0, accumulated_dist.back());
+  auto it = std::lower_bound(accumulated_dist.begin(), accumulated_dist.end(), s_clamped);
+  if (it == accumulated_dist.begin()) {
+    return path.front();
+  }
+  if (it == accumulated_dist.end()) {
+    return path.back();
+  }
+
+  const size_t idx1 = static_cast<size_t>(std::distance(accumulated_dist.begin(), it));
+  const size_t idx0 = idx1 - 1;
+  const double s0 = accumulated_dist[idx0];
+  const double s1 = accumulated_dist[idx1];
+  const double denom = (s1 - s0);
+  if (denom <= 1e-9) {
+    return path[idx1];
+  }
+  const double ratio = clampValue((s_clamped - s0) / denom, 0.0, 1.0);
+  return path[idx0] + ratio * (path[idx1] - path[idx0]);
+}
+}  // namespace
 
 void MincoPlanner::publishOptimizedTrajectory(
   const traj_opt::Trajectory & opt_traj,
@@ -242,83 +246,6 @@ void MincoPlanner::publishBackupTrajectory(
 
   traj_msg.mpc_horizon = static_cast<uint32_t>(traj_msg.cmds.size());
   backup_path_pub_->publish(traj_msg);
-}
-
-nav_msgs::msg::Path MincoPlanner::convertTrajectoryToPath(
-  const traj_opt::Trajectory & traj,
-  const std_msgs::msg::Header & header,
-  int steps,
-  double t_step) const
-{
-  nav_msgs::msg::Path path_msg;
-  path_msg.header = header;
-
-  if (steps <= 0 || t_step <= 0.0) {
-    return path_msg;
-  }
-
-  path_msg.poses.resize(static_cast<size_t>(steps));
-
-  const double total_duration = traj.getTotalDuration();
-  for (int i = 0; i < steps; ++i)
-  {
-    double t = i * t_step;
-    if (t > total_duration) {
-      t = total_duration;
-    }
-
-    Eigen::Vector3d pos = traj.getPos(t);
-    Eigen::Vector3d vel = traj.getVel(t);
-
-    pos.z() = 0.0;
-    vel.z() = 0.0;
-
-    double yaw = 0.0;
-    if (vel.head<2>().norm() > 1e-4) {
-      yaw = std::atan2(vel(1), vel(0));
-    } else if (i > 0) {
-      const auto & last_q = path_msg.poses[static_cast<size_t>(i - 1)].pose.orientation;
-      yaw = 2.0 * std::atan2(last_q.z, last_q.w);
-    }
-
-    auto & pose = path_msg.poses[static_cast<size_t>(i)];
-    pose.header = header;
-    pose.pose.position.x = pos(0);
-    pose.pose.position.y = pos(1);
-    pose.pose.position.z = 0.0;
-    pose.pose.orientation.x = 0.0;
-    pose.pose.orientation.y = 0.0;
-    pose.pose.orientation.z = std::sin(yaw / 2.0);
-    pose.pose.orientation.w = std::cos(yaw / 2.0);
-  }
-
-  return path_msg;
-}
-
-void MincoPlanner::updateVisCache(
-  const std::vector<Eigen::Vector3d> & control_points,
-  const traj_opt::Trajectory & backup_traj,
-  const traj_opt::Trajectory & opt_traj,
-  double opt_time)
-{
-  nav_msgs::msg::Path astar_path_msg;
-  {
-    std::lock_guard<std::mutex> path_lock(path_mutex_);
-    astar_path_msg.header.stamp = rclcpp::Clock().now();
-    astar_path_msg.header.frame_id = global_frame_;
-    astar_path_msg.poses = latest_global_path_;
-  }
-
-  std::lock_guard<std::mutex> vis_lock(vis_mutex_);
-  vis_control_points_ = control_points;
-  vis_backup_traj_ = backup_traj;
-  has_vis_backup_traj_ = (backup_traj.getTotalDuration() > 1e-3);
-
-  vis_opt_traj_ = opt_traj;
-  vis_opt_time_ = opt_time;
-  has_vis_opt_traj_ = (opt_traj.getTotalDuration() > 1e-3);
-
-  vis_astar_path_ = astar_path_msg;
 }
 
 MincoPlanner::MincoPlanner()
@@ -491,49 +418,24 @@ void MincoPlanner::configure(
   backup_path_pub_ = node->create_publisher<ros_interfaces::msg::MpcPositionCommand>(
     "/backup_path", rclcpp::QoS(rclcpp::KeepLast(1)));
 
-  // Vis publishers
-  opt_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
-    "/opt_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)));
-
-  backup_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
-    "/backup_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)));
-
-  astar_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
-    "/astar_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
-
-  control_points_vis_pub_ = node->create_publisher<visualization_msgs::msg::Marker>(
-    "/minco_control_points_vis", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
-
-  esdf_cloud_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>(
-    "/esdf_cloud", 10);
-
   // Load Static ESDF Map
   esdf_map_ = std::make_shared<small_rog_map::HybridESDFMap>();
 
   // Initialize ESDF dynamic layer ROS subscription (STVL voxel_grid).
   esdf_map_->initRos(parent, "/global_costmap/voxel_grid");
 
-  if (!esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_)) {
+  bool esdf_loaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
+  if (!esdf_loaded) {
     std::cout << RED << "[MincoPlanner] "
               << "Failed to load Static ESDF map from PCD: " << esdf_pcd_path_ << RESET << std::endl;
   } else {
     std::cout << MAGENTA << "[MincoPlanner] "
               << "Successfully loaded Static ESDF map from PCD: " << esdf_pcd_path_ << RESET << std::endl;
-    // Create 1Hz timer to publish ESDF cloud if there are subscribers
-    esdf_timer_ = node->create_wall_timer(
-      std::chrono::milliseconds(1000),
-      [this]() {
-        if (esdf_cloud_pub_ && esdf_cloud_pub_->get_subscription_count() > 0) {
-          auto node_ptr = node_.lock();
-          if (node_ptr) {
-            std_msgs::msg::Header header;
-            header.stamp = node_ptr->now();
-            header.frame_id = global_frame_;
-            publishEsdfCloud(header);
-          }
-        }
-      });
   }
+
+  // Visualization / ESDF publishing helper
+  visualizer_ = std::make_unique<Visualizer>();
+  visualizer_->configure(parent, global_frame_, esdf_map_, esdf_loaded);
 
   // Initialize Minco Optimizer
   minco_optimizer_ = std::make_unique<MincoOptimizer>(minco_config);
@@ -543,16 +445,16 @@ void MincoPlanner::configure(
   opt_timer_ = node->create_wall_timer(
     std::chrono::duration<double>(1.0 / opt_freq_),
     std::bind(&MincoPlanner::optimizationTimerCallback, this));
-  visual_timer_ = node->create_wall_timer(
-      std::chrono::milliseconds(66), // 15Hz
-      std::bind(&MincoPlanner::visualTimerCallback, this));
 }
 
 void MincoPlanner::cleanup()
 {
-  visual_timer_.reset();
   opt_timer_.reset();
-  esdf_timer_.reset();
+
+  if (visualizer_) {
+    visualizer_->cleanup();
+    visualizer_.reset();
+  }
 
   astar_planner_.reset();
   minco_optimizer_.reset();
@@ -560,11 +462,6 @@ void MincoPlanner::cleanup()
   opt_path_pub_.reset();
   backup_path_pub_.reset();
 
-  opt_path_vis_pub_.reset();
-  backup_path_vis_pub_.reset();
-  astar_path_vis_pub_.reset();
-  control_points_vis_pub_.reset();
-  esdf_cloud_pub_.reset();
 }
 
 void MincoPlanner::activate()
@@ -579,20 +476,6 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
   const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal)
 {
-  {
-    static auto start = rclcpp::Clock().now();
-    static int count = 0;
-    ++count;
-    if (count % 100 == 0) {
-      auto now = rclcpp::Clock().now();
-      double duration = (now - start).seconds();
-      std::cout << BLUE << "[MincoPlanner] createPlan called " << count
-                << " times over " << duration << " seconds. Avg rate: "
-                << static_cast<double>(count) / duration << " Hz." << RESET << std::endl;
-      start = now;
-      count = 0;
-    }
-  }
   std::lock_guard<std::mutex> lock(mutex_);
 
   // 1. Initialize the plan message
@@ -740,11 +623,6 @@ bool MincoPlanner::makePlan(
     plan.poses.push_back(pose);
   }
 
-
-  
-  std::cout << GREEN << "[MincoPlanner] Successfully created global plan (A* only) with " << plan.poses.size()
-            << " waypoints." << RESET << std::endl;
-
   return !plan.poses.empty();
 }
 
@@ -804,6 +682,18 @@ void MincoPlanner::optimizationTimerCallback()
     return;
   }
 
+  // Snapshot the global goal for end-state logic.
+  Eigen::Vector3d global_goal(0.0, 0.0, 0.0);
+  {
+    std::lock_guard<std::mutex> lock(path_mutex_);
+    if (latest_global_path_.empty()) {
+      return;
+    }
+    global_goal.x() = latest_global_path_.back().pose.position.x;
+    global_goal.y() = latest_global_path_.back().pose.position.y;
+    global_goal.z() = 0.0;
+  }
+
   // 1. Get current robot pose
   geometry_msgs::msg::PoseStamped current_pose;
   if (!costmap_ros_->getRobotPose(current_pose)) {
@@ -850,6 +740,28 @@ void MincoPlanner::optimizationTimerCallback()
   end_state.setZero();
   end_state.col(0) = sparse_path.back();
 
+  // End State Logic:
+  const double dist_to_goal = (end_state.col(0) - global_goal).head<2>().norm();
+  if (dist_to_goal > 1.0) {
+    Eigen::Vector3d tangent(1.0, 0.0, 0.0);
+    if (sparse_path.size() >= 2) {
+      tangent = sparse_path.back() - sparse_path[sparse_path.size() - 2];
+      tangent.z() = 0.0;
+      const double n = tangent.head<2>().norm();
+      if (n > 1e-6) {
+        tangent /= n;
+      } else {
+        tangent = Eigen::Vector3d(1.0, 0.0, 0.0);
+      }
+    }
+    const double v_cmd = 0.8 * std::max(0.0, minco_config.max_vel);
+    end_state.col(1) = tangent * v_cmd;
+    end_state.col(2).setZero();
+  } else {
+    end_state.col(1).setZero();
+    end_state.col(2).setZero();
+  }
+
   // Remove near-start redundant points from sparse_path
   while (sparse_path.size() > 2)
   {
@@ -883,149 +795,206 @@ void MincoPlanner::optimizationTimerCallback()
   
   publishOptimizedTrajectory(opt_traj, header_msg, steps, t_step);
 
-  updateVisCache(sparse_path, backup_traj, opt_traj, opt_duration);
+  if (visualizer_) {
+    nav_msgs::msg::Path astar_path_msg;
+    {
+      std::lock_guard<std::mutex> path_lock(path_mutex_);
+      astar_path_msg.header.stamp = rclcpp::Clock().now();
+      astar_path_msg.header.frame_id = global_frame_;
+      astar_path_msg.poses = latest_global_path_;
+    }
+    visualizer_->update(sparse_path, backup_traj, opt_traj, opt_duration, astar_path_msg);
+  }
   last_traj_ = opt_traj;
   last_traj_.start_WT = rclcpp::Clock().now().seconds();
   has_last_traj_ = true;
 }
 
-void MincoPlanner::visualTimerCallback()
-{
-  std_msgs::msg::Header header;
-  auto node = node_.lock();
-  if (node) {
-    header.stamp = node->now();
-    header.frame_id = global_frame_;
-  } else {
-    return;
-  }
-
-  std::lock_guard<std::mutex> lock(vis_mutex_);
-
-  // 1. A* Path
-  if (astar_path_vis_pub_ && !vis_astar_path_.poses.empty()) {
-    vis_astar_path_.header = header;
-    for (auto & p : vis_astar_path_.poses) {
-      p.header = header;
-    }
-    astar_path_vis_pub_->publish(vis_astar_path_);
-  }
-
-  // 2. Control Points
-  if (control_points_vis_pub_ && !vis_control_points_.empty()) {
-    visualization_msgs::msg::Marker mk;
-    mk.header = header;
-    mk.ns = "minco_control_points";
-    mk.id = 0;
-    mk.type = visualization_msgs::msg::Marker::SPHERE_LIST;
-    mk.action = visualization_msgs::msg::Marker::ADD;
-    mk.pose.orientation.w = 1.0;
-    mk.scale.x = 0.25; mk.scale.y = 0.25; mk.scale.z = 0.25;
-    mk.color.r = 1.0f; mk.color.g = 0.55f; mk.color.b = 0.0f; mk.color.a = 1.0f;
-
-    mk.points.reserve(vis_control_points_.size());
-    for (const auto & p : vis_control_points_) {
-      geometry_msgs::msg::Point pt;
-      pt.x = p.x(); pt.y = p.y(); pt.z = 0.05;
-      mk.points.push_back(pt);
-    }
-    control_points_vis_pub_->publish(mk);
-  }
-
-  // 3. Backup Path
-  if (backup_path_vis_pub_ && has_vis_backup_traj_ && vis_backup_traj_.getTotalDuration() > 1e-3) {
-    const double t_step = 0.05;
-    const int steps = static_cast<int>(std::ceil(vis_backup_traj_.getTotalDuration() / t_step)) + 1;
-    auto path_msg = convertTrajectoryToPath(vis_backup_traj_, header, steps, t_step);
-    backup_path_vis_pub_->publish(path_msg);
-  }
-  
-  // 4. Optimized Path & Time
-  if (opt_path_vis_pub_ && has_vis_opt_traj_ && vis_opt_traj_.getTotalDuration() > 1e-3) {
-    const double t_step = 0.05;
-    const int steps = static_cast<int>(std::ceil(vis_opt_traj_.getTotalDuration() / t_step)) + 1;
-    auto path_msg = convertTrajectoryToPath(vis_opt_traj_, header, steps, t_step);
-    opt_path_vis_pub_->publish(path_msg);
-  }
-
-  if (control_points_vis_pub_ && has_vis_opt_traj_ && vis_opt_traj_.getTotalDuration() > 1e-3 && vis_opt_time_ > 0.0) {
-    visualization_msgs::msg::Marker mk;
-    mk.header = header;
-    mk.ns = "opt_time";
-    mk.id = 0;
-    mk.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-    mk.action = visualization_msgs::msg::Marker::ADD;
-
-    Eigen::Vector3d start_pos = vis_opt_traj_.getPos(0.0);
-    mk.pose.position.x = start_pos(0);
-    mk.pose.position.y = start_pos(1);
-    mk.pose.position.z = 1.0;
-    mk.pose.orientation.w = 1.0;
-    mk.scale.z = 0.3;
-    mk.color.r = 1.0f; mk.color.g = 1.0f; mk.color.b = 0.0f; mk.color.a = 1.0f;
-
-    std::stringstream ss;
-    ss << std::fixed << std::setprecision(2) << (vis_opt_time_ * 1000.0) << " ms";
-    mk.text = ss.str();
-    control_points_vis_pub_->publish(mk);
-  }
-}
-
 std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<Eigen::Vector3d>& path) {
-  // 1. Handle degenerate inputs
-    std::vector<Eigen::Vector3d> sparse;
-    if (path.empty()) return sparse;
-    
-    sparse.push_back(path.front());
-    if (path.size() < 3) {
-        sparse.push_back(path.back());
-        return sparse;
-    }
-    
-    // 2. Greedy sparsify using line-of-sight checks
-    const int lookahead_step = 2.0 / costmap_->getResolution();
-    size_t current_idx = 0;
+  std::vector<Eigen::Vector3d> sparse;
+  if (path.empty()) {
+    return sparse;
+  }
 
-    while (current_idx < path.size() - 1) {
-      size_t next_idx = current_idx + 1;
-      Eigen::Vector3d curr_pt = path[current_idx];
-      size_t max_lookahead = std::min(static_cast<size_t>(lookahead_step), path.size() - 1 - current_idx);
-      for (size_t i = 1; i < max_lookahead; i++) {
-        if (!isLineFree(curr_pt, path[current_idx + i])) {
+  sparse.push_back(path.front());
+  if (path.size() < 2) {
+    return sparse;
+  }
+  if (path.size() == 2) {
+    sparse.push_back(path.back());
+    return sparse;
+  }
+
+  // 1) Build arc-length mapping
+  std::vector<double> accumulated_dist;
+  accumulated_dist.resize(path.size(), 0.0);
+  for (size_t i = 1; i < path.size(); ++i) {
+    accumulated_dist[i] = accumulated_dist[i - 1] + (path[i] - path[i - 1]).head<2>().norm();
+  }
+  const double total_length = accumulated_dist.back();
+  if (!(std::isfinite(total_length) && total_length > 1e-3)) {
+    sparse.push_back(path.back());
+    return sparse;
+  }
+
+  // 2) Heuristic trapezoid / triangle velocity profile
+  const double v_ref = 0.8 * std::max(0.0, minco_config.max_vel);
+  const double a_ref = std::max(1e-6, minco_config.max_acc);
+
+  if (v_ref <= 1e-6) {
+    sparse.push_back(path.back());
+    return sparse;
+  }
+
+  const double d_acc_ref = v_ref * v_ref / (2.0 * a_ref);
+  double v_peak = v_ref;
+  double t_acc = v_ref / a_ref;
+  double t_flat = 0.0;
+  if (total_length > 2.0 * d_acc_ref) {
+    const double d_flat = total_length - 2.0 * d_acc_ref;
+    t_flat = d_flat / v_ref;
+  } else {
+    v_peak = std::sqrt(std::max(0.0, total_length * a_ref));
+    t_acc = v_peak / a_ref;
+    t_flat = 0.0;
+  }
+
+  const double t_total = 2.0 * t_acc + t_flat;
+  if (!(std::isfinite(t_total) && t_total > 1e-6)) {
+    sparse.push_back(path.back());
+    return sparse;
+  }
+
+  auto arcLengthToIndex = [&accumulated_dist](double s) -> size_t {
+    const double s_clamped = clampValue(s, 0.0, accumulated_dist.back());
+    auto it = std::lower_bound(accumulated_dist.begin(), accumulated_dist.end(), s_clamped);
+    if (it == accumulated_dist.begin()) {
+      return 0u;
+    }
+    if (it == accumulated_dist.end()) {
+      return accumulated_dist.size() - 1u;
+    }
+    const size_t idx1 = static_cast<size_t>(std::distance(accumulated_dist.begin(), it));
+    const size_t idx0 = idx1 - 1u;
+    const double s0 = accumulated_dist[idx0];
+    const double s1 = accumulated_dist[idx1];
+    if (!(std::isfinite(s0) && std::isfinite(s1)) || (s1 - s0) <= 1e-12) {
+      return idx1;
+    }
+    return ((s_clamped - s0) < (s1 - s_clamped)) ? idx0 : idx1;
+  };
+
+  // Helper: find a corner index within (start_idx, end_idx) by max perpendicular distance
+  // to the straight segment (start -> end) in 2D.
+  auto findCornerIndex = [&path](size_t start_idx, size_t end_idx) -> size_t {
+    if (end_idx <= start_idx + 1u) {
+      return start_idx;
+    }
+
+    const Eigen::Vector2d a = path[start_idx].head<2>();
+    const Eigen::Vector2d b = path[end_idx].head<2>();
+    const Eigen::Vector2d ab = b - a;
+    const double ab2 = ab.squaredNorm();
+    if (ab2 <= 1e-12) {
+      return (start_idx + end_idx) / 2u;
+    }
+
+    double best_dist2 = -1.0;
+    size_t best_k = (start_idx + end_idx) / 2u;
+    for (size_t k = start_idx + 1u; k < end_idx; ++k) {
+      const Eigen::Vector2d p = path[k].head<2>();
+      const double t = clampValue((p - a).dot(ab) / ab2, 0.0, 1.0);
+      const Eigen::Vector2d proj = a + t * ab;
+      const double dist2 = (p - proj).squaredNorm();
+      if (dist2 > best_dist2) {
+        best_dist2 = dist2;
+        best_k = k;
+      }
+    }
+    return best_k;
+  };
+
+  // 3) Build Ideal Indices by time-uniform sampling in trapezoid time, then s(t)->raw index.
+  int n_segments = static_cast<int>(std::ceil(t_total / 0.25));
+  n_segments = std::max(4, std::min(6, n_segments));
+  const double dt = t_total / static_cast<double>(n_segments);
+
+  std::vector<size_t> target_indices;
+  target_indices.reserve(static_cast<size_t>(n_segments + 1));
+  target_indices.push_back(0u);
+
+  size_t last_added = 0u;
+  for (int i = 1; i < n_segments; ++i) {
+    const double t = static_cast<double>(i) * dt;
+    const double s = getDistFromTrapezoid(t, total_length, a_ref, v_peak, t_acc, t_flat);
+    size_t idx = arcLengthToIndex(s);
+    // enforce strictly increasing indices to preserve ordering and avoid duplicates
+    idx = std::max(idx, last_added);
+    if (idx == last_added) {
+      if (idx + 1u < path.size()) {
+        idx = idx + 1u;
+      }
+    }
+    if (idx > last_added && idx < path.size()) {
+      target_indices.push_back(idx);
+      last_added = idx;
+    }
+  }
+
+  const size_t last_idx = path.size() - 1u;
+  if (target_indices.empty() || target_indices.back() != last_idx) {
+    target_indices.push_back(last_idx);
+  }
+
+  // 4) Safety Verification & Repair
+  size_t current_safe_idx = 0u;
+  for (size_t ti = 1; ti < target_indices.size(); ++ti) {
+    const size_t target_idx = target_indices[ti];
+    if (target_idx <= current_safe_idx || target_idx >= path.size()) {
+      continue;
+    }
+
+    // Try to connect current_safe_idx -> target_idx; if collision, insert corner(s).
+    size_t guard = 0u;
+    while (guard++ < 32u && target_idx > current_safe_idx) {
+      if (isLineFree(path[current_safe_idx], path[target_idx])) {
+        Eigen::Vector3d p = path[target_idx];
+        p.z() = 0.0;
+        if ((p - sparse.back()).head<2>().norm() > 1e-6) {
+          sparse.push_back(p);
+        }
+        current_safe_idx = target_idx;
+        break;
+      }
+
+      // Collision: recover a corner point inside (current_safe_idx, target_idx)
+      size_t corner_idx = findCornerIndex(current_safe_idx, target_idx);
+      if (corner_idx <= current_safe_idx || corner_idx >= target_idx) {
+        // Fallback: force progress by inserting the next raw point.
+        corner_idx = current_safe_idx + 1u;
+        if (corner_idx >= target_idx) {
+          // Worst-case: cannot progress further, just stop trying this target.
           break;
         }
-        next_idx = current_idx + i;
       }
-      sparse.push_back(path[next_idx]);
-      current_idx = next_idx;
-    }
-    
-    if (sparse.back() != path.back()) {
-      sparse.push_back(path.back());
-    }
 
-    // 3. Merge very close points and keep the final goal
-    std::vector<Eigen::Vector3d> final_sparse;
-    final_sparse.push_back(sparse.front());
-    
-    for (size_t i = 1; i < sparse.size() - 1; ++i) {
-        const auto& last_pt = final_sparse.back();
-        const auto& curr_pt = sparse[i];
-        const auto& next_pt = sparse[i+1];
-        
-        double dist = (curr_pt - last_pt).norm();
-        
-           // Skip close points if the direct segment is collision-free
-        if (dist < 1.0 && isLineFree(last_pt, next_pt)) {
-             continue;
-        }
-        
-        final_sparse.push_back(curr_pt);
+      Eigen::Vector3d corner = path[corner_idx];
+      corner.z() = 0.0;
+      if ((corner - sparse.back()).head<2>().norm() > 1e-6) {
+        sparse.push_back(corner);
+      }
+      current_safe_idx = corner_idx;
     }
-    
-    // Always keep the goal
-    final_sparse.push_back(sparse.back());
-    return final_sparse;
+  }
+
+  // Ensure goal is included
+  if ((path.back() - sparse.back()).head<2>().norm() > 1e-6) {
+    Eigen::Vector3d goal = path.back();
+    goal.z() = 0.0;
+    sparse.push_back(goal);
+  }
+
+  return sparse;
 }
 
 bool MincoPlanner::isLineFree(const Eigen::Vector3d& p1, const Eigen::Vector3d& p2) {
@@ -1133,17 +1102,15 @@ void MincoPlanner::prepareColdStart(
 {
     start_state.setZero();
     start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
-    // Vel and Acc are implicitly zero
 }
 
 void MincoPlanner::prepareHotStart(
-    const geometry_msgs::msg::Pose & start_pose,
+    const geometry_msgs::msg::Pose & /*start_pose*/,
     double t_dur,
     Eigen::Matrix3d & start_state)
 {
     start_state.setZero();
-    start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
-    
+    start_state.col(0) = last_traj_.getPos(t_dur); // TODO: use actual pose?
     start_state.col(1) = last_traj_.getVel(t_dur);
     start_state.col(2) = last_traj_.getAcc(t_dur);
 }
