@@ -16,7 +16,7 @@ livox_to_pointcloud2:
     # 点云坐标系相对于目标坐标系的旋转（欧拉角）
     # Roll (绕X轴旋转), Pitch (绕Y轴旋转), Yaw (绕Z轴旋转)
     # 例如: 如果雷达倒装，设置 rotation_roll: 3.14159 (180度)
-    rotation_roll: 0.33   # 绕X轴旋转
+    rotation_roll: 0.0   # 绕X轴旋转
     rotation_pitch: 0.0  # 绕Y轴旋转
     rotation_yaw: 0.0  # 绕Z轴旋转
     
