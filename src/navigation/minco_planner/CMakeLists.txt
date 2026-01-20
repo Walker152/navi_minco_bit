@@ -37,6 +37,7 @@ file(GLOB SMALL_ROG_MAP_SOURCES "src/small_rog_map/*.cpp")
 
 add_library(${library_name} SHARED
   src/minco_core/minco_planner.cpp
+  src/minco_core/visualizer.cpp
   src/minco_core/astar.cpp
   src/minco_core/corridor_generator.cpp
   src/traj_opt/backup_traj_optimizer_s4.cpp
