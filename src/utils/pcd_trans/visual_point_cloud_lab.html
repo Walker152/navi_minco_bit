@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web点云可视化处理工具 Pro v2.6 (Precision Input)</title>
+    <title>Web点云可视化处理工具 Pro v2.7 (Map Rotate Export)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM -->
@@ -454,6 +454,70 @@
                 r.readAsArrayBuffer(f);
             };
 
+            const doExportMap = () => {
+                if (!mapData) return;
+                const { width, height, data } = mapData;
+                
+                // 1. 创建源 Canvas
+                const srcCanvas = document.createElement('canvas');
+                srcCanvas.width = width;
+                srcCanvas.height = height;
+                const ctx = srcCanvas.getContext('2d');
+                const imgData = ctx.createImageData(width, height);
+                
+                // 填充源数据
+                for(let i=0; i<width*height; i++) {
+                    const val = data[i];
+                    imgData.data[i*4] = val;
+                    imgData.data[i*4+1] = val;
+                    imgData.data[i*4+2] = val;
+                    imgData.data[i*4+3] = 255;
+                }
+                ctx.putImageData(imgData, 0, 0);
+
+                // 2. 计算旋转后的新尺寸
+                const angleRad = THREE.MathUtils.degToRad(mapSettings.rotation);
+                const absCos = Math.abs(Math.cos(angleRad));
+                const absSin = Math.abs(Math.sin(angleRad));
+                const newWidth = Math.ceil(width * absCos + height * absSin);
+                const newHeight = Math.ceil(width * absSin + height * absCos);
+
+                // 3. 创建目标 Canvas 并旋转绘制
+                const dstCanvas = document.createElement('canvas');
+                dstCanvas.width = newWidth;
+                dstCanvas.height = newHeight;
+                const dCtx = dstCanvas.getContext('2d');
+                
+                // 填充背景为灰色 (ROS Unknown 205)
+                dCtx.fillStyle = "rgb(205,205,205)"; 
+                dCtx.fillRect(0, 0, newWidth, newHeight);
+
+                dCtx.translate(newWidth/2, newHeight/2);
+                dCtx.rotate(-angleRad); // Canvas 旋转方向通常顺时针，需要注意
+                // 如果需要和显示一致，可能需要根据 mapSettings.flipY 调整
+                if(mapSettings.flipY) dCtx.scale(1, -1);
+                dCtx.drawImage(srcCanvas, -width/2, -height/2);
+
+                // 4. 导出为 PGM (P5 Binary)
+                const resData = dCtx.getImageData(0, 0, newWidth, newHeight).data;
+                const pgmHeader = `P5\n${newWidth} ${newHeight}\n255\n`;
+                const headerBytes = new TextEncoder().encode(pgmHeader);
+                const pgmBody = new Uint8Array(newWidth * newHeight);
+                
+                for(let i=0; i<newWidth*newHeight; i++) {
+                    // 取红色通道作为灰度值
+                    pgmBody[i] = resData[i*4];
+                }
+
+                const blob = new Blob([headerBytes, pgmBody], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'rotated_map.pgm';
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
             const doFilter = () => {
                 setFiltering(true);
                 setTimeout(() => {
@@ -523,7 +587,7 @@
                     
                     <div className="absolute top-0 left-0 p-4 z-10">
                         <h1 className="text-xl font-bold bg-gray-900/80 px-4 py-2 rounded text-blue-400 border border-gray-700 backdrop-blur">
-                            CloudLab <span className="text-xs text-gray-400">Pro v2.6</span>
+                            CloudLab <span className="text-xs text-gray-400">Pro v2.7</span>
                         </h1>
                     </div>
 
@@ -627,6 +691,8 @@
                                             <div><div className="flex justify-between text-sm text-gray-400 mb-2"><span>Z轴偏移 (m)</span></div>
                                             <div className="flex items-center"><input type="range" min="-2" max="2" step="0.01" value={mapSettings.zOffset} onChange={e=>setMapSettings({...mapSettings,zOffset:parseFloat(e.target.value)})} className="flex-1 mr-3"/>
                                             <input type="number" step="0.01" value={mapSettings.zOffset} onChange={e=>setMapSettings({...mapSettings,zOffset:parseFloat(e.target.value)})} className="w-20 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs text-right font-mono text-gray-300 focus:border-blue-500 outline-none" /></div></div>
+                                            
+                                            <button onClick={doExportMap} className="w-full py-4 bg-orange-600 hover:bg-orange-500 rounded-lg text-sm font-bold mt-4 shadow-lg transition-colors">导出旋转后的地图 (.pgm)</button>
                                         </div>
                                     )}
                                 </div>
