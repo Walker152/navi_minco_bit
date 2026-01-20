@@ -8,7 +8,7 @@ source ~/ws_livox/install/setup.bash
 source ~/2025-sentry-navi/install/setup.bash
 
 # SLAM
-# gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py ; exec bash"
+gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py ; exec bash"
 # sleep 1s
 
 # Relocalization
@@ -23,7 +23,7 @@ sleep 2s
 sleep 1s
 
 # COM
-# gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
 
 # Rosbag record (optional)
 # gnome-terminal -- bash -c "cd /home/rm/rosbag && ros2 bag record -a ;exec bash"
