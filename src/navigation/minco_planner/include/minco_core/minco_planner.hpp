@@ -35,6 +35,8 @@
 namespace minco_planner
 {
 
+class Visualizer;
+
 class MincoPlanner : public nav2_core::GlobalPlanner
 {
 public:
@@ -73,7 +75,6 @@ public:
   void clearRobotCell(unsigned int wx, unsigned int wy);
 
   void optimizationTimerCallback();
-  void visualTimerCallback();
   std::vector<Eigen::Vector3d> extractLocalPath(const Eigen::Vector3d& cur_pos);
 
 private:
@@ -109,20 +110,6 @@ private:
     int steps,
     double t_step);
 
-  nav_msgs::msg::Path convertTrajectoryToPath(
-    const traj_opt::Trajectory & traj,
-    const std_msgs::msg::Header & header,
-    int steps,
-    double t_step) const;
-
-  void updateVisCache(
-    const std::vector<Eigen::Vector3d> & control_points,
-    const traj_opt::Trajectory & backup_traj,
-    const traj_opt::Trajectory & opt_traj,
-    double opt_time);
-
-  void publishEsdfCloud(const std_msgs::msg::Header & header);
-
   std::shared_ptr<tf2_ros::Buffer> tf_;
   nav2_util::LifecycleNode::WeakPtr node_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
@@ -152,8 +139,6 @@ private:
   MincoOptimizer::Config minco_config;
   
   rclcpp::TimerBase::SharedPtr opt_timer_;
-  rclcpp::TimerBase::SharedPtr visual_timer_;
-  rclcpp::TimerBase::SharedPtr esdf_timer_;
   
   std::vector<geometry_msgs::msg::PoseStamped> latest_global_path_;
   std::mutex path_mutex_;
@@ -161,28 +146,14 @@ private:
   // Command Publishers
   rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_pub_;
   rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr backup_path_pub_;
-
-  // Visualization Publishers
-  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr backup_path_vis_pub_;
-  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr opt_path_vis_pub_;
-  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr astar_path_vis_pub_;
-  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr control_points_vis_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr esdf_cloud_pub_;
   uint32_t opt_trajectory_id_{0};
   uint32_t backup_trajectory_id_{0};
 
   geometry_utils::Trajectory last_traj_;
   bool has_last_traj_ = false;
 
-  // Visualization Cache
-  std::mutex vis_mutex_;
-  traj_opt::Trajectory vis_opt_traj_;
-  traj_opt::Trajectory vis_backup_traj_;
-  std::vector<Eigen::Vector3d> vis_control_points_;
-  nav_msgs::msg::Path vis_astar_path_;
-  double vis_opt_time_ = -1.0;
-  bool has_vis_opt_traj_ = false;
-  bool has_vis_backup_traj_ = false;
+  // Visualization helper (includes vis publishers + timers + ESDF timer)
+    std::unique_ptr<Visualizer> visualizer_;
   
   rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
   std::mutex mutex_;
