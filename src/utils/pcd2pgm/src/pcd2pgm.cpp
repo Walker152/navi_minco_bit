@@ -48,7 +48,7 @@ void PCLFiltersNode::declareParameters()
   declare_parameter("thre_radius", 0.5);
   declare_parameter("map_resolution", 0.05);
   declare_parameter("thres_point_count", 10);
-  declare_parameter("map_topic_name", "map");
+  declare_parameter("map_topic_name", "pcd_map");
 }
 
 void PCLFiltersNode::getParameters()
@@ -152,6 +152,3 @@ void PCLFiltersNode::setMapTopicMsg(
 }
 
 }  // namespace pcd2pgm
-
-#include "rclcpp_components/register_node_macro.hpp"
-RCLCPP_COMPONENTS_REGISTER_NODE(pcd2pgm::PCLFiltersNode)
