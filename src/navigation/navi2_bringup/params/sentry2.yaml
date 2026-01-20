@@ -101,41 +101,6 @@ controller_server:
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.15
       yaw_goal_tolerance: 6.28
-    # # 北极熊
-    # FollowPath:
-    #   plugin: "pb_omni_pid_pursuit_controller::OmniPidPursuitController"
-    #   translation_kp: 3.0
-    #   translation_ki: 0.1
-    #   translation_kd: 0.3
-    #   enable_rotation: false
-    #   rotation_kp: 3.0
-    #   rotation_ki: 0.1
-    #   rotation_kd: 0.3
-    #   # TF 超时时间，全局坐标系 && 机器人坐标系
-    #   transform_tolerance: 0.1
-    #   min_max_sum_error: 1.0
-    #   # 前瞻点 
-    #   lookahead_dist: 0.5
-    #   use_velocity_scaled_lookahead_dist: true # 根据速度调整前瞻点距离
-    #   lookahead_time: 1.0
-    #   min_lookahead_dist: 0.5
-    #   max_lookahead_dist: 1.0
-    #   use_interpolation: false
-    #   use_rotate_to_heading: false
-    #   use_rotate_to_heading_treshold: 0.1
-    #   min_approach_linear_velocity: 0.5
-    #   approach_velocity_scaling_dist: 1.0
-    #   # 速度限制
-    #   v_linear_min: -1.0
-    #   v_linear_max: 1.0
-    #   v_angular_min: -3.0
-    #   v_angular_max: 3.0
-    #   curvature_min: 0.4                                # 低曲率阈值，低于此值不减速。
-    #   curvature_max: 0.7                                # 高曲率阈值，高于此值大幅减速。
-    #   reduction_ratio_at_high_curvature: 0.5            # 高曲率时的速度降低比例。 0.5 (即减速 50%)
-    #   curvature_forward_dist: 0.7                       # 前向距离，用于曲率计算
-    #   curvature_backward_dist: 0.3                      # 后向距离，用于曲率计算
-    #   max_velocity_scaling_factor_rate: 0.9             # 速度缩放因子的最大变化率
 
     # FollowPath:
     #   plugin: "nav2_mppi_controller::MPPIController"
@@ -228,7 +193,7 @@ controller_server:
       plugin: "minco_controller::MincoMpcController"
       # MPC sampling period (s) and lookahead time (s)
       dt: 0.05
-      lookahead_time : 2.0
+      lookahead_time : 3.0
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [5.0, 5.0, 2.0]
@@ -425,7 +390,7 @@ planner_server:
       minco_optimizer:
         opt_freq: 20.0
         safe_dist: 0.4
-        lookahead_dist: 5.0  # 前视距离,用于minco部分优化
+        lookahead_dist: 25.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
         max_acceleration: 6.0
         time_allocation_iters: 15
