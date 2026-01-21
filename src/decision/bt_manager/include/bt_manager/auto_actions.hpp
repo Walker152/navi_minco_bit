@@ -99,7 +99,7 @@ public:
 private:
   rclcpp::Node::SharedPtr node_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
-  double linear_x_;
+  double linear_y_;
   double angular_z_;
   double duration_;
   rclcpp::Time start_time_;
