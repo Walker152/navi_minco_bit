@@ -333,7 +333,7 @@ BT::NodeStatus CheckInStairsZone::tick()
 {
   // 1. 获取黑板对象
   auto blackboard = config().blackboard;
-  
+  std::cout << "---------- CheckInStairsZone ----------" << std::endl;
   // 2. 从黑板读取当前位置
   auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   
@@ -342,7 +342,7 @@ BT::NodeStatus CheckInStairsZone::tick()
   double y = current_pose.position.y;
 
   // 4. 定义台阶区域（根据实际场地调整）
-   bool in_stairs_zone = (x > 3.0 && x < 5.0 && y > 0.5 && y < 1.5);
+   bool in_stairs_zone = (x > 8.2 && x < 11.0 && y > 0.6 && y < 1.7);
 
   // 5. 判断是否在台阶相关区域
   if (in_stairs_zone) {
