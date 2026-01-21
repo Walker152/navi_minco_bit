@@ -16,13 +16,13 @@
         
         <!-- 动作2: 冲下台阶 -->
         <DirectVelocityControl name="DescendStairs"
-                              linear_x="0.8"
+                              linear_y="2.0"
                               angular_z="0.0" 
                               duration="1.5"/>
         
         <!-- 动作3: 台阶后停止 -->
         <DirectVelocityControl name="StopAfterStairs"
-                              linear_x="0.0"
+                              linear_y="0.0"
                               angular_z="0.0"
                               duration="0.5"/>
       </Sequence>
