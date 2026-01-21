@@ -273,7 +273,7 @@ DirectVelocityControl::DirectVelocityControl(const std::string& name, const BT::
   // 创建速度发布器 - 直接发布到/cmd_vel
   cmd_vel_pub_ = node_->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
-  linear_x_ = 0.0;
+  linear_y_ = 0.0;
   angular_z_ = 0.0;
   duration_ = 0.0;
   start_time_ = rclcpp::Time(0, 0);
@@ -283,7 +283,7 @@ DirectVelocityControl::DirectVelocityControl(const std::string& name, const BT::
 BT::PortsList DirectVelocityControl::providedPorts()
 {
   return {
-    BT::InputPort<double>("linear_x", 0.5, "前进速度 m/s"),
+    BT::InputPort<double>("linear_y", 0.5, "前进速度 m/s"),
     BT::InputPort<double>("angular_z", 0.0, "转向速度 rad/s"), 
     BT::InputPort<double>("duration", 2.0, "持续时间秒")
   };
@@ -292,17 +292,19 @@ BT::PortsList DirectVelocityControl::providedPorts()
 BT::NodeStatus DirectVelocityControl::onStart()
 {
   // 1. 获取参数
-  auto linear_x = getInput<double>("linear_x");
+  auto linear_y = getInput<double>("linear_y");
   auto angular_z = getInput<double>("angular_z"); 
   auto duration = getInput<double>("duration");
   
-  if (!linear_x || !duration) {
-    RCLCPP_ERROR(node_->get_logger(), "参数缺失: linear_x 或 duration");
+  std::cout << "---------- DirectVelocityControl ----------" << std::endl;
+
+  if (!linear_y || !duration) {
+    RCLCPP_ERROR(node_->get_logger(), "参数缺失: linear_y 或 duration");
     return BT::NodeStatus::FAILURE; // 参数缺失
   }
   
   // 2. 存储参数
-  linear_x_ = linear_x.value();
+  linear_y_ = linear_y.value();
   angular_z_ = angular_z.value_or(0.0);
   duration_ = duration.value();
   
@@ -312,7 +314,7 @@ BT::NodeStatus DirectVelocityControl::onStart()
   
   // 4. 发布停止指令，确保从静止开始
   geometry_msgs::msg::Twist stop_msg;
-  stop_msg.linear.x = 0.0;
+  stop_msg.linear.y = 0.0;
   stop_msg.angular.z = 0.0;
   cmd_vel_pub_->publish(stop_msg);
   
@@ -332,7 +334,7 @@ BT::NodeStatus DirectVelocityControl::onRunning()
   if (elapsed >= duration_) {
     // 时间到，发布停止指令
     geometry_msgs::msg::Twist stop_msg;
-    stop_msg.linear.x = 0.0;
+    stop_msg.linear.y = 0.0;
     stop_msg.angular.z = 0.0;
     cmd_vel_pub_->publish(stop_msg);
     return BT::NodeStatus::SUCCESS;
@@ -341,7 +343,7 @@ BT::NodeStatus DirectVelocityControl::onRunning()
   // 发布速度指令
   geometry_msgs::msg::Twist cmd_vel;
   if ((current_time - last_pub_time_).seconds() >= 0.05) { // 20Hz发布频率
-    cmd_vel.linear.x = linear_x_;
+    cmd_vel.linear.y = linear_y_;
     cmd_vel.angular.z = angular_z_;
     cmd_vel_pub_->publish(cmd_vel);
     last_pub_time_ = current_time;
@@ -354,7 +356,7 @@ void DirectVelocityControl::onHalted()
 {
   // 被中断时立即停止
   geometry_msgs::msg::Twist stop_msg;
-  stop_msg.linear.x = 0.0;
+  stop_msg.linear.y = 0.0;
   stop_msg.angular.z = 0.0;
   cmd_vel_pub_->publish(stop_msg);
 }
@@ -373,11 +375,11 @@ BT::NodeStatus SetStairsPosition::tick()
 {
  
   auto blackboard = config().blackboard;
-
+  std::cout << "---------- SetStairsPosition ----------" << std::endl;
   // 创建一个固定目标点（台阶前准备位置）（硬编码）
   geometry_msgs::msg::Point goal_point;
-  goal_point.x = 2.5;  
-  goal_point.y = 1.2;  
+  goal_point.x = 9.5;  
+  goal_point.y = 1.5;  
   goal_point.z = 0.0;  
 
   blackboard->set("nav_goal", goal_point);
