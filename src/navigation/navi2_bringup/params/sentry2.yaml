@@ -426,7 +426,9 @@ behavior_server:
     wait:
       plugin: "nav2_behaviors/Wait"
     backup:
-      plugin: "nav2_behaviors/BackUp"
+      # plugin: "nav2_behaviors/BackUp"
+      plugin: "nav2_behaviors/BackUpTwzFree"
+      robot_radius: 0.3
     global_frame: map
     robot_base_frame: base_link
     transform_tolerance: 0.1
