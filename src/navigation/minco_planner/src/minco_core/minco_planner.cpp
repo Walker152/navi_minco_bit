@@ -1105,12 +1105,12 @@ void MincoPlanner::prepareColdStart(
 }
 
 void MincoPlanner::prepareHotStart(
-    const geometry_msgs::msg::Pose & /*start_pose*/,
+    const geometry_msgs::msg::Pose & start_pose,
     double t_dur,
     Eigen::Matrix3d & start_state)
 {
     start_state.setZero();
-    start_state.col(0) = last_traj_.getPos(t_dur); // TODO: use actual pose?
+    start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
     start_state.col(1) = last_traj_.getVel(t_dur);
     start_state.col(2) = last_traj_.getAcc(t_dur);
 }
