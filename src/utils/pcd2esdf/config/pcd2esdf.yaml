@@ -1,7 +1,7 @@
 pgm2esdf_generator:
   ros__parameters:
-    map_yaml: "src/navigation/navi2_bringup/maps/first_floor/training.yaml"
-    output_pcd: "src/utils/pcd2esdf/maps/training_esdf.pcd"
+    map_yaml: "src/navigation/navi2_bringup/maps/first_floor/first_floor1.yaml"
+    output_pcd: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
     max_dist: 5.0
     occupied_thresh: 0.65
     free_thresh: 0.25
