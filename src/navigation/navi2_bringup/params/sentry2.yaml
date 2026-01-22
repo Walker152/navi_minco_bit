@@ -390,7 +390,7 @@ planner_server:
       minco_optimizer:
         opt_freq: 20.0
         safe_dist: 0.4
-        lookahead_dist: 25.0  # 前视距离,用于minco部分优化
+        lookahead_dist: 5.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
         max_acceleration: 6.0
         time_allocation_iters: 15
