@@ -829,7 +829,21 @@ std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<
   std::vector<double> accumulated_dist;
   accumulated_dist.resize(path.size(), 0.0);
   for (size_t i = 1; i < path.size(); ++i) {
-    accumulated_dist[i] = accumulated_dist[i - 1] + (path[i] - path[i - 1]).head<2>().norm();
+    double seg_len = (path[i] - path[i - 1]).head<2>().norm();
+    
+    // Over-curvature penalty
+    if (i > 1) {
+        Eigen::Vector3d v1 = path[i] - path[i-1];
+        Eigen::Vector3d v2 = path[i-1] - path[i-2];
+        if (v1.norm() > 1e-3 && v2.norm() > 1e-3) {
+            double dot = v1.normalized().dot(v2.normalized());
+            if (dot < 0.7) {
+                seg_len *= 2.0;
+            }
+        }
+    }
+    
+    accumulated_dist[i] = accumulated_dist[i - 1] + seg_len;
   }
   const double total_length = accumulated_dist.back();
   if (!(std::isfinite(total_length) && total_length > 1e-3)) {
@@ -1105,12 +1119,12 @@ void MincoPlanner::prepareColdStart(
 }
 
 void MincoPlanner::prepareHotStart(
-    const geometry_msgs::msg::Pose & start_pose,
+    const geometry_msgs::msg::Pose & /*start_pose*/,
     double t_dur,
     Eigen::Matrix3d & start_state)
 {
     start_state.setZero();
-    start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
+    start_state.col(0) = last_traj_.getPos(t_dur);
     start_state.col(1) = last_traj_.getVel(t_dur);
     start_state.col(2) = last_traj_.getAcc(t_dur);
 }
