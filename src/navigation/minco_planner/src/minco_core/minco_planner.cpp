@@ -842,7 +842,6 @@ std::vector<Eigen::Vector3d> MincoPlanner::getSparseWaypoints(const std::vector<
             }
         }
     }
-    
     accumulated_dist[i] = accumulated_dist[i - 1] + seg_len;
   }
   const double total_length = accumulated_dist.back();
