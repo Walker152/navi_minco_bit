@@ -82,7 +82,8 @@ end
 
 ### 3.2 基于前瞻距离的局部裁剪（运行期）
 
-触发点：定时器 `optimizationTimerCallback()`，频率由 `minco_optimizer.opt_freq` 控制。
+触发点：`MincoFSM` 的 20Hz 主循环在 `FOLLOW_TRAJ` 中按需触发 `MincoPlanner::ReplanLocal()`。
+（异步安全检测：`MincoPlanner::safetyTimerCallback()` 以 20Hz 检查当前已提交轨迹是否与 costmap 冲突。）
 
 1) 获取当前机器人位姿（`costmap_ros_->getRobotPose`）。
 2) 在 `latest_global_path_` 上搜索距当前位置最近的点作为起点索引。
