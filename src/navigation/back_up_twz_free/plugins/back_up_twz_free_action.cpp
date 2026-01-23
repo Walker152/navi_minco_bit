@@ -24,16 +24,22 @@ namespace nav2_behaviors
     {
       throw std::runtime_error{"Failed to lock node"};
     }
+    std::string plugin_ns = "backup";
+    std::string robot_radius_param = plugin_ns + ".robot_radius";
+    std::string max_radius_param = plugin_ns + ".max_radius";
+    std::string free_threshold_param = plugin_ns + ".free_threshold";
+    std::string cost_threshold_param = plugin_ns + ".cost_threshold";
+    std::string visualization_param = plugin_ns + ".visualization";
+    std::string service_name_param = plugin_ns + ".service_name";
+    nav2_util::declare_parameter_if_not_declared(
+      node,
+      robot_radius_param, rclcpp::ParameterValue(0.1));
+    node->get_parameter(robot_radius_param, robot_radius_);
 
     nav2_util::declare_parameter_if_not_declared(
       node,
-      "robot_radius", rclcpp::ParameterValue(0.1));
-    node->get_parameter("robot_radius", robot_radius_);
-
-    nav2_util::declare_parameter_if_not_declared(
-      node,
-      "max_radius", rclcpp::ParameterValue(1.0));
-    node->get_parameter("max_radius", max_radius_);
+      max_radius_param, rclcpp::ParameterValue(1.0));
+    node->get_parameter(max_radius_param, max_radius_);
 
     if(max_radius_ < robot_radius_)
     {
@@ -43,23 +49,23 @@ namespace nav2_behaviors
 
     nav2_util::declare_parameter_if_not_declared(
       node,
-      "service_name", rclcpp::ParameterValue(std::string("local_costmap/get_costmap")));
-    node->get_parameter("service_name", service_name_);
+      service_name_param, rclcpp::ParameterValue(std::string("local_costmap/get_costmap")));
+    node->get_parameter(service_name_param, service_name_);
 
     nav2_util::declare_parameter_if_not_declared(
       node,
-      "free_threshold", rclcpp::ParameterValue(5));
-    node->get_parameter("free_threshold", free_threshold_);
+      free_threshold_param, rclcpp::ParameterValue(5));
+    node->get_parameter(free_threshold_param, free_threshold_);
 
     nav2_util::declare_parameter_if_not_declared(
       node,
-      "cost_threshold", rclcpp::ParameterValue(0.1));
-    node->get_parameter("cost_threshold", cost_threshold_);
+      cost_threshold_param, rclcpp::ParameterValue(0.1));
+    node->get_parameter(cost_threshold_param, cost_threshold_);
 
     nav2_util::declare_parameter_if_not_declared(
       node,
-      "visualization", rclcpp::ParameterValue(false));
-    node->get_parameter("visualization", visualization_);
+      visualization_param, rclcpp::ParameterValue(false));
+    node->get_parameter(visualization_param, visualization_);
     
     costmap_client_ = node->create_client<nav2_msgs::srv::GetCostmap>(service_name_);
     marker_pub_ = node->create_publisher<visualization_msgs::msg::MarkerArray>("back_up_twz_free_markers", 1);
