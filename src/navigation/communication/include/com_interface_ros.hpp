@@ -103,7 +103,7 @@ namespace ns_com
       cmd_vel_ = *velPtr;
       float vx_mps = cmd_vel_.linear.x;
       float vy_mps = cmd_vel_.linear.y;
-      float vw_rpm = 0;
+      float vw_rpm = 40.0;
       int32_t position = _position.data;
       bool outpost_msg = _outpost_msg.data;
       uint8_t _is_use_mid360 = 0;
