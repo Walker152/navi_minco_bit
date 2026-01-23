@@ -73,7 +73,7 @@ void DynamicLayer::cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr 
 
   // Update the ESDF from the point cloud
   // Default dilation: connect sparse points without making walls too thick
-  constexpr double kDilationRadiusM = 0.2;
+  constexpr double kDilationRadiusM = 0.1;
   updateFromPointCloud(*msg, w, h, res, origin, kDilationRadiusM);
 }
 
