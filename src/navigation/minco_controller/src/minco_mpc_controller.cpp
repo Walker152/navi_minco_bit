@@ -232,6 +232,20 @@ bool MincoMpcController::transformPathToOdom(
       tf2::doTransform(v_in, v_out, transform);
       cmd.velocity = v_out.vector;
 
+      // Transform acceleration (vector)
+      geometry_msgs::msg::Vector3Stamped a_in, a_out;
+      a_in.header.frame_id = source_frame;
+      a_in.vector = cmd.acceleration;
+      tf2::doTransform(a_in, a_out, transform);
+      cmd.acceleration = a_out.vector;
+
+      // Transform jerk (vector)
+      geometry_msgs::msg::Vector3Stamped j_in, j_out;
+      j_in.header.frame_id = source_frame;
+      j_in.vector = cmd.jerk;
+      tf2::doTransform(j_in, j_out, transform);
+      cmd.jerk = j_out.vector;
+
       // Transform yaw
       double yaw_diff = tf2::getYaw(transform.transform.rotation);
       cmd.yaw = normalizeYaw(cmd.yaw + yaw_diff);
@@ -337,14 +351,19 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
     ReferencePoint rp;
     if (next_idx < n_cmds)
     {
-      rp.pos = interpolate(
-        Eigen::Vector2d(cmds[target_idx].position.x, cmds[target_idx].position.y),
-        Eigen::Vector2d(cmds[next_idx].position.x, cmds[next_idx].position.y),
-        alpha);
-      rp.vel = interpolate(
-        Eigen::Vector2d(cmds[target_idx].velocity.x, cmds[target_idx].velocity.y),
-        Eigen::Vector2d(cmds[next_idx].velocity.x, cmds[next_idx].velocity.y),
-        alpha);
+      // Second-order feed-forward interpolation (Taylor expansion) using P/V/A/J.
+      // We use the left knot (target_idx) as expansion point.
+      const double dt = std::max(0.0, std::min(planner_dt, alpha * planner_dt));
+      const double dt2 = dt * dt;
+      const double dt3 = dt2 * dt;
+
+      const Eigen::Vector2d p_i(cmds[target_idx].position.x, cmds[target_idx].position.y);
+      const Eigen::Vector2d v_i(cmds[target_idx].velocity.x, cmds[target_idx].velocity.y);
+      const Eigen::Vector2d a_i(cmds[target_idx].acceleration.x, cmds[target_idx].acceleration.y);
+      const Eigen::Vector2d j_i(cmds[target_idx].jerk.x, cmds[target_idx].jerk.y);
+
+      rp.pos = p_i + v_i * dt + 0.5 * a_i * dt2 + (1.0 / 6.0) * j_i * dt3;
+      rp.vel = v_i + a_i * dt + 0.5 * j_i * dt2;
       rp.yaw = interpolateYaw(cmds[target_idx].yaw, cmds[next_idx].yaw, alpha);
       rp.yaw_rate = interpolate(
         cmds[target_idx].yaw_dot,

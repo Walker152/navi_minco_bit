@@ -7,6 +7,7 @@
 #include <functional>
 #include <mutex>
 #include <chrono>
+#include <atomic>
 
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/point.hpp"
@@ -36,10 +37,13 @@ namespace minco_planner
 {
 
 class Visualizer;
+class MincoFsm;
 
 class MincoPlanner : public nav2_core::GlobalPlanner
 {
 public:
+  using Ptr = std::shared_ptr<MincoPlanner>;
+
   MincoPlanner();
   ~MincoPlanner();
 
@@ -57,6 +61,33 @@ public:
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal) override;
+
+  // ===== Public API for MincoFSM =====
+  bool PlanGlobalPath(
+    const geometry_msgs::msg::PoseStamped & start,
+    const geometry_msgs::msg::PoseStamped & goal);
+
+  bool ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose);
+
+  // Synchronous collision check for the currently committed trajectory.
+  // Returns true if trajectory is safe.
+  bool checkCollision();
+
+  // Dense collision check for a candidate trajectory (e.g., post-optimization).
+  // Returns true if trajectory is safe.
+  bool checkCollision(const geometry_utils::Trajectory & traj);
+
+  // Accessors for FSM
+  bool isTrajSafe() const {return is_traj_safe_.load();}
+  double nowSeconds() const;
+  bool isTrajectoryTimeExpired(double now_s) const;
+  double getLookaheadDist() const {return lookahead_dist_;}
+  bool getRobotPose(geometry_msgs::msg::PoseStamped & pose) const;
+
+  // Goal handoff: createPlan() only sets this flag, FSM consumes it.
+  bool consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out);
+
+  void publishEmergencyStop(const geometry_msgs::msg::PoseStamped & current_pose);
   
   bool makePlan(
     const geometry_msgs::msg::Pose & start,
@@ -74,7 +105,7 @@ public:
   void mapToWorld(double mx, double my, double & wx, double & wy);
   void clearRobotCell(unsigned int wx, unsigned int wy);
 
-  void optimizationTimerCallback();
+  void safetyTimerCallback();
   std::vector<Eigen::Vector3d> extractLocalPath(const Eigen::Vector3d& cur_pos);
 
 private:
@@ -138,7 +169,13 @@ private:
 
   MincoOptimizer::Config minco_config;
   
-  rclcpp::TimerBase::SharedPtr opt_timer_;
+  // 20Hz FSM main loop.
+  rclcpp::TimerBase::SharedPtr fsm_timer_;
+  // 20Hz safety monitor.
+  rclcpp::TimerBase::SharedPtr safety_timer_;
+
+  std::unique_ptr<MincoFsm> fsm_;
+  Ptr planner_handle_;
   
   std::vector<geometry_msgs::msg::PoseStamped> latest_global_path_;
   std::mutex path_mutex_;
@@ -152,11 +189,17 @@ private:
   geometry_utils::Trajectory last_traj_;
   bool has_last_traj_ = false;
 
+  std::atomic_bool is_traj_safe_{true};
+
+  std::mutex goal_mutex_;
+  bool has_pending_goal_{false};
+  geometry_msgs::msg::PoseStamped pending_goal_;
+
   // Visualization helper (includes vis publishers + timers + ESDF timer)
     std::unique_ptr<Visualizer> visualizer_;
   
   rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
 };
 
 }  // namespace minco_planner
