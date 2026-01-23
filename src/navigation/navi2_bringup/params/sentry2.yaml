@@ -390,7 +390,7 @@ planner_server:
       minco_optimizer:
         opt_freq: 20.0
         safe_dist: 0.4
-        lookahead_dist: 5.0  # 前视距离,用于minco部分优化
+        lookahead_dist: 2.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
         max_acceleration: 6.0
         time_allocation_iters: 15
@@ -404,7 +404,7 @@ planner_server:
         penalty_weight_acc: 1000.0
         penalty_weight_att: 100.0
       static_esdf:
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/2026_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc_2026_esdf.pcd"
         esdf_resolution: 0.05
 
 smoother_server:
