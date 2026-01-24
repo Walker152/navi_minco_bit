@@ -279,12 +279,10 @@ void publish_odometry(
   const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pubOdomAftMapped,
   std::shared_ptr<tf2_ros::TransformBroadcaster> & tf_br)
 {
-  static int frame_count = 0;
-  frame_count++;
-  if (frame_count < 100) {
+  static auto last_time = std::chrono::steady_clock::now();
+  auto current_time = std::chrono::steady_clock::now();
+  if (current_time - last_time < std::chrono::milliseconds(1)) {
     return;  
-  } else {
-  frame_count = 0;
   }
   odomAftMapped.header.frame_id = "camera_init";
   odomAftMapped.child_frame_id = "body";
