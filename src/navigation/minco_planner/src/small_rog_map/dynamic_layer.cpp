@@ -233,6 +233,10 @@ void DynamicLayer::updateFromPointCloud(
 
   std::vector<double> dist_m(expected, kFarDistance);
   for (size_t i = 0; i < expected; ++i) {
+    if (occ01[i] == 0U) {
+      dist_m[i] = kESDFStrength;
+      continue;
+    }
     const double d2 = dist_sq_cells[i];
     if (d2 >= 1.0e19) {
       dist_m[i] = kFarDistance;
@@ -292,6 +296,14 @@ void DynamicLayer::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::V
   const double d10 = dist_m_[idx10];
   const double d01 = dist_m_[idx01];
   const double d11 = dist_m_[idx11];
+
+  // If any neighbor is marked as a hard obstacle (-inf), treat this query as inside obstacle.
+  // This prevents bilinear interpolation from producing NaNs.
+  if (!std::isfinite(d00) || !std::isfinite(d10) || !std::isfinite(d01) || !std::isfinite(d11)) {
+    dist = kESDFStrength;
+    grad.setZero();
+    return;
+  }
 
   // 3. Bilinear interpolation for distance
   const double lerp_y0 = (1.0 - fx) * d00 + fx * d10;
