@@ -9,6 +9,8 @@
 #include <chrono>
 #include <atomic>
 
+#include <Eigen/Core>
+
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -141,6 +143,10 @@ private:
     int steps,
     double t_step);
 
+  bool validateTrajectory(
+    const traj_opt::Trajectory & traj,
+    const Eigen::Vector3d & expected_end_pos);
+
   std::shared_ptr<tf2_ros::Buffer> tf_;
   nav2_util::LifecycleNode::WeakPtr node_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
@@ -166,6 +172,7 @@ private:
   bool allow_unknown_;
   double opt_freq_;
   double lookahead_dist_;
+  double traj_goal_tolerance_{0.5};
 
   MincoOptimizer::Config minco_config;
   
