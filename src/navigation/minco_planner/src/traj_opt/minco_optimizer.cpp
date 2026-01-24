@@ -355,19 +355,21 @@ bool MincoOptimizer::setupProblemAndCheck(const std::vector<Eigen::Vector3d>& wa
 
     // 5. Initialize time and point guesses
     DefaultInit();
-    // if (opt_vars_.default_init) {
-    //     DefaultInit();
-    // } else {
-    //     // opt_vars_.times *= 0.8;
-    //     if (opt_vars_.init_ps.size() == static_cast<size_t>(N - 1)) {
-    //         for (int i = 0; i < N - 1; ++i) {
-    //             opt_vars_.points.col(i) = opt_vars_.init_ps[i];
-    //         }
-    //     } else {
-    //         // Fallback to cold start if warm-start sizes mismatch
-    //         DefaultInit();
-    //     }
-    // }
+
+    // Apply warm-start (shifted hot start) if provided and sizes match.
+    if (!opt_vars_.default_init) {
+        const bool ts_ok = (opt_vars_.init_ts.size() == opt_vars_.times.size());
+        const bool ps_ok = (opt_vars_.init_ps.size() == static_cast<size_t>(opt_vars_.points.cols()));
+        if (ts_ok && ps_ok) {
+            opt_vars_.times = opt_vars_.init_ts;
+            for (int i = 0; i < opt_vars_.points.cols(); ++i) {
+                opt_vars_.points.col(i) = opt_vars_.init_ps[static_cast<size_t>(i)];
+            }
+        } else {
+            // Size mismatch: fallback to cold init.
+            opt_vars_.default_init = true;
+        }
+    }
     
     // 6. Set boundary conditions for MINCO
     opt_vars_.minco_solver_->setConditions(opt_vars_.headPVA, opt_vars_.tailPVA, N);
@@ -388,18 +390,17 @@ void MincoOptimizer::DefaultInit()
 
 void MincoOptimizer::setInitPsAndTs(const vec_Vec3f& init_ps, const VecDf& init_ts) 
 {
-    // 1. Use warm-start values if sizes match
+    // Store warm-start guesses. They will be applied after problem dimensions
+    // are known (inside setupProblemAndCheck()).
+    if (init_ps.empty() || init_ts.size() == 0) {
+        opt_vars_.default_init = true;
+        opt_vars_.init_ps.clear();
+        opt_vars_.init_ts.resize(0);
+        return;
+    }
+
     opt_vars_.default_init = false;
-    if (opt_vars_.times.size() != init_ts.size()) {
-        return;
-    }
-    if (static_cast<size_t>(opt_vars_.points.cols()) != init_ps.size()) {
-        return;
-    }
-    
-    for (size_t i = 0; i < init_ps.size(); ++i) {
-        opt_vars_.times[i] = init_ts[i];
-        opt_vars_.points.col(i) = init_ps[i];
-    }
+    opt_vars_.init_ps = init_ps;
+    opt_vars_.init_ts = init_ts;
 }
 } // namespace minco_planner
