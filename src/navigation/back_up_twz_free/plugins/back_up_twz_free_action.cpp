@@ -183,6 +183,10 @@ namespace nav2_behaviors
       }
     }
 
+    if (free_space_found != true || free_points.empty()) {
+      RCLCPP_WARN(node->get_logger(), "寻找安全区域失败");
+      return Status::FAILED;
+    }
     // calculate avg position of free space
     auto avg_x = 0.0;
     auto avg_y = 0.0;
@@ -193,6 +197,7 @@ namespace nav2_behaviors
     }
     avg_x /= free_points.size();
     avg_y /= free_points.size();
+    RCLCPP_WARN(node->get_logger(), "找到安全区域");
     RCLCPP_WARN(node->get_logger(), "avg_x: %f, avg_y: %f", avg_x, avg_y);
 
     // visualize free space and destination
@@ -262,6 +267,7 @@ namespace nav2_behaviors
       RCLCPP_ERROR(logger_, "Initial robot pose is not available.");
       return Status::FAILED;
     }
+    RCLCPP_WARN(node->get_logger(), "准备倒车");
     RCLCPP_WARN(
         this->logger_, "backing up %f meters towards free space at angle %f", command_x_, angle_diff);
 
