@@ -398,6 +398,10 @@ void MincoPlanner::configure(
     node, name + ".minco_optimizer.lookahead_dist", rclcpp::ParameterValue(5.0));
   node->get_parameter(name + ".minco_optimizer.lookahead_dist", lookahead_dist_);
 
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".minco_optimizer.traj_goal_tolerance", rclcpp::ParameterValue(0.5));
+  node->get_parameter(name + ".minco_optimizer.traj_goal_tolerance", traj_goal_tolerance_);
+
   minco_config.penaltyWeights.resize(4);
   minco_config.penaltyWeights(0) = penalty_weight_pos;
   minco_config.penaltyWeights(1) = penalty_weight_vel;
@@ -709,6 +713,71 @@ std::vector<Eigen::Vector3d> MincoPlanner::extractLocalPath(const Eigen::Vector3
   return local_segment;
 }
 
+bool MincoPlanner::validateTrajectory(
+  const traj_opt::Trajectory & traj,
+  const Eigen::Vector3d & expected_end_pos)
+{
+  constexpr double kDt = 0.05;
+  constexpr double kSevereScale = 2.0;
+
+  const double dur = traj.getTotalDuration();
+  if (!(std::isfinite(dur) && dur > 1e-6)) {
+    std::cout << YELLOW << "[MincoPlanner] validateTrajectory: invalid duration." << RESET << std::endl;
+    return false;
+  }
+
+  const double vmax = minco_config.max_vel;
+  const double amax = minco_config.max_acc;
+  if (!(std::isfinite(vmax) && std::isfinite(amax) && vmax > 1e-6 && amax > 1e-6)) {
+    std::cout << YELLOW << "[MincoPlanner] validateTrajectory: invalid vmax/amax config." << RESET << std::endl;
+    return false;
+  }
+
+  const double vmax_severe = kSevereScale * vmax;
+  const double amax_severe = kSevereScale * amax;
+
+  // 1) Dynamic feasibility (severe violation gate)
+  for (double t = 0.0; t <= dur; t += kDt) {
+    const Eigen::Vector3d v = traj.getVel(t);
+    const Eigen::Vector3d a = traj.getAcc(t);
+    if (!(v.allFinite() && a.allFinite())) {
+      std::cout << YELLOW << "[MincoPlanner] validateTrajectory: non-finite v/a." << RESET << std::endl;
+      return false;
+    }
+    if (v.norm() > vmax_severe || a.norm() > amax_severe) {
+      std::cout << YELLOW
+                << "[MincoPlanner] validateTrajectory: severe dynamics violation."
+                << " |v|=" << v.norm() << " (limit=" << vmax_severe << ")"
+                << ", |a|=" << a.norm() << " (limit=" << amax_severe << ")"
+                << RESET << std::endl;
+      return false;
+    }
+  }
+
+  // 2) Goal reachability
+  const Eigen::Vector3d end_pos = traj.getPos(dur);
+  if (!end_pos.allFinite()) {
+    std::cout << YELLOW << "[MincoPlanner] validateTrajectory: non-finite end position." << RESET << std::endl;
+    return false;
+  }
+  const double goal_err = (end_pos - expected_end_pos).norm();
+  if (!(std::isfinite(goal_err) && goal_err <= traj_goal_tolerance_)) {
+    std::cout << YELLOW
+              << "[MincoPlanner] validateTrajectory: goal not reached. err=" << goal_err
+              << " tol=" << traj_goal_tolerance_
+              << RESET << std::endl;
+    return false;
+  }
+
+  // 3) Collision safety (reuse existing dense checker)
+  if (!checkCollision(traj)) {
+    std::cout << YELLOW << "[MincoPlanner] validateTrajectory: collision detected." << RESET << std::endl;
+    return false;
+  }
+
+  return true;
+}
+
 bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose)
 {
   if (!costmap_ || !minco_optimizer_) {
@@ -883,11 +952,9 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
             << opt_duration << " seconds, "
             << "cost: " << cost << RESET << std::endl;
 
-  // 8.5 Post-optimization safety check: reject slight wall-penetration.
-  if (!checkCollision(opt_traj)) {
-    std::cout << YELLOW
-              << "[MincoPlanner] Post-check failed: optimized trajectory collides (penetration). Rejecting."
-              << RESET << std::endl;
+  // 8.5 Quality gating (hard validation) before publishing
+  if (!validateTrajectory(opt_traj, end_state.col(0))) {
+    std::cout << RED << "[MincoPlanner] Trajectory validation failed! Rejecting." << RESET << std::endl;
     is_traj_safe_.store(false);
     return false;
   }
