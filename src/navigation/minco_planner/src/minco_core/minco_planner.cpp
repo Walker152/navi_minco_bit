@@ -246,7 +246,7 @@ void MincoPlanner::publishBackupTrajectory(
   }
 
   traj_msg.mpc_horizon = static_cast<uint32_t>(traj_msg.cmds.size());
-  backup_path_pub_->publish(traj_msg);
+  opt_path_pub_->publish(traj_msg);
 }
 
 MincoPlanner::MincoPlanner()
