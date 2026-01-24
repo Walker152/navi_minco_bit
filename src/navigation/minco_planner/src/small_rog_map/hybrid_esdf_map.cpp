@@ -74,7 +74,13 @@ void HybridESDFMap::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::
   constexpr double kMaxDist = 3.0;
 
   auto clamp = [](double & d, Eigen::Vector3d & g) {
-    if (!std::isfinite(d) || d > kMaxDist) {
+    if (!std::isfinite(d)) {
+      // Treat -inf as hard obstacle (distance 0), and +inf/NaN as far away.
+      d = (d < 0.0) ? 0.0 : kMaxDist;
+      g.setZero();
+      return;
+    }
+    if (d > kMaxDist) {
       d = kMaxDist;
       g.setZero();
       return;
