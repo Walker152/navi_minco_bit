@@ -5,6 +5,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 
+#include <limits>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -45,6 +46,7 @@ public:
 
 private:
   static constexpr double kFarDistance = 10.0;
+  static constexpr double kESDFStrength = -std::numeric_limits<double>::infinity();
 
   void cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
 
