@@ -94,22 +94,24 @@ namespace ns_com
           "/sentry/outpost_status", 1, [this](std_msgs::msg::Bool::ConstSharedPtr msg) { outpost_msg_.data = msg->data; });
       nav_pub_ = create_publisher<ros_interfaces::msg::Nav>("/NavRequest", 10);
       event_status_pub_ = create_publisher<ros_interfaces::msg::EventStatus>("/sentry/event_status", 10);
-
+      
+      com_timer_ = this->create_wall_timer(
+        std::chrono::milliseconds(1),
+        std::bind(&ComInterfaceRos::communicationLoop, this));
       RCLCPP_INFO(this->get_logger(), "ComInterfaceRos initialized");
     }
 
-    void sendChassisCtrlCB(const geometry_msgs::msg::Twist::ConstSharedPtr& velPtr, std_msgs::msg::Int32 _position, std_msgs::msg::Bool _outpost_msg)
+    void communicationLoop()
     {
-      cmd_vel_ = *velPtr;
       float vx_mps = cmd_vel_.linear.x;
       float vy_mps = cmd_vel_.linear.y;
-      float vw_rpm = 40.0;
-      int32_t position = _position.data;
-      bool outpost_msg = _outpost_msg.data;
+      float vw_rpm = 0.0;
+      int32_t position = position_.data;
+      bool outpost_msg = outpost_msg_.data;
       uint8_t _is_use_mid360 = 0;
-      if(std::sqrt(vx_mps * vx_mps + vy_mps * vy_mps) <= 0.5f)
+      if(odom_.pose.pose.position.x >  3.0)
       {
-        vw_rpm = 0;
+        vw_rpm = 40.0;
       }
       tf2::Quaternion q;
       tf2::fromMsg(odom_.pose.pose.orientation, q);
@@ -139,7 +141,12 @@ namespace ns_com
                           NV(target.vw_rpm));
         }
       }
-      
+    }
+    void sendChassisCtrlCB(const geometry_msgs::msg::Twist::ConstSharedPtr& velPtr, std_msgs::msg::Int32 _position, std_msgs::msg::Bool _outpost_msg)
+    {
+      cmd_vel_ = *velPtr;
+      position_ = _position;
+      outpost_msg_ = _outpost_msg;
     }
 
     void odomCB(const nav_msgs::msg::Odometry::ConstSharedPtr& odomPtr)
@@ -161,6 +168,9 @@ namespace ns_com
     // Publishers
     rclcpp::Publisher<ros_interfaces::msg::Nav>::SharedPtr nav_pub_;
     rclcpp::Publisher<ros_interfaces::msg::EventStatus>::SharedPtr event_status_pub_;
+
+    // Communication Timer
+    rclcpp::TimerBase::SharedPtr com_timer_;
 
     // State
     geometry_msgs::msg::Twist cmd_vel_;
