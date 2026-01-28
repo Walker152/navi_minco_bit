@@ -13,8 +13,8 @@ bt_navigator:
     # nav2_bt_navigator/navigate_to_pose_w_replanning_and_recovery.xml
     # nav2_bt_navigator/navigate_through_poses_w_replanning_and_recovery.xml
     # They can be set here or via a RewrittenYaml remap from a parent launch file to Nav2.
-    default_nav_through_poses_bt_xml: src/navigation/navi2_bringup/behavior_tree/navigate_through_pose_w_replanning_and_recovery.xml
-    default_nav_to_pose_bt_xml: src/navigation/navi2_bringup/behavior_tree/navigate_to_pose_w_replanning_and_recovery.xml
+    default_nav_through_poses_bt_xml: /home/rm/2025-sentry-navi/src/navigation/navi2_bringup/behavior_tree/navigate_through_pose_w_replanning_and_recovery.xml
+    default_nav_to_pose_bt_xml: /home/rm/2025-sentry-navi/src/navigation/navi2_bringup/behavior_tree/navigate_to_pose_w_replanning_and_recovery.xml
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
       - nav2_compute_path_through_poses_action_bt_node
@@ -107,13 +107,13 @@ controller_server:
       time_steps: 56
       model_dt: 0.0167
       batch_size: 2000
-      vx_std: 0.8   # Average linear velocity noise standard deviation, this controls the real velocity standard
-      vy_std: 0.8     # Average linear velocity noise standard deviation, this controls the real velocity standard
+      vx_std: 0.6   # Average linear velocity noise standard deviation, this controls the real velocity standard
+      vy_std: 0.6     # Average linear velocity noise standard deviation, this controls the real velocity standard
       wz_std: 0.1
-      vx_max: 1.5
-      vx_min: -1.5
-      vy_max: 1.5
-      vy_min: -1.5
+      vx_max: 1.2
+      vx_min: -1.2
+      vy_max: 1.2
+      vy_min: -1.2
       wz_max: 0.1
       iteration_count: 1
       prune_distance: 1.7
@@ -235,7 +235,7 @@ local_costmap:
       height: 5
       resolution: 0.05
       # robot_radius: 0.22
-      robot_radius: 0.3
+      robot_radius: 0.2
       plugins: ["static_layer", "stvl_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
@@ -243,7 +243,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.35
+        inflation_radius: 0.25
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
@@ -292,9 +292,9 @@ global_costmap:
       robot_base_frame: base_link
       use_sim_time: False
       # robot_radius: 0.22
-      robot_radius: 0.3
+      robot_radius: 0.2
       resolution: 0.05
-      track_unknown_space: true
+      track_unknown_space: false
       plugins: ["static_layer", "stvl_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
@@ -302,7 +302,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.50
+        inflation_radius: 0.40
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
@@ -429,7 +429,11 @@ behavior_server:
     backup:
       plugin: "nav2_behaviors/BackUp"
       # plugin: "nav2_behaviors/BackUpTwzFree"
+      # local_costmap_global_frame: camera_init
+      # local_costmap_global_robot_base_frame: base_link
       # robot_radius: 0.3
+      # cost_threshold: 0.0
+      # visualization: true
     global_frame: map
     robot_base_frame: base_link
     transform_tolerance: 0.1
