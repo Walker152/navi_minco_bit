@@ -16,6 +16,7 @@
 #define BEHAVIORS_EXT__PLUGINS__BACK_UP_HPP_
 
 #include <memory>
+#include <string>
 
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_behaviors/plugins/drive_on_heading.hpp"
@@ -47,6 +48,8 @@ private:
   int free_threshold_;
   double cost_threshold_;
   bool visualization_;
+  std::string local_costmap_global_frame_;
+  std::string local_costmap_robot_base_frame_;
 
   // nav_msgs::msg::Odometry::SharedPtr odom_;
 };
