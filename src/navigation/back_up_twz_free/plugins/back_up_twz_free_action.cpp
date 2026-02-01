@@ -14,6 +14,7 @@
 
 #include "back_up_twz_free/back_up_twz_free_action.hpp"
 #include <cmath>
+#include <rclcpp/logging.hpp>
 
 namespace nav2_behaviors
 {
@@ -24,16 +25,24 @@ namespace nav2_behaviors
     {
       throw std::runtime_error{"Failed to lock node"};
     }
+    std::string plugin_ns = "backup";
+    std::string robot_radius_param = plugin_ns + ".robot_radius";
+    std::string max_radius_param = plugin_ns + ".max_radius";
+    std::string free_threshold_param = plugin_ns + ".free_threshold";
+    std::string cost_threshold_param = plugin_ns + ".cost_threshold";
+    std::string visualization_param = plugin_ns + ".visualization";
+    std::string service_name_param = plugin_ns + ".service_name";
+    std::string local_costmap_global_frame_param = plugin_ns + ".local_costmap_global_frame";
+    std::string local_costmap_robot_base_frame_param = plugin_ns + ".local_costmap_robot_base_frame";
+    nav2_util::declare_parameter_if_not_declared(
+      node,
+      robot_radius_param, rclcpp::ParameterValue(0.1));
+    node->get_parameter(robot_radius_param, robot_radius_);
 
     nav2_util::declare_parameter_if_not_declared(
       node,
-      "robot_radius", rclcpp::ParameterValue(0.1));
-    node->get_parameter("robot_radius", robot_radius_);
-
-    nav2_util::declare_parameter_if_not_declared(
-      node,
-      "max_radius", rclcpp::ParameterValue(1.0));
-    node->get_parameter("max_radius", max_radius_);
+      max_radius_param, rclcpp::ParameterValue(1.0));
+    node->get_parameter(max_radius_param, max_radius_);
 
     if(max_radius_ < robot_radius_)
     {
@@ -43,24 +52,34 @@ namespace nav2_behaviors
 
     nav2_util::declare_parameter_if_not_declared(
       node,
-      "service_name", rclcpp::ParameterValue(std::string("local_costmap/get_costmap")));
-    node->get_parameter("service_name", service_name_);
+      service_name_param, rclcpp::ParameterValue(std::string("local_costmap/get_costmap")));
+    node->get_parameter(service_name_param, service_name_);
 
     nav2_util::declare_parameter_if_not_declared(
       node,
-      "free_threshold", rclcpp::ParameterValue(5));
-    node->get_parameter("free_threshold", free_threshold_);
+      free_threshold_param, rclcpp::ParameterValue(5));
+    node->get_parameter(free_threshold_param, free_threshold_);
 
     nav2_util::declare_parameter_if_not_declared(
       node,
-      "cost_threshold", rclcpp::ParameterValue(0.1));
-    node->get_parameter("cost_threshold", cost_threshold_);
+      cost_threshold_param, rclcpp::ParameterValue(0.1));
+    node->get_parameter(cost_threshold_param, cost_threshold_);
 
     nav2_util::declare_parameter_if_not_declared(
       node,
-      "visualization", rclcpp::ParameterValue(false));
-    node->get_parameter("visualization", visualization_);
-    
+      visualization_param, rclcpp::ParameterValue(false));
+    node->get_parameter(visualization_param, visualization_);
+
+    nav2_util::declare_parameter_if_not_declared(
+      node,
+      local_costmap_global_frame_param, rclcpp::ParameterValue(std::string("camera_init")));
+    node->get_parameter(local_costmap_global_frame_param, local_costmap_global_frame_);
+
+    nav2_util::declare_parameter_if_not_declared(
+      node,
+      local_costmap_robot_base_frame_param, rclcpp::ParameterValue(std::string("base_link")));
+    node->get_parameter(local_costmap_robot_base_frame_param, local_costmap_robot_base_frame_);
+
     costmap_client_ = node->create_client<nav2_msgs::srv::GetCostmap>(service_name_);
     marker_pub_ = node->create_publisher<visualization_msgs::msg::MarkerArray>("back_up_twz_free_markers", 1);
 
@@ -100,13 +119,12 @@ namespace nav2_behaviors
     auto costmap = result.get()->map;
 
     if (!nav2_util::getCurrentPose(
-            initial_pose_, *tf_, global_frame_, robot_base_frame_,
+            initial_pose_, *tf_, local_costmap_global_frame_, local_costmap_robot_base_frame_,
             transform_tolerance_))
     {
       RCLCPP_ERROR(logger_, "Initial robot pose is not available.");
       return Status::FAILED;
     }
-
     // move towards free space
     // get current pose
     auto pose_x = initial_pose_.pose.position.x;
@@ -147,14 +165,19 @@ namespace nav2_behaviors
       {
         for (auto j = 0; j < costmap.metadata.size_y; j++)
         {
+          // RCLCPP_INFO(node->get_logger(), "机器人坐标系: %s 全局坐标系: %s", robot_base_frame_.c_str(), global_frame_.c_str());
+          // RCLCPP_INFO(node->get_logger(), "方位差值: %lf, %lf", costmap.metadata.origin.position.x - pose_x, costmap.metadata.origin.position.y - pose_y);
           auto costmap_index = i + j * costmap.metadata.size_x;
           auto x = i * costmap.metadata.resolution + costmap.metadata.origin.position.x;
           auto y = j * costmap.metadata.resolution + costmap.metadata.origin.position.y;
           auto distance_to_center = std::hypot(x - pose_x, y - pose_y);
+          //RCLCPP_INFO(node->get_logger(), "代价地图原点: (%lf, %lf) 当前机器人位置：(%lf, %lf) 当前搜索点位置：(%lf, %lf) 当前距离：%lf 当前搜索半径：%lf 当前代价: %d", costmap.metadata.origin.position.x, costmap.metadata.origin.position.y, pose_x, pose_y, x, y, distance_to_center, radius, costmap.data[costmap_index]);
           if (distance_to_center <= radius)
           {
+            //RCLCPP_INFO(node->get_logger(), "在半径中 代价值：%d", costmap.data[costmap_index]);
             if (costmap.data[costmap_index] <= cost_threshold_)
             {
+              RCLCPP_INFO(node->get_logger(), "找到一个安全点 当前机器人位置：(%lf, %lf) 当前安全点位置：(%lf, %lf) 当前距离：%lf 当前搜索半径：%lf", pose_x, pose_y, x, y, distance_to_center, radius);
               free_space_sum++;
               free_points.push_back(geometry_msgs::msg::Point());
               free_points.back().x = x;
@@ -177,6 +200,10 @@ namespace nav2_behaviors
       }
     }
 
+    if (free_space_found != true || free_points.empty()) {
+      RCLCPP_WARN(node->get_logger(), "寻找安全区域失败");
+      return Status::FAILED;
+    }
     // calculate avg position of free space
     auto avg_x = 0.0;
     auto avg_y = 0.0;
@@ -187,13 +214,14 @@ namespace nav2_behaviors
     }
     avg_x /= free_points.size();
     avg_y /= free_points.size();
+    RCLCPP_WARN(node->get_logger(), "找到安全区域");
     RCLCPP_WARN(node->get_logger(), "avg_x: %f, avg_y: %f", avg_x, avg_y);
 
     // visualize free space and destination
     if(visualization_){
       visualization_msgs::msg::MarkerArray markers;
       visualization_msgs::msg::Marker marker;
-      marker.header.frame_id = global_frame_;
+      marker.header.frame_id = local_costmap_global_frame_;
       marker.header.stamp = node->now();
       marker.ns = "free_space";
       marker.id = 0;
@@ -210,7 +238,7 @@ namespace nav2_behaviors
       }
       markers.markers.push_back(marker);
       visualization_msgs::msg::Marker destination_marker;
-      destination_marker.header.frame_id = global_frame_;
+      destination_marker.header.frame_id = local_costmap_global_frame_;
       destination_marker.header.stamp = node->now();
       destination_marker.ns = "destination";
       destination_marker.id = 0;
@@ -242,8 +270,9 @@ namespace nav2_behaviors
     RCLCPP_WARN(node->get_logger(), "angle_diff: %f deg", angle_diff*180/M_PI);
 
     // calculate move command
-    twist_x_ = std::cos(angle_diff) * command->speed;
-    twist_y_ = std::sin(angle_diff) * command->speed;
+    double vel_scale = 1.3;
+    twist_x_ = std::cos(angle_diff) * command->speed * vel_scale;
+    twist_y_ = std::sin(angle_diff) * command->speed * vel_scale;
     command_x_ = command->target.x;
     command_time_allowance_ = command->time_allowance;
 
@@ -256,6 +285,7 @@ namespace nav2_behaviors
       RCLCPP_ERROR(logger_, "Initial robot pose is not available.");
       return Status::FAILED;
     }
+    RCLCPP_WARN(node->get_logger(), "准备倒车");
     RCLCPP_WARN(
         this->logger_, "backing up %f meters towards free space at angle %f", command_x_, angle_diff);
 
@@ -293,6 +323,7 @@ namespace nav2_behaviors
     if (distance >= std::fabs(command_x_))
     {
       this->stopRobot();
+      RCLCPP_INFO(this->logger_, "成功后退，后退距离：%f 米", distance);
       return Status::SUCCEEDED;
     }
 
