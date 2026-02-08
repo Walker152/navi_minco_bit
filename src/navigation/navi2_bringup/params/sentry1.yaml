@@ -386,7 +386,7 @@ planner_server:
     MincoPlanner:
       plugin: "minco_planner/MincoPlanner"
       tolerance: 0.3
-      use_astar: true
+      use_smac: true
       allow_unknown: false
       minco_optimizer:
         opt_freq: 20.0
