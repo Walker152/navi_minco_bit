@@ -322,8 +322,8 @@ void MincoPlanner::configure(
   node->get_parameter(name + ".tolerance", tolerance_);
   
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".use_astar", rclcpp::ParameterValue(true));
-  node->get_parameter(name + ".use_astar", use_astar_);
+    node, name + ".use_smac", rclcpp::ParameterValue(false));
+  node->get_parameter(name + ".use_smac", use_smac_);
   
   nav2_util::declare_parameter_if_not_declared(
     node, name + ".allow_unknown", rclcpp::ParameterValue(true));
@@ -415,6 +415,14 @@ void MincoPlanner::configure(
 
   astar_planner_ = std::make_unique<Astar>(
     costmap_->getSizeInCellsX(), costmap_->getSizeInCellsY());
+  
+  // Initialize SMAC 2D Planner
+  if (use_smac_) {
+    smac_planner_ = std::make_unique<minco_planner::smac::SmacPlanner2DSimple>();
+    smac_planner_->configure(node, costmap_ros_);
+    smac_planner_->setParameters(allow_unknown_, 1000000, tolerance_);
+    RCLCPP_INFO(logger_, "SMAC 2D Planner initialized and will be used for path planning");
+  }
   
   // Control publisher
   opt_path_pub_ = node->create_publisher<ros_interfaces::msg::MpcPositionCommand>(
@@ -591,6 +599,8 @@ bool MincoPlanner::makePlan(
   double wy = start.position.y;
   unsigned int mx_start, my_start;
   if (!worldToMap(wx, wy, mx_start, my_start)) {
+    RCLCPP_ERROR(logger_, 
+      "Failed to convert start world coordinates (%.2f, %.2f) to map coordinates", wx, wy);
     return false;
   }
   clearRobotCell(mx_start, my_start);
@@ -599,65 +609,119 @@ bool MincoPlanner::makePlan(
   wy = goal.position.y;
   unsigned int mx_goal, my_goal;
   if (!worldToMap(wx, wy, mx_goal, my_goal)) {
+    RCLCPP_ERROR(logger_, 
+      "Failed to convert goal world coordinates (%.2f, %.2f) to map coordinates", wx, wy);
     return false;
   }
+  
+  RCLCPP_DEBUG(logger_,
+    "Planning from world (%.2f, %.2f) -> map (%u, %u) to world (%.2f, %.2f) -> map (%u, %u)",
+    start.position.x, start.position.y, mx_start, my_start,
+    goal.position.x, goal.position.y, mx_goal, my_goal);
 
   std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
   unsigned int nx = costmap_->getSizeInCellsX();
   unsigned int ny = costmap_->getSizeInCellsY();
 
-  // Setup A* inputs
-  astar_planner_->setSize(nx, ny);
-  astar_planner_->setStart(static_cast<int>(mx_start), static_cast<int>(my_start));
-  astar_planner_->setGoal(static_cast<int>(mx_goal), static_cast<int>(my_goal));
-  astar_planner_->setupNavFn(true);
-  astar_planner_->setCostmap(costmap_->getCharMap(), true, allow_unknown_);
-
-  // Run A* wavefront expansion
-  int max_total_cycles = nx * ny*9999; 
-  int cycles_per_step = std::max(nx * ny / 20, nx + ny);
-  auto time = rclcpp::Clock().now().seconds();
-  while (max_total_cycles > 0) {
-    if (cancel_checker && cancel_checker()) {
+  // Choose between SMAC and original A* based on use_smac_ flag
+  if (use_smac_ && smac_planner_) {
+    // Use SMAC 2D Planner
+    auto time = rclcpp::Clock().now().seconds();
+    
+    minco_planner::smac::Node2D::CoordinateVector smac_path;
+    bool smac_success = smac_planner_->createPath(
+      mx_start, my_start,
+      mx_goal, my_goal,
+      smac_path,
+      cancel_checker);
+    
+    auto time_end = rclcpp::Clock().now().seconds();
+    
+    if (!smac_success || smac_path.size() < 2) {
+      RCLCPP_ERROR(logger_, "SMAC 2D: Failed to find path");
       return false;
     }
-    if (!astar_planner_->propNavFnAstar(cycles_per_step, cancel_checker)) {
-      break;
+    
+    std::cout << GREEN << "[MincoPlanner] SMAC 2D planning time: "
+              << (time_end - time) << " seconds, path length: " << smac_path.size()
+              << RESET << std::endl;
+
+    // Convert SMAC path to nav_msgs::Path
+    std::lock_guard<std::mutex> path_lock(path_mutex_);
+    latest_global_path_.clear();
+    latest_global_path_.reserve(smac_path.size());
+    plan.poses.reserve(smac_path.size());
+
+    // SMAC path is reversed (from goal to start), so iterate backwards
+    for (auto it = smac_path.rbegin(); it != smac_path.rend(); ++it) {
+      geometry_msgs::msg::PoseStamped pose;
+      pose.header = plan.header;
+
+      double wx, wy;
+      costmap_->mapToWorld(it->x, it->y, wx, wy);
+
+      pose.pose.position.x = wx;
+      pose.pose.position.y = wy;
+      pose.pose.position.z = 0.0;
+      pose.pose.orientation.w = 1.0;
+      latest_global_path_.push_back(pose);
+      plan.poses.push_back(pose);
     }
-    max_total_cycles -= cycles_per_step;
-  }
-  auto time_end = rclcpp::Clock().now().seconds();
-  std::cout << GREEN << "[MincoPlanner] A* planning time: "
+  } else {
+    // Use original A* algorithm
+    // Setup A* inputs
+    astar_planner_->setSize(nx, ny);
+    astar_planner_->setStart(static_cast<int>(mx_start), static_cast<int>(my_start));
+    astar_planner_->setGoal(static_cast<int>(mx_goal), static_cast<int>(my_goal));
+    astar_planner_->setupNavFn(true);
+    astar_planner_->setCostmap(costmap_->getCharMap(), true, allow_unknown_);
+
+    // Run A* wavefront expansion
+    int max_total_cycles = nx * ny*9999; 
+    int cycles_per_step = std::max(nx * ny / 20, nx + ny);
+    auto time = rclcpp::Clock().now().seconds();
+    while (max_total_cycles > 0) {
+      if (cancel_checker && cancel_checker()) {
+        return false;
+      }
+      if (!astar_planner_->propNavFnAstar(cycles_per_step, cancel_checker)) {
+        break;
+      }
+      max_total_cycles -= cycles_per_step;
+    }
+    auto time_end = rclcpp::Clock().now().seconds();
+    std::cout << GREEN << "[MincoPlanner] A* planning time: "
             << (time_end - time) << " seconds" << RESET << std::endl;
 
-  // Extract the A* path and convert it to world coords
-  if (!astar_planner_->calcPath(nx * ny / 2) || astar_planner_->getPathLen() < 2) {
-    return false;
-  }
+    // Extract the A* path and convert it to world coords
+    if (!astar_planner_->calcPath(nx * ny / 2) || astar_planner_->getPathLen() < 2) {
+      return false;
+    }
 
-  // Convert map path to nav_msgs::Path
-  float * path_x = astar_planner_->getPathX();
-  float * path_y = astar_planner_->getPathY();
-  const int len = astar_planner_->getPathLen();
+    // Convert map path to nav_msgs::Path
+    float * path_x = astar_planner_->getPathX();
+    float * path_y = astar_planner_->getPathY();
+    const int len = astar_planner_->getPathLen();
 
-  std::lock_guard<std::mutex> path_lock(path_mutex_);
-  latest_global_path_.clear();
-  latest_global_path_.reserve(len);
-  plan.poses.reserve(len);
+    std::lock_guard<std::mutex> path_lock(path_mutex_);
+    latest_global_path_.clear();
+    latest_global_path_.reserve(len);
+    plan.poses.reserve(len);
 
-  for (int i = 0; i < len; ++i) {
-    geometry_msgs::msg::PoseStamped pose;
-    pose.header = plan.header;
+    for (int i = 0; i < len; ++i) {
+      geometry_msgs::msg::PoseStamped pose;
+      pose.header = plan.header;
 
-    double wx, wy;
-    costmap_->mapToWorld(path_x[i], path_y[i], wx, wy);
+      double wx, wy;
+      costmap_->mapToWorld(path_x[i], path_y[i], wx, wy);
 
-    pose.pose.position.x = wx;
-    pose.pose.position.y = wy;
-    pose.pose.position.z = 0.0;
-    pose.pose.orientation.w = 1.0;
-    latest_global_path_.push_back(pose);
-    plan.poses.push_back(pose);
+      pose.pose.position.x = wx;
+      pose.pose.position.y = wy;
+      pose.pose.position.z = 0.0;
+      pose.pose.orientation.w = 1.0;
+      latest_global_path_.push_back(pose);
+      plan.poses.push_back(pose);
+    }
   }
 
   return !plan.poses.empty();
@@ -1306,18 +1370,35 @@ bool MincoPlanner::isLineFree(const Eigen::Vector3d& p1, const Eigen::Vector3d& 
 bool MincoPlanner::worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my)
 {
   if (wx < costmap_->getOriginX() || wy < costmap_->getOriginY()) {
+    RCLCPP_DEBUG(logger_, "worldToMap: Position (%.2f, %.2f) is before origin (%.2f, %.2f)",
+      wx, wy, costmap_->getOriginX(), costmap_->getOriginY());
     return false;
   }
 
-  mx = static_cast<int>(
-    std::round((wx - costmap_->getOriginX()) / costmap_->getResolution()));
-  my = static_cast<int>(
-    std::round((wy - costmap_->getOriginY()) / costmap_->getResolution()));
-
-  if (mx < costmap_->getSizeInCellsX() && my < costmap_->getSizeInCellsY()) {
-    return true;
+  double dx = (wx - costmap_->getOriginX()) / costmap_->getResolution();
+  double dy = (wy - costmap_->getOriginY()) / costmap_->getResolution();
+  
+  // Check if the result would be negative or exceed bounds before casting
+  if (dx < 0.0 || dy < 0.0) {
+    RCLCPP_DEBUG(logger_, "worldToMap: Computed cell coordinates (%.2f, %.2f) are negative", dx, dy);
+    return false;
   }
-  return false;
+  
+  int mx_int = static_cast<int>(std::round(dx));
+  int my_int = static_cast<int>(std::round(dy));
+  
+  if (mx_int < 0 || my_int < 0 || 
+      mx_int >= static_cast<int>(costmap_->getSizeInCellsX()) ||
+      my_int >= static_cast<int>(costmap_->getSizeInCellsY())) {
+    RCLCPP_DEBUG(logger_, 
+      "worldToMap: Cell coordinates (%d, %d) are out of bounds [0, %u) x [0, %u)",
+      mx_int, my_int, costmap_->getSizeInCellsX(), costmap_->getSizeInCellsY());
+    return false;
+  }
+  
+  mx = static_cast<unsigned int>(mx_int);
+  my = static_cast<unsigned int>(my_int);
+  return true;
 }
 
 void MincoPlanner::mapToWorld(double mx, double my, double & wx, double & wy)

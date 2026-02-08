@@ -29,6 +29,7 @@
 #include "ros_interfaces/msg/mpc_position_command.hpp"
 
 #include "minco_core/astar.hpp"
+#include "smac_search/smac_planner_2d_simple.hpp"
 #include "small_rog_map/hybrid_esdf_map.hpp"
 #include "minco_core/corridor_generator.hpp"
 #include "traj_opt/minco_optimizer.hpp"
@@ -155,6 +156,10 @@ private:
   // A* Planner
   std::unique_ptr<Astar> astar_planner_;
   
+  // SMAC 2D Planner (new)
+  std::unique_ptr<minco_planner::smac::SmacPlanner2DSimple> smac_planner_;
+  bool use_smac_;  // Toggle between A* and SMAC
+  
   // Minco Optimizer
   std::unique_ptr<MincoOptimizer> minco_optimizer_;
 
@@ -168,7 +173,6 @@ private:
   double esdf_resolution_;
   // Parameters
   double tolerance_;
-  bool use_astar_;
   bool allow_unknown_;
   double opt_freq_;
   double lookahead_dist_;
