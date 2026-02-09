@@ -11,6 +11,16 @@ SimpleCorridorGenerator::SimpleCorridorGenerator(small_rog_map::HybridESDFMap::P
 {
 }
 
+void SimpleCorridorGenerator::setSafetyMargins(double robot_radius, double extra_margin)
+{
+  if (std::isfinite(robot_radius) && robot_radius > 0.0) {
+    robot_radius_ = robot_radius;
+  }
+  if (std::isfinite(extra_margin) && extra_margin >= 0.0) {
+    extra_margin_ = extra_margin;
+  }
+}
+
 PolyhedronH SimpleCorridorGenerator::generateSafeBox(
   const Eigen::Vector3d & center,
   double max_radius) const
@@ -29,8 +39,8 @@ PolyhedronH SimpleCorridorGenerator::generateSafeBox(
   }
 
   // 2. Convert ESDF distance to a conservative box half-size
-  // Robot radius margin
-  double safe_dist = std::max(dist - 0.4, 0.0);
+  // Robot radius + extra clearance margin
+  const double safe_dist = std::max(dist - robot_radius_ - extra_margin_, 0.0);
   double box_half_size = (safe_dist / 1.414) * 0.9;
 
   if (!std::isfinite(box_half_size) || box_half_size < kMinHalfSize) {
