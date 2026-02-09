@@ -16,9 +16,11 @@
 #define MINCO_PLANNER__SMAC_SEARCH__SMAC_PLANNER_2D_SIMPLE_HPP_
 
 #include <memory>
+#include <unordered_map>
 #include <vector>
 #include <string>
 #include <functional>
+#include <cstdint>
 
 #include "smac_search/node_2d.hpp"
 #include "smac_search/collision_checker.hpp"
@@ -28,6 +30,11 @@
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
+
+namespace small_rog_map
+{
+class HybridESDFMap;
+}  // namespace small_rog_map
 
 namespace minco_planner
 {
@@ -65,10 +72,27 @@ public:
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros);
 
   /**
+   * @brief Configure the planner with parameter prefix for namespacing
+   * @param node Lifecycle node
+   * @param costmap_ros Costmap ROS wrapper
+   * @param param_prefix Prefix for parameters, e.g. "<plugin_name>." (can be empty)
+   */
+  void configure(
+    rclcpp_lifecycle::LifecycleNode::SharedPtr node,
+    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
+    const std::string & param_prefix);
+
+  /**
    * @brief Set the costmap directly (alternative to costmap_ros)
    * @param costmap Costmap2D pointer
    */
   void setCostmap(nav2_costmap_2d::Costmap2D * costmap);
+
+  /**
+   * @brief Inject ESDF map used to bias search toward free-space center
+   * @param esdf_map Shared ESDF map (world-frame query)
+   */
+  void setESDFMap(const std::shared_ptr<small_rog_map::HybridESDFMap> & esdf_map);
 
   /**
    * @brief Create a path from start to goal
@@ -121,9 +145,16 @@ private:
   float computeHeuristic(const NodePtr & node, const NodePtr & goal);
 
   /**
+   * @brief Compute ESDF-based potential cost for a grid cell index
+   */
+  float getESDFPotentialCost(const uint64_t & index);
+
+  /**
    * @brief Clear all data structures for new search
    */
   void clear();
+
+  void clearNodePool();
 
   // Parameters
   bool allow_unknown_;
@@ -141,6 +172,17 @@ private:
 
   // Graph
   std::vector<std::unique_ptr<Node2D>> graph_;
+  std::unordered_map<uint64_t, Node2D *> graph_lookup_;
+  std::vector<Node2D *> touched_nodes_;
+  uint32_t search_id_{0};
+
+  // Optional ESDF biasing
+  std::shared_ptr<small_rog_map::HybridESDFMap> esdf_map_{nullptr};
+  bool use_esdf_cost_{false};
+  float esdf_weight_{1.0f};
+  float esdf_decay_{0.5f};
+  float esdf_max_cost_{5.0f};
+  std::unordered_map<uint64_t, float> esdf_cost_cache_;
   
   // Search info
   SearchInfo search_info_;

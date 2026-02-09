@@ -112,6 +112,9 @@ namespace icp_relocalization
 
     // ROS接口初始化
     callback_group_lidar_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    // Serialize service callback with lidar/timer callbacks to avoid races under MultiThreadedExecutor.
+    callback_group_service_ = callback_group_lidar_;
+
     rclcpp::SubscriptionOptions lidar_sub_options;
     lidar_sub_options.callback_group = callback_group_lidar_;
 
@@ -137,19 +140,22 @@ namespace icp_relocalization
     sensor_msgs::msg::PointCloud2 map_msg;
     pcl::toROSMsg(*gicp_filter_->getTargetCloud(), map_msg);
     map_msg.header.frame_id = map_frame_;
+    map_msg.header.stamp = this->now();
     map_pub_->publish(map_msg);
 
     // 初始化FSM定时器
-    double period = 1.0 / alignment_frequency_;
-    fsm_timer_ = this->create_wall_timer(std::chrono::duration<double>(period),
-                                         std::bind(&GicpRosInterface::fsmTimerCallback, this),
-                                         callback_group_lidar_);
+    if(alignment_frequency_ <= 0.0)
+    {
+      RCLCPP_WARN(this->get_logger(), "alignment_frequency <= 0 (%.3f). Forcing to 1.0 Hz.", alignment_frequency_);
+      alignment_frequency_ = 1.0;
+    }
+    fsm_period_ = std::chrono::duration<double>(1.0 / alignment_frequency_);
+    startFsmTimer();
     
     // 初始化地图发布定时器
     map_timer_ = this->create_wall_timer(std::chrono::seconds(2),
                                          std::bind(&GicpRosInterface::mapTimerCallback, this));
     // 初始化重定位服务
-    callback_group_service_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     relocalize_srv_ = this->create_service<std_srvs::srv::Trigger>(
         "/gicp_recall",
         std::bind(&GicpRosInterface::relocalizeServiceCallback, this, std::placeholders::_1, std::placeholders::_2),
@@ -157,40 +163,58 @@ namespace icp_relocalization
         callback_group_service_);
   }
 
+  void GicpRosInterface::startFsmTimer()
+  {
+    if(fsm_timer_)
+    {
+      fsm_timer_->cancel();
+      fsm_timer_.reset();
+    }
+
+    fsm_timer_ = this->create_wall_timer(
+        fsm_period_,
+        std::bind(&GicpRosInterface::fsmTimerCallback, this),
+        callback_group_lidar_);
+  }
+
   void GicpRosInterface::relocalizeServiceCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                                                   std::shared_ptr<std_srvs::srv::Trigger::Response> response)
   {
-      (void)request;
-      RCLCPP_INFO(this->get_logger(), "%sReceived request to re-trigger relocalization.%s", color_text::MAGENTA.c_str(), color_text::RESET.c_str());
+    (void)request;
+    RCLCPP_INFO(this->get_logger(),
+                "%sReceived request to re-trigger relocalization.%s",
+                color_text::MAGENTA.c_str(),
+                color_text::RESET.c_str());
 
-      // 1. Reset State
-      mode_ = Mode::SAC_IA;
-      state_ = State::UNINITIALIZED;
-      converged_count_ = 0;
-      current_accumulated_frames_ = 0;
-      if (accumulated_cloud_) accumulated_cloud_->clear();
-      gicp_initialized_ = false;
+    // 1. Reset State
+    mode_ = Mode::SAC_IA;
+    state_ = State::UNINITIALIZED;
+    converged_count_ = 0;
+    current_accumulated_frames_ = 0;
+    if(accumulated_cloud_) accumulated_cloud_->clear();
+    gicp_initialized_ = false;
+    last_cloud_stamp_ = rclcpp::Time(0, 0, this->get_clock()->get_clock_type());
 
-      // 2. Reactivate Lidar Subscription if needed
-      if (!lidar_sub_) {
-          rclcpp::SubscriptionOptions lidar_sub_options;
-          lidar_sub_options.callback_group = callback_group_lidar_;
-          lidar_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-              "/livox/stdpc",
-              rclcpp::SensorDataQoS(),
-              std::bind(&GicpRosInterface::lidarCallback, this, std::placeholders::_1),
-              lidar_sub_options);
-          RCLCPP_INFO(this->get_logger(), "Lidar subscription reactivated.");
-      }
+    // 2. Reactivate Lidar Subscription if needed
+    if(!lidar_sub_)
+    {
+      rclcpp::SubscriptionOptions lidar_sub_options;
+      lidar_sub_options.callback_group = callback_group_lidar_;
+      lidar_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+          "/livox/stdpc",
+          rclcpp::SensorDataQoS(),
+          std::bind(&GicpRosInterface::lidarCallback, this, std::placeholders::_1),
+          lidar_sub_options);
+      RCLCPP_INFO(this->get_logger(), "Lidar subscription reactivated.");
+    }
 
-      // 3. Restart FSM Timer
-      if (fsm_timer_->is_canceled()) {
-          fsm_timer_->reset();
-          RCLCPP_INFO(this->get_logger(), "FSM timer restarted.");
-      }
+    // 3. Restart FSM Timer
+    startFsmTimer();
+    RCLCPP_INFO(this->get_logger(), "FSM timer restarted.");
 
-      response->success = true;
-      response->message = "Relocalization process restarted.";  }
+    response->success = true;
+    response->message = "Relocalization process restarted.";
+  }
 
   void GicpRosInterface::mapTimerCallback()
   {
@@ -216,12 +240,9 @@ namespace icp_relocalization
 
       // 2. 初始化 GICP Filter
       gicp_filter_ = std::make_unique<GicpFilter>(target_cloud, gicp_options_);
-
-      RCLCPP_INFO(this->get_logger(), "GICP filter initialized with map: %s", target_pcd_file.c_str());
     }
     catch(const std::runtime_error& e)
     {
-      RCLCPP_FATAL(this->get_logger(), "Failed to initialize GICP filter: %s", e.what());
       rclcpp::shutdown();
     }
   }
@@ -241,6 +262,9 @@ namespace icp_relocalization
     // Reset if too large (safety)
     if(accumulated_cloud_->size() > 100000) 
     {
+      RCLCPP_WARN(this->get_logger(), "Accumulated cloud too large (%zu points). Clearing buffer.", accumulated_cloud_->size());
+      accumulated_cloud_->clear();
+      current_accumulated_frames_ = 0;
     }
   }
 
@@ -371,7 +395,6 @@ namespace icp_relocalization
           // Reset subscriber to stop receiving data completely
           if (lidar_sub_) {
              lidar_sub_.reset(); 
-             RCLCPP_INFO(this->get_logger(), "Lidar subscription reset. No more point cloud processing.");
           }
         }
       }
