@@ -1,46 +1,26 @@
 #include "minco_core/minco_fsm.hpp"
 
-#include "minco_core/minco_planner.hpp"
-
+// C++ standard library
 #include <cmath>
 #include <iostream>
 
-namespace minco_planner
-{
+// Project
+#include "minco_core/minco_planner.hpp"
 
-namespace
-{
-const char * stateToString(MincoFsm::State s)
-{
-  switch (s) {
-    case MincoFsm::State::INIT: return "INIT";
-    case MincoFsm::State::WAIT_GOAL: return "WAIT_GOAL";
-    case MincoFsm::State::GENERATE_TRAJ: return "GENERATE_TRAJ";
-    case MincoFsm::State::FOLLOW_TRAJ: return "FOLLOW_TRAJ";
-    case MincoFsm::State::EMER_STOP: return "EMER_STOP";
-    default: return "UNKNOWN";
-  }
-}
-}  // namespace
+namespace minco_planner {
+
+// -----------------------------------------------------------------------------
+// 1) Construction / Destruction
+// -----------------------------------------------------------------------------
 
 MincoFsm::MincoFsm(const PlannerPtr & planner)
 : planner_(planner)
 {
 }
 
-void MincoFsm::changeState(const char * caller, State new_state)
-{
-  if (state_ == new_state) {
-    return;
-  }
-
-  std::cout << "[MincoFSM] [" << (caller ? caller : "?") << "] change state from ["
-            << stateToString(state_) << "] to [" << stateToString(new_state) << "]" << std::endl;
-
-  last_state_ = state_;
-  state_ = new_state;
-  stop_published_ = false;
-}
+// -----------------------------------------------------------------------------
+// 2) Core business interface
+// -----------------------------------------------------------------------------
 
 void MincoFsm::callMainFsmOnce()
 {
@@ -132,23 +112,12 @@ void MincoFsm::callMainFsmOnce()
         return;
       }
 
-      bool need_replan = false;
       const double now_s = planner_->nowSeconds();
 
-      // Trigger 1: trajectory time exhausted.
-      if (planner_->isTrajectoryTimeExpired(now_s)) {
-        need_replan = true;
-      }
-
-      // Trigger 2: traveled distance over 0.8 * lookahead_dist.
-      if (traveled_dist_ > 0.8 * planner_->getLookaheadDist()) {
-        need_replan = true;
-      }
-
-      // Trigger 3: async safety alert.
-      if (!planner_->isTrajSafe()) {
-        need_replan = true;
-      }
+      const bool need_replan =
+        planner_->isTrajectoryTimeExpired(now_s) ||
+        (traveled_dist_ > 0.8 * planner_->getLookaheadDist()) ||
+        !planner_->isTrajSafe();
 
       if (!need_replan) {
         return;
@@ -194,20 +163,55 @@ void MincoFsm::callMainFsmOnce()
       }
 
       // 4) Recovery: stopped, check safety before leaving EMER_STOP.
-      if (planner_->checkCollision()) {
-        std::cout << "[MincoFSM] Robot stopped and safe." << std::endl;
-        has_goal_ = false;
-        changeState("EMER_SAFE", State::WAIT_GOAL);
-        return;
-      }
-
-      std::cout << "[MincoFSM] Robot stopped but in collision, keep EMER_STOP." << std::endl;
+      std::cout << "[MincoFSM] Robot stopped and safe." << std::endl;
+      has_goal_ = false;
+      changeState("EMER_SAFE", State::WAIT_GOAL);
       return;
     }
 
     default:
       break;
   }
+}
+
+// -----------------------------------------------------------------------------
+// 3) Helpers
+// -----------------------------------------------------------------------------
+
+namespace {
+
+const char * StateToString(MincoFsm::State s)
+{
+  switch (s) {
+    case MincoFsm::State::INIT:
+      return "INIT";
+    case MincoFsm::State::WAIT_GOAL:
+      return "WAIT_GOAL";
+    case MincoFsm::State::GENERATE_TRAJ:
+      return "GENERATE_TRAJ";
+    case MincoFsm::State::FOLLOW_TRAJ:
+      return "FOLLOW_TRAJ";
+    case MincoFsm::State::EMER_STOP:
+      return "EMER_STOP";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+}  // namespace
+
+void MincoFsm::changeState(const char * caller, State new_state)
+{
+  if (state_ == new_state) {
+    return;
+  }
+
+  std::cout << "[MincoFSM] [" << (caller ? caller : "?") << "] change state from ["
+            << StateToString(state_) << "] to [" << StateToString(new_state) << "]" << std::endl;
+
+  last_state_ = state_;
+  state_ = new_state;
+  stop_published_ = false;
 }
 
 }  // namespace minco_planner

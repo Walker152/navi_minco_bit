@@ -1,17 +1,22 @@
 #ifndef MINCO_PLANNER__MINCO_UTILS_HPP_
 #define MINCO_PLANNER__MINCO_UTILS_HPP_
 
+// Standard library
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <functional>
 #include <vector>
 
+// Third party
 #include <Eigen/Core>
 
+// ROS2
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/header.hpp"
+
+// Project
 #include "ros_interfaces/msg/mpc_position_command.hpp"
+#include "std_msgs/msg/header.hpp"
 
 namespace geometry_utils {
 class Trajectory;
@@ -21,10 +26,9 @@ namespace traj_opt {
 using Trajectory = geometry_utils::Trajectory;
 }  // namespace traj_opt
 
-namespace minco_planner::utils
-{
+namespace minco_planner::utils {
 
-template<typename T>
+template <typename T>
 inline T clampValue(T v, T lo, T hi)
 {
   return std::min(std::max(v, lo), hi);
