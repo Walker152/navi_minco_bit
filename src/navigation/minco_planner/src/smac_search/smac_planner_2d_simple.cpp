@@ -13,13 +13,13 @@
 // limitations under the License. Reserved.
 
 #include "smac_search/smac_planner_2d_simple.hpp"
-#include <queue>
-#include <unordered_map>
+
 #include <algorithm>
-#include <limits>
 #include <cmath>
-#include <type_traits>
-#include "nav2_costmap_2d/inflation_layer.hpp"
+#include <cstdint>
+#include <limits>
+#include <queue>
+
 #include "nav2_costmap_2d/cost_values.hpp"
 
 #include <Eigen/Core>
@@ -51,7 +51,8 @@ void SmacPlanner2DSimple::setESDFMap(
   const std::shared_ptr<small_rog_map::HybridESDFMap> & esdf_map)
 {
   esdf_map_ = esdf_map;
-  esdf_cost_cache_.clear();
+  // Cache is stamped per planning id; invalidate by resetting the counter.
+  planning_id_ = 0u;
 }
 
 void SmacPlanner2DSimple::configure(
@@ -69,9 +70,13 @@ void SmacPlanner2DSimple::configure(
   node_ = node;
   costmap_ros_ = costmap_ros;
   costmap_ = costmap_ros_->getCostmap();
-  
-  size_x_ = costmap_->getSizeInCellsX();
-  size_y_ = costmap_->getSizeInCellsY();
+  if (costmap_) {
+    costmap_origin_x_ = costmap_->getOriginX();
+    costmap_origin_y_ = costmap_->getOriginY();
+    costmap_resolution_ = costmap_->getResolution();
+    size_x_ = costmap_->getSizeInCellsX();
+    size_y_ = costmap_->getSizeInCellsY();
+  }
 
   // Optional ESDF biasing (default off). ESDF map instance is injected via setESDFMap().
   auto full_key = [&param_prefix](const std::string & key) {
@@ -101,86 +106,28 @@ void SmacPlanner2DSimple::configure(
     esdf_decay_ = 1e-3f;
   }
 
-  // Calculate circumscribed cost for collision checking optimization
-  double possible_collision_cost = 0.0;
-  nav2_costmap_2d::InflationLayer * inflation_layer = nullptr;
-  
-  // Find inflation layer
-  auto layers = costmap_ros_->getLayeredCostmap()->getPlugins();
-  for (auto layer = layers->begin(); layer != layers->end(); ++layer) {
-    auto inflation = std::dynamic_pointer_cast<nav2_costmap_2d::InflationLayer>(*layer);
-    if (inflation) {
-      inflation_layer = inflation.get();
-      break;
-    }
-  }
-  
-  if (inflation_layer != nullptr) {
-    double circum_radius = costmap_ros_->getLayeredCostmap()->getCircumscribedRadius();
-    double resolution = costmap_->getResolution();
-    
-    // Try to get inflation_radius from parameters
-    double inflation_radius = 0.0;
-    try {
-      rclcpp::Parameter param = node_->get_parameter("global_costmap.inflation_layer.inflation_radius");
-      inflation_radius = param.as_double();
-    } catch (const std::exception & e) {
-      RCLCPP_DEBUG(
-        node_->get_logger(),
-        "Could not get inflation_radius from parameters, using circumscribed_radius");
-      inflation_radius = circum_radius;  // Use circumscribed_radius as fallback
-    }
-    
-    if (inflation_radius >= circum_radius) {
-      possible_collision_cost = static_cast<double>(
-        inflation_layer->computeCost(circum_radius / resolution));
-      RCLCPP_INFO(
-        node_->get_logger(),
-        "SMAC: Circumscribed cost computed as %.2f (inflation_radius=%.2f, circum_radius=%.2f)",
-        possible_collision_cost, inflation_radius, circum_radius);
-    } else {
-      RCLCPP_WARN(
-        node_->get_logger(),
-        "SMAC: Inflation radius (%.2f) < circumscribed radius (%.2f). "
-        "Setting possible_collision_cost to 0. This may impact performance.",
-        inflation_radius, circum_radius);
-    }
-  } else {
-    RCLCPP_WARN(
-      node_->get_logger(),
-      "SMAC: No inflation layer found. Using possible_collision_cost=0. "
-      "This may impact performance.");
-  }
-
-  // Initialize collision checker
-  collision_checker_ = std::make_unique<GridCollisionChecker>(
-    costmap_ros_, 1, node_);
-  collision_checker_->setFootprint(
-    costmap_ros_->getRobotFootprint(),
-    true,  // Use radius
-    possible_collision_cost);
-
-  // Initialize motion model
-  unsigned int dummy_angle = 1;
-  Node2D::initMotionModel(motion_model_, size_x_, size_y_, dummy_angle, search_info_);
+  ensureSearchBuffers();
 }
 
 void SmacPlanner2DSimple::setCostmap(nav2_costmap_2d::Costmap2D * costmap)
 {
   costmap_ = costmap;
+  if (!costmap_) {
+    return;
+  }
+
+  costmap_origin_x_ = costmap_->getOriginX();
+  costmap_origin_y_ = costmap_->getOriginY();
+  costmap_resolution_ = costmap_->getResolution();
 
   const unsigned int new_size_x = costmap_->getSizeInCellsX();
   const unsigned int new_size_y = costmap_->getSizeInCellsY();
   if (new_size_x != size_x_ || new_size_y != size_y_) {
     size_x_ = new_size_x;
     size_y_ = new_size_y;
-    clearNodePool();
-
-    unsigned int dummy_angle = 1;
-    Node2D::initMotionModel(motion_model_, size_x_, size_y_, dummy_angle, search_info_);
   }
 
-  esdf_cost_cache_.clear();
+  ensureSearchBuffers();
 }
 
 void SmacPlanner2DSimple::setParameters(
@@ -193,52 +140,47 @@ void SmacPlanner2DSimple::setParameters(
   tolerance_ = tolerance;
 }
 
-void SmacPlanner2DSimple::clear()
+void SmacPlanner2DSimple::ensureSearchBuffers()
 {
-  for (auto * node : touched_nodes_) {
-    if (node) {
-      node->reset();
-    }
+  grid_size_ = static_cast<uint64_t>(size_x_) * static_cast<uint64_t>(size_y_);
+  const size_t size = static_cast<size_t>(grid_size_);
+  if (size == 0u) {
+    return;
   }
-  touched_nodes_.clear();
-  esdf_cost_cache_.clear();
 
-  // Bump search id used for touch tracking.
-  ++search_id_;
-  if (search_id_ == 0u) {
-    search_id_ = 1u;
-    for (auto & node_ptr : graph_) {
-      node_ptr->setLastSearchId(0u);
-    }
+  if (g_score_.size() != size) {
+    g_score_.assign(size, std::numeric_limits<float>::infinity());
+    parent_.assign(size, -1);
+    visited_.assign(size, 0u);
+    closed_.assign(size, 0u);
+
+    esdf_cost_cache_.assign(size, 0.0f);
+    esdf_cost_cache_id_.assign(size, 0u);
   }
 }
 
-void SmacPlanner2DSimple::clearNodePool()
-{
-  graph_.clear();
-  graph_lookup_.clear();
-  touched_nodes_.clear();
-  esdf_cost_cache_.clear();
-}
-
-float SmacPlanner2DSimple::getESDFPotentialCost(const uint64_t & index)
+float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my)
 {
   if (!use_esdf_cost_ || !esdf_map_ || !costmap_) {
     return 0.0f;
   }
 
-  auto it = esdf_cost_cache_.find(index);
-  if (it != esdf_cost_cache_.end()) {
-    return it->second;
+  if (mx >= size_x_ || my >= size_y_) {
+    return 0.0f;
   }
 
-  const auto coords = Node2D::getCoords(index, size_x_, 1);
-  double wx = 0.0;
-  double wy = 0.0;
-  costmap_->mapToWorld(
-    static_cast<unsigned int>(coords.x),
-    static_cast<unsigned int>(coords.y),
-    wx, wy);
+  const uint64_t index = static_cast<uint64_t>(my) * static_cast<uint64_t>(size_x_) +
+    static_cast<uint64_t>(mx);
+
+  const size_t idx = static_cast<size_t>(index);
+  if (esdf_cost_cache_id_[idx] == planning_id_) {
+    return esdf_cost_cache_[idx];
+  }
+
+  // Compute world coordinates directly (avoid mapToWorld overhead).
+  // Use cell center (mx+0.5, my+0.5) for smoother bias.
+  const double wx = costmap_origin_x_ + (static_cast<double>(mx) + 0.5) * costmap_resolution_;
+  const double wy = costmap_origin_y_ + (static_cast<double>(my) + 0.5) * costmap_resolution_;
 
   double dist = 0.0;
   Eigen::Vector3d grad(0.0, 0.0, 0.0);
@@ -249,43 +191,15 @@ float SmacPlanner2DSimple::getESDFPotentialCost(const uint64_t & index)
   }
 
   // Potential field: higher cost near obstacles, decays with distance.
-  float cost = static_cast<float>(esdf_weight_ * std::exp(-dist / static_cast<double>(esdf_decay_)));
+  float cost = static_cast<float>(
+    esdf_weight_ * std::exp(-dist / static_cast<double>(esdf_decay_)));
   if (esdf_max_cost_ > 0.0f && cost > esdf_max_cost_) {
     cost = esdf_max_cost_;
   }
 
-  esdf_cost_cache_.emplace(index, cost);
-  return cost;
-}
-
-Node2D * SmacPlanner2DSimple::getOrAddNode(const uint64_t & index)
-{
-  auto it = graph_lookup_.find(index);
-  if (it != graph_lookup_.end()) {
-    NodePtr node = it->second;
-    if (node->getLastSearchId() != search_id_) {
-      node->setLastSearchId(search_id_);
-      touched_nodes_.push_back(node);
-    }
-    return node;
-  }
-
-  graph_.emplace_back(std::make_unique<Node2D>(index));
-  NodePtr node = graph_.back().get();
-  graph_lookup_.emplace(index, node);
-  node->setLastSearchId(search_id_);
-  touched_nodes_.push_back(node);
-  return node;
-}
-
-float SmacPlanner2DSimple::computeHeuristic(const NodePtr & node, const NodePtr & goal)
-{
-  auto node_coords = Node2D::getCoords(node->getIndex(), size_x_, 1);
-  auto goal_coords = Node2D::getCoords(goal->getIndex(), size_x_, 1);
-  
-  float dx = goal_coords.x - node_coords.x;
-  float dy = goal_coords.y - node_coords.y;
-  return std::sqrt(dx * dx + dy * dy);
+  esdf_cost_cache_[idx] = cost;
+  esdf_cost_cache_id_[idx] = planning_id_;
+  return esdf_cost_cache_[idx];
 }
 
 bool SmacPlanner2DSimple::createPath(
@@ -296,163 +210,201 @@ bool SmacPlanner2DSimple::createPath(
   CoordinateVector & path,
   std::function<bool()> cancel_checker)
 {
-  clear();
   path.clear();
 
-  // Check if costmap is valid
   if (!costmap_) {
-    RCLCPP_ERROR(node_->get_logger(), "Costmap not set!");
-    return false;
-  }
-  
-  // Update costmap size in case it changed (e.g., rolling window)
-  unsigned int new_size_x = costmap_->getSizeInCellsX();
-  unsigned int new_size_y = costmap_->getSizeInCellsY();
-  
-  // Reinitialize motion model if costmap size changed
-  if (new_size_x != size_x_ || new_size_y != size_y_) {
-    RCLCPP_INFO(node_->get_logger(),
-      "SMAC 2D: Costmap size changed from %ux%u to %ux%u, reinitializing motion model",
-      size_x_, size_y_, new_size_x, new_size_y);
-    
-    size_x_ = new_size_x;
-    size_y_ = new_size_y;
-
-    // Node indices depend on size_x_, so clear the pool on size changes.
-    clearNodePool();
-    
-    unsigned int dummy_angle = 1;
-    Node2D::initMotionModel(motion_model_, size_x_, size_y_, dummy_angle, search_info_);
-  }
-  
-  // Validate start and goal are within costmap bounds
-  if (start_x >= size_x_ || start_y >= size_y_) {
-    RCLCPP_ERROR(node_->get_logger(),
-      "SMAC 2D: Start position (%u, %u) is outside costmap bounds (%u, %u)",
-      start_x, start_y, size_x_, size_y_);
-    return false;
-  }
-  
-  if (goal_x >= size_x_ || goal_y >= size_y_) {
-    RCLCPP_ERROR(node_->get_logger(),
-      "SMAC 2D: Goal position (%u, %u) is outside costmap bounds (%u, %u)",
-      goal_x, goal_y, size_x_, size_y_);
+    if (node_) {
+      RCLCPP_ERROR(node_->get_logger(), "Costmap not set!");
+    }
     return false;
   }
 
-  // Get start and goal nodes
-  uint64_t start_index = Node2D::getIndex(start_x, start_y, size_x_);
-  uint64_t goal_index = Node2D::getIndex(goal_x, goal_y, size_x_);
-  
-  RCLCPP_INFO(node_->get_logger(), 
-    "SMAC 2D: Planning from (%u, %u) to (%u, %u), costmap size: %ux%u",
-    start_x, start_y, goal_x, goal_y, size_x_, size_y_);
-  
-  // Check start and goal validity
-  unsigned char start_cost = costmap_->getCost(start_x, start_y);
-  unsigned char goal_cost = costmap_->getCost(goal_x, goal_y);
-  
-  if (start_cost >= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
-    RCLCPP_ERROR(node_->get_logger(), "SMAC 2D: Start position is in collision!");
-    return false;
-  }
-  
-  if (goal_cost >= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE && !allow_unknown_) {
-    RCLCPP_ERROR(node_->get_logger(), "SMAC 2D: Goal position is in collision!");
+  // Refresh cached metadata (avoid per-cell getters in the search loop).
+  costmap_origin_x_ = costmap_->getOriginX();
+  costmap_origin_y_ = costmap_->getOriginY();
+  costmap_resolution_ = costmap_->getResolution();
+  size_x_ = costmap_->getSizeInCellsX();
+  size_y_ = costmap_->getSizeInCellsY();
+  ensureSearchBuffers();
+
+  if (start_x >= size_x_ || start_y >= size_y_ || goal_x >= size_x_ || goal_y >= size_y_) {
     return false;
   }
 
-  NodePtr start_node = getOrAddNode(start_index);
-  NodePtr goal_node = getOrAddNode(goal_index);
+  ++planning_id_;
+  if (planning_id_ == 0u) {
+    std::fill(visited_.begin(), visited_.end(), 0u);
+    std::fill(closed_.begin(), closed_.end(), 0u);
+    std::fill(esdf_cost_cache_id_.begin(), esdf_cost_cache_id_.end(), 0u);
+    planning_id_ = 1u;
+  }
 
-  start_node->setAccumulatedCost(0.0);
-  start_node->setPose(Coordinates(start_x, start_y));
-  goal_node->setPose(Coordinates(goal_x, goal_y));
+  const uint64_t start_index = static_cast<uint64_t>(start_y) * static_cast<uint64_t>(size_x_) +
+    static_cast<uint64_t>(start_x);
+  const uint64_t goal_index = static_cast<uint64_t>(goal_y) * static_cast<uint64_t>(size_x_) +
+    static_cast<uint64_t>(goal_x);
 
-  // Priority queue for A*
-  typedef std::pair<float, NodePtr> QueueElement;
-  auto compare = [](const QueueElement & a, const QueueElement & b) {
-      return a.first > b.first;
-    };
-  std::priority_queue<QueueElement, std::vector<QueueElement>, decltype(compare)> open_list(
-    compare);
+  const auto * charmap = costmap_->getCharMap();
+  if (!charmap) {
+    return false;
+  }
 
-  // Add start to open list
-  float start_h = computeHeuristic(start_node, goal_node);
-  open_list.push({start_h, start_node});
-  start_node->queued();
-
-  int iterations = 0;
-  Node2D::NodeVector neighbors;
-
-  const uint64_t grid_size =
-    static_cast<uint64_t>(size_x_) * static_cast<uint64_t>(size_y_);
-
-  std::function<bool(const uint64_t &, NodePtr &)> neighbor_getter = 
-    [this, grid_size](const uint64_t & index, NodePtr & neighbor_out) -> bool {
-      if (index >= grid_size) {
-        return false;
+  const auto is_traversable = [this, charmap](const uint64_t index) -> bool {
+      const unsigned char cost = charmap[static_cast<size_t>(index)];
+      if (cost == nav2_costmap_2d::NO_INFORMATION) {
+        return allow_unknown_;
       }
-      neighbor_out = getOrAddNode(index);
-      return true;
+      return cost < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
     };
 
-  while (!open_list.empty() && iterations < max_iterations_) {
-    // Check for cancellation
-    if (cancel_checker && iterations % 100 == 0 && cancel_checker()) {
+  if (!is_traversable(start_index) || !is_traversable(goal_index)) {
+    return false;
+  }
+
+  const float step_cardinal = static_cast<float>(costmap_resolution_);
+  const float step_diagonal = step_cardinal * 1.41421356237f;
+  const float D = step_cardinal;
+  const float D2 = step_diagonal;
+
+  const auto heuristic = [D, D2, goal_x, goal_y](const unsigned int x, const unsigned int y) {
+      const unsigned int dx = (x > goal_x) ? (x - goal_x) : (goal_x - x);
+      const unsigned int dy = (y > goal_y) ? (y - goal_y) : (goal_y - y);
+      const unsigned int min_d = (dx < dy) ? dx : dy;
+      return D * static_cast<float>(dx + dy) + (D2 - 2.0f * D) * static_cast<float>(min_d);
+    };
+
+  const float tol_cells = (costmap_resolution_ > 1e-9) ?
+    static_cast<float>(tolerance_ / costmap_resolution_) :
+    tolerance_;
+  const float tol_sq = tol_cells * tol_cells;
+
+  // Min-heap open list
+  std::priority_queue<NodeMin, std::vector<NodeMin>, std::greater<NodeMin>> open;
+
+  visited_[static_cast<size_t>(start_index)] = planning_id_;
+  closed_[static_cast<size_t>(start_index)] = 0u;
+  g_score_[static_cast<size_t>(start_index)] = 0.0f;
+  parent_[static_cast<size_t>(start_index)] = -1;
+  open.push(NodeMin{start_index, heuristic(start_x, start_y)});
+
+  uint64_t goal_reached_index = goal_index;
+  bool goal_reached = false;
+  int iterations = 0;
+
+  while (!open.empty() && iterations < max_iterations_) {
+    if (cancel_checker && cancel_checker()) {
       return false;
     }
 
-    // Get best node
-    auto current = open_list.top();
-    open_list.pop();
-    NodePtr current_node = current.second;
+    const NodeMin current = open.top();
+    open.pop();
 
-    // Skip if already visited
-    if (current_node->wasVisited()) {
+    const uint64_t current_index = current.index;
+    const size_t current_i = static_cast<size_t>(current_index);
+    if (closed_[current_i] == planning_id_) {
       continue;
     }
+    closed_[current_i] = planning_id_;
+    ++iterations;
 
-    current_node->visited();
-    iterations++;
-    
-    // Check if goal reached
-    if (current_node->getIndex() == goal_index) {
-      return current_node->backtracePath(path);
+    const uint64_t cy = current_index / static_cast<uint64_t>(size_x_);
+    const uint64_t cx = current_index - cy * static_cast<uint64_t>(size_x_);
+    const unsigned int cx_u = static_cast<unsigned int>(cx);
+    const unsigned int cy_u = static_cast<unsigned int>(cy);
+
+    const float dx = static_cast<float>((cx_u > goal_x) ? (cx_u - goal_x) : (goal_x - cx_u));
+    const float dy = static_cast<float>((cy_u > goal_y) ? (cy_u - goal_y) : (goal_y - cy_u));
+    if (dx * dx + dy * dy <= tol_sq) {
+      goal_reached = true;
+      goal_reached_index = current_index;
+      break;
     }
 
-    // Expand neighbors
-    neighbors.clear();
-    current_node->getNeighbors(neighbor_getter, collision_checker_.get(), allow_unknown_, neighbors);
+    const float g_current = g_score_[current_i];
 
-    for (auto * neighbor : neighbors) {
-      float tentative_g = current_node->getAccumulatedCost() +
-                          current_node->getTraversalCost(neighbor) +
-                          getESDFPotentialCost(neighbor->getIndex());
+    // 8-connected neighbors: (dx,dy,cost)
+    // No division/mod in the inner neighbor expansion loop.
+    const int offsets[8][2] = {
+      {-1, 0}, {1, 0}, {0, -1}, {0, 1},
+      {-1, -1}, {1, -1}, {-1, 1}, {1, 1}
+    };
 
-      if (tentative_g < neighbor->getAccumulatedCost()) {
-        neighbor->setAccumulatedCost(tentative_g);
-        neighbor->parent = current_node;
+    for (int k = 0; k < 8; ++k) {
+      const int nx_i = static_cast<int>(cx_u) + offsets[k][0];
+      const int ny_i = static_cast<int>(cy_u) + offsets[k][1];
+      if (nx_i < 0 || ny_i < 0) {
+        continue;
+      }
+      const unsigned int nx = static_cast<unsigned int>(nx_i);
+      const unsigned int ny = static_cast<unsigned int>(ny_i);
+      if (nx >= size_x_ || ny >= size_y_) {
+        continue;
+      }
 
-        // Reinsert with updated priority (allow duplicates; visited() check filters them).
-        float f = tentative_g + computeHeuristic(neighbor, goal_node);
-        open_list.push({f, neighbor});
-        neighbor->queued();
+      const uint64_t neighbor_index =
+        static_cast<uint64_t>(ny) * static_cast<uint64_t>(size_x_) + static_cast<uint64_t>(nx);
+      const size_t neighbor_i = static_cast<size_t>(neighbor_index);
+      if (closed_[neighbor_i] == planning_id_) {
+        continue;
+      }
+
+      if (!is_traversable(neighbor_index)) {
+        continue;
+      }
+
+      const bool diagonal = (k >= 4);
+      const float step_cost = diagonal ? step_diagonal : step_cardinal;
+
+      // Inline traversal cost (avoid Node2D / virtual / std::function overhead).
+      const unsigned char cell_cost = charmap[neighbor_i];
+      float normalized_cost = 0.0f;
+      if (cell_cost != nav2_costmap_2d::NO_INFORMATION) {
+        normalized_cost = static_cast<float>(cell_cost) / MAX_NON_OBSTACLE_COST;
+      }
+      if (search_info_.use_quadratic_cost_penalty) {
+        normalized_cost = normalized_cost * normalized_cost;
+      }
+      const float traversal_factor = 1.0f + search_info_.cost_penalty * normalized_cost;
+
+      float tentative_g = g_current + step_cost * traversal_factor;
+      if (use_esdf_cost_) {
+        tentative_g += getESDFPotentialCost(nx, ny);
+      }
+
+      if (visited_[neighbor_i] != planning_id_ || tentative_g < g_score_[neighbor_i]) {
+        visited_[neighbor_i] = planning_id_;
+        g_score_[neighbor_i] = tentative_g;
+        parent_[neighbor_i] = static_cast<int>(current_index);
+
+        const float f = tentative_g + heuristic(nx, ny);
+        open.push(NodeMin{neighbor_index, f});
       }
     }
   }
 
-  // Path not found
-  if (iterations >= max_iterations_) {
-    RCLCPP_ERROR(
-      node_->get_logger(),
-      "SMAC 2D: Max iterations (%d) reached without finding path", max_iterations_);
-  } else {
-    RCLCPP_ERROR(
-      node_->get_logger(),
-      "SMAC 2D: Open list exhausted after %d iterations, no path exists", iterations);
+  if (!goal_reached && closed_[static_cast<size_t>(goal_index)] != planning_id_) {
+    return false;
   }
-  return false;
+
+  // Backtrace (goal -> start). Caller expects reversed ordering.
+  uint64_t index = goal_reached ? goal_reached_index : goal_index;
+  for (;;) {
+    const uint64_t y = index / static_cast<uint64_t>(size_x_);
+    const uint64_t x = index - y * static_cast<uint64_t>(size_x_);
+    path.emplace_back(static_cast<float>(x), static_cast<float>(y));
+
+    if (index == start_index) {
+      break;
+    }
+
+    const int p = parent_[static_cast<size_t>(index)];
+    if (p < 0) {
+      return false;
+    }
+    index = static_cast<uint64_t>(p);
+  }
+
+  return path.size() >= 2u;
 }
 
 }  // namespace smac

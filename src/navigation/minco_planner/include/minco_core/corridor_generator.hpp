@@ -1,17 +1,19 @@
 #ifndef MINCO_PLANNER__CORRIDOR_GENERATOR_HPP_
 #define MINCO_PLANNER__CORRIDOR_GENERATOR_HPP_
 
-#include <Eigen/Core>
 #include <memory>
 
+// Third party
+#include <Eigen/Core>
+
+// Project
 #include "small_rog_map/hybrid_esdf_map.hpp"
 
-namespace minco_planner
-{
+namespace minco_planner {
 
 // Represents half-space constraints in the form: n_x * x + n_y * y + n_z * z < d
 // A box typically has 6 faces (x_min, x_max, y_min, y_max, z_min, z_max).
-typedef Eigen::MatrixX4d PolyhedronH;
+using PolyhedronH = Eigen::MatrixX4d;
 
 class SimpleCorridorGenerator
 {
