@@ -19,6 +19,7 @@
 #include <memory>
 #include <stdexcept>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include "smac_search/types.hpp"
@@ -70,6 +71,7 @@ public:
    * @brief A constructor for minco_planner::smac::Node2D
    * @param index The index of this node for self-reference
    */
+  Node2D() = default;
   explicit Node2D(const uint64_t index);
 
   /**
@@ -141,35 +143,35 @@ public:
    * @brief Gets if cell has been visited in search
    * @param If cell was visited
    */
-  inline bool wasVisited()
+  inline bool wasVisited(const uint64_t & iter) const
   {
-    return _was_visited;
+    return _visited_iter == iter;
   }
 
   /**
    * @brief Sets if cell has been visited in search
    */
-  inline void visited()
+  inline void visited(const uint64_t & iter)
   {
-    _was_visited = true;
-    _is_queued = false;
+    _visited_iter = iter;
+    _queued_iter = 0u;
   }
 
   /**
    * @brief Gets if cell is currently queued in search
    * @param If cell was queued
    */
-  inline bool & isQueued()
+  inline bool isQueued(const uint64_t & iter) const
   {
-    return _is_queued;
+    return _queued_iter == iter;
   }
 
   /**
    * @brief Sets if cell is currently queued in search
    */
-  inline void queued()
+  inline void queued(const uint64_t & iter)
   {
-    _is_queued = true;
+    _queued_iter = iter;
   }
 
   /**
@@ -181,12 +183,12 @@ public:
     return _index;
   }
 
-  inline uint32_t getLastSearchId() const
+  inline uint64_t getLastSearchId() const
   {
     return _last_search_id;
   }
 
-  inline void setLastSearchId(const uint32_t id)
+  inline void setLastSearchId(const uint64_t id)
   {
     _last_search_id = id;
   }
@@ -285,6 +287,7 @@ public:
     minco_planner::smac::Node2D * &)> & validity_checker,
     GridCollisionChecker * collision_checker,
     const bool & traverse_unknown,
+    const uint64_t & iter,
     NodeVector & neighbors);
 
   /**
@@ -294,20 +297,20 @@ public:
    */
   bool backtracePath(CoordinateVector & path);
 
-  Node2D * parent;
+  Node2D * parent{nullptr};
   Coordinates pose;
   static float cost_travel_multiplier;
   static std::vector<int> _neighbors_grid_offsets;
   static unsigned int _size_x;
 
 private:
-  float _cell_cost;
-  float _accumulated_cost;
-  uint64_t _index;
-  bool _was_visited;
-  bool _is_queued;
+  float _cell_cost{std::numeric_limits<float>::quiet_NaN()};
+  float _accumulated_cost{std::numeric_limits<float>::max()};
+  uint64_t _index{0u};
+  uint64_t _visited_iter{0u};
+  uint64_t _queued_iter{0u};
   bool _in_collision{false};
-  uint32_t _last_search_id{0};
+  uint64_t _last_search_id{0u};
 };
 
 }  // namespace smac
