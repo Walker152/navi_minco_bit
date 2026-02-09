@@ -1,14 +1,17 @@
 #include "minco_core/visualizer.hpp"
 
+// C++ standard library
+#include <chrono>
 #include <cmath>
 #include <cstring>
+#include <functional>
 #include <iomanip>
 #include <sstream>
 
+// ROS 2
 #include "sensor_msgs/msg/point_field.hpp"
 
-namespace minco_planner
-{
+namespace minco_planner {
 
 void Visualizer::configure(
   const nav2_util::LifecycleNode::WeakPtr & parent,
@@ -25,20 +28,25 @@ void Visualizer::configure(
     return;
   }
 
-  // Vis publishers
-  opt_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
-    "/opt_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)));
+  // --- Visualization publishers ---------------------------------------------
 
+  // Backup
   backup_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
     "/backup_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)));
 
+  // Optimized
+  opt_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
+    "/opt_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)));
+
+  // A* guide path
   astar_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
     "/astar_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
 
+  // Markers
   control_points_vis_pub_ = node->create_publisher<visualization_msgs::msg::Marker>(
     "/minco_control_points_vis", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
 
-  // ESDF cloud pub
+  // ESDF cloud
   esdf_cloud_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>(
     "/esdf_cloud", 10);
 
@@ -105,57 +113,6 @@ void Visualizer::update(
   has_vis_opt_traj_ = (opt_traj.getTotalDuration() > 1e-3);
 
   vis_astar_path_ = astar_path;
-}
-
-nav_msgs::msg::Path Visualizer::convertTrajectoryToPath(
-  const traj_opt::Trajectory & traj,
-  const std_msgs::msg::Header & header,
-  int steps,
-  double t_step) const
-{
-  nav_msgs::msg::Path path_msg;
-  path_msg.header = header;
-
-  if (steps <= 0 || t_step <= 0.0) {
-    return path_msg;
-  }
-
-  path_msg.poses.resize(static_cast<size_t>(steps));
-
-  const double total_duration = traj.getTotalDuration();
-  for (int i = 0; i < steps; ++i)
-  {
-    double t = i * t_step;
-    if (t > total_duration) {
-      t = total_duration;
-    }
-
-    Eigen::Vector3d pos = traj.getPos(t);
-    Eigen::Vector3d vel = traj.getVel(t);
-
-    pos.z() = 0.0;
-    vel.z() = 0.0;
-
-    double yaw = 0.0;
-    if (vel.head<2>().norm() > 1e-4) {
-      yaw = std::atan2(vel(1), vel(0));
-    } else if (i > 0) {
-      const auto & last_q = path_msg.poses[static_cast<size_t>(i - 1)].pose.orientation;
-      yaw = 2.0 * std::atan2(last_q.z, last_q.w);
-    }
-
-    auto & pose = path_msg.poses[static_cast<size_t>(i)];
-    pose.header = header;
-    pose.pose.position.x = pos(0);
-    pose.pose.position.y = pos(1);
-    pose.pose.position.z = 0.0;
-    pose.pose.orientation.x = 0.0;
-    pose.pose.orientation.y = 0.0;
-    pose.pose.orientation.z = std::sin(yaw / 2.0);
-    pose.pose.orientation.w = std::cos(yaw / 2.0);
-  }
-
-  return path_msg;
 }
 
 void Visualizer::visualTimerCallback()
@@ -251,6 +208,56 @@ void Visualizer::visualTimerCallback()
   }
 }
 
+nav_msgs::msg::Path Visualizer::convertTrajectoryToPath(
+  const traj_opt::Trajectory & traj,
+  const std_msgs::msg::Header & header,
+  int steps,
+  double t_step) const
+{
+  nav_msgs::msg::Path path_msg;
+  path_msg.header = header;
+
+  if (steps <= 0 || t_step <= 0.0) {
+    return path_msg;
+  }
+
+  path_msg.poses.resize(static_cast<size_t>(steps));
+
+  const double total_duration = traj.getTotalDuration();
+  for (int i = 0; i < steps; ++i) {
+    double t = i * t_step;
+    if (t > total_duration) {
+      t = total_duration;
+    }
+
+    Eigen::Vector3d pos = traj.getPos(t);
+    Eigen::Vector3d vel = traj.getVel(t);
+
+    pos.z() = 0.0;
+    vel.z() = 0.0;
+
+    double yaw = 0.0;
+    if (vel.head<2>().norm() > 1e-4) {
+      yaw = std::atan2(vel(1), vel(0));
+    } else if (i > 0) {
+      const auto & last_q = path_msg.poses[static_cast<size_t>(i - 1)].pose.orientation;
+      yaw = 2.0 * std::atan2(last_q.z, last_q.w);
+    }
+
+    auto & pose = path_msg.poses[static_cast<size_t>(i)];
+    pose.header = header;
+    pose.pose.position.x = pos(0);
+    pose.pose.position.y = pos(1);
+    pose.pose.position.z = 0.0;
+    pose.pose.orientation.x = 0.0;
+    pose.pose.orientation.y = 0.0;
+    pose.pose.orientation.z = std::sin(yaw / 2.0);
+    pose.pose.orientation.w = std::cos(yaw / 2.0);
+  }
+
+  return path_msg;
+}
+
 void Visualizer::publishEsdfCloud(const std_msgs::msg::Header & header)
 {
   if (!esdf_cloud_pub_ || !esdf_map_) {
@@ -317,22 +324,22 @@ void Visualizer::publishEsdfCloud(const std_msgs::msg::Header & header)
   cloud.row_step = cloud.point_step * cloud.width;
   cloud.data.resize(static_cast<size_t>(cloud.row_step) * cloud.height);
 
-  for (int iy = 0; iy < height; ++iy)
-  {
-    for (int ix = 0; ix < width; ++ix)
-    {
+  for (int iy = 0; iy < height; ++iy) {
+    for (int ix = 0; ix < width; ++ix) {
       const float x = static_cast<float>(origin.x() + ix * res);
       const float y = static_cast<float>(origin.y() + iy * res);
       const float z = 0.0f;
       double dist = 0.0;
       Eigen::Vector3d grad;
-      esdf_map_->evaluate(Eigen::Vector3d(static_cast<double>(x), static_cast<double>(y), 0.0), dist, grad);
+      esdf_map_->evaluate(
+        Eigen::Vector3d(static_cast<double>(x), static_cast<double>(y), 0.0), dist, grad);
       if (!std::isfinite(dist)) {
         dist = 0.0;
       }
       const float intensity = static_cast<float>(dist);
 
-      const size_t point_index = static_cast<size_t>(iy) * static_cast<size_t>(width) + static_cast<size_t>(ix);
+      const size_t point_index =
+        static_cast<size_t>(iy) * static_cast<size_t>(width) + static_cast<size_t>(ix);
       const size_t base = point_index * static_cast<size_t>(cloud.point_step);
       std::memcpy(&cloud.data[base + 0], &x, sizeof(float));
       std::memcpy(&cloud.data[base + 4], &y, sizeof(float));

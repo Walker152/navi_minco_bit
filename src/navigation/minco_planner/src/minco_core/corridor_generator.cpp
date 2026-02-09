@@ -59,7 +59,7 @@ PolyhedronH SimpleCorridorGenerator::generateSafeBox(
   const double z_min = center.z() - box_half_size;
   const double z_max = center.z() + box_half_size;
 
-  // 4. Build an axis-aligned box in half-space form
+  // 3. Build an axis-aligned box in half-space form
   PolyhedronH h(6, 4);
   // x >= x_min  -> -x < -x_min
   h.row(0) << -1.0, 0.0, 0.0, -x_min;

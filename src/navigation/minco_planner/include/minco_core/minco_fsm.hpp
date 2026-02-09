@@ -28,7 +28,7 @@ public:
 
   void callMainFsmOnce();
 
-  State getState() const {return state_;}
+  State getState() const { return state_; }
 
 private:
   void changeState(const char * caller, State new_state);
