@@ -44,13 +44,13 @@ public:
 
 private:
   void visualTimerCallback();
-  void publishEsdfCloud(const std_msgs::msg::Header & header);
-
   nav_msgs::msg::Path convertTrajectoryToPath(
     const traj_opt::Trajectory & traj,
     const std_msgs::msg::Header & header,
     int steps,
     double t_step) const;
+
+  void publishEsdfCloud(const std_msgs::msg::Header & header);
 
   nav2_util::LifecycleNode::WeakPtr node_;
   std::string global_frame_;
