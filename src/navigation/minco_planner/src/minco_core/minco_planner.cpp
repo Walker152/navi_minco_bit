@@ -402,6 +402,16 @@ void MincoPlanner::configure(
     node, name + ".minco_optimizer.traj_goal_tolerance", rclcpp::ParameterValue(0.5));
   node->get_parameter(name + ".minco_optimizer.traj_goal_tolerance", traj_goal_tolerance_);
 
+  // Corridor safety margins (for ESDF-based safe corridor generation)
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".corridor.robot_radius", rclcpp::ParameterValue(0.4));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".corridor.extra_margin", rclcpp::ParameterValue(0.15));
+  double corridor_robot_radius = 0.4;
+  double corridor_extra_margin = 0.15;
+  node->get_parameter(name + ".corridor.robot_radius", corridor_robot_radius);
+  node->get_parameter(name + ".corridor.extra_margin", corridor_extra_margin);
+
   minco_config.penaltyWeights.resize(4);
   minco_config.penaltyWeights(0) = penalty_weight_pos;
   minco_config.penaltyWeights(1) = penalty_weight_vel;
@@ -419,7 +429,7 @@ void MincoPlanner::configure(
   // Initialize SMAC 2D Planner
   if (use_smac_) {
     smac_planner_ = std::make_unique<minco_planner::smac::SmacPlanner2DSimple>();
-    smac_planner_->configure(node, costmap_ros_);
+    smac_planner_->configure(node, costmap_ros_, name + ".");
     smac_planner_->setParameters(allow_unknown_, 1000000, tolerance_);
     RCLCPP_INFO(logger_, "SMAC 2D Planner initialized and will be used for path planning");
   }
@@ -446,6 +456,11 @@ void MincoPlanner::configure(
               << "Successfully loaded Static ESDF map from PCD: " << esdf_pcd_path_ << RESET << std::endl;
   }
 
+  // Inject ESDF map into SMAC search (used only when smac_2d.use_esdf_cost=true)
+  if (use_smac_ && smac_planner_) {
+    smac_planner_->setESDFMap(esdf_map_);
+  }
+
   // Visualization / ESDF publishing helper
   visualizer_ = std::make_unique<Visualizer>();
   visualizer_->configure(parent, global_frame_, esdf_map_, esdf_loaded);
@@ -453,6 +468,7 @@ void MincoPlanner::configure(
   // Initialize Minco Optimizer
   minco_optimizer_ = std::make_unique<MincoOptimizer>(minco_config);
   corridor_gen_ = std::make_shared<SimpleCorridorGenerator>(esdf_map_);
+  corridor_gen_->setSafetyMargins(corridor_robot_radius, corridor_extra_margin);
   backup_opt_ = std::make_unique<traj_opt::BackupTrajOpt>();
   minco_optimizer_->setESDFMap(esdf_map_); 
 
@@ -965,36 +981,128 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
       }
   }
 
-  // 7.5 Shifted hot-start (reuse remaining Ps/Ts, extend tail with cold init).
-  if (state == PlanningState::HOT_START && has_shifted_seed) {
+  // 7.5 Initial guess Ps/Ts for optimizer (all cases)
+  {
     const int N = static_cast<int>(sparse_path.size()) - 1;
     if (N > 0) {
-      VecDf init_ts(N);
-      const double speed = std::max(1e-3, 0.8 * std::max(0.0, minco_config.max_vel));
-      for (int i = 0; i < N; ++i) {
-        const double dis = (sparse_path[static_cast<size_t>(i + 1)] -
-                            sparse_path[static_cast<size_t>(i)]).head<2>().norm();
-        init_ts(i) = std::max(0.1, dis / speed);
-      }
+      const double vmax = std::max(0.0, minco_config.max_vel);
+      const double amax = std::max(1e-3, minco_config.max_acc);
+      const double kMinSegTime = 0.1;
+      const double kBrakeSafety = 1.2;
 
-      const int oldN = std::min(N, static_cast<int>(shifted_durations.size()));
-      for (int i = 0; i < oldN; ++i) {
-        const double t = shifted_durations(i);
-        if (std::isfinite(t) && t > 0.02) {
-          init_ts(i) = t;
-        }
-      }
-
+      // Build init control points (Ps). Use shifted seed when available.
       vec_Vec3f init_ps;
       init_ps.reserve(static_cast<size_t>(std::max(0, N - 1)));
-      const int oldWp = static_cast<int>(shifted_waypoints.size());
-      const int oldPs = std::max(0, oldWp - 2);
-      const int copyPs = std::min(std::max(0, N - 1), oldPs);
+      int copyPs = 0;
+      if (state == PlanningState::HOT_START && has_shifted_seed) {
+        const int oldWp = static_cast<int>(shifted_waypoints.size());
+        const int oldPs = std::max(0, oldWp - 2);
+        copyPs = std::min(std::max(0, N - 1), oldPs);
+      }
       for (int j = 0; j < (N - 1); ++j) {
         if (j < copyPs) {
           init_ps.emplace_back(shifted_waypoints[static_cast<size_t>(j + 1)]);
         } else {
           init_ps.emplace_back(sparse_path[static_cast<size_t>(j + 1)]);
+        }
+      }
+
+      // Kinematics-aware time allocation.
+      // Start speed magnitude from start_state.
+      double v_curr = start_state.col(1).norm();
+      if (!std::isfinite(v_curr) || v_curr < 0.0) {
+        v_curr = 0.0;
+      }
+
+      std::vector<double> seg_len;
+      seg_len.resize(static_cast<size_t>(N), 0.0);
+      for (int i = 0; i < N; ++i) {
+        const double dis = (sparse_path[static_cast<size_t>(i + 1)] -
+                            sparse_path[static_cast<size_t>(i)]).head<2>().norm();
+        seg_len[static_cast<size_t>(i)] = (std::isfinite(dis) && dis > 0.0) ? dis : 0.0;
+      }
+
+      VecDf init_ts(N);
+      for (int i = 0; i < N; ++i) {
+        const bool is_last = (i == N - 1);
+        const double L = seg_len[static_cast<size_t>(i)];
+
+        // Remaining distance after this segment (for stop feasibility capping).
+        double remain_after = 0.0;
+        for (int k = i + 1; k < N; ++k) {
+          remain_after += seg_len[static_cast<size_t>(k)];
+        }
+
+        if (L <= 1e-6) {
+          init_ts(i) = kMinSegTime;
+          continue;
+        }
+
+        if (is_last) {
+          // Goal segment: ensure enough time to brake from current speed.
+          const double t_stop = v_curr / amax;
+          const double t_dist = L / std::max(v_curr, 0.1);  // avoid tiny time when v is near 0
+          init_ts(i) = std::max({kMinSegTime, t_dist, kBrakeSafety * t_stop});
+          v_curr = 0.0;
+          continue;
+        }
+
+        // Predict reachable speed at end of this segment under accel limits.
+        double v_next = std::sqrt(std::max(0.0, v_curr * v_curr + 2.0 * amax * L));
+        if (std::isfinite(vmax) && vmax > 0.0) {
+          v_next = std::min(v_next, vmax);
+        }
+
+        // Cap speed to ensure it can stop within remaining path length.
+        if (remain_after > 1e-6) {
+          const double v_cap_stop = std::sqrt(std::max(0.0, 2.0 * amax * remain_after));
+          v_next = std::min(v_next, v_cap_stop);
+        } else {
+          v_next = 0.0;
+        }
+
+        if (!std::isfinite(v_next) || v_next < 0.0) {
+          v_next = 0.0;
+        }
+
+        // Time from constant-accel / accel+cruise approximation.
+        double t = 0.0;
+        const double v_sum = v_curr + v_next;
+        if (v_sum > 1e-3) {
+          t = 2.0 * L / v_sum;
+        } else {
+          t = L / 0.1;
+        }
+
+        // If saturating at vmax and still long, include cruise time.
+        if (vmax > 1e-6 && std::abs(v_next - vmax) < 1e-6 && v_curr < vmax - 1e-6) {
+          const double d_acc = (vmax * vmax - v_curr * v_curr) / (2.0 * amax);
+          if (std::isfinite(d_acc) && d_acc > 0.0 && L > d_acc) {
+            const double t_acc = (vmax - v_curr) / amax;
+            const double t_cruise = (L - d_acc) / vmax;
+            const double t_alt = t_acc + t_cruise;
+            if (std::isfinite(t_alt) && t_alt > 0.0) {
+              t = t_alt;
+            }
+          }
+        }
+
+        if (!std::isfinite(t) || t < kMinSegTime) {
+          t = kMinSegTime;
+        }
+
+        init_ts(i) = t;
+        v_curr = v_next;
+      }
+
+      // If we have shifted seed durations, keep them only as a lower bound (never shorten below kinematics).
+      if (state == PlanningState::HOT_START && has_shifted_seed) {
+        const int oldN = std::min(N, static_cast<int>(shifted_durations.size()));
+        for (int i = 0; i < oldN; ++i) {
+          const double t_seed = shifted_durations(i);
+          if (std::isfinite(t_seed) && t_seed > 0.02) {
+            init_ts(i) = std::max(init_ts(i), t_seed);
+          }
         }
       }
 

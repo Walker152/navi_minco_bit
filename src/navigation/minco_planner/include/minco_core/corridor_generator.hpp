@@ -20,10 +20,15 @@ public:
 
   explicit SimpleCorridorGenerator(small_rog_map::HybridESDFMap::Ptr esdf_map);
 
+  void setSafetyMargins(double robot_radius, double extra_margin);
+
   PolyhedronH generateSafeBox(const Eigen::Vector3d & center, double max_radius = 2.0) const;
 
 private:
   small_rog_map::HybridESDFMap::Ptr esdf_map_;
+
+  double robot_radius_{0.4};
+  double extra_margin_{0.15};
 };
 
 }  // namespace minco_planner
