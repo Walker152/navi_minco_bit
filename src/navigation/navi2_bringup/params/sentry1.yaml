@@ -388,10 +388,21 @@ planner_server:
       tolerance: 0.3
       use_smac: true
       allow_unknown: false
+
+      corridor:
+        robot_radius: 0.4
+        extra_margin: 0.15
+
+      smac_2d:
+        use_esdf_cost: true
+        esdf_weight: 1.0
+        esdf_decay: 0.9
+        esdf_max_cost: 5.0
+
       minco_optimizer:
         opt_freq: 20.0
         safe_dist: 0.4
-        lookahead_dist: 5.0  # 前视距离,用于minco部分优化
+        lookahead_dist: 25.0  # 前视距离,用于minco部分优化
         max_velocity: 2.0
         max_acceleration: 3.0
         time_allocation_iters: 15
@@ -405,7 +416,8 @@ planner_server:
         penalty_weight_acc: 1000.0
         penalty_weight_att: 100.0
       static_esdf:
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/2026_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
         esdf_resolution: 0.05
 
 smoother_server:

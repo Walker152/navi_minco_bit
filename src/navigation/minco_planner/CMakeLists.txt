@@ -35,20 +35,15 @@ set(library_name minco_planner)
 file(GLOB UTILS_SOURCES "src/utils/*.cpp")
 file(GLOB SMALL_ROG_MAP_SOURCES "src/small_rog_map/*.cpp")
 file(GLOB SMAC_SEARCH_SOURCES "src/smac_search/*.cpp")
+file(GLOB MINCO_CORE_SOURCES "src/minco_core/*.cpp")
+file(GLOB TRAJ_OPT_SOURCES "src/traj_opt/*.cpp")
 
 add_library(${library_name} SHARED
-  src/minco_core/minco_planner.cpp
-  src/minco_core/minco_fsm.cpp
-  src/minco_core/visualizer.cpp
-  src/minco_core/astar.cpp
-  src/minco_core/corridor_generator.cpp
-  src/traj_opt/backup_traj_optimizer_s4.cpp
-  src/traj_opt/minco_optimizer.cpp
-  # MINCO utils sources
   ${UTILS_SOURCES}
   ${SMALL_ROG_MAP_SOURCES}
-  # SMAC 2D search sources
   ${SMAC_SEARCH_SOURCES}
+  ${MINCO_CORE_SOURCES}
+  ${TRAJ_OPT_SOURCES}
 )
 
 include_directories(
