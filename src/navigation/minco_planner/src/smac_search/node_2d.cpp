@@ -33,8 +33,6 @@ Node2D::Node2D(const uint64_t index)
   _cell_cost(std::numeric_limits<float>::quiet_NaN()),
   _accumulated_cost(std::numeric_limits<float>::max()),
   _index(index),
-  _was_visited(false),
-  _is_queued(false),
   _in_collision(false)
 {
 }
@@ -46,12 +44,8 @@ Node2D::~Node2D()
 
 void Node2D::reset()
 {
-  parent = nullptr;
   _cell_cost = std::numeric_limits<float>::quiet_NaN();
   _accumulated_cost = std::numeric_limits<float>::max();
-  _was_visited = false;
-  _is_queued = false;
-  _in_collision = false;
 }
 
 bool Node2D::isNodeValid(
@@ -120,6 +114,7 @@ void Node2D::getNeighbors(
   minco_planner::smac::Node2D * &)> & NeighborGetter,
   GridCollisionChecker * collision_checker,
   const bool & traverse_unknown,
+  const uint64_t & iter,
   NodeVector & neighbors)
 {
   uint64_t index;
@@ -138,7 +133,7 @@ void Node2D::getNeighbors(
     }
 
     if (NeighborGetter(index, neighbor)) {
-      if (neighbor->isNodeValid(traverse_unknown, collision_checker) && !neighbor->wasVisited()) {
+      if (neighbor->isNodeValid(traverse_unknown, collision_checker) && !neighbor->wasVisited(iter)) {
         neighbors.push_back(neighbor);
       }
     }
