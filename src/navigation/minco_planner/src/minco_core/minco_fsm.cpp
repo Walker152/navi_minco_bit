@@ -49,11 +49,13 @@ void MincoFsm::callMainFsmOnce()
   }
 
   // Consume latest goal (createPlan only sets this flag).
-  geometry_msgs::msg::PoseStamped new_goal;
-  if (planner_->consumePendingGoal(new_goal)) {
-    goal_ = new_goal;
-    has_goal_ = true;
-    changeState("NewGoal", State::GENERATE_TRAJ);
+  if (state_ != State::EMER_STOP) {
+    geometry_msgs::msg::PoseStamped new_goal;
+    if (planner_->consumePendingGoal(new_goal)) {
+      goal_ = new_goal;
+      has_goal_ = true;
+      changeState("NewGoal", State::GENERATE_TRAJ);
+    }
   }
 
   // Get current robot pose.
@@ -166,14 +168,41 @@ void MincoFsm::callMainFsmOnce()
       if (!has_odom) {
         return;
       }
+
+      // 1) First run: publish independent brake trajectory.
       if (!stop_published_) {
         planner_->publishEmergencyStop(current_pose);
         stop_published_ = true;
+        emer_stop_start_time_ = planner_->nowSeconds();
+        has_goal_ = false;  // After emergency stop, wait for next goal.
       }
-      // After emergency stop, wait for next goal.
-      has_goal_ = false;
-      changeState("EMER_STOP", State::WAIT_GOAL);
-      break;
+
+      // 2) Timeout protection: avoid deadlock.
+      const double now_s = planner_->nowSeconds();
+      if (std::isfinite(now_s) && std::isfinite(emer_stop_start_time_) &&
+          (now_s - emer_stop_start_time_) > 5.0) {
+        std::cout << "[MincoFSM] EMER_STOP timeout (>5s). Forcing reset to WAIT_GOAL." << std::endl;
+        has_goal_ = false;
+        changeState("EMER_TIMEOUT", State::WAIT_GOAL);
+        return;
+      }
+
+      // 3) Blocking wait until fully stopped.
+      const double speed = planner_->getCurrentSpeed();
+      if (std::isfinite(speed) && speed > 0.1) {
+        return;
+      }
+
+      // 4) Recovery: stopped, check safety before leaving EMER_STOP.
+      if (planner_->checkCollision()) {
+        std::cout << "[MincoFSM] Robot stopped and safe." << std::endl;
+        has_goal_ = false;
+        changeState("EMER_SAFE", State::WAIT_GOAL);
+        return;
+      }
+
+      std::cout << "[MincoFSM] Robot stopped but in collision, keep EMER_STOP." << std::endl;
+      return;
     }
 
     default:
