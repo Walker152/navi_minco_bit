@@ -15,15 +15,13 @@
 #ifndef MINCO_PLANNER__SMAC_SEARCH__SMAC_PLANNER_2D_SIMPLE_HPP_
 #define MINCO_PLANNER__SMAC_SEARCH__SMAC_PLANNER_2D_SIMPLE_HPP_
 
-#include <memory>
-#include <unordered_map>
-#include <vector>
-#include <string>
-#include <functional>
 #include <cstdint>
+#include <functional>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "smac_search/node_2d.hpp"
-#include "smac_search/collision_checker.hpp"
 #include "smac_search/constants.hpp"
 #include "smac_search/types.hpp"
 
@@ -48,9 +46,25 @@ namespace smac
 class SmacPlanner2DSimple
 {
 public:
-  typedef Node2D::NodePtr NodePtr;
-  typedef Node2D::Coordinates Coordinates;
-  typedef Node2D::CoordinateVector CoordinateVector;
+  struct Coordinates
+  {
+    Coordinates() = default;
+    Coordinates(float x_in, float y_in)
+    : x(x_in), y(y_in)
+    {}
+
+    float x{0.0f};
+    float y{0.0f};
+  };
+
+  using CoordinateVector = std::vector<Coordinates>;
+
+  struct NodeMin
+  {
+    uint64_t index{0u};
+    float f_score{0.0f};
+    bool operator>(const NodeMin & other) const {return f_score > other.f_score;}
+  };
 
   /**
    * @brief Constructor
@@ -124,37 +138,12 @@ public:
     float tolerance);
 
 private:
-  /**
-   * @brief Initialize graph for search
-   */
-  void initializeGraph();
-
-  /**
-   * @brief Get or add node to graph
-   * @param index Node index
-   * @return Node pointer
-   */
-  NodePtr getOrAddNode(const uint64_t & index);
-
-  /**
-   * @brief Compute heuristic cost
-   * @param node Current node
-   * @param goal Goal node
-   * @return Heuristic cost
-   */
-  float computeHeuristic(const NodePtr & node, const NodePtr & goal);
+  void ensureSearchBuffers();
 
   /**
    * @brief Compute ESDF-based potential cost for a grid cell index
    */
-  float getESDFPotentialCost(const uint64_t & index);
-
-  /**
-   * @brief Clear all data structures for new search
-   */
-  void clear();
-
-  void clearNodePool();
+  float getESDFPotentialCost(unsigned int mx, unsigned int my);
 
   // Parameters
   bool allow_unknown_;
@@ -167,14 +156,18 @@ private:
   unsigned int size_x_;
   unsigned int size_y_;
 
-  // Collision checker
-  std::unique_ptr<GridCollisionChecker> collision_checker_;
+  // Cached costmap metadata (updated in configure()/createPath() to avoid per-cell getters).
+  double costmap_origin_x_{0.0};
+  double costmap_origin_y_{0.0};
+  double costmap_resolution_{0.0};
 
-  // Graph
-  std::vector<std::unique_ptr<Node2D>> graph_;
-  std::unordered_map<uint64_t, Node2D *> graph_lookup_;
-  std::vector<Node2D *> touched_nodes_;
-  uint32_t search_id_{0};
+  // SoA search buffers (lazy reset via planning_id_)
+  std::vector<float> g_score_;
+  std::vector<int> parent_;
+  std::vector<uint32_t> visited_;
+  std::vector<uint32_t> closed_;
+  uint32_t planning_id_{0u};
+  uint64_t grid_size_{0u};
 
   // Optional ESDF biasing
   std::shared_ptr<small_rog_map::HybridESDFMap> esdf_map_{nullptr};
@@ -182,7 +175,10 @@ private:
   float esdf_weight_{1.0f};
   float esdf_decay_{0.5f};
   float esdf_max_cost_{5.0f};
-  std::unordered_map<uint64_t, float> esdf_cost_cache_;
+
+  // Per-planning-iteration cache to avoid allocations in the search loop.
+  std::vector<float> esdf_cost_cache_;
+  std::vector<uint32_t> esdf_cost_cache_id_;
   
   // Search info
   SearchInfo search_info_;
