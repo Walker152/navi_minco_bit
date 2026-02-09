@@ -15,6 +15,7 @@
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav2_core/global_planner.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "nav2_util/lifecycle_node.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
@@ -88,6 +89,8 @@ public:
   bool getRobotPose(geometry_msgs::msg::PoseStamped & pose) const;
 
   // Goal handoff: createPlan() only sets this flag, FSM consumes it.
+  // Get current robot planar speed magnitude from odometry.
+  double getCurrentSpeed() const;
   bool consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out);
 
   void publishEmergencyStop(const geometry_msgs::msg::PoseStamped & current_pose);
@@ -101,8 +104,6 @@ public:
 
   traj_opt::Trajectory generateBackupTraj(const Eigen::Matrix3d& start_state);
   
-  // 路径抽稀
-  std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3d>& path); 
   bool isLineFree(const Eigen::Vector3d& start, const Eigen::Vector3d& end);
   bool worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my);
   void mapToWorld(double mx, double my, double & wx, double & wy);
@@ -131,18 +132,6 @@ private:
     const geometry_msgs::msg::Pose & start_pose,
     double t_dur,
     Eigen::Matrix3d & start_state);
-
-  void publishOptimizedTrajectory(
-    const traj_opt::Trajectory & opt_traj,
-    const std_msgs::msg::Header & header,
-    int steps,
-    double t_step);
-
-  void publishBackupTrajectory(
-    const traj_opt::Trajectory & backup_traj,
-    const std_msgs::msg::Header & header,
-    int steps,
-    double t_step);
 
   bool validateTrajectory(
     const traj_opt::Trajectory & traj,
@@ -211,6 +200,11 @@ private:
   
   rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
   mutable std::mutex mutex_;
+
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  mutable std::mutex odom_mutex_;
+  nav_msgs::msg::Odometry latest_odom_;
+  bool has_latest_odom_{false};
 };
 
 }  // namespace minco_planner
