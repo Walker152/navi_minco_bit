@@ -388,6 +388,7 @@ planner_server:
       tolerance: 0.3
       use_smac: true
       allow_unknown: false
+      odom_topic: /aft_mapped_to_init
 
       corridor:
         robot_radius: 0.4

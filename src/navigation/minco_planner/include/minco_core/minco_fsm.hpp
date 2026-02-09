@@ -46,6 +46,7 @@ private:
   double traveled_dist_{0.0};
 
   bool stop_published_{false};
+  double emer_stop_start_time_{0.0};
 };
 
 }  // namespace minco_planner
