@@ -18,6 +18,7 @@
 #include <functional>
 #include <memory>
 #include <stdexcept>
+#include <cstdint>
 #include <vector>
 
 #include "smac_search/types.hpp"
@@ -180,6 +181,16 @@ public:
     return _index;
   }
 
+  inline uint32_t getLastSearchId() const
+  {
+    return _last_search_id;
+  }
+
+  inline void setLastSearchId(const uint32_t id)
+  {
+    _last_search_id = id;
+  }
+
   /**
    * @brief Check if this node is valid
    * @param traverse_unknown If we can explore unknown nodes on the graph
@@ -296,6 +307,7 @@ private:
   bool _was_visited;
   bool _is_queued;
   bool _in_collision{false};
+  uint32_t _last_search_id{0};
 };
 
 }  // namespace smac
