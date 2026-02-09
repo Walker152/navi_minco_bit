@@ -4,10 +4,8 @@
 #include <cmath>
 
 #include "data_structure/base/trajectory.h"
-#include "utils/header/color_text.hpp"
 
-namespace minco_planner::utils
-{
+namespace minco_planner::utils {
 
 double getDistFromTrapezoid(
   double t,
@@ -108,8 +106,7 @@ void publishOptimizedTrajectory(
   traj_msg.cmds.resize(steps);
 
   const uint32_t traj_id = ++trajectory_id_counter;
-  for (int i = 0; i < steps; ++i)
-  {
+  for (int i = 0; i < steps; ++i) {
     double t = i * t_step;
     if (t > opt_traj.getTotalDuration()) {
       t = opt_traj.getTotalDuration();
@@ -174,8 +171,7 @@ void publishBackupTrajectory(
   traj_msg.cmds.resize(steps);
 
   const uint32_t traj_id = ++trajectory_id_counter;
-  for (int i = 0; i < steps; ++i)
-  {
+  for (int i = 0; i < steps; ++i) {
     double t = i * t_step;
     if (t > backup_traj.getTotalDuration()) {
       t = backup_traj.getTotalDuration();
