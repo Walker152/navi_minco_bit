@@ -13,7 +13,10 @@
 
 using namespace std::placeholders;
 
-LidarMergerNode::LidarMergerNode() : Node("lidar_merger_node") {
+LidarMergerNode::LidarMergerNode() : LidarMergerNode(rclcpp::NodeOptions()) {}
+
+LidarMergerNode::LidarMergerNode(const rclcpp::NodeOptions & options)
+: Node("lidar_merger_node", options) {
   this->declare_parameter<std::string>("front_topic", "/livox/lidar_192_168_1_10");
   this->declare_parameter<std::string>("back_topic", "/livox/lidar_192_168_1_12");
   this->declare_parameter<std::string>("merged_topic", "/livox/lidar_merged");
@@ -164,3 +167,7 @@ void LidarMergerNode::syncCallback(
 
   pub_merged_->publish(msg_merged);
 }
+
+#include "rclcpp_components/register_node_macro.hpp"
+
+RCLCPP_COMPONENTS_REGISTER_NODE(LidarMergerNode)
