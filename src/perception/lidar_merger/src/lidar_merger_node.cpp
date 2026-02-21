@@ -1,0 +1,166 @@
+#include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <rclcpp/rclcpp.hpp>
+
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
+
+#include "lidar_merger/lidar_merger_node.hpp"
+
+using namespace std::placeholders;
+
+LidarMergerNode::LidarMergerNode() : Node("lidar_merger_node") {
+  this->declare_parameter<std::string>("front_topic", "/livox/lidar_192_168_1_10");
+  this->declare_parameter<std::string>("back_topic", "/livox/lidar_192_168_1_12");
+  this->declare_parameter<std::string>("merged_topic", "/livox/lidar_merged");
+  this->declare_parameter<std::string>("merged_frame_id", "livox_front_frame");
+  this->declare_parameter<int>("qos_depth", 10);
+  this->declare_parameter<bool>("best_effort", true);
+  this->declare_parameter<int>("sync_queue_size", 20);
+  this->declare_parameter(
+    "extrinsic_back_to_front",
+    std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
+
+  loadParams();
+  loadExtrinsics();
+
+  auto qos = rclcpp::QoS(rclcpp::KeepLast(qos_depth_)).durability_volatile();
+  if (best_effort_) {
+    qos.best_effort();
+  } else {
+    qos.reliable();
+  }
+
+  sub_front_.subscribe(this, front_topic_, qos.get_rmw_qos_profile());
+  sub_back_.subscribe(this, back_topic_, qos.get_rmw_qos_profile());
+
+  sync_ = std::make_shared<Synchronizer>(SyncPolicy(sync_queue_size_), sub_front_, sub_back_);
+  sync_->registerCallback(std::bind(&LidarMergerNode::syncCallback, this, _1, _2));
+
+  pub_merged_ = this->create_publisher<livox_ros_driver2::msg::CustomMsg>(merged_topic_, qos_depth_);
+
+  RCLCPP_INFO(this->get_logger(), "双雷达融合节点已启动。目标坐标系：主雷达 (前雷达)。");
+  RCLCPP_INFO(this->get_logger(), "front_topic: %s", front_topic_.c_str());
+  RCLCPP_INFO(this->get_logger(), "back_topic:  %s", back_topic_.c_str());
+  RCLCPP_INFO(this->get_logger(), "merged_topic:%s", merged_topic_.c_str());
+  RCLCPP_INFO(this->get_logger(), "merged_frame_id: %s", merged_frame_id_.c_str());
+  RCLCPP_INFO(this->get_logger(), "qos_depth=%d best_effort=%s sync_queue_size=%d",
+    qos_depth_, best_effort_ ? "true" : "false", sync_queue_size_);
+}
+
+void LidarMergerNode::loadParams() {
+  front_topic_ = this->get_parameter("front_topic").as_string();
+  back_topic_ = this->get_parameter("back_topic").as_string();
+  merged_topic_ = this->get_parameter("merged_topic").as_string();
+  merged_frame_id_ = this->get_parameter("merged_frame_id").as_string();
+  qos_depth_ = this->get_parameter("qos_depth").as_int();
+  best_effort_ = this->get_parameter("best_effort").as_bool();
+  sync_queue_size_ = this->get_parameter("sync_queue_size").as_int();
+
+  if (qos_depth_ <= 0) {
+    RCLCPP_WARN(this->get_logger(), "qos_depth=%d 非法，已重置为 10", qos_depth_);
+    qos_depth_ = 10;
+  }
+  if (sync_queue_size_ <= 0) {
+    RCLCPP_WARN(this->get_logger(), "sync_queue_size=%d 非法，已重置为 20", sync_queue_size_);
+    sync_queue_size_ = 20;
+  }
+  if (merged_frame_id_.empty()) {
+    merged_frame_id_ = "livox_front_frame";
+  }
+}
+
+void LidarMergerNode::loadExtrinsics() {
+  extrinsic_back_to_front_ = this->get_parameter("extrinsic_back_to_front").as_double_array();
+  if (extrinsic_back_to_front_.size() != 6) {
+    RCLCPP_ERROR(
+      this->get_logger(),
+      "参数 extrinsic_back_to_front 期望长度为 6，但实际为 %zu。将使用单位外参。",
+      extrinsic_back_to_front_.size());
+    T_front_back_ = Eigen::Matrix4f::Identity();
+    return;
+  }
+
+  const auto & p = extrinsic_back_to_front_;
+
+  Eigen::Affine3f t = Eigen::Affine3f::Identity();
+  t.translation() << static_cast<float>(p[0]), static_cast<float>(p[1]), static_cast<float>(p[2]);
+
+  // Roll-Pitch-Yaw: X-Y-Z (intrinsic). Apply in Z(Yaw) -> Y(Pitch) -> X(Roll) order.
+  t.rotate(Eigen::AngleAxisf(static_cast<float>(p[5]), Eigen::Vector3f::UnitZ()));
+  t.rotate(Eigen::AngleAxisf(static_cast<float>(p[4]), Eigen::Vector3f::UnitY()));
+  t.rotate(Eigen::AngleAxisf(static_cast<float>(p[3]), Eigen::Vector3f::UnitX()));
+
+  T_front_back_ = t.matrix();
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "已加载外参 back->front: [%.3f %.3f %.3f %.3f %.3f %.3f]",
+    p[0], p[1], p[2], p[3], p[4], p[5]);
+}
+
+livox_ros_driver2::msg::CustomPoint LidarMergerNode::transformPoint(
+  const livox_ros_driver2::msg::CustomPoint & pt_in,
+  const Eigen::Matrix4f & T) {
+  livox_ros_driver2::msg::CustomPoint pt_out = pt_in;
+
+  const Eigen::Vector3f p_in(pt_in.x, pt_in.y, pt_in.z);
+  const Eigen::Vector3f p_out = (T.block<3, 3>(0, 0) * p_in) + T.block<3, 1>(0, 3);
+
+  pt_out.x = p_out.x();
+  pt_out.y = p_out.y();
+  pt_out.z = p_out.z();
+
+  return pt_out;
+}
+
+void LidarMergerNode::syncCallback(
+  const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr & msg_front,
+  const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr & msg_back) {
+  livox_ros_driver2::msg::CustomMsg msg_merged;
+
+  msg_merged.header = msg_front->header;
+  msg_merged.header.frame_id = merged_frame_id_;
+
+  const uint64_t min_timebase = std::min(msg_front->timebase, msg_back->timebase);
+  msg_merged.timebase = min_timebase;
+
+  const size_t n_front = msg_front->points.size();
+  const size_t n_back = msg_back->points.size();
+  const size_t total = n_front + n_back;
+
+  msg_merged.points.resize(total);
+
+  const int64_t n_front_i = static_cast<int64_t>(n_front);
+  const int64_t n_back_i = static_cast<int64_t>(n_back);
+
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+  for (int64_t i = 0; i < n_front_i; ++i) {
+    const auto & pt = msg_front->points[static_cast<size_t>(i)];
+    livox_ros_driver2::msg::CustomPoint pt_out = pt;
+    const uint64_t absolute_time = msg_front->timebase + static_cast<uint64_t>(pt.offset_time);
+    pt_out.offset_time = static_cast<uint32_t>(absolute_time - min_timebase);
+    msg_merged.points[static_cast<size_t>(i)] = pt_out;
+  }
+
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+  for (int64_t i = 0; i < n_back_i; ++i) {
+    const auto & pt = msg_back->points[static_cast<size_t>(i)];
+    livox_ros_driver2::msg::CustomPoint pt_out = transformPoint(pt, T_front_back_);
+    const uint64_t absolute_time = msg_back->timebase + static_cast<uint64_t>(pt.offset_time);
+    pt_out.offset_time = static_cast<uint32_t>(absolute_time - min_timebase);
+    msg_merged.points[n_front + static_cast<size_t>(i)] = pt_out;
+  }
+
+  msg_merged.point_num = static_cast<uint32_t>(total);
+
+  pub_merged_->publish(msg_merged);
+}
