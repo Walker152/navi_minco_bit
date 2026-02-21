@@ -19,6 +19,7 @@
 class LidarMergerNode : public rclcpp::Node {
 public:
   LidarMergerNode();
+  explicit LidarMergerNode(const rclcpp::NodeOptions & options);
 
 private:
   void loadParams();
