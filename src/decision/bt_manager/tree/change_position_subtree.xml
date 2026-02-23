@@ -1,20 +1,34 @@
 <root BTCPP_format="4">
   <BehaviorTree ID="ChangePositionTree">
     <Fallback>
+      
       <Sequence name="MoveStance">
-        <CheckMPCondition name="CheckMPCondition" desired_stance="{move_desired_stance}" />
-        <ChangeStance name="ChangeStanceMove" desired_stance="{move_desired_stance}" />
+        <CheckMPCondition name="CheckMPCondition" />
+        
+        <ChangeStance name="ChangeStanceMove" 
+                      ros_interface="{ros_interface}"
+                      current_stance="{current_stance}"
+                      desired_stance="{desired_stance}" />
       </Sequence>
 
       <Sequence name="AttackStance">
-        <CheckAPCondition name="CheckAPCondition" desired_stance="{attack_desired_stance}" />
-        <ChangeStance name="ChangeStanceAttack" desired_stance="{attack_desired_stance}" />
+        <CheckAPCondition name="CheckAPCondition" />
+                          
+        <ChangeStance name="ChangeStanceAttack" 
+                      ros_interface="{ros_interface}"
+                      current_stance="{current_stance}"
+                      desired_stance="{desired_stance}" />
       </Sequence>
 
       <Sequence name="DefendStance">
-        <CheckDPCondition name="CheckDPCondition" desired_stance="{defend_desired_stance}" />
-        <ChangeStance name="ChangeStanceDefend" desired_stance="{defend_desired_stance}" />
+        <CheckDPCondition name="CheckDPCondition" />
+                          
+        <ChangeStance name="ChangeStanceDefend" 
+                      ros_interface="{ros_interface}"
+                      current_stance="{current_stance}"
+                      desired_stance="{desired_stance}" />
       </Sequence>
+
     </Fallback>
   </BehaviorTree>
 </root>

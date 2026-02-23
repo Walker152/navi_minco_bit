@@ -1,4 +1,7 @@
-#include "bt_manager/tf_utils.hpp"
+#include "bt_manager/utils/tf_utils.hpp"
+
+#include <chrono>
+#include <string>
 #include <cmath>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -7,7 +10,9 @@ namespace Sentry_BT
 {
 
   TransformUtils::TransformUtils()
-    : Node("transform_utils_node", rclcpp::NodeOptions().use_global_arguments(false))
+    : Node("transform_utils_" +
+               std::to_string(std::chrono::system_clock::now().time_since_epoch().count() % 10000),
+           rclcpp::NodeOptions().use_global_arguments(false))
   {
     tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
     tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());

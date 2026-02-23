@@ -1,42 +1,52 @@
 <root main_tree_to_execute="MainTree">
-  <include path="change_position_subtree.xml"/>
   <BehaviorTree ID="MainTree">
-    <Sequence name="SentryMainLogic">
-      <AlwaysSuccess>
-        <SubTree ID="ChangePositionTree" _autoremap="true" />
-      </AlwaysSuccess>
-      <Fallback name="NavigationStrategies">
-        <Sequence name="StairsEvacuation">
-          <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
-          <CheckInStairsZone name="CheckInStairsZone"/>
-          <SetStairsPosition name="SetStairsPosition"/>
-          <NavigateToPoseAction name="PublishPreStairsGoal"/>
-          <DirectVelocityControl name="DescendStairs"
-                                linear_y="2.0"
-                                angular_z="0.0"
-                                duration="1.5"/>
-          <DirectVelocityControl name="StopAfterStairs"
-                                linear_y="0.0"
-                                angular_z="0.0"
-                                duration="0.5"/>
-        </Sequence>
+    <ReactiveSequence name="SentryMainLogic">
+      <ForceSuccess>
+        <Fallback>
+          <Sequence name="MoveStance">
+            <CheckMPCondition name="CheckMPCondition" />
+            <ChangeStance name="ChangeStanceMove" />
+          </Sequence>
 
+          <Sequence name="AttackStance">
+            <CheckAPCondition name="CheckAPCondition" />   
+            <ChangeStance name="ChangeStanceAttack" />
+          </Sequence>
+
+          <Sequence name="DefendStance">
+            <CheckDPCondition name="CheckDPCondition" />            
+            <ChangeStance name="ChangeStanceDefend" />
+          </Sequence>
+        </Fallback>
+      </ForceSuccess>
+      <ReactiveFallback name="NavigationStrategies">
         <Sequence name="EmergencyRetreat">
           <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
           <SetCoordinate name="SetHomeCoordinate" goal="0" />
           <NavigateToPoseAction name="PublishRetreatGoal" />
+          <Sequence name="StairsEvacuation">
+            <CheckInStairsZone name="CheckInStairsZone"/>
+            <SetStairsPosition name="SetStairsPosition"/>
+            <NavigateToPoseAction name="PublishPreStairsGoal"/>
+            <DirectVelocityControl name="DescendStairs"
+                                  linear_y="2.0"
+                                  angular_z="0.0"
+                                  duration="1.5"/>
+            <DirectVelocityControl name="StopAfterStairs"
+                                  linear_y="0.0"
+                                  angular_z="0.0"
+                                  duration="0.5"/>
+          </Sequence>
         </Sequence>
 
         <Sequence name="OutpostResponse">
-          <CheckIfRetreating name="CheckIfRetreating"/>
           <CheckOutpostRemained name="CheckOutpostRemained" />
           <SetCoordinate name="SetResponseCoordinate" goal="2" />
           <NavigateToPoseAction name="PublishResponseGoal" />
         </Sequence>
 
-        <Fallback name="OffensiveStrategies">
+        <ReactiveFallback name="OffensiveStrategies">
           <Sequence name="TargetPursuit">
-            <CheckIfRetreating name="CheckIfRetreating"/>
             <CheckTargetLocked name="CheckTargetLocked" />
             <SetTargetCoordinate name="SetTargetCoordinate" />
             <NavigateToPoseAction name="PublishPursuitGoal" />
@@ -44,14 +54,12 @@
 
           <Sequence name="RegularPatrol">
             <Wait name="InitialWait" milliseconds="5000"/>
-            <CheckIfRetreating name="CheckIfRetreating"/>
-            <CheckNavStatus name="CheckNavStatus" />
             <SelectPatrolPoint name="SelectPatrolPoint" />
             <NavigateToPoseAction name="PublishPatrolGoal" />
             <Wait name="PostNavigationWait" />
           </Sequence>
-        </Fallback>
-      </Fallback>
-    </Sequence>
+        </ReactiveFallback>
+      </ReactiveFallback>
+    </ReactiveSequence>
   </BehaviorTree>
 </root>
