@@ -43,7 +43,7 @@ namespace Sentry_BT
   typedef enum _NavMode
   {
     PATROL = 0,
-    ATTACK = 1,
+    TRACING = 1,
     RETREAT = 2,
     RESPONSE = 3,
   } NavMode;
@@ -54,6 +54,13 @@ namespace Sentry_BT
     BONUS = 1,
     OUTPOST = 2,
   } NavGoal;
+
+  typedef enum _SentryStance
+  {
+    MOVE = 0,
+    ATTACK = 1,
+    DEFEND = 2
+  } SentryStance;
 
   typedef enum _RobotID
   {
