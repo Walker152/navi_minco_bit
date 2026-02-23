@@ -7,7 +7,7 @@ namespace Sentry_BT
 {
 
   TransformUtils::TransformUtils()
-    : Node("transform_utils_node")
+    : Node("transform_utils_node", rclcpp::NodeOptions().use_global_arguments(false))
   {
     tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
     tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
