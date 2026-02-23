@@ -1,7 +1,7 @@
 #pragma once
 
 #include <behaviortree_cpp_v3/condition_node.h>
-#include "nav_zone.hpp"
+#include "bt_manager/utils/nav_zone.hpp"
 
 namespace Sentry_BT
 {

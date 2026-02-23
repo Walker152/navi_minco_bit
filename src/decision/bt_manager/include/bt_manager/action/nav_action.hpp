@@ -7,8 +7,6 @@
 #include <nav2_behavior_tree/bt_action_node.hpp>
 #include <nav2_msgs/action/navigate_to_pose.hpp>
 
-#include "nav_zone.hpp"
-
 namespace Sentry_BT
 {
 class MapsToPoseAction : public nav2_behavior_tree::BtActionNode<nav2_msgs::action::NavigateToPose>

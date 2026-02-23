@@ -1,4 +1,4 @@
-#include "bt_manager/auto_conditions.hpp"
+#include "bt_manager/condition/auto_conditions.hpp"
 #include "bt_manager/blackboard.hpp"
 #include <iostream>
 #include <string>
@@ -37,7 +37,7 @@ namespace Sentry_BT
     std::cout << "health_threshold:" << health_threshold << "%" << std::endl;
     auto health = blackboard->get<float>("health");
     auto current_mode = blackboard->get<int>("current_mode");
-    std::cout << "Current mode: " << mode_names[current_mode] << ", Health: " << health << std::endl;
+    std::cout << "Current mode: " << mode_names[current_mode] << ", Health: " << health << "%" << std::endl;
     // 如果已经在撤退模式，检查是否应该继续撤退
     if(current_mode == Sentry_BT::NavMode::RETREAT)
     {
@@ -139,59 +139,6 @@ namespace Sentry_BT
     return BT::NodeStatus::FAILURE;
   }
 
-  // ------------------- CheckNavStatus -------------------
-  CheckNavStatus::CheckNavStatus(const std::string& name, const BT::NodeConfiguration& config)
-    : BT::ConditionNode(name, config)
-  {
-  }
-
-  BT::PortsList CheckNavStatus::providedPorts()
-  {
-    return {};
-  }
-
-  BT::NodeStatus CheckNavStatus::tick()
-  {
-    std::cout << "---------- CheckNavStatus ----------" << std::endl;
-    auto blackboard = config().blackboard;
-    // 从黑板获取导航状态
-    auto nav_status = blackboard->get<int>("nav_status");
-
-    std::cout << "Current navigation status: " << current_nav_status[nav_status] << std::endl;
-    // 只有当导航空闲或失败时，才允许选择新的巡逻点
-    if(nav_status == Sentry_BT::NavStatus::IDLE || nav_status == Sentry_BT::NavStatus::FAILURE)
-    {
-      return BT::NodeStatus::SUCCESS;
-    }
-
-    return BT::NodeStatus::FAILURE;
-  }
-
-  // ------------------- CheckIfRetreating -------------------
-  CheckIfRetreating::CheckIfRetreating(const std::string& name, const BT::NodeConfiguration& config)
-    : BT::ConditionNode(name, config)
-  {
-  }
-
-  BT::PortsList CheckIfRetreating::providedPorts()
-  {
-    return {};
-  }
-
-  BT::NodeStatus CheckIfRetreating::tick()
-  {
-    std::cout << "---------- CheckIfRetreating ----------" << std::endl;
-    auto blackboard = config().blackboard;
-
-    // 从黑板获取当前模式
-    auto current_mode = blackboard->get<int>("current_mode");
-
-    std::cout << "Current mode: " << mode_names[current_mode] << std::endl;
-
-    // 检查当前模式是否为撤退模式
-    return (current_mode == Sentry_BT::NavMode::RETREAT) ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
-  }
-
   // --------------------- CheckInStairsZone ----------------------
 CheckInStairsZone::CheckInStairsZone(const std::string& name, const BT::NodeConfiguration& config)
     : BT::ConditionNode(name, config)
@@ -209,8 +156,14 @@ BT::NodeStatus CheckInStairsZone::tick()
   // 1. 获取黑板对象
   auto blackboard = config().blackboard;
   std::cout << "---------- CheckInStairsZone ----------" << std::endl;
-  // 2. 从黑板读取当前位置
-  auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  // 2. 从黑板读取ros接口并获取当前位置
+  std::shared_ptr<ros_interface> ros_iface;
+  geometry_msgs::msg::Pose current_pose;
+  ros_iface = blackboard->get<std::shared_ptr<ros_interface>>("ros_interface");
+  if(!ros_iface){
+    return BT::NodeStatus::FAILURE;
+  }
+  current_pose = ros_iface->getCurrentPose();
   
   // 3. 提取坐标
   double x = current_pose.position.x;
