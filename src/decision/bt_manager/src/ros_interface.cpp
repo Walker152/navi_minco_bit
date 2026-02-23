@@ -1,9 +1,14 @@
 #include "bt_manager/ros_interface.hpp"
 
+#include <chrono>
+#include <string>
+
 namespace Sentry_BT
 {
   ros_interface::ros_interface(std::shared_ptr<Blackboard>& blackboard_ptr)
-    : Node("ros_interface_node", rclcpp::NodeOptions().use_global_arguments(false))
+    : Node("ros_interface_" +
+               std::to_string(std::chrono::system_clock::now().time_since_epoch().count() % 10000),
+           rclcpp::NodeOptions().use_global_arguments(false))
     , blackboard_(blackboard_ptr)
   {
     // 订阅事件状态话题
@@ -17,6 +22,7 @@ namespace Sentry_BT
                                                                   [this](const nav_msgs::msg::Odometry::SharedPtr msg)
                                                                   {
                                                                     // 更新当前位置
+                                                                    std::lock_guard<std::mutex> lock(current_pose_mutex_);
                                                                     current_pose_ = msg->pose.pose;
                                                                   }); 
 
@@ -62,6 +68,12 @@ namespace Sentry_BT
     stance_pub->publish(stance_msg);
   }
 
+  geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
+  {
+    std::lock_guard<std::mutex> lock(current_pose_mutex_);
+    return current_pose_;
+  }
+
   void ros_interface::eventCallback(const ros_interfaces::msg::EventStatus::SharedPtr msg)
   {
     // 更新黑板中的数据
@@ -73,11 +85,11 @@ namespace Sentry_BT
     if(msg->position >= 1 && msg->position <= 3)
     {
       blackboard_->set<Sentry_BT::SentryStance>("current_stance",
-                                                static_cast<Sentry_BT::SentryStance>(msg->position));
+                                                static_cast<Sentry_BT::SentryStance>(msg->position - 1));
     }
     // 更新目标位置
-    // if(msg->enemy_detected.is_get)
-    if(false)
+    if(msg->enemy_detected.is_detect)
+    // if(false)
     {
       geometry_msgs::msg::Pose target_pose_in, target_pose;
       target_pose_in.position.x = (msg->enemy_detected.position.x) / 1000.0;  // 转换为米
@@ -86,8 +98,6 @@ namespace Sentry_BT
       TransformPose(target_pose_in, target_pose);
       target_pose.orientation.w = 1.0;  // 设置默认朝向
       blackboard_->set<int>("target_armor_id", (int)msg->enemy_detected.armor_id);
-      // RCLCPP_INFO(this->get_logger(), "发送敌人id: %d", (int)msg->enemy_detected.armor_id);
-      //  std::cout << "Target armor ID formal: " << (int)msg->enemy_detected.armor_id << std::endl;
       blackboard_->set<geometry_msgs::msg::Pose>("target_pose", target_pose);
     }
 
