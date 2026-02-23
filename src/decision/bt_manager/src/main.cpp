@@ -26,12 +26,6 @@ int main(int argc, char const* argv[])
   std::cout << "Package share directory: " << pkg_share_dir << std::endl;
   std::string xml_file_path = pkg_share_dir + "/tree/nav_tree.xml";
 
-  if(!bt_manager.initialize(xml_file_path, bt_blackboard))
-  {
-    RCLCPP_ERROR(ros_interface_node->get_logger(), "Failed to initialize BTManager with XML file: %s", xml_file_path.c_str());
-    return -1;
-  }
-
   // 使用多线程执行器并单独处理回调
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(ros_interface_node);
@@ -39,6 +33,12 @@ int main(int argc, char const* argv[])
 
   // 创建单独线程处理执行器
   std::thread executor_thread([&executor]() { executor.spin(); });
+
+  if(!bt_manager.initialize(xml_file_path, bt_blackboard))
+  {
+    RCLCPP_ERROR(ros_interface_node->get_logger(), "Failed to initialize BTManager with XML file: %s", xml_file_path.c_str());
+    return -1;
+  }
 
   rclcpp::Rate loop_rate(10);  // 10 Hz
   while(rclcpp::ok())
