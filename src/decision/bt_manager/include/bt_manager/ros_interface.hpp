@@ -12,13 +12,15 @@
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/int32.hpp>
 
+#include <mutex>
+
 // Custom Messages
 #include "ros_interfaces/msg/event_status.hpp"
 
 // Project Headers
 #include "bt_manager/blackboard.hpp"
-#include "bt_manager/tf_utils.hpp"
-#include "nav_zone.hpp"
+#include "bt_manager/utils/tf_utils.hpp"
+#include "bt_manager/utils/nav_zone.hpp"
 namespace Sentry_BT
 {
   class ros_interface : public rclcpp::Node
@@ -35,6 +37,7 @@ namespace Sentry_BT
     std::shared_ptr<Blackboard> blackboard_;
 
     geometry_msgs::msg::Pose current_pose_;
+    mutable std::mutex current_pose_mutex_;
     void eventCallback(const ros_interfaces::msg::EventStatus::SharedPtr msg);
 
   public:
@@ -43,6 +46,7 @@ namespace Sentry_BT
 
     void publishCmdVel(double linear_y, double angular_z);
     void publishPosition(int target_stance);
+    geometry_msgs::msg::Pose getCurrentPose() const;
 
     bool TransformPose(const geometry_msgs::msg::Pose& input_pose, geometry_msgs::msg::Pose& output_pose);
   };

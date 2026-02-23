@@ -1,9 +1,10 @@
 #pragma once
 
 #include <behaviortree_cpp_v3/condition_node.h>
-#include "bt_manager/auto_conditions.hpp"
+#include "bt_manager/condition/auto_conditions.hpp"
 #include "bt_manager/blackboard.hpp"
-#include "nav_zone.hpp"
+#include "bt_manager/utils/nav_zone.hpp"
+#include "bt_manager/ros_interface.hpp"
 
 namespace Sentry_BT
 {
@@ -35,24 +36,6 @@ public:
   
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
-};
-
-class CheckNavStatus : public BT::ConditionNode
-{
-public:
-  CheckNavStatus(const std::string& name, const BT::NodeConfiguration& config);
-
-  static BT::PortsList providedPorts();
-  BT::NodeStatus tick() override;
-};
-
-class CheckIfRetreating : public BT::ConditionNode
-{
-  public:
-    CheckIfRetreating(const std::string& name, const BT::NodeConfiguration& config);
-
-    static BT::PortsList providedPorts();
-    BT::NodeStatus tick() override;
 };
 
 // 检查是否在台阶区域的条件节点
