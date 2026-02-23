@@ -1,7 +1,7 @@
 #include "bt_manager/bt_manager.hpp"
-#include "bt_manager/change_stance_action.hpp"
-#include "bt_manager/change_stance_condition.hpp"
-#include "bt_manager/nav_action.hpp"
+#include "bt_manager/action/change_stance_action.hpp"
+#include "bt_manager/condition/change_stance_condition.hpp"
+#include "bt_manager/action/nav_action.hpp"
 
 namespace Sentry_BT
 {
@@ -21,8 +21,6 @@ namespace Sentry_BT
         });
     factory_.registerNodeType<SelectPatrolPoint>("SelectPatrolPoint");
     factory_.registerNodeType<SetTargetCoordinate>("SetTargetCoordinate");
-    factory_.registerNodeType<CheckNavStatus>("CheckNavStatus");
-    factory_.registerNodeType<CheckIfRetreating>("CheckIfRetreating");
     factory_.registerNodeType<SetCoordinate>("SetCoordinate");
     factory_.registerNodeType<Wait>("Wait");
 
