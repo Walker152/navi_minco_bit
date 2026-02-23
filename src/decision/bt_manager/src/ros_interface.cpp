@@ -3,7 +3,7 @@
 namespace Sentry_BT
 {
   ros_interface::ros_interface(std::shared_ptr<Blackboard>& blackboard_ptr)
-    : Node("ros_interface_node")
+    : Node("ros_interface_node", rclcpp::NodeOptions().use_global_arguments(false))
     , blackboard_(blackboard_ptr)
   {
     // 订阅事件状态话题
@@ -27,16 +27,11 @@ namespace Sentry_BT
         {
           auto current_mode = blackboard_->get<int>("current_mode");
           std_msgs::msg::Bool outpost_msg;
-          /*current_mode == Sentry_BT::NavMode::RESPONSE &&
-             current_pose_.position.x > 10.2 && current_pose_.position.x < 14.4 && current_pose_.position.y > -1.0 &&
-             current_pose_.position.y < 3.0*/
           if(current_mode == Sentry_BT::NavMode::RESPONSE &&
              std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) < 1.0)
           {
             outpost_msg.data = true;
             blackboard_->set<bool>("outpost_msg", true);
-            std::cout << "我在" << current_pose_.position.x << "," << current_pose_.position.y << std::endl;
-            //std::cout << "TRUE" << outpost_msg.data << std::endl;
             outpost_pub->publish(outpost_msg);
           }
           else if(std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) >=
@@ -44,58 +39,41 @@ namespace Sentry_BT
           {
             outpost_msg.data = false;
             blackboard_->set<bool>("outpost_msg", false);
-            std::cout << "我在" << current_pose_.position.x << "," << current_pose_.position.y << std::endl;
-            //std::cout << "FALSE" << outpost_msg.data << std::endl;
             outpost_pub->publish(outpost_msg);
-          }
-          int want_position_ = blackboard_->get<int>("want_position");
-          //std::cout << "注意看这里" << want_position_ << std::endl;
-          std_msgs::msg::Int32 want_position;
-          if(want_position_ == 1)
-          {
-            want_position.data = 1;
-            position_pub->publish(want_position);
-          }
-          else if (want_position_ == 2) 
-          {
-            want_position.data = 2;
-            position_pub->publish(want_position);
-          }
-          else if (want_position_ == 3)                       
-          {
-            want_position.data = 3;
-            position_pub->publish(want_position);
           }
         });
     outpost_pub = this->create_publisher<std_msgs::msg::Bool>("/sentry/outpost_status", 10);
-    // 创建导航客户端
-    nav_client_ = rclcpp_action::create_client<nav2_msgs::action::NavigateToPose>(this, "navigate_to_pose");
-    // 等待导航服务器可用
-    
-    position_pub = this->create_publisher<std_msgs::msg::Int32>("/sentry/want_position", 10);
-
-    while(!nav_client_->wait_for_action_server(std::chrono::seconds(5)))
-    {
-      RCLCPP_INFO(this->get_logger(), "等待导航服务器...");
-    }
-    RCLCPP_INFO(this->get_logger(), "导航服务器已连接");
+    stance_pub = this->create_publisher<std_msgs::msg::Int32>("/sentry/want_position", 10);
+    cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
   }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  void ros_interface::publishCmdVel(double linear_y, double angular_z)
+  {
+    geometry_msgs::msg::Twist cmd_vel;
+    cmd_vel.linear.y = linear_y;
+    cmd_vel.angular.z = angular_z;
+    cmd_vel_pub->publish(cmd_vel);
+  }
+
+  void ros_interface::publishPosition(int target_stance)
+  {
+    std_msgs::msg::Int32 stance_msg;
+    stance_msg.data = target_stance;
+    stance_pub->publish(stance_msg);
+  }
+
   void ros_interface::eventCallback(const ros_interfaces::msg::EventStatus::SharedPtr msg)
   {
     // 更新黑板中的数据
     blackboard_->set<float>("health", ((int)msg->self_health / 4));
-    blackboard_->set<bool>("own_outpost_destroyed", msg->own_outpost_destroyed);
-    blackboard_->set<int>("enemy_outpost_health", msg->enemy_outpost_health);
-    //blackboard_->set<int>("enemy_outpost_health", 1500);
+    blackboard_->set<int>("own_outpost_health", msg->own_outpost_health);
+    blackboard_->set<bool>("enemy_outpost_destroyed", msg->enemy_outpost_destroyed);
     blackboard_->set<bool>("bonus_active", msg->buff_active);
     blackboard_->set<bool>("target_valid", msg->enemy_detected.is_detect);
-    if(msg->position == 1 || msg->position == 2 ||msg->position == 3 )
+    if(msg->position >= 1 && msg->position <= 3)
     {
-      blackboard_->set<int>("my_position", msg->position);
-    }else 
-    {
-      blackboard_->set<int>("my_position", 4);
+      blackboard_->set<Sentry_BT::SentryStance>("current_stance",
+                                                static_cast<Sentry_BT::SentryStance>(msg->position));
     }
     // 更新目标位置
     // if(msg->enemy_detected.is_get)
@@ -113,79 +91,7 @@ namespace Sentry_BT
       blackboard_->set<geometry_msgs::msg::Pose>("target_pose", target_pose);
     }
 
-    // RCLCPP_INFO(this->get_logger(),
-    //             "EventStatus received: health=%.2f, outpost=%s, buff=%s, target_locked=%s",
-    //             msg->self_health,
-    //             msg->own_outpost_destroyed ? "true" : "false",
-    //             msg->buff_active ? "true" : "false",
-    //             msg->enemy_detected.is_get ? "true" : "false");
   }
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  bool ros_interface::publishNavigationGoal(const Sentry_BT::Point2D& goal)
-  {
-    auto goal_msg = nav2_msgs::action::NavigateToPose::Goal();
-    goal_msg.pose.header.frame_id = "map";
-    goal_msg.pose.pose.position.x = goal.x;
-    goal_msg.pose.pose.position.y = goal.y;
-    goal_msg.pose.pose.orientation.w = 1.0;
-    RCLCPP_INFO(this->get_logger(), "发送导航目标点: (%.2f, %.2f)", goal.x, goal.y);
-
-    auto send_goal_options = rclcpp_action::Client<nav2_msgs::action::NavigateToPose>::SendGoalOptions();
-    send_goal_options.goal_response_callback =
-        [this](const std::shared_ptr<rclcpp_action::ClientGoalHandle<nav2_msgs::action::NavigateToPose>> future)
-    {
-      auto goal_handle = future.get();
-      if(!goal_handle)
-      {
-        RCLCPP_INFO(get_logger(), "目标点被服务器拒绝");
-        blackboard_->set("nav_status", static_cast<int>(Sentry_BT::NavStatus::FAILURE));
-      }
-      else
-      {
-        RCLCPP_INFO(get_logger(), "目标点已被服务器接收");
-        blackboard_->set("nav_status", static_cast<int>(Sentry_BT::NavStatus::RUNNING));
-      }
-    };
-
-    send_goal_options.feedback_callback =
-        [this](rclcpp_action::ClientGoalHandle<nav2_msgs::action::NavigateToPose>::SharedPtr goal_handle,
-               const std::shared_ptr<const nav2_msgs::action::NavigateToPose::Feedback> feedback)
-    {
-      (void)goal_handle;
-      (void)feedback;
-      // RCLCPP_INFO(this->get_logger(), "反馈剩余距离:%f", feedback->distance_remaining);
-    };
-
-    send_goal_options.result_callback =
-        [this](const rclcpp_action::ClientGoalHandle<nav2_msgs::action::NavigateToPose>::WrappedResult& result)
-    {
-      if(result.code == rclcpp_action::ResultCode::SUCCEEDED)
-      {
-        RCLCPP_INFO(this->get_logger(), "导航成功");
-        blackboard_->set("nav_status", static_cast<int>(Sentry_BT::NavStatus::IDLE));
-      }
-      else if(result.code == rclcpp_action::ResultCode::CANCELED)
-      {
-        RCLCPP_INFO(this->get_logger(), "导航被取消");
-        blackboard_->set("nav_status", static_cast<int>(Sentry_BT::NavStatus::IDLE));
-      }
-      else if(result.code == rclcpp_action::ResultCode::ABORTED)
-      {
-        RCLCPP_INFO(this->get_logger(), "导航中止");
-        blackboard_->set("nav_status", static_cast<int>(Sentry_BT::NavStatus::IDLE));
-      }
-      else
-      {
-        RCLCPP_INFO(this->get_logger(), "导航失败");
-        blackboard_->set("nav_status", static_cast<int>(Sentry_BT::NavStatus::FAILURE));
-      }
-    };
-
-    // 发送导航目标点
-    nav_client_->async_send_goal(goal_msg, send_goal_options);
-    return true;
-  }
-
   bool ros_interface::TransformPose(const geometry_msgs::msg::Pose& input_pose, geometry_msgs::msg::Pose& output_pose)
   {
     // 创建TransformUtils实例
@@ -193,21 +99,6 @@ namespace Sentry_BT
 
     // 执行坐标转换
     bool success = transform_utils->transformPoseToBaseLink(input_pose, output_pose);
-
-    // if(success)
-    // {
-    //   RCLCPP_INFO(this->get_logger(),
-    //               "坐标转换成功: (%.2f, %.2f) -> (%.2f, %.2f)",
-    //               input_pose.position.x,
-    //               input_pose.position.y,
-    //               output_pose.position.x,
-    //               output_pose.position.y);
-    // }
-    // else
-    // {
-    //   RCLCPP_ERROR(this->get_logger(), "坐标转换失败");
-    //   output_pose = input_pose;  // 失败时返回原始坐标
-    // }
 
     return success;
   }

@@ -12,15 +12,15 @@ namespace Sentry_BT
   };
 
   std::vector<Point2D> patrol_points_normal = {
-      {13.2, -4.6},
-      {13.9, -2.6},
+      {13.2, 4.6},
+      {13.9, 2.6},
       {13.9, 0.18},
       {12.7, 1.85},
       {14.0, 4.91},
       {19.2, 5.10},
       {14.1, 4.77},
-      {8.9, -0.2},
-      {10.7, -4.8}
+      {8.9, 0.2},
+      {10.7, 4.8}
       
   };
 
@@ -44,5 +44,5 @@ namespace Sentry_BT
 
   std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};
   std::vector<std::string> mode_names = {"PATROL", "ATTACK", "RETREAT", "RESPONSE"};
-  std::vector<std::string> position_names = {"MOVE", "ATTACK", "DEFEND"}; 
+  std::vector<std::string> stance_names = {"MOVE", "ATTACK", "DEFEND"}; 
 }  // namespace Sentry_BT
