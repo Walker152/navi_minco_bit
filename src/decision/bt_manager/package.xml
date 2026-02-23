@@ -19,6 +19,8 @@
   <depend>tf2_geometry_msgs</depend>
   <depend>behaviortree_cpp_v3</depend>
   <depend>nav2_msgs</depend>
+  <depend>ament_index_cpp</depend>
+  <depend>nav2_behavior_tree</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

@@ -1,4 +1,7 @@
 #include "bt_manager/bt_manager.hpp"
+#include "bt_manager/change_stance_action.hpp"
+#include "bt_manager/change_stance_condition.hpp"
+#include "bt_manager/nav_action.hpp"
 
 namespace Sentry_BT
 {
@@ -10,21 +13,23 @@ namespace Sentry_BT
     factory_.registerNodeType<CheckRetreatCondition>("CheckRetreatCondition");
     factory_.registerNodeType<CheckOutpostRemained>("CheckOutpostRemained");
     factory_.registerNodeType<CheckTargetLocked>("CheckTargetLocked");
-    factory_.registerNodeType<PublishNavigationGoal>("PublishNavigationGoal");
+    factory_.registerBuilder<NavigateToPoseAction>(
+        "NavigateToPoseAction",
+        [](const std::string& name, const BT::NodeConfiguration& config)
+        {
+          return std::make_unique<NavigateToPoseAction>(name, "navigate_to_pose", config);
+        });
     factory_.registerNodeType<SelectPatrolPoint>("SelectPatrolPoint");
     factory_.registerNodeType<SetTargetCoordinate>("SetTargetCoordinate");
     factory_.registerNodeType<CheckNavStatus>("CheckNavStatus");
     factory_.registerNodeType<CheckIfRetreating>("CheckIfRetreating");
     factory_.registerNodeType<SetCoordinate>("SetCoordinate");
-    factory_.registerNodeType<WaitUntilStopped>("WaitUntilStopped");
     factory_.registerNodeType<Wait>("Wait");
 
     factory_.registerNodeType<CheckMPCondition>("CheckMPCondition");
     factory_.registerNodeType<CheckAPCondition>("CheckAPCondition");
     factory_.registerNodeType<CheckDPCondition>("CheckDPCondition");
-    factory_.registerNodeType<CheckWhetherChange>("CheckWhetherChange");
-    factory_.registerNodeType<ChangePosition>("ChangePosition");
-    factory_.registerNodeType<ChangePosition>("JustProtect");
+    factory_.registerNodeType<ChangeStance>("ChangeStance");
     
     factory_.registerNodeType<DirectVelocityControl>("DirectVelocityControl");
     factory_.registerNodeType<SetStairsPosition>("SetStairsPosition");
