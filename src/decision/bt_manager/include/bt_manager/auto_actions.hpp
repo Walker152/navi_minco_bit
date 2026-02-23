@@ -7,18 +7,11 @@
 
 #include <geometry_msgs/msg/pose.hpp>
 #include <std_msgs/msg/int32.hpp>
+#include <nav2_behavior_tree/bt_action_node.hpp>
+#include <chrono>
 
 namespace Sentry_BT
 {
-class PublishNavigationGoal : public BT::SyncActionNode
-{
-public:
-  PublishNavigationGoal(const std::string& name, const BT::NodeConfiguration& config);
-  
-  static BT::PortsList providedPorts();
-  BT::NodeStatus tick() override;
-};
-
 class SetCoordinate : public BT::SyncActionNode
 {
 public:
@@ -46,45 +39,19 @@ public:
   BT::NodeStatus tick() override;
 };
 
-class WaitUntilStopped : public BT::StatefulActionNode
-{
-public:
-  WaitUntilStopped(const std::string& name, const BT::NodeConfiguration& config);
-
-  static BT::PortsList providedPorts();
-  BT::NodeStatus onStart() override;
-  BT::NodeStatus onRunning() override;
-  void onHalted() override;
-};
-
-class Wait : public BT::SyncActionNode
+class Wait : public BT::StatefulActionNode
 {
 public:
   Wait(const std::string& name, const BT::NodeConfiguration& config);
 
   static BT::PortsList providedPorts();
-  BT::NodeStatus tick() override;
-};
-
-class ChangePosition : public BT::SyncActionNode
-{
-public:
-  ChangePosition(const std::string& name, const BT::NodeConfiguration& config);
-
-  static BT::PortsList providedPorts();
-  BT::NodeStatus tick() override;
+  BT::NodeStatus onStart() override;
+  BT::NodeStatus onRunning() override;
+  void onHalted() override;
 
 private:
-  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr position_pub_;
-};
-
-class JustProtect : public BT::SyncActionNode
-{
-public:
-  JustProtect(const std::string& name, const BT::NodeConfiguration& config);
-
-  static BT::PortsList providedPorts();
-  BT::NodeStatus tick() override;
+  int wait_time_;
+  std::chrono::time_point<std::chrono::system_clock> start_time_;
 };
 
 // 速度控制节点
@@ -97,8 +64,6 @@ public:
   BT::NodeStatus onRunning() override;
   void onHalted() override;
 private:
-  rclcpp::Node::SharedPtr node_;
-  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
   double linear_y_;
   double angular_z_;
   double duration_;

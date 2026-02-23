@@ -7,7 +7,6 @@
 
 namespace Sentry_BT
 {
-
 class CheckRetreatCondition : public BT::ConditionNode
 {
 public:
@@ -51,47 +50,6 @@ class CheckIfRetreating : public BT::ConditionNode
 {
   public:
     CheckIfRetreating(const std::string& name, const BT::NodeConfiguration& config);
-
-    static BT::PortsList providedPorts();
-    BT::NodeStatus tick() override;
-};
-
-// ------------------- CheckPositionCondition -------------------
-class CheckMPCondition : public BT::ConditionNode
-{
-  public:
-    CheckMPCondition(const std::string& name, const BT::NodeConfiguration& config);
-
-    static BT::PortsList providedPorts();
-    bool Conditions();
-    BT::NodeStatus tick() override;
-};
-
-class CheckAPCondition : public BT::ConditionNode
-{
-  public:
-    CheckAPCondition(const std::string& name, const BT::NodeConfiguration& config);
-
-    static BT::PortsList providedPorts();
-    bool Conditions();
-    BT::NodeStatus tick() override;
-};
-
-class CheckDPCondition : public BT::ConditionNode
-{
-  public:
-    CheckDPCondition(const std::string& name, const BT::NodeConfiguration& config);
-
-    static BT::PortsList providedPorts();
-    bool Conditions();
-    BT::NodeStatus tick() override;
-};
-
-// ------------------- CheckWhetherChange -------------------
-class CheckWhetherChange : public BT::ConditionNode
-{
-  public:
-    CheckWhetherChange(const std::string& name, const BT::NodeConfiguration& config);
 
     static BT::PortsList providedPorts();
     BT::NodeStatus tick() override;
