@@ -5,8 +5,8 @@
 #include <behaviortree_cpp_v3/behavior_tree.h>
 #include <behaviortree_cpp_v3/bt_factory.h>
 #include "bt_manager/blackboard.hpp"
-#include "bt_manager/auto_conditions.hpp"
-#include "bt_manager/auto_actions.hpp"
+#include "bt_manager/condition/auto_conditions.hpp"
+#include "bt_manager/action/auto_actions.hpp"
 #include <behaviortree_cpp_v3/loggers/bt_zmq_publisher.h>
 
 namespace Sentry_BT

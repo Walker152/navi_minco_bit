@@ -73,6 +73,7 @@ namespace Sentry_BT
 
   extern std::vector<std::string> current_nav_status;
   extern std::vector<std::string> mode_names;
+  extern std::vector<std::string> stance_names;
   extern std::vector<Point2D> nav_points;
   extern std::vector<Point2D> patrol_points_normal;
   extern std::vector<int> patrol_points_milliseconds;

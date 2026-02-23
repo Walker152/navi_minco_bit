@@ -2,7 +2,7 @@
 
 #include <behaviortree_cpp_v3/action_node.h>
 #include "bt_manager/ros_interface.hpp"
-#include "nav_zone.hpp"
+#include "bt_manager/utils/nav_zone.hpp"
 
 #include <chrono>
 
