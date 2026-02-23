@@ -1,9 +1,9 @@
-#include "nav_zone.hpp"
+#include "bt_manager/utils/nav_zone.hpp"
 
 namespace Sentry_BT
 {
   std::vector<Point2D> nav_points = {
-      {0.0, -6.25},  //HOME
+      {2.0, 2.0},  //HOME
       {5.5, 3.5},  // BONUS
       //{-3, 5.5}
       {12.2, 0.65}  // OUTPOST
@@ -43,6 +43,6 @@ namespace Sentry_BT
   };
 
   std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};
-  std::vector<std::string> mode_names = {"PATROL", "ATTACK", "RETREAT", "RESPONSE"};
+  std::vector<std::string> mode_names = {"PATROL", "TRACING", "RETREAT", "RESPONSE"};
   std::vector<std::string> stance_names = {"MOVE", "ATTACK", "DEFEND"}; 
 }  // namespace Sentry_BT

@@ -1,6 +1,6 @@
-#include "bt_manager/auto_actions.hpp"
+#include "bt_manager/action/auto_actions.hpp"
 #include "bt_manager/blackboard.hpp"
-#include "nav_zone.hpp"
+#include "bt_manager/utils/nav_zone.hpp"
 #include <array>
 #include <string>
 #include <cmath>
