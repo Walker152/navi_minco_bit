@@ -64,9 +64,9 @@ namespace ns_com
         return;
       ros_interfaces::msg::EventStatus msg;
       msg.self_health = in.self_health;
-      msg.own_outpost_destroyed = in.own_outpost_destroyed;
+      msg.own_outpost_health = in.own_outpost_health;
       msg.buff_active = in.buff_active;
-      msg.enemy_outpost_health = in.enemy_outpost_health;
+      msg.enemy_outpost_destroyed = in.enemy_outpost_destroyed;
       msg.enemy_detected.is_detect = in.is_get;
       msg.enemy_detected.position.x = in.x;
       msg.enemy_detected.position.y = in.y;
