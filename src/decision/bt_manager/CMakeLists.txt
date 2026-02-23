@@ -25,6 +25,7 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(behaviortree_cpp_v3 REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(nav2_behavior_tree REQUIRED)
 include_directories(
   include
 )
@@ -34,6 +35,8 @@ add_executable(bt_manager_node
   src/ros_interface.cpp 
   src/auto_actions.cpp 
   src/auto_conditions.cpp
+  src/change_stance_action.cpp
+  src/change_stance_condition.cpp
   src/nav_zone.cpp
   src/tf_utils.cpp
   src/main.cpp
@@ -51,6 +54,7 @@ ament_target_dependencies(event_test
   tf2
   tf2_ros
   tf2_geometry_msgs
+  nav2_behavior_tree
 )
 
 ament_target_dependencies(bt_manager_node
@@ -65,6 +69,7 @@ ament_target_dependencies(bt_manager_node
   behaviortree_cpp_v3
   nav2_msgs
   ament_index_cpp
+  nav2_behavior_tree
 )
 
 install(TARGETS

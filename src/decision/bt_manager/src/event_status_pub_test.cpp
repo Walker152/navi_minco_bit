@@ -14,8 +14,8 @@ int main(int argc, char** argv)
 
   ros_interfaces::msg::EventStatus msg;
   msg.self_health = 400.0;
-  msg.enemy_outpost_health = 1500;
-  msg.own_outpost_destroyed = false;
+  msg.enemy_outpost_destroyed = 1500;
+  msg.own_outpost_health = false;
   msg.buff_active = false;
   msg.enemy_detected.is_detect = false;
   msg.enemy_detected.position.x = 0.1;
@@ -46,7 +46,7 @@ int main(int argc, char** argv)
     else if(time_counter == 20)
     {
       msg.self_health = 190.0;
-      msg.enemy_outpost_health = 0.0;  // 前哨站被摧毁
+      msg.enemy_outpost_destroyed = 0;  // 前哨站被摧毁
       RCLCPP_INFO(node->get_logger(), "攻击20秒后，血量: 190.0 (低于200，应该撤退)");
       RCLCPP_INFO(node->get_logger(), "预期行为: 开始撤退回家");
     }
@@ -82,7 +82,7 @@ int main(int argc, char** argv)
       RCLCPP_INFO(node->get_logger(), "测试场景2: 前哨站被摧毁后的巡逻测试");
       RCLCPP_INFO(node->get_logger(), "===============================");
       msg.self_health = 400.0;
-      msg.enemy_outpost_health = 0.0;  // 前哨站被摧毁
+      msg.enemy_outpost_destroyed = 0;  // 前哨站被摧毁
       msg.enemy_detected.is_detect = false;
       RCLCPP_INFO(node->get_logger(), "前哨站已被摧毁，血量: 400.0");
       RCLCPP_INFO(node->get_logger(), "预期行为: 巡逻状态 (前哨站被摧毁，无攻击目标)");
@@ -125,7 +125,7 @@ int main(int argc, char** argv)
     // 输出当前状态
     std::cout << "\n[" << time_counter << "秒] "
               << "血量: " << msg.self_health 
-              << ", 前哨站血量: " << msg.enemy_outpost_health
+              << ", 前哨站血量: " << msg.enemy_outpost_destroyed
               << ", 敌人检测: " << (msg.enemy_detected.is_detect ? "是" : "否");
     
     if(msg.enemy_detected.is_detect) {
