@@ -6,7 +6,9 @@
 #include <behaviortree_cpp_v3/behavior_tree.h>
 #include <nav2_behavior_tree/bt_action_node.hpp>
 #include <nav2_msgs/action/navigate_to_pose.hpp>
+#include "bt_manager/utils/log.hpp"
 
+using namespace color_text;
 namespace Sentry_BT
 {
 class MapsToPoseAction : public nav2_behavior_tree::BtActionNode<nav2_msgs::action::NavigateToPose>
@@ -42,8 +44,8 @@ public:
     ++tick_count;
     if(tick_count == 1 || tick_count % 20 == 0)
     {
-      std::cout << "[NavigateToPoseAction] tick=" << tick_count << ", goal=(" << nav_goal.x << ", " << nav_goal.y
-                << ")" << std::endl;
+      std::cout << GREEN << "[NavigateToPoseAction] tick=" << tick_count << ", goal=(" << nav_goal.x << ", " << nav_goal.y
+                << ")" << RESET << std::endl;
     }
   }
 };

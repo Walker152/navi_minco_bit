@@ -16,6 +16,7 @@
 
 // Custom Messages
 #include "ros_interfaces/msg/event_status.hpp"
+#include "ros_interfaces/msg/behavior.hpp"
 
 // Project Headers
 #include "bt_manager/blackboard.hpp"
@@ -27,10 +28,9 @@ namespace Sentry_BT
   {
   private:
     rclcpp::Subscription<ros_interfaces::msg::EventStatus>::SharedPtr event_sub;
-    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr outpost_pub;
+    rclcpp::Publisher<ros_interfaces::msg::Behavior>::SharedPtr behavior_pub;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub;
 
-    rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr stance_pub;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub;
 
     rclcpp::TimerBase::SharedPtr timer_;
@@ -45,7 +45,6 @@ namespace Sentry_BT
     ~ros_interface() override = default;
 
     void publishCmdVel(double linear_y, double angular_z);
-    void publishPosition(int target_stance);
     geometry_msgs::msg::Pose getCurrentPose() const;
 
     bool TransformPose(const geometry_msgs::msg::Pose& input_pose, geometry_msgs::msg::Pose& output_pose);

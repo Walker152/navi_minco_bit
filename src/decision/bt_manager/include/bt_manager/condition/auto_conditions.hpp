@@ -4,6 +4,7 @@
 #include "bt_manager/condition/auto_conditions.hpp"
 #include "bt_manager/blackboard.hpp"
 #include "bt_manager/utils/nav_zone.hpp"
+#include "bt_manager/utils/log.hpp"
 #include "bt_manager/ros_interface.hpp"
 
 namespace Sentry_BT
