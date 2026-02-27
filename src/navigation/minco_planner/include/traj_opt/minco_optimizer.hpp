@@ -131,6 +131,12 @@ private:
                                MatD3f& partialGradByCoeffs,
                                VecDf& penalty_log);
 
+    static void computeTimeBarrier(const OptVars& opt_vars,
+                                   const VecDf& times,
+                                   const VecDf& magnitudeBounds,
+                                   double& cost,
+                                   VecDf& gradByTimes);
+
     static void forwardT(const VecDf& tau, VecDf& T) { T = tau.array().exp(); }
     static void backwardT(const VecDf& T, VecDf& tau) { tau = T.array().log(); }
 };
