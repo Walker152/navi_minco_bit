@@ -4,7 +4,7 @@
 #include <string>
 #include <cmath>
 #include <chrono>
-
+using namespace color_text;
 namespace Sentry_BT
 {
   // ------------------- CheckRetreatCondition -------------------
@@ -23,7 +23,7 @@ namespace Sentry_BT
 
   BT::NodeStatus CheckRetreatCondition::tick()
   { 
-    std::cout << "---------- CheckRetreatCondition ----------" << std::endl;
+    std::cout << BLUE << "---------- CheckRetreatCondition ----------" << RESET << std::endl;
     auto blackboard = config().blackboard;
     // 从XML获取健康阈值和恢复阈值
     auto health_threshold_ = getInput<float>("health_threshold");
@@ -34,10 +34,10 @@ namespace Sentry_BT
     }
     float health_threshold = health_threshold_.value();
     float recovery_threshold = recovery_threshold_.value();
-    std::cout << "health_threshold:" << health_threshold << "%" << std::endl;
+    std::cout << WHITE << "health_threshold:" << health_threshold << "%" << RESET << std::endl;
     auto health = blackboard->get<float>("health");
     auto current_mode = blackboard->get<int>("current_mode");
-    std::cout << "Current mode: " << mode_names[current_mode] << ", Health: " << health << "%" << std::endl;
+    std::cout << WHITE << "Current mode: " << mode_names[current_mode] << ", Health: " << health << "%" << RESET << std::endl;
     // 如果已经在撤退模式，检查是否应该继续撤退
     if(current_mode == Sentry_BT::NavMode::RETREAT)
     {
@@ -74,40 +74,41 @@ namespace Sentry_BT
 
   BT::NodeStatus CheckTargetLocked::tick()
   {
-    std::cout << "---------- CheckTargetLocked ----------" << std::endl;
+    std::cout << BLUE << "---------- CheckTargetLocked ----------" << RESET << std::endl;
     auto blackboard = config().blackboard;
 
-    auto target_armor_id = blackboard->get<int>("target_armor_id");
-    auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
-    auto target_valid = blackboard->get<bool>("target_valid");
-    // std::cout << "Target armor ID: " << target_armor_id << std::endl;
-    // std::cout << "Target position: (" << target_pose.position.x << ", " << target_pose.position.y << ", "
-    //           << target_pose.position.z << ")" << std::endl;
-
-    // 检查目标是否有效
-    if(!target_valid)
-    {
-      return BT::NodeStatus::FAILURE;
-    }
-    if(target_armor_id == Sentry_BT::RobotID::Engineer)
-    {
+    bool target_valid = false;
+    try {
+      target_valid = blackboard->get<bool>("target_valid");
+    } catch(...) {
       return BT::NodeStatus::FAILURE;
     }
 
-    static const Sentry_BT::Area_Square highland_area = {{6.7, 2.0}, {13.0, -1.8}};
-    static const Sentry_BT::Area_Square enemy_outpost_area = {{8.5, 4.5}, {11.5, 2.8}};
-    static const Sentry_BT::Area_Square own_outpost_area = {{8.5, -2.7}, {11.5, -4.2}};  //待修改
+    std::cout << WHITE << "Target valid: " << (target_valid ? "true" : "false") << RESET << std::endl;
 
-    if(highland_area.contains({target_pose.position.x, target_pose.position.y}) ||
-       enemy_outpost_area.contains({target_pose.position.x, target_pose.position.y}) ||
-       own_outpost_area.contains({target_pose.position.x, target_pose.position.y}))
+    // 使用静态变量记录最后一次看到敌人的时间
+    static std::chrono::time_point<std::chrono::system_clock> last_seen_time = std::chrono::system_clock::now();
+
+    if(target_valid)
     {
-      blackboard->set<bool>("target_valid", false);
+      last_seen_time = std::chrono::system_clock::now();
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::TRACING);
       return BT::NodeStatus::SUCCESS;
     }
-    std::cout << "Target out of effective area: (" << target_pose.position.x << ", " << target_pose.position.y << ")"
-              << std::endl;
+    else {
+      auto now = std::chrono::system_clock::now();
+      double lost_duration = std::chrono::duration<double>(now - last_seen_time).count();
+
+      // 容忍 1.0 秒内的视觉丢失
+      if(lost_duration < 1.0)
+      {
+        std::cout << YELLOW << "[Debounce] Target visually lost, but keeping lock for " 
+                  << (1.0 - lost_duration) << "s" << RESET << std::endl;
+        // 保持追击模式，返回假成功
+        blackboard->set<int>("current_mode", Sentry_BT::NavMode::TRACING);
+        return BT::NodeStatus::SUCCESS; 
+      }
+    }
     return BT::NodeStatus::FAILURE;
   }
 
@@ -124,13 +125,13 @@ namespace Sentry_BT
 
   BT::NodeStatus CheckOutpostRemained::tick()
   {
-    std::cout << "---------- CheckOutpostRemained ----------" << std::endl;
+    std::cout << BLUE << "---------- CheckOutpostRemained ----------" << RESET << std::endl;
     auto blackboard = config().blackboard;
 
     auto enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
-    std::cout << "Enemy outpost destroyed: " << (enemy_outpost_destroyed ? "true" : "false") << std::endl;
+    std::cout << WHITE << "Enemy outpost destroyed: " << (enemy_outpost_destroyed ? "true" : "false") << RESET << std::endl;
     // 如果前哨站还在，切换到响应模式
-    if(enemy_outpost_destroyed)
+    if(!enemy_outpost_destroyed)
     {
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::RESPONSE);
       return BT::NodeStatus::SUCCESS;
@@ -155,7 +156,7 @@ BT::NodeStatus CheckInStairsZone::tick()
 {
   // 1. 获取黑板对象
   auto blackboard = config().blackboard;
-  std::cout << "---------- CheckInStairsZone ----------" << std::endl;
+  std::cout << BLUE << "---------- CheckInStairsZone ----------" << RESET << std::endl;
   // 2. 从黑板读取ros接口并获取当前位置
   std::shared_ptr<ros_interface> ros_iface;
   geometry_msgs::msg::Pose current_pose;
