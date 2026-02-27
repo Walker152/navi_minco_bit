@@ -5,7 +5,7 @@
 #include <string>
 #include <cmath>
 #include <chrono>
-
+using namespace color_text;
 namespace Sentry_BT
 {
 
@@ -24,7 +24,7 @@ namespace Sentry_BT
 
   BT::NodeStatus SetCoordinate::tick()
   {
-    std::cout << "---------- SetCoordinate ----------" << std::endl;
+    std::cout << BLUE << "---------- SetCoordinate ----------" << RESET << std::endl;
     auto goal_index = getInput<int>("goal");
 
     if(goal_index.value() < 0 || goal_index.value() >= static_cast<int>(nav_points.size()))
@@ -37,9 +37,8 @@ namespace Sentry_BT
 
     auto blackboard = config().blackboard;
     blackboard->set("nav_goal", point);
-    std::cout << "Set navigation goal to " << goal_names[goal_index.value()] << ": (" << point.x << ", " << point.y
-              << ")" << std::endl;
-    std::cout << "-----------------------------------" << std::endl;
+    std::cout << GREEN << "Set navigation goal to " << goal_names[goal_index.value()] << ": (" << point.x << ", " << point.y
+              << ")" << RESET << std::endl;
     return BT::NodeStatus::SUCCESS;
   }
 
@@ -56,7 +55,7 @@ namespace Sentry_BT
 
   BT::NodeStatus SetTargetCoordinate::tick()
   {
-    std::cout << "---------- SetTargetCoordinate ----------" << std::endl;
+    std::cout << BLUE << "---------- SetTargetCoordinate ----------" << RESET << std::endl;
     auto blackboard = config().blackboard;
     auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
     Sentry_BT::Point2D point;
@@ -65,7 +64,7 @@ namespace Sentry_BT
 
     // 将目标点设置到黑板
     blackboard->set("nav_goal", point);
-    std::cout << "Set target pose to: (" << point.x << ", " << point.y << ")" << std::endl;
+    std::cout << WHITE << "Set target pose to: (" << point.x << ", " << point.y << ")" << RESET << std::endl;
     return BT::NodeStatus::SUCCESS;
   }
 
@@ -84,7 +83,7 @@ namespace Sentry_BT
   {
     auto blackboard = config().blackboard;
 
-    std::cout << "---------- SelectPatrolPoint ----------" << std::endl;
+    std::cout << RED << "---------- SelectPatrolPoint ----------" << RESET << std::endl;
     // 获取当前巡逻索引
     int current_index = 0;
     if(auto index = blackboard->get<int>("patrol_index"))
@@ -114,9 +113,10 @@ namespace Sentry_BT
     blackboard->set("patrol_index", next_index);
     blackboard->set("nav_goal", selected_point);
     blackboard->set("patrol_wait_time", patrol_points_milliseconds[current_index]);
+    blackboard->set<int>("current_mode", Sentry_BT::NavMode::PATROL);
 
-    std::cout << "Selected patrol point " << current_index << ": (" << selected_point.x << ", " << selected_point.y
-              << ")" << std::endl;
+    std::cout << GREEN << "Selected patrol point " << current_index << ": (" << selected_point.x << ", " << selected_point.y
+              << ")" << RESET << std::endl;
     return BT::NodeStatus::SUCCESS;
   }
 
@@ -136,7 +136,7 @@ namespace Sentry_BT
   BT::NodeStatus Wait::onStart()
   {
     auto blackboard = config().blackboard;
-    std::cout << "---------- Wait ----------" << std::endl;
+    std::cout << BLUE << "---------- Wait ----------" << RESET << std::endl;
     auto wait_time = blackboard->get<int>("patrol_wait_time");
 
     if(!wait_time)
@@ -145,7 +145,7 @@ namespace Sentry_BT
       wait_time = time.value();
     }
 
-    std::cout << "Waiting for " << wait_time << " milliseconds" << std::endl;
+    std::cout << WHITE << "Waiting for " << wait_time << " milliseconds" << RESET << std::endl;
     wait_time_ = wait_time;
     start_time_ = std::chrono::system_clock::now();
     return BT::NodeStatus::RUNNING;
@@ -195,7 +195,7 @@ BT::NodeStatus DirectVelocityControl::onStart()
   auto angular_z = getInput<double>("angular_z"); 
   auto duration = getInput<double>("duration");
   
-  std::cout << "---------- DirectVelocityControl ----------" << std::endl;
+  std::cout << MAGENTA << "---------- DirectVelocityControl ----------" << RESET << std::endl;
 
   if (!linear_y || !duration) {
     std::cerr << "参数缺失: linear_y 或 duration" << std::endl;
@@ -267,7 +267,7 @@ BT::NodeStatus SetStairsPosition::tick()
 {
  
   auto blackboard = config().blackboard;
-  std::cout << "---------- SetStairsPosition ----------" << std::endl;
+  std::cout << MAGENTA << "---------- SetStairsPosition ----------" << RESET << std::endl;
   // 创建一个固定目标点（台阶前准备位置）（硬编码）
   geometry_msgs::msg::Point goal_point;
   goal_point.x = 9.5;  

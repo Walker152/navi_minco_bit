@@ -2,6 +2,7 @@
 
 #include <behaviortree_cpp_v3/condition_node.h>
 #include "bt_manager/utils/nav_zone.hpp"
+#include "bt_manager/utils/log.hpp"
 
 namespace Sentry_BT
 {
