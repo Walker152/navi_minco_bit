@@ -1,5 +1,5 @@
 #include "bt_manager/condition/change_stance_condition.hpp"
-
+using namespace color_text;
 namespace Sentry_BT
 {
 // ------------------- CheckMPCondition -------------------
@@ -15,33 +15,10 @@ BT::PortsList CheckMPCondition::providedPorts()
 
 BT::NodeStatus CheckMPCondition::tick()
 {
-  std::cout << "---------- CheckMPCondition ----------" << std::endl;
+  std::cout << BLUE << "---------- CheckMPCondition ----------" << RESET << std::endl;
   auto blackboard = config().blackboard;
-  try
-  {
-    bool enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
-    int current_mode = blackboard->get<int>("current_mode");
-    bool outpost_msg = blackboard->get<bool>("outpost_msg");
-
-    bool condition_met = ((!enemy_outpost_destroyed) && (current_mode == Sentry_BT::NavMode::RESPONSE) &&
-                          (!outpost_msg)) ||
-                         (current_mode == Sentry_BT::NavMode::RETREAT) ||
-                         (current_mode == Sentry_BT::NavMode::PATROL);
-
-    std::cout << "Condition check: enemy_outpost_destroyed=" << (enemy_outpost_destroyed ? "true" : "false")
-              << ", current_mode=" << mode_names[current_mode]
-              << ", outpost_msg=" << (outpost_msg ? "true" : "false") << std::endl;
-    if(condition_met)
-    {
-      blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::MOVE);
-      return BT::NodeStatus::SUCCESS;
-    }
-  }
-  catch(...)
-  {
-    return BT::NodeStatus::FAILURE;
-  }
-  return BT::NodeStatus::FAILURE;
+  blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::MOVE);
+  return BT::NodeStatus::SUCCESS;
 }
 
 // ------------------- CheckAPCondition -------------------
@@ -57,20 +34,14 @@ BT::PortsList CheckAPCondition::providedPorts()
 
 BT::NodeStatus CheckAPCondition::tick()
 {
-  std::cout << "---------- CheckAPCondition ----------" << std::endl;
+  std::cout << BLUE << "---------- CheckAPCondition ----------" << RESET << std::endl;
   auto blackboard = config().blackboard;
   try
   {
-    bool enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
-    int current_mode = blackboard->get<int>("current_mode");
+    bool target_valid = blackboard->get<bool>("target_valid");
     bool outpost_msg = blackboard->get<bool>("outpost_msg");
 
-    bool condition_met = ((!enemy_outpost_destroyed) && (current_mode == Sentry_BT::NavMode::RESPONSE) &&
-                          outpost_msg) ||
-                         (current_mode == Sentry_BT::NavMode::TRACING) ||
-                         (current_mode == Sentry_BT::NavMode::PATROL);
-
-    if(condition_met)
+    if(target_valid || outpost_msg)
     {
       blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::ATTACK);
       return BT::NodeStatus::SUCCESS;
@@ -96,16 +67,15 @@ BT::PortsList CheckDPCondition::providedPorts()
 
 BT::NodeStatus CheckDPCondition::tick()
 {
-  std::cout << "---------- CheckDPCondition ----------" << std::endl;
+  std::cout << BLUE << "---------- CheckDPCondition ----------" << RESET << std::endl;
   auto blackboard = config().blackboard;
   try
   {
     float current_health = blackboard->get<float>("health");
-    bool condition_met = (current_health <= 30.0f);
 
-    if(condition_met)
+    if(current_health <= 50.0f)
     {
-      blackboard->set<Sentry_BT::SentryStance>("desired_stance", SentryStance::DEFEND);
+      blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::DEFEND);
       return BT::NodeStatus::SUCCESS;
     }
   }

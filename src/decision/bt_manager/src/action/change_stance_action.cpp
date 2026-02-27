@@ -1,7 +1,7 @@
 #include "bt_manager/action/change_stance_action.hpp"
 
 #include <limits>
-
+using namespace color_text;
 namespace Sentry_BT
 {
 std::chrono::time_point<std::chrono::system_clock> ChangeStance::last_change_time_ =
@@ -50,8 +50,8 @@ BT::NodeStatus ChangeStance::tick()
     return BT::NodeStatus::FAILURE;
   }
 
-  std::cout << "---------- ChangeStance ----------" << std::endl;
-  std::cout << "Current stance: " << stance_to_string(current_stance)
+  std::cout << BLUE << "---------- ChangeStance ----------" << RESET << std::endl;
+  std::cout << WHITE << "Current stance: " << stance_to_string(current_stance)
             << ", Desired stance: " << stance_to_string(desired_stance)
             << std::endl;
 
@@ -68,13 +68,13 @@ BT::NodeStatus ChangeStance::tick()
 
   if(elapsed_seconds < 5.0)
   {
-    return BT::NodeStatus::FAILURE;
+    return BT::NodeStatus::SUCCESS;
   }
 
-  std::cout << "Change from stance " << stance_to_string(current_stance)
-            << " to stance " << stance_to_string(desired_stance) << std::endl;
+  std::cout << GREEN << "Change from stance " << stance_to_string(current_stance)
+            << " to stance " << stance_to_string(desired_stance) << RESET << std::endl;
   // 下发姿态切换指令
-  ros_iface->publishPosition(static_cast<int>(desired_stance));
+  blackboard->set<Sentry_BT::SentryStance>("current_stance", desired_stance);
   last_change_time_ = now;
   return BT::NodeStatus::SUCCESS;
 }

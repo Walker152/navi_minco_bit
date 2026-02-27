@@ -3,57 +3,57 @@
     <ReactiveSequence name="SentryMainLogic">
       <ForceSuccess>
         <Fallback>
-          <Sequence name="MoveStance">
-            <CheckMPCondition name="CheckMPCondition" />
-            <ChangeStance name="ChangeStanceMove" />
+          <Sequence name="DefendStance">
+            <CheckDPCondition name="CheckDPCondition" />            
+            <ChangeStance name="ChangeStanceDefend" />
           </Sequence>
 
           <Sequence name="AttackStance">
             <CheckAPCondition name="CheckAPCondition" />   
             <ChangeStance name="ChangeStanceAttack" />
           </Sequence>
-
-          <Sequence name="DefendStance">
-            <CheckDPCondition name="CheckDPCondition" />            
-            <ChangeStance name="ChangeStanceDefend" />
+ 
+          <Sequence name="MoveStance">
+            <CheckMPCondition name="CheckMPCondition" />
+            <ChangeStance name="ChangeStanceMove" />
           </Sequence>
         </Fallback>
       </ForceSuccess>
       <ReactiveFallback name="NavigationStrategies">
-        <Sequence name="EmergencyRetreat">
+        <Sequence name="StairsEvacuation">
+          <CheckInStairsZone name="CheckInStairsZone"/>
+          <SetStairsPosition name="SetStairsPosition"/>
+          <NavigateToPoseAction name="PublishPreStairsGoal"/>
+          <DirectVelocityControl name="DescendStairs"
+                                linear_y="2.0"
+                                angular_z="0.0"
+                                duration="1.5"/>
+          <DirectVelocityControl name="StopAfterStairs"
+                                linear_y="0.0"
+                                angular_z="0.0"
+                                duration="0.5"/>
+        </Sequence>
+        
+        <ReactiveSequence name="EmergencyRetreat">
           <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
           <SetCoordinate name="SetHomeCoordinate" goal="0" />
           <NavigateToPoseAction name="PublishRetreatGoal" />
-          <Sequence name="StairsEvacuation">
-            <CheckInStairsZone name="CheckInStairsZone"/>
-            <SetStairsPosition name="SetStairsPosition"/>
-            <NavigateToPoseAction name="PublishPreStairsGoal"/>
-            <DirectVelocityControl name="DescendStairs"
-                                  linear_y="2.0"
-                                  angular_z="0.0"
-                                  duration="1.5"/>
-            <DirectVelocityControl name="StopAfterStairs"
-                                  linear_y="0.0"
-                                  angular_z="0.0"
-                                  duration="0.5"/>
-          </Sequence>
-        </Sequence>
+        </ReactiveSequence>
 
-        <Sequence name="OutpostResponse">
+        <ReactiveSequence name="OutpostResponse">
           <CheckOutpostRemained name="CheckOutpostRemained" />
           <SetCoordinate name="SetResponseCoordinate" goal="2" />
           <NavigateToPoseAction name="PublishResponseGoal" />
-        </Sequence>
+        </ReactiveSequence>
 
         <ReactiveFallback name="OffensiveStrategies">
-          <Sequence name="TargetPursuit">
+          <ReactiveSequence name="TargetPursuit">
             <CheckTargetLocked name="CheckTargetLocked" />
             <SetTargetCoordinate name="SetTargetCoordinate" />
             <NavigateToPoseAction name="PublishPursuitGoal" />
-          </Sequence>
+          </ReactiveSequence>
 
           <Sequence name="RegularPatrol">
-            <Wait name="InitialWait" milliseconds="5000"/>
             <SelectPatrolPoint name="SelectPatrolPoint" />
             <NavigateToPoseAction name="PublishPatrolGoal" />
             <Wait name="PostNavigationWait" />
