@@ -1,5 +1,6 @@
 #include "bt_manager/ros_interface.hpp"
 
+#include <cmath>
 #include <chrono>
 #include <string>
 
@@ -26,46 +27,40 @@ namespace Sentry_BT
                                                                     current_pose_ = msg->pose.pose;
                                                                   }); 
 
-    // 定时发布前哨站状态
+    // 定时发布行为状态（10Hz）
     timer_ = this->create_wall_timer(
         std::chrono::milliseconds(100),
         [this]()
         {
-          auto current_mode = blackboard_->get<int>("current_mode");
-          std_msgs::msg::Bool outpost_msg;
-          if(current_mode == Sentry_BT::NavMode::RESPONSE &&
-             std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) < 1.0)
-          {
-            outpost_msg.data = true;
-            blackboard_->set<bool>("outpost_msg", true);
-            outpost_pub->publish(outpost_msg);
-          }
-          else if(std::hypot(current_pose_.position.x - nav_points[2].x, current_pose_.position.y - nav_points[2].y) >=
-                  1.0)
-          {
-            outpost_msg.data = false;
-            blackboard_->set<bool>("outpost_msg", false);
-            outpost_pub->publish(outpost_msg);
-          }
+          const auto current_mode = blackboard_->get<int>("current_mode");
+          const auto desired_stance = blackboard_->get<Sentry_BT::SentryStance>("desired_stance");
+          const auto current_pose = getCurrentPose();
+
+          const bool is_reach_outpost_enemy =
+              current_mode == Sentry_BT::NavMode::RESPONSE &&
+              std::hypot(current_pose.position.x - nav_points[2].x, current_pose.position.y - nav_points[2].y) < 1.0;
+
+          const bool is_reach_outpost_own =
+              std::hypot(current_pose.position.x - nav_points[0].x, current_pose.position.y - nav_points[0].y) < 1.0;
+
+          blackboard_->set<bool>("outpost_msg", is_reach_outpost_enemy);
+
+          ros_interfaces::msg::Behavior behavior_msg;
+          behavior_msg.desired_stance = static_cast<int8_t>(desired_stance);
+          behavior_msg.is_reach_outpost_enemy = is_reach_outpost_enemy;
+          behavior_msg.is_reach_outpost_own = is_reach_outpost_own;
+          behavior_pub->publish(behavior_msg);
         });
-    outpost_pub = this->create_publisher<std_msgs::msg::Bool>("/sentry/outpost_status", 10);
-    stance_pub = this->create_publisher<std_msgs::msg::Int32>("/sentry/want_position", 10);
+    behavior_pub = this->create_publisher<ros_interfaces::msg::Behavior>("/sentry/behaivor_send", 10);
     cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
   }
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
   void ros_interface::publishCmdVel(double linear_y, double angular_z)
   {
     geometry_msgs::msg::Twist cmd_vel;
     cmd_vel.linear.y = linear_y;
     cmd_vel.angular.z = angular_z;
     cmd_vel_pub->publish(cmd_vel);
-  }
-
-  void ros_interface::publishPosition(int target_stance)
-  {
-    std_msgs::msg::Int32 stance_msg;
-    stance_msg.data = target_stance;
-    stance_pub->publish(stance_msg);
   }
 
   geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
@@ -82,11 +77,11 @@ namespace Sentry_BT
     blackboard_->set<bool>("enemy_outpost_destroyed", msg->enemy_outpost_destroyed);
     blackboard_->set<bool>("bonus_active", msg->buff_active);
     blackboard_->set<bool>("target_valid", msg->enemy_detected.is_detect);
-    if(msg->position >= 1 && msg->position <= 3)
-    {
-      blackboard_->set<Sentry_BT::SentryStance>("current_stance",
-                                                static_cast<Sentry_BT::SentryStance>(msg->position - 1));
-    }
+    // if(msg->position >= 1 && msg->position <= 3)
+    // {
+    //   blackboard_->set<Sentry_BT::SentryStance>("current_stance",
+    //                                             static_cast<Sentry_BT::SentryStance>(msg->position - 1));
+    // }
     // 更新目标位置
     if(msg->enemy_detected.is_detect)
     // if(false)

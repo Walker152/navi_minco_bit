@@ -179,7 +179,7 @@ void MincoFsm::callMainFsmOnce()
 // -----------------------------------------------------------------------------
 
 namespace {
-
+[[maybe_unused]]
 const char * StateToString(MincoFsm::State s)
 {
   switch (s) {
@@ -206,8 +206,10 @@ void MincoFsm::changeState(const char * caller, State new_state)
     return;
   }
 
-  std::cout << "[MincoFSM] [" << (caller ? caller : "?") << "] change state from ["
-            << StateToString(state_) << "] to [" << StateToString(new_state) << "]" << std::endl;
+  (void)caller;
+  
+  // std::cout << "[MincoFSM] [" << (caller ? caller : "?") << "] change state from ["
+  //           << StateToString(state_) << "] to [" << StateToString(new_state) << "]" << std::endl;
 
   last_state_ = state_;
   state_ = new_state;

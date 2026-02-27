@@ -19,11 +19,10 @@ namespace Sentry_BT
       blackboard_ = BT::Blackboard::create();
 
       // 初始化黑板变量
-      blackboard_->set("health", 400.0f);                                   // 初始生命值
+      blackboard_->set("health", 400.0f);                                   // 初始生命值(百分比)
       blackboard_->set<int>("own_outpost_health", 1500);                    // 我方前哨站血量
       blackboard_->set<bool>("enemy_outpost_destroyed", false);             // 敌方前哨站是否被摧毁
       blackboard_->set("target_valid", false);                              // 目标锁定状态
-      blackboard_->set("target_in_range", false);                           // 目标是否在攻击范围内
       blackboard_->set("target_pose", geometry_msgs::msg::Pose());          // 目标位置
       blackboard_->set("target_armor_id", -1);                              // 目标装甲板ID
       blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));  // 当前模式
@@ -34,7 +33,6 @@ namespace Sentry_BT
       blackboard_->set<SentryStance>("desired_stance", SentryStance::MOVE);
       
       blackboard_->set("outpost_msg", false);                               // 抬头
-      blackboard_->set("retreat_msg", false);                               // 回家
     }
 
     template <typename T> void set(const std::string& key, const T& value)

@@ -28,6 +28,7 @@ set(msg_files
   "msg/Nav.msg"
   "msg/minco_traj/PositionCommand.msg"
   "msg/minco_traj/MpcPositionCommand.msg"
+  "msg/Behavior.msg"
 )
 
 # set(srv_files
