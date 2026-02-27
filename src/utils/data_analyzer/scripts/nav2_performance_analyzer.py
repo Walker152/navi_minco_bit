@@ -143,7 +143,8 @@ class Nav2Analyzer(Node):
                 'Time', 
                 'Plan_Vel_X', 'Real_Vel_X', 'Plan_Vel_Y', 'Real_Vel_Y',
                 'Plan_Acc_X', 'Real_Acc_X', 'Plan_Acc_Y', 'Real_Acc_Y',
-                'Plan_Freq', 'Ctrl_Freq', 'Robot_X', 'Robot_Y'
+                'Plan_Freq', 'Ctrl_Freq',
+                'Plan_X', 'Plan_Y', 'Robot_X', 'Robot_Y'
             ])
             self.get_logger().info(f"Logging CSV to: {self.csv_filename}")
         except Exception as e:
@@ -248,6 +249,7 @@ class Nav2Analyzer(Node):
             # 2. Compare with Plan
             pv_x, rv_x, pv_y, rv_y = 0.0, 0.0, 0.0, 0.0
             pa_x, ra_x, pa_y, ra_y = 0.0, 0.0, 0.0, 0.0
+            plan_x, plan_y = 0.0, 0.0
             rx, ry = 0.0, 0.0
             
             has_data = (self.latest_odom_msg and self.latest_plan_msg and len(self.latest_plan_msg.cmds) > 0)
@@ -270,6 +272,7 @@ class Nav2Analyzer(Node):
                 
                 pv_x, pv_y = best_cmd.velocity.x, best_cmd.velocity.y
                 pa_x, pa_y = best_cmd.acceleration.x, best_cmd.acceleration.y
+                plan_x, plan_y = best_cmd.position.x, best_cmd.position.y
                 
                 rv_x, rv_y = self.curr_real_vel_world[0], self.curr_real_vel_world[1]
                 ra_x, ra_y = self.curr_real_acc_world[0], self.curr_real_acc_world[1]
@@ -285,7 +288,8 @@ class Nav2Analyzer(Node):
                     f"{t_rel:.3f}", 
                     f"{pv_x:.4f}", f"{rv_x:.4f}", f"{pv_y:.4f}", f"{rv_y:.4f}",
                     f"{pa_x:.4f}", f"{ra_x:.4f}", f"{pa_y:.4f}", f"{ra_y:.4f}",
-                    f"{self.curr_plan_freq:.1f}", f"{self.curr_ctrl_freq:.1f}", 
+                    f"{self.curr_plan_freq:.1f}", f"{self.curr_ctrl_freq:.1f}",
+                    f"{plan_x:.3f}", f"{plan_y:.3f}",
                     f"{rx:.3f}", f"{ry:.3f}"
                 ])
 
@@ -325,7 +329,7 @@ def generate_post_run_report(csv_path):
         matplotlib.use('Agg') 
         import matplotlib.pyplot as plt
 
-        data = {k: [] for k in ['t', 'pvx', 'rvx', 'pvy', 'rvy', 'pax', 'rax', 'pay', 'ray', 'rx', 'ry']}
+        data = {k: [] for k in ['t', 'pvx', 'rvx', 'pvy', 'rvy', 'pax', 'rax', 'pay', 'ray', 'px', 'py', 'rx', 'ry']}
         
         with open(csv_path, 'r') as f:
             reader = csv.reader(f)
@@ -341,43 +345,55 @@ def generate_post_run_report(csv_path):
                     data['rax'].append(float(row[6]))
                     data['pay'].append(float(row[7]))
                     data['ray'].append(float(row[8]))
-                    data['rx'].append(float(row[11]))
-                    data['ry'].append(float(row[12]))
+                    data['px'].append(float(row[11]))
+                    data['py'].append(float(row[12]))
+                    data['rx'].append(float(row[13]))
+                    data['ry'].append(float(row[14]))
                 except ValueError: continue
         
         if not data['t']: return
 
-        fig = plt.figure(figsize=(16, 12), facecolor='white')
-        gs = gridspec.GridSpec(3, 2)
+        fig = plt.figure(figsize=(16, 14), facecolor='white')
+        gs = gridspec.GridSpec(4, 2)
 
-        # Swapped Axis for Report (Vertical=X, Horizontal=Y)
+        # X-Y trajectory comparison
         ax_traj = fig.add_subplot(gs[:, 0])
-        ax_traj.plot(data['ry'], data['rx'], label='Robot Path', color='blue', linewidth=1.5)
-        ax_traj.set_title("Full Trajectory (X=Vert, Y=Horiz)")
-        ax_traj.set_xlabel("Y (m)")
-        ax_traj.set_ylabel("X (m)")
+        ax_traj.plot(data['px'], data['py'], label='mincoplan', color='tab:blue', linewidth=1.5, alpha=0.9)
+        ax_traj.plot(data['rx'], data['ry'], label='real', color='tab:red', linewidth=1.5, alpha=0.9)
+        ax_traj.set_title("X-Y Trajectory Comparison")
+        ax_traj.set_xlabel("X (m)")
+        ax_traj.set_ylabel("Y (m)")
         ax_traj.axis('equal')
         ax_traj.grid(True, alpha=0.5)
         ax_traj.legend()
 
         ax_vx = fig.add_subplot(gs[0, 1])
-        ax_vx.plot(data['t'], data['pvx'], 'b--', alpha=0.7, label='Plan')
-        ax_vx.plot(data['t'], data['rvx'], 'b', alpha=1.0, label='Real (IMU)')
+        ax_vx.plot(data['t'], data['pvx'], 'b--', alpha=0.7, label='mincoplan')
+        ax_vx.plot(data['t'], data['rvx'], 'b', alpha=1.0, label='real')
         ax_vx.set_title("Vel X")
         ax_vx.grid(True, alpha=0.5)
         ax_vx.legend()
 
         ax_vy = fig.add_subplot(gs[1, 1], sharex=ax_vx)
-        ax_vy.plot(data['t'], data['pvy'], color='purple', ls='--', alpha=0.7, label='Plan')
-        ax_vy.plot(data['t'], data['rvy'], color='purple', alpha=1.0, label='Real (IMU)')
+        ax_vy.plot(data['t'], data['pvy'], color='purple', ls='--', alpha=0.7, label='mincoplan')
+        ax_vy.plot(data['t'], data['rvy'], color='purple', alpha=1.0, label='real')
         ax_vy.set_title("Vel Y")
         ax_vy.grid(True, alpha=0.5)
+        ax_vy.legend()
 
         ax_ax = fig.add_subplot(gs[2, 1], sharex=ax_vx)
-        ax_ax.plot(data['t'], data['pax'], color='green', ls='--', alpha=0.7, label='Plan X')
-        ax_ax.plot(data['t'], data['rax'], color='green', alpha=1.0, label='Real X (IMU)')
+        ax_ax.plot(data['t'], data['pax'], color='green', ls='--', alpha=0.7, label='mincoplan')
+        ax_ax.plot(data['t'], data['rax'], color='green', alpha=1.0, label='real')
         ax_ax.set_title("Acc X")
         ax_ax.grid(True, alpha=0.5)
+        ax_ax.legend()
+
+        ax_ay = fig.add_subplot(gs[3, 1], sharex=ax_vx)
+        ax_ay.plot(data['t'], data['pay'], color='orange', ls='--', alpha=0.7, label='mincoplan')
+        ax_ay.plot(data['t'], data['ray'], color='orange', alpha=1.0, label='real')
+        ax_ay.set_title("Acc Y")
+        ax_ay.grid(True, alpha=0.5)
+        ax_ay.legend()
 
         timestamp = os.path.basename(csv_path).replace('nav2_log_', '').replace('.csv', '')
         out_path = os.path.join(IMG_DIR, f"report_{timestamp}.png")

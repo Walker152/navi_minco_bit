@@ -169,6 +169,9 @@ double MincoOptimizer::costFunctional(void *ptr, const VecDf& x, VecDf& g)
     // 7. Time regularization
     cost += rho * times.sum();
     gradByTimes.array() += rho;
+
+    // 7.5 Kinematic Time Barrier
+    computeTimeBarrier(opt_vars_, times, magnitudeBounds, cost, gradByTimes);
     
     
     // 8. Backprop time gradient (T -> tau)
@@ -180,6 +183,56 @@ double MincoOptimizer::costFunctional(void *ptr, const VecDf& x, VecDf& g)
 
 
     return cost;
+}
+
+void MincoOptimizer::computeTimeBarrier(const OptVars& opt_vars,
+                                        const VecDf& times,
+                                        const VecDf& magnitudeBounds,
+                                        double& cost,
+                                        VecDf& gradByTimes)
+{
+    const int N = static_cast<int>(times.size());
+    const double w_barrier = 100.0;
+    const double vmax_safe = std::max(1e-3, magnitudeBounds[1] * 0.8);
+    const double amax_safe = std::max(1e-3, magnitudeBounds[2]);
+    const double v_curr = opt_vars.headPVA.col(1).norm();
+    const bool has_init_ps =
+        (opt_vars.init_ps.size() == static_cast<size_t>(std::max(0, N - 1)));
+
+    for (int i = 0; i < N; ++i)
+    {
+        const double t_i = times(i);
+
+        Eigen::Vector3d p_start = opt_vars.headPVA.col(0);
+        Eigen::Vector3d p_end = opt_vars.tailPVA.col(0);
+
+        if (i > 0)
+        {
+            p_start = has_init_ps ? opt_vars.init_ps[static_cast<size_t>(i - 1)]
+                                  : opt_vars.waypoint_attractor.col(i);
+        }
+        if (i < N - 1)
+        {
+            p_end = has_init_ps ? opt_vars.init_ps[static_cast<size_t>(i)]
+                                : opt_vars.waypoint_attractor.col(i + 1);
+        }
+
+        const double dist = (p_end - p_start).norm();
+        double t_min = dist / vmax_safe;
+
+        if (i == N - 1)
+        {
+            t_min = std::max({t_min, v_curr / amax_safe, vmax_safe / amax_safe});
+        }
+
+        if (t_i < t_min)
+        {
+            const double violation = t_min - t_i;
+            const double violation2 = violation * violation;
+            cost += w_barrier * violation2 * violation;
+            gradByTimes(i) += -3.0 * w_barrier * violation2;
+        }
+    }
 }
 
 void MincoOptimizer::constraintsFunctional(const VecDf& T, 
