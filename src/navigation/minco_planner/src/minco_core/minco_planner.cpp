@@ -892,10 +892,9 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
   double dynamic_error_threshold = 0.5 + 0.3 * current_speed;
 
   if (tracking_error > dynamic_error_threshold) {
-    std::cout << YELLOW << "[MincoPlanner] EMERGENCY_STOP: Large tracking error ("
-              << tracking_error << "m > " << dynamic_error_threshold << "m)" << RESET
-              << std::endl;
-    return PlanningState::EMERGENCY_STOP;
+    std::cout << YELLOW << "[MincoPlanner] Large tracking error (" << tracking_error
+              << "m). Downgrading to COLD_START." << RESET << std::endl;
+    return PlanningState::COLD_START;
   }
 
   if (new_path.size() >= 2) {
