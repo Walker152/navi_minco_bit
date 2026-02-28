@@ -27,7 +27,7 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             name='static_tf_map_to_camera_init',
-            arguments=['5', '6', '0', '1', '0', '0', 'map', 'camera_init'],
+            arguments=['5', '6', '0', '-1', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
         # 静态TF: camera_init -> body
