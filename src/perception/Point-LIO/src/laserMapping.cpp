@@ -293,6 +293,28 @@ void publish_odometry(
   }
   set_posestamp(odomAftMapped.pose.pose);
 
+  auto set_twist_linear_from_kf = [&](const auto & kf) {
+    Eigen::Vector3d vel_world = kf.x_.vel;
+    Eigen::Quaterniond q(kf.x_.rot);
+    Eigen::Vector3d vel_body = q.inverse() * vel_world;
+
+    odomAftMapped.twist.twist.linear.x = vel_body(0);
+    odomAftMapped.twist.twist.linear.y = vel_body(1);
+    odomAftMapped.twist.twist.linear.z = vel_body(2);
+  };
+
+  if (!use_imu_as_input) {
+    set_twist_linear_from_kf(kf_output);
+    odomAftMapped.twist.twist.angular.x = kf_output.x_.omg(0);
+    odomAftMapped.twist.twist.angular.y = kf_output.x_.omg(1);
+    odomAftMapped.twist.twist.angular.z = kf_output.x_.omg(2);
+  } else {
+    set_twist_linear_from_kf(kf_input);
+    odomAftMapped.twist.twist.angular.x = angvel_avr(0);
+    odomAftMapped.twist.twist.angular.y = angvel_avr(1);
+    odomAftMapped.twist.twist.angular.z = angvel_avr(2);
+  }
+
   pubOdomAftMapped->publish(odomAftMapped);
 
   if (tf_send_en) {
