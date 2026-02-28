@@ -27,6 +27,7 @@ public:
   explicit MincoFsm(const PlannerPtr & planner);
 
   void callMainFsmOnce();
+  void cancelGoal();
 
   State getState() const { return state_; }
 
