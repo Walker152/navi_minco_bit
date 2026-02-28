@@ -187,7 +187,7 @@ namespace icp_relocalization
                 color_text::RESET.c_str());
 
     // 1. Reset State
-    mode_ = Mode::SAC_IA;
+    mode_ = Mode::INITIAL_GUESS;
     state_ = State::UNINITIALIZED;
     converged_count_ = 0;
     current_accumulated_frames_ = 0;
