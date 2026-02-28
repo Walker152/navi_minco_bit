@@ -6,7 +6,7 @@ gicp_relocalization_node:
     # target_pcd_file: "src/perception/Point-LIO/PCD/scans.pcd"
     map_frame: "map"
     alignment_frequency: 5.0
-    accumulate_frames: 2
+    accumulate_frames: 5
     
     # Convergence Criteria
     fitness_score_threshold: 0.1
