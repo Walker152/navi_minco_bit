@@ -424,13 +424,24 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     w_base = odom->twist.twist.angular.z;
   }
 
-  const double yaw_odom = tf2::getYaw(pose.pose.orientation);
-  const Eigen::Vector2d v_map = rotate2d(v_base, yaw_odom);
+  const double yaw_pose = tf2::getYaw(pose.pose.orientation);
+  double yaw_for_base_transform = yaw_pose;
+  if (odom) {
+    dt_delay = (now - odom->header.stamp).seconds();
+    dt_delay = std::clamp(dt_delay, 0.0, 0.1);
+    const double cmd_delay = 0.015;
+    yaw_for_base_transform = yaw_pose + w_base * (dt_delay + cmd_delay);
+  }
+
+  const Eigen::Vector2d v_map = rotate2d(v_base, yaw_pose);
 
   State curr;
   curr.x = pose.pose.position.x + v_map.x() * dt_delay;
   curr.y = pose.pose.position.y + v_map.y() * dt_delay;
-  curr.yaw = normalizeYaw(yaw_odom + w_base * dt_delay);
+  curr.yaw = normalizeYaw(yaw_pose + w_base * dt_delay);
+  curr.vx = v_map.x();
+  curr.vy = v_map.y();
+  curr.omega = w_base;
 
   // 2) 构造参考序列：优先 /opt_path
   std::vector<ReferencePoint> ref;
@@ -506,10 +517,9 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   }
   // std::cout << color_text::GREEN << "[MincoMpc] Solver Success!" << color_text::RESET << std::endl;
   // 4) 将全局控制律 [vx, vy, omega] 转换为机器人坐标系 (base)
-  // 这里不再进行 rotate2d 全局转局部，而是直接使用全局速度
+  // 使用 odom 提供的 yaw（若无 odom 则回退到 pose yaw）。
   const Eigen::Vector2d u_global_v(u_global.vx, u_global.vy);
-  // const Eigen::Vector2d u_base_v = rotate2d(u_global_v, -curr.yaw); 
-  const Eigen::Vector2d u_base_v = u_global_v;
+  const Eigen::Vector2d u_base_v = rotate2d(u_global_v, -yaw_for_base_transform);
 
   double vx = u_base_v.x();
   double vy = u_base_v.y();

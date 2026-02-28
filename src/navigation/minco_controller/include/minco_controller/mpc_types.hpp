@@ -13,6 +13,9 @@ struct State
   double x{0.0};
   double y{0.0};
   double yaw{0.0};
+  double vx{0.0};
+  double vy{0.0};
+  double omega{0.0};
 };
 
 // 控制量：速度命令 (vx, vy, omega)
