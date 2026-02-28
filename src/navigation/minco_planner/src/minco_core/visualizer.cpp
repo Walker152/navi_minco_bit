@@ -137,26 +137,51 @@ void Visualizer::visualTimerCallback()
     astar_path_vis_pub_->publish(vis_astar_path_);
   }
 
-  // 2. Waypoints from optimized trajectory + straight line connections
-  if (control_points_vis_pub_ && has_vis_opt_traj_ && vis_opt_traj_.getTotalDuration() > 1e-3) {
-    const double t_step = 0.05;
+  // 2. Project A* sampled control points to optimized trajectory + straight line connections
+  if (control_points_vis_pub_ && has_vis_opt_traj_ &&
+    vis_opt_traj_.getTotalDuration() > 1e-3 && !vis_control_points_.empty()) {
+    const double t_step = 0.02;
     const double total_duration = vis_opt_traj_.getTotalDuration();
-    const int steps = static_cast<int>(std::ceil(total_duration / t_step)) + 1;
+    const int sample_steps = static_cast<int>(std::ceil(total_duration / t_step)) + 1;
 
-    std::vector<geometry_msgs::msg::Point> vis_waypoints;
-    vis_waypoints.reserve(static_cast<size_t>(steps));
-    for (int i = 0; i < steps; ++i) {
+    std::vector<Eigen::Vector3d> traj_samples;
+    traj_samples.reserve(static_cast<size_t>(sample_steps));
+    for (int i = 0; i < sample_steps; ++i) {
       double t = i * t_step;
       if (t > total_duration) {
         t = total_duration;
       }
+      traj_samples.push_back(vis_opt_traj_.getPos(t));
+    }
 
-      const Eigen::Vector3d pos = vis_opt_traj_.getPos(t);
+    std::vector<geometry_msgs::msg::Point> vis_waypoints;
+    vis_waypoints.reserve(vis_control_points_.size());
+
+    size_t search_start = 0;
+    for (const auto & cp : vis_control_points_) {
+      if (search_start >= traj_samples.size()) {
+        break;
+      }
+
+      size_t best_idx = search_start;
+      double best_dist_sq = std::numeric_limits<double>::max();
+      for (size_t i = search_start; i < traj_samples.size(); ++i) {
+        const double dx = traj_samples[i].x() - cp.x();
+        const double dy = traj_samples[i].y() - cp.y();
+        const double dist_sq = dx * dx + dy * dy;
+        if (dist_sq < best_dist_sq) {
+          best_dist_sq = dist_sq;
+          best_idx = i;
+        }
+      }
+
       geometry_msgs::msg::Point pt;
-      pt.x = pos.x();
-      pt.y = pos.y();
+      pt.x = traj_samples[best_idx].x();
+      pt.y = traj_samples[best_idx].y();
       pt.z = 0.05;
       vis_waypoints.push_back(pt);
+
+      search_start = best_idx;
     }
 
     visualization_msgs::msg::Marker points_mk;
@@ -173,8 +198,10 @@ void Visualizer::visualTimerCallback()
     points_mk.color.g = 0.55f;
     points_mk.color.b = 0.0f;
     points_mk.color.a = 1.0f;
-    points_mk.points = vis_waypoints;
-    control_points_vis_pub_->publish(points_mk);
+    if (!vis_waypoints.empty()) {
+      points_mk.points = vis_waypoints;
+      control_points_vis_pub_->publish(points_mk);
+    }
 
     if (vis_waypoints.size() >= 2U) {
       visualization_msgs::msg::Marker line_mk;
@@ -184,7 +211,7 @@ void Visualizer::visualTimerCallback()
       line_mk.type = visualization_msgs::msg::Marker::LINE_STRIP;
       line_mk.action = visualization_msgs::msg::Marker::ADD;
       line_mk.pose.orientation.w = 1.0;
-      line_mk.scale.x = 0.08;
+      line_mk.scale.x = 0.04;
       line_mk.color.r = 1.0f;
       line_mk.color.g = 0.35f;
       line_mk.color.b = 0.0f;
