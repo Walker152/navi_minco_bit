@@ -41,7 +41,6 @@ void MincoFsm::callMainFsmOnce()
     if (planner_->consumePendingGoal(new_goal)) {
       goal_ = new_goal;
       has_goal_ = true;
-      has_last_pose_ = false;
       changeState("NewGoal", State::GENERATE_TRAJ);
     }
   }
@@ -87,7 +86,6 @@ void MincoFsm::callMainFsmOnce()
       }
 
       traveled_dist_ = 0.0;
-      has_last_pose_ = false;
       changeState("GENERATE_TRAJ", State::FOLLOW_TRAJ);
       break;
     }
@@ -119,26 +117,14 @@ void MincoFsm::callMainFsmOnce()
         planner_->isTrajectoryTimeExpired(now_s) ||
         !planner_->isTrajSafe();
 
-      // 震动过滤：使用相对于上次规划起点的绝对位移，而非里程累加。
-      if (!has_last_pose_) {
-        has_last_pose_ = true;
-        last_pose_x_ = current_pose.pose.position.x;
-        last_pose_y_ = current_pose.pose.position.y;
-      } else {
-        const double dist_from_last_plan = std::hypot(
-          current_pose.pose.position.x - last_pose_x_,
-          current_pose.pose.position.y - last_pose_y_);
-        if (std::isfinite(dist_from_last_plan) && dist_from_last_plan >= 0.5) {
+      // 强制高频重规划：10Hz（每 0.1s）刷新轨迹，避免轨迹“卡死”不更新。
+      if (has_odom && state_ == State::FOLLOW_TRAJ) {
+        static double last_replan_time = 0.0;
+        const double current_time = planner_->nowSeconds();
+        if (current_time - last_replan_time > 0.1) {
           need_replan = true;
-          has_last_pose_ = false;
+          last_replan_time = current_time;
         }
-      }
-
-      // 如果剩余轨迹时间不足 0.2 秒，立即触发重规划防止断供顿挫
-      double remain_time = planner_->getTrajectoryRemainTime();
-      if (remain_time < 0.2) {
-        need_replan = true;
-        has_last_pose_ = false;
       }
 
       if (!need_replan) {
@@ -151,7 +137,6 @@ void MincoFsm::callMainFsmOnce()
       }
 
       traveled_dist_ = 0.0;
-      has_last_pose_ = false;
       return;
     }
 
