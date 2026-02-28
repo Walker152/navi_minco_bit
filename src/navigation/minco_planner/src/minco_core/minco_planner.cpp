@@ -595,10 +595,26 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   // 8. Optimize.
   auto opt_start_time = rclcpp::Clock().now().seconds();
-  double cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
+  double final_cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
 
-  if (std::isinf(cost)) {
-    std::cout << RED << "[MincoPlanner] Minco optimization failed!" << RESET << std::endl;
+  const double max_allowed_cost = 3000.0;
+  if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
+    RCLCPP_WARN(
+      logger_,
+      "[MincoPlanner] Rejecting new trajectory! Cost (%.2f) exceeds limit (%.2f).",
+      final_cost,
+      max_allowed_cost);
+
+    bool has_last_traj = false;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      has_last_traj = has_last_traj_;
+    }
+
+    if (has_last_traj && isTrajSafe()) {
+        std::cout << YELLOW << "[MincoPlanner] Continuing to execute last trajectory since it's still safe. Cost of new traj: " << final_cost << RESET << std::endl;
+      return true;
+    }
     return false;
   }
 
@@ -606,7 +622,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   double opt_duration = opt_end_time - opt_start_time;
   std::cout << GREEN << "[MincoPlanner] Minco optimization time: "
             << opt_duration << " seconds, "
-            << "cost: " << cost << RESET << std::endl;
+            << "cost: " << final_cost << RESET << std::endl;
 
   // 8.5 Quality gating (hard validation) before publishing.
   if (!validateTrajectory(opt_traj, end_state.col(0))) {
