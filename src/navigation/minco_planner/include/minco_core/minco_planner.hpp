@@ -84,6 +84,7 @@ public:
   // Accessors for FSM
   bool isTrajSafe() const {return is_traj_safe_.load();}
   double nowSeconds() const;
+  double getTrajectoryRemainTime() const;
   bool isTrajectoryTimeExpired(double now_s) const;
   double getLookaheadDist() const {return lookahead_dist_;}
   bool getRobotPose(geometry_msgs::msg::PoseStamped & pose) const;
@@ -91,7 +92,9 @@ public:
   // Goal handoff: createPlan() only sets this flag, FSM consumes it.
   // Get current robot planar speed magnitude from odometry.
   double getCurrentSpeed() const;
+  bool checkGoalReached(const geometry_msgs::msg::PoseStamped & current_pose);
   bool consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out);
+  void cancelGoal();
 
   void publishEmergencyStop(const geometry_msgs::msg::PoseStamped & current_pose);
   
