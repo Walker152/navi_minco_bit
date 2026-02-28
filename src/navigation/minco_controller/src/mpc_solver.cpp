@@ -182,6 +182,11 @@ bool MpcSolver::buildCondensedQP(
   lbA = Eigen::VectorXd::Zero(nC);
   ubA = Eigen::VectorXd::Zero(nC);
 
+  const Eigen::Vector2d curr_v_body = globalToBodyVel(Eigen::Vector2d(curr.vx, curr.vy), curr.yaw);
+  const double last_vx = curr_v_body.x();
+  const double last_vy = curr_v_body.y();
+  const double last_w = curr.omega;
+
   // 约束形式：lbA <= A_con * U <= ubA
   // 这里 A_con * U 直接表示 (v_k - v_{k-1})，再用 bounds 限制到 [a_min*dt, a_max*dt]
   for (int k = 0; k < N; ++k) {
@@ -192,9 +197,9 @@ bool MpcSolver::buildCondensedQP(
 
       if (k == 0) {
         // v0 - v(-1)
-        // v(-1) 用上一周期控制量 last_u_body_ 作为已知常数，转移到 bounds：
-        // a_min*dt <= v0 - last_u <= a_max*dt
-        const double last = has_last_u_ ? last_u_body_(axis) : 0.0;
+        // v(-1) 使用当前时刻真实车体速度作为已知常数，转移到 bounds：
+        // a_min*dt <= v0 - v_curr_body <= a_max*dt
+        const double last = (axis == 0 ? last_vx : (axis == 1 ? last_vy : last_w));
         lbA(row) = (axis == 0 ? config_.ax_min : (axis == 1 ? config_.ay_min : config_.alpha_min)) * config_.dt + last;
         ubA(row) = (axis == 0 ? config_.ax_max : (axis == 1 ? config_.ay_max : config_.alpha_max)) * config_.dt + last;
       } else {

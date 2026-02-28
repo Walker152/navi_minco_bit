@@ -393,6 +393,10 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     }
   }
 
+  if (state == PlanningState::EMERGENCY_STOP) {
+    return false;
+  }
+
   // 5. Prepare start state.
   Eigen::Matrix3d start_state;
   vec_Vec3f shifted_waypoints;
@@ -597,7 +601,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   auto opt_start_time = rclcpp::Clock().now().seconds();
   double final_cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
 
-  const double max_allowed_cost = 3000.0;
+  const double max_allowed_cost = 5000.0;
   if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
     RCLCPP_WARN(
       logger_,
@@ -884,10 +888,13 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
   Eigen::Vector3d current_pos(start_pose.position.x, start_pose.position.y, 0.0);
   Eigen::Vector3d pred_pos = last_traj_.getPos(t_dur);
   double tracking_error = (current_pos - pred_pos).norm();
+  double current_speed = last_traj_.getVel(t_dur).norm();
+  double dynamic_error_threshold = 0.5 + 0.3 * current_speed;
 
-  if (tracking_error > 0.5) {
-    std::cout << YELLOW << "[MincoPlanner] EMERGENCY_STOP: Large tracking error (" << tracking_error
-              << "m)" << RESET << std::endl;
+  if (tracking_error > dynamic_error_threshold) {
+    std::cout << YELLOW << "[MincoPlanner] EMERGENCY_STOP: Large tracking error ("
+              << tracking_error << "m > " << dynamic_error_threshold << "m)" << RESET
+              << std::endl;
     return PlanningState::EMERGENCY_STOP;
   }
 
@@ -1092,10 +1099,19 @@ void MincoPlanner::publishEmergencyStop(const geometry_msgs::msg::PoseStamped & 
 
   Eigen::Matrix3d start_state;
   prepareColdStart(current_pose.pose, start_state);
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (has_last_traj_) {
+    const double t_dur = nowSeconds() - last_traj_.start_WT;
+    const double total = last_traj_.getTotalDuration();
+    if (std::isfinite(t_dur) && std::isfinite(total) && t_dur >= 0.0 && t_dur <= total) {
+      start_state.col(1) = last_traj_.getVel(t_dur);
+      start_state.col(2) = last_traj_.getAcc(t_dur);
+    }
+  }
 
   traj_opt::Trajectory backup_traj = generateBackupTraj(start_state);
-  utils::publishBackupTrajectory(
-    backup_traj, backup_path_pub_, backup_trajectory_id_, header_msg, 20, 0.1);
+  utils::publishOptimizedTrajectory(
+    backup_traj, opt_path_pub_, opt_trajectory_id_, header_msg, 20, 0.1);
 }
 
 traj_opt::Trajectory MincoPlanner::generateBackupTraj(const Eigen::Matrix3d & start_state)
@@ -1151,9 +1167,28 @@ bool MincoPlanner::consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out
   return true;
 }
 
+void MincoPlanner::cancelGoal()
+{
+  std::lock_guard<std::mutex> lk(goal_mutex_);
+  has_pending_goal_ = false;
+  if (fsm_) {
+    fsm_->cancelGoal();
+  }
+}
+
 double MincoPlanner::nowSeconds() const
 {
   return rclcpp::Clock().now().seconds();
+}
+
+double MincoPlanner::getTrajectoryRemainTime() const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!has_last_traj_) {
+    return 0.0;
+  }
+  double passed_time = nowSeconds() - last_traj_.start_WT;
+  return std::max(0.0, last_traj_.getTotalDuration() - passed_time);
 }
 
 bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
@@ -1162,6 +1197,20 @@ bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
     return false;
   }
   return costmap_ros_->getRobotPose(pose);
+}
+
+bool MincoPlanner::checkGoalReached(const geometry_msgs::msg::PoseStamped & current_pose)
+{
+  std::lock_guard<std::mutex> lock(path_mutex_);
+  if (latest_global_path_.empty()) {
+    return false;
+  }
+
+  const auto & goal = latest_global_path_.back().pose.position;
+  const double dx = current_pose.pose.position.x - goal.x;
+  const double dy = current_pose.pose.position.y - goal.y;
+  const double dist = std::hypot(dx, dy);
+  return std::isfinite(dist) && dist <= traj_goal_tolerance_;
 }
 
 double MincoPlanner::getCurrentSpeed() const
