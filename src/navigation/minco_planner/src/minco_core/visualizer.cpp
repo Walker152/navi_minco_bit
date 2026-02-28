@@ -137,32 +137,61 @@ void Visualizer::visualTimerCallback()
     astar_path_vis_pub_->publish(vis_astar_path_);
   }
 
-  // 2. Control Points
-  if (control_points_vis_pub_ && !vis_control_points_.empty()) {
-    visualization_msgs::msg::Marker mk;
-    mk.header = header;
-    mk.ns = "minco_control_points";
-    mk.id = 0;
-    mk.type = visualization_msgs::msg::Marker::SPHERE_LIST;
-    mk.action = visualization_msgs::msg::Marker::ADD;
-    mk.pose.orientation.w = 1.0;
-    mk.scale.x = 0.25;
-    mk.scale.y = 0.25;
-    mk.scale.z = 0.25;
-    mk.color.r = 1.0f;
-    mk.color.g = 0.55f;
-    mk.color.b = 0.0f;
-    mk.color.a = 1.0f;
+  // 2. Waypoints from optimized trajectory + straight line connections
+  if (control_points_vis_pub_ && has_vis_opt_traj_ && vis_opt_traj_.getTotalDuration() > 1e-3) {
+    const double t_step = 0.05;
+    const double total_duration = vis_opt_traj_.getTotalDuration();
+    const int steps = static_cast<int>(std::ceil(total_duration / t_step)) + 1;
 
-    mk.points.reserve(vis_control_points_.size());
-    for (const auto & p : vis_control_points_) {
+    std::vector<geometry_msgs::msg::Point> vis_waypoints;
+    vis_waypoints.reserve(static_cast<size_t>(steps));
+    for (int i = 0; i < steps; ++i) {
+      double t = i * t_step;
+      if (t > total_duration) {
+        t = total_duration;
+      }
+
+      const Eigen::Vector3d pos = vis_opt_traj_.getPos(t);
       geometry_msgs::msg::Point pt;
-      pt.x = p.x();
-      pt.y = p.y();
+      pt.x = pos.x();
+      pt.y = pos.y();
       pt.z = 0.05;
-      mk.points.push_back(pt);
+      vis_waypoints.push_back(pt);
     }
-    control_points_vis_pub_->publish(mk);
+
+    visualization_msgs::msg::Marker points_mk;
+    points_mk.header = header;
+    points_mk.ns = "minco_opt_waypoints";
+    points_mk.id = 0;
+    points_mk.type = visualization_msgs::msg::Marker::SPHERE_LIST;
+    points_mk.action = visualization_msgs::msg::Marker::ADD;
+    points_mk.pose.orientation.w = 1.0;
+    points_mk.scale.x = 0.25;
+    points_mk.scale.y = 0.25;
+    points_mk.scale.z = 0.25;
+    points_mk.color.r = 1.0f;
+    points_mk.color.g = 0.55f;
+    points_mk.color.b = 0.0f;
+    points_mk.color.a = 1.0f;
+    points_mk.points = vis_waypoints;
+    control_points_vis_pub_->publish(points_mk);
+
+    if (vis_waypoints.size() >= 2U) {
+      visualization_msgs::msg::Marker line_mk;
+      line_mk.header = header;
+      line_mk.ns = "minco_opt_waypoints";
+      line_mk.id = 1;
+      line_mk.type = visualization_msgs::msg::Marker::LINE_STRIP;
+      line_mk.action = visualization_msgs::msg::Marker::ADD;
+      line_mk.pose.orientation.w = 1.0;
+      line_mk.scale.x = 0.08;
+      line_mk.color.r = 1.0f;
+      line_mk.color.g = 0.35f;
+      line_mk.color.b = 0.0f;
+      line_mk.color.a = 1.0f;
+      line_mk.points = vis_waypoints;
+      control_points_vis_pub_->publish(line_mk);
+    }
   }
 
   // 3. Backup Path
