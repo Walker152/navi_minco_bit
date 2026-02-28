@@ -417,8 +417,8 @@ planner_server:
         penalty_weight_acc: 1000.0
         penalty_weight_att: 100.0
       static_esdf:
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/2026_esdf.pcd"
-        # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/2026_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
         esdf_resolution: 0.05
 
 smoother_server:
