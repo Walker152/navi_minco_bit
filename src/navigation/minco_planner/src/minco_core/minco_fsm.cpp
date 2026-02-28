@@ -18,6 +18,13 @@ MincoFsm::MincoFsm(const PlannerPtr & planner)
 {
 }
 
+void MincoFsm::cancelGoal()
+{
+  std::cout << "\033[33m[MincoFSM] Goal Cancelled! Forcing Stop.\033[0m" << std::endl;
+  has_goal_ = false;
+  changeState("CANCEL_GOAL", State::EMER_STOP);
+}
+
 // -----------------------------------------------------------------------------
 // 2) Core business interface
 // -----------------------------------------------------------------------------
@@ -34,6 +41,7 @@ void MincoFsm::callMainFsmOnce()
     if (planner_->consumePendingGoal(new_goal)) {
       goal_ = new_goal;
       has_goal_ = true;
+      has_last_pose_ = false;
       changeState("NewGoal", State::GENERATE_TRAJ);
     }
   }
@@ -41,24 +49,6 @@ void MincoFsm::callMainFsmOnce()
   // Get current robot pose.
   geometry_msgs::msg::PoseStamped current_pose;
   const bool has_odom = planner_->getRobotPose(current_pose);
-
-  // Track traveled distance since last replan (for FOLLOW_TRAJ trigger).
-  if (has_odom && state_ == State::FOLLOW_TRAJ) {
-    if (!has_last_pose_) {
-      has_last_pose_ = true;
-      last_pose_x_ = current_pose.pose.position.x;
-      last_pose_y_ = current_pose.pose.position.y;
-    } else {
-      const double dx = current_pose.pose.position.x - last_pose_x_;
-      const double dy = current_pose.pose.position.y - last_pose_y_;
-      const double ds = std::hypot(dx, dy);
-      if (std::isfinite(ds)) {
-        traveled_dist_ += ds;
-      }
-      last_pose_x_ = current_pose.pose.position.x;
-      last_pose_y_ = current_pose.pose.position.y;
-    }
-  }
 
   switch (state_) {
     case State::INIT: {
@@ -112,12 +102,44 @@ void MincoFsm::callMainFsmOnce()
         return;
       }
 
+      // 容差限停检测：到达终点且速度足够低
+      if (planner_->checkGoalReached(current_pose)) {
+        if (planner_->getCurrentSpeed() < 0.2) {
+          std::cout << "\033[32m[MincoFSM] Destination Arrived! Stopping replan.\033[0m"
+                    << std::endl;
+          has_goal_ = false;
+          changeState("GOAL_REACHED", State::WAIT_GOAL);
+          return;
+        }
+      }
+
       const double now_s = planner_->nowSeconds();
 
-      const bool need_replan =
+      bool need_replan =
         planner_->isTrajectoryTimeExpired(now_s) ||
-        (traveled_dist_ > 0.8 * planner_->getLookaheadDist()) ||
         !planner_->isTrajSafe();
+
+      // 震动过滤：使用相对于上次规划起点的绝对位移，而非里程累加。
+      if (!has_last_pose_) {
+        has_last_pose_ = true;
+        last_pose_x_ = current_pose.pose.position.x;
+        last_pose_y_ = current_pose.pose.position.y;
+      } else {
+        const double dist_from_last_plan = std::hypot(
+          current_pose.pose.position.x - last_pose_x_,
+          current_pose.pose.position.y - last_pose_y_);
+        if (std::isfinite(dist_from_last_plan) && dist_from_last_plan >= 0.5) {
+          need_replan = true;
+          has_last_pose_ = false;
+        }
+      }
+
+      // 如果剩余轨迹时间不足 0.2 秒，立即触发重规划防止断供顿挫
+      double remain_time = planner_->getTrajectoryRemainTime();
+      if (remain_time < 0.2) {
+        need_replan = true;
+        has_last_pose_ = false;
+      }
 
       if (!need_replan) {
         return;
