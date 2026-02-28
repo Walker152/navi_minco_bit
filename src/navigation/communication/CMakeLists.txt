@@ -11,7 +11,7 @@ if(CMAKE_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-option(COM_DEBUG "Enable COM debug printing (defines COM_DEBUG)" ON)
+option(COM_DEBUG "Enable COM debug printing (defines COM_DEBUG)" OFF)
 
 
 ## Find catkin macros and libraries
