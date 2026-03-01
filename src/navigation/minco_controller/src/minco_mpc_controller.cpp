@@ -179,8 +179,18 @@ void MincoMpcController::setSpeedLimit(const double & speed_limit, const bool & 
 void MincoMpcController::onOptPath(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg)
 {
   std::lock_guard<std::mutex> lk(data_mtx_);
+
+  const uint32_t new_traj_id =
+    (msg && !msg->cmds.empty()) ? msg->cmds.front().trajectory_id : 0u;
+  const uint32_t old_traj_id =
+    (latest_opt_path_ && !latest_opt_path_->cmds.empty()) ? latest_opt_path_->cmds.front().trajectory_id : 0u;
+
+  // 仅在轨迹 ID 切换时重置跟踪状态；同一轨迹重复发布（更新时间戳）不重置
+  if (new_traj_id != old_traj_id) {
+    has_tracked_ref_ = false;
+  }
+
   latest_opt_path_ = msg;
-  has_tracked_ref_ = false;
 }
 
 void MincoMpcController::onOdom(const nav_msgs::msg::Odometry::SharedPtr msg)
@@ -281,14 +291,14 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
   ros_interfaces::msg::MpcPositionCommand::SharedPtr opt;
   double tracked_ref_idx = 0.0;
   rclcpp::Time tracked_ref_time;
-  builtin_interfaces::msg::Time tracked_opt_stamp;
+  uint32_t tracked_opt_traj_id = 0u;
   bool has_tracked_ref = false;
   {
     std::lock_guard<std::mutex> lk(data_mtx_);
     opt = latest_opt_path_;
     tracked_ref_idx = tracked_ref_idx_;
     tracked_ref_time = tracked_ref_time_;
-    tracked_opt_stamp = tracked_opt_stamp_;
+    tracked_opt_traj_id = tracked_opt_traj_id_;
     has_tracked_ref = has_tracked_ref_;
   }
 
@@ -355,14 +365,15 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
 
   nearest_idx_float = std::max(0.0, nearest_idx_float);
 
+  const uint32_t current_traj_id = (!opt->cmds.empty()) ? opt->cmds.front().trajectory_id : 0u;
+
   // 轨迹未更新时，按时间持续向前推进参考索引，且不允许回退
-  const bool same_opt_stamp =
+  const bool same_opt_traj =
     has_tracked_ref &&
-    tracked_opt_stamp.sec == opt->header.stamp.sec &&
-    tracked_opt_stamp.nanosec == opt->header.stamp.nanosec;
+    tracked_opt_traj_id == current_traj_id;
 
   double progress_idx_float = nearest_idx_float;
-  if (same_opt_stamp) {
+  if (same_opt_traj) {
     double dt_pass = (now - tracked_ref_time).seconds();
     dt_pass = std::max(0.0, dt_pass);
     progress_idx_float = tracked_ref_idx + dt_pass / planner_dt;
@@ -375,14 +386,15 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
     std::lock_guard<std::mutex> lk(data_mtx_);
     tracked_ref_idx_ = current_idx_float;
     tracked_ref_time_ = now;
-    tracked_opt_stamp_ = opt->header.stamp;
+    tracked_opt_traj_id_ = current_traj_id;
     has_tracked_ref_ = true;
   }
 
   double current_traj_time = current_idx_float * planner_dt;
 
   // 让 MPC 始终去追踪未来 0.15 秒的参考点，提前应对弯道，消除系统延迟感
-  double lookahead_time = 0.15;
+  double lookahead_time = 0.25;
+  
   current_traj_time += lookahead_time;
 
   const int N = mpc_config_.horizon;
@@ -459,7 +471,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   auto node = node_.lock();
 
   const rclcpp::Time now = node->now();
-  const double yaw_pose = tf2::getYaw(pose.pose.orientation);
+  const double yaw_pose = tf2::getYaw(latest_odom_->pose.pose.orientation);
   const double yaw_for_base_transform = yaw_pose;
 
   State curr;
