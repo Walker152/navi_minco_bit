@@ -288,20 +288,58 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
   }
 
   const size_t n_cmds = cmds.size();
-  auto node = node_.lock();
-  if (!node) {
-    return false;
-  }
-
-  double t_pass = (node->now() - opt->header.stamp).seconds();
-  t_pass = std::max(0.0, t_pass);
-
   const double planner_dt = 1.0 / mpc_config_.planner_freq;
   if (planner_dt <= 1.0e-6) {
     return false;
   }
 
-  const double current_idx_float = t_pass / planner_dt;
+  // ===== 原“时间投影”方式（按需求仅注释，不删除） =====
+  // auto node = node_.lock();
+  // if (!node) {
+  //   return false;
+  // }
+  // double t_pass = (node->now() - opt->header.stamp).seconds();
+  // t_pass = std::max(0.0, t_pass);
+  // const double current_idx_float = t_pass / planner_dt;
+
+  // ===== 改为最近点搜索 =====
+  size_t best_idx = 0;
+  double best_d2 = std::numeric_limits<double>::infinity();
+  for (size_t i = 0; i < n_cmds; ++i) {
+    const double dx = cmds[i].position.x - curr.x;
+    const double dy = cmds[i].position.y - curr.y;
+    const double d2 = dx * dx + dy * dy;
+    if (d2 < best_d2) {
+      best_d2 = d2;
+      best_idx = i;
+    }
+  }
+
+  double current_idx_float = static_cast<double>(best_idx);
+
+  // ===== 原“投影到下一段”方式（按需求仅注释，不删除） =====
+  if (best_idx < n_cmds - 1) {
+    const auto & p_curr = cmds[best_idx];
+    const auto & p_next = cmds[best_idx + 1];
+  
+    Eigen::Vector2d a_vec(
+      p_next.position.x - p_curr.position.x,
+      p_next.position.y - p_curr.position.y);
+    Eigen::Vector2d b_vec(
+      curr.x - p_curr.position.x,
+      curr.y - p_curr.position.y);
+  
+    double len_sq = a_vec.squaredNorm();
+    if (len_sq > 1e-6) {
+      double projection = a_vec.dot(b_vec) / len_sq;
+      if (projection > -0.5 && projection < 1.0) {
+        current_idx_float += projection;
+      }
+    }
+  }
+
+  current_idx_float = std::max(0.0, current_idx_float);
+
   double current_traj_time = current_idx_float * planner_dt;
   const int N = mpc_config_.horizon;
   const double mpc_dt = mpc_config_.dt;
@@ -311,8 +349,11 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
   for (int k = 0; k < N; ++k) {
     double target_time = current_traj_time + k * mpc_dt;
     double target_idx_float = target_time / planner_dt; 
-    
+
     if (target_idx_float < 0.0) target_idx_float = 0.0;
+    if (target_idx_float > static_cast<double>(n_cmds - 1)) {
+      target_idx_float = static_cast<double>(n_cmds - 1);
+    }
 
     size_t target_idx = static_cast<size_t>(std::floor(target_idx_float)); 
     size_t next_idx = target_idx + 1;
