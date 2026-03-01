@@ -119,17 +119,17 @@ bool GridCollisionChecker::inCollision(
         throw std::runtime_error(
                 "Angle bin is out of bounds. Check angle quantizations.");
       }
-      return footprintCost(oriented_footprints_[static_cast<unsigned int>(angle_bin)]) >= INSCRIBED_COST;
+      return footprintCost(oriented_footprints_[static_cast<unsigned int>(angle_bin)]) >= nav2_costmap_2d::LETHAL_OBSTACLE;
     }
 
     // If low enough cost, no need to check footprint
     if (!traverse_unknown) {
-      return center_cost_ >= INSCRIBED_COST;
+      return center_cost_ >= nav2_costmap_2d::LETHAL_OBSTACLE;
     }
 
     // If traversing unknown, need to check actual footprint for unknown costs
     return center_cost_ == UNKNOWN_COST &&
-           footprintCost(oriented_footprints_[static_cast<unsigned int>(angle_bin)]) >= INSCRIBED_COST;
+          footprintCost(oriented_footprints_[static_cast<unsigned int>(angle_bin)]) >= nav2_costmap_2d::LETHAL_OBSTACLE;
   } else {
     // If using a radius footprint model
     if (center_cost_ == UNKNOWN_COST && !traverse_unknown) {
@@ -137,7 +137,7 @@ bool GridCollisionChecker::inCollision(
     }
 
     // if occupied or unknown and not to traverse unknown space
-    return center_cost_ >= INSCRIBED_COST;
+    return center_cost_ >= nav2_costmap_2d::LETHAL_OBSTACLE;
   }
 }
 
@@ -158,7 +158,8 @@ bool GridCollisionChecker::inCollision(
   }
 
   // if occupied or unknown and not to traverse unknown space
-  return center_cost_ >= INSCRIBED_COST;
+  // 允许在膨胀层内规划以逃离死锁，仅拦截绝对障碍物 (254)
+  return center_cost_ >= nav2_costmap_2d::LETHAL_OBSTACLE;
 }
 
 float GridCollisionChecker::getCost()
