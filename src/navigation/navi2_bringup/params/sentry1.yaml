@@ -194,17 +194,17 @@ controller_server:
       plugin: "minco_controller::MincoMpcController"
       # MPC sampling period (s) and lookahead time (s)
       dt: 0.05
-      lookahead_time : 3.0
+      lookahead_time : 5.0
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [5.0, 5.0, 2.0]
       R: [1.0, 1.0, 0.5]
 
       # Velocity bounds
-      vx_min: -2.5
-      vx_max: 5.0
-      vy_min: -2.5
-      vy_max: 5.0
+      vx_min: -2.0
+      vx_max: 2.0
+      vy_min: -2.0
+      vy_max: 2.0
       omega_min: -0.5
       omega_max: 0.5
 
@@ -397,7 +397,7 @@ planner_server:
       smac_2d:
         use_esdf_cost: true
         esdf_weight: 1.0
-        esdf_decay: 0.9
+        esdf_decay: 0.7
         esdf_max_cost: 5.0
 
       minco_optimizer:
