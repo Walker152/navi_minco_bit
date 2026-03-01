@@ -429,8 +429,6 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   // 6. Generate backup trajectory (safety).
   traj_opt::Trajectory backup_traj = generateBackupTraj(start_state);
-  utils::publishBackupTrajectory(
-    backup_traj, backup_path_pub_, backup_trajectory_id_, header_msg, 20, 0.1);
 
   // 7. Prepare MINCO optimization.
   traj_opt::Trajectory opt_traj;
@@ -705,19 +703,6 @@ bool MincoPlanner::makePlan(
       wy);
     return false;
   }
-
-  RCLCPP_DEBUG(
-    logger_,
-    "Planning from world (%.2f, %.2f) -> map (%u, %u) to world (%.2f, %.2f) -> map (%u, %u)",
-    start.position.x,
-    start.position.y,
-    mx_start,
-    my_start,
-    goal.position.x,
-    goal.position.y,
-    mx_goal,
-    my_goal);
-
   std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
   unsigned int nx = costmap_->getSizeInCellsX();
   unsigned int ny = costmap_->getSizeInCellsY();
@@ -904,7 +889,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
       Eigen::Vector3d vel_dir = pred_vel.normalized();
       double dot = vel_dir.dot(path_dir);
 
-      if (dot < 0.9) {
+      if (dot < 0.5) {
         std::cout << YELLOW << "[MincoPlanner] Hot Start Rejected: Direction mismatch (dot=" << dot
                   << ", angle=" << std::acos(dot) * 180.0 / M_PI << " deg)" << RESET << std::endl;
         return PlanningState::COLD_START;
@@ -921,15 +906,22 @@ void MincoPlanner::prepareColdStart(
 {
   start_state.setZero();
   start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
+  if (has_last_traj_) {
+    double now = rclcpp::Clock().now().seconds();
+    double t_dur = now - last_traj_.start_WT;
+    if (t_dur > 0 && t_dur < last_traj_.getTotalDuration()) {
+        start_state.col(1) = 0.5*last_traj_.getVel(t_dur);
+    }
+  }
 }
 
 void MincoPlanner::prepareHotStart(
-  const geometry_msgs::msg::Pose & /*start_pose*/,
+  const geometry_msgs::msg::Pose & start_pose,
   double t_dur,
   Eigen::Matrix3d & start_state)
 {
   start_state.setZero();
-  start_state.col(0) = last_traj_.getPos(t_dur);
+  start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
   start_state.col(1) = last_traj_.getVel(t_dur);
   start_state.col(2) = last_traj_.getAcc(t_dur);
 }
@@ -1035,8 +1027,7 @@ bool MincoPlanner::checkCollision()
       return false;
     }
     const unsigned char cost = costmap_->getCost(mx, my);
-    if (cost == nav2_costmap_2d::LETHAL_OBSTACLE ||
-        cost == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+    if (cost == nav2_costmap_2d::LETHAL_OBSTACLE) {
       return false;
     }
   }
