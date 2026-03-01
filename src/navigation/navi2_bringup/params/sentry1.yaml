@@ -194,11 +194,11 @@ controller_server:
       plugin: "minco_controller::MincoMpcController"
       # MPC sampling period (s) and lookahead time (s)
       dt: 0.05
-      lookahead_time : 5.0
+      lookahead_time : 3.0
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
-      Q: [5.0, 5.0, 2.0]
-      R: [1.0, 1.0, 0.5]
+      Q: [8.0, 8.0, 2.0]
+      R: [1.0, 1.0, 3.0]
 
       # Velocity bounds
       vx_min: -2.0
