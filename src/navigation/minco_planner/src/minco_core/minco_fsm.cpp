@@ -20,7 +20,6 @@ MincoFsm::MincoFsm(const PlannerPtr & planner)
 
 void MincoFsm::cancelGoal()
 {
-  std::cout << "\033[33m[MincoFSM] Goal Cancelled! Forcing Stop.\033[0m" << std::endl;
   has_goal_ = false;
   changeState("CANCEL_GOAL", State::EMER_STOP);
 }
@@ -103,8 +102,6 @@ void MincoFsm::callMainFsmOnce()
       // 容差限停检测：到达终点且速度足够低
       if (planner_->checkGoalReached(current_pose)) {
         if (planner_->getCurrentSpeed() < 0.2) {
-          std::cout << "\033[32m[MincoFSM] Destination Arrived! Stopping replan.\033[0m"
-                    << std::endl;
           has_goal_ = false;
           changeState("GOAL_REACHED", State::WAIT_GOAL);
           return;
@@ -132,7 +129,7 @@ void MincoFsm::callMainFsmOnce()
       }
 
       if (!planner_->ReplanLocal(current_pose)) {
-        changeState("FOLLOW_REPLAN", State::EMER_STOP);
+        changeState("FOLLOW_REPLAN", State::GENERATE_TRAJ);
         return;
       }
 
@@ -157,20 +154,24 @@ void MincoFsm::callMainFsmOnce()
       const double now_s = planner_->nowSeconds();
       if (std::isfinite(now_s) && std::isfinite(emer_stop_start_time_) &&
           (now_s - emer_stop_start_time_) > 5.0) {
-        std::cout << "[MincoFSM] EMER_STOP timeout (>5s). Forcing reset to WAIT_GOAL." << std::endl;
         has_goal_ = false;
         changeState("EMER_TIMEOUT", State::WAIT_GOAL);
         return;
       }
 
-      // 3) Blocking wait until fully stopped.
+      // 3) Still try to find safe path to recover without fully stopping.
+      if (planner_->ReplanLocal(current_pose)) {
+         changeState("EMER_RECOVER", State::FOLLOW_TRAJ);
+         return;
+      }
+
+      // 4) Blocking wait until fully stopped.
       const double speed = planner_->getCurrentSpeed();
       if (std::isfinite(speed) && speed > 0.1) {
         return;
       }
 
-      // 4) Recovery: stopped, check safety before leaving EMER_STOP.
-      std::cout << "[MincoFSM] Robot stopped and safe." << std::endl;
+      // 5) Recovery: stopped, check safety before leaving EMER_STOP.
       has_goal_ = false;
       changeState("EMER_SAFE", State::WAIT_GOAL);
       return;
