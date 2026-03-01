@@ -180,6 +180,7 @@ void MincoMpcController::onOptPath(const ros_interfaces::msg::MpcPositionCommand
 {
   std::lock_guard<std::mutex> lk(data_mtx_);
   latest_opt_path_ = msg;
+  has_tracked_ref_ = false;
 }
 
 void MincoMpcController::onOdom(const nav_msgs::msg::Odometry::SharedPtr msg)
@@ -271,10 +272,24 @@ bool MincoMpcController::transformPathToOdom(
 
 bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vector<ReferencePoint> & out_ref) const
 {
+  auto node = node_.lock();
+  if (!node) {
+    return false;
+  }
+  const rclcpp::Time now = node->now();
+
   ros_interfaces::msg::MpcPositionCommand::SharedPtr opt;
+  double tracked_ref_idx = 0.0;
+  rclcpp::Time tracked_ref_time;
+  builtin_interfaces::msg::Time tracked_opt_stamp;
+  bool has_tracked_ref = false;
   {
     std::lock_guard<std::mutex> lk(data_mtx_);
     opt = latest_opt_path_;
+    tracked_ref_idx = tracked_ref_idx_;
+    tracked_ref_time = tracked_ref_time_;
+    tracked_opt_stamp = tracked_opt_stamp_;
+    has_tracked_ref = has_tracked_ref_;
   }
 
   if (!opt || opt->cmds.empty()) {
@@ -315,7 +330,7 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
     }
   }
 
-  double current_idx_float = static_cast<double>(best_idx);
+  double nearest_idx_float = static_cast<double>(best_idx);
 
   // ===== 原“投影到下一段”方式（按需求仅注释，不删除） =====
   if (best_idx < n_cmds - 1) {
@@ -333,12 +348,36 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
     if (len_sq > 1e-6) {
       double projection = a_vec.dot(b_vec) / len_sq;
       if (projection > -0.5 && projection < 1.0) {
-        current_idx_float += projection;
+        nearest_idx_float += projection;
       }
     }
   }
 
-  current_idx_float = std::max(0.0, current_idx_float);
+  nearest_idx_float = std::max(0.0, nearest_idx_float);
+
+  // 轨迹未更新时，按时间持续向前推进参考索引，且不允许回退
+  const bool same_opt_stamp =
+    has_tracked_ref &&
+    tracked_opt_stamp.sec == opt->header.stamp.sec &&
+    tracked_opt_stamp.nanosec == opt->header.stamp.nanosec;
+
+  double progress_idx_float = nearest_idx_float;
+  if (same_opt_stamp) {
+    double dt_pass = (now - tracked_ref_time).seconds();
+    dt_pass = std::max(0.0, dt_pass);
+    progress_idx_float = tracked_ref_idx + dt_pass / planner_dt;
+  }
+
+  double current_idx_float = std::max(nearest_idx_float, progress_idx_float);
+  current_idx_float = std::min(current_idx_float, static_cast<double>(n_cmds - 1));
+
+  {
+    std::lock_guard<std::mutex> lk(data_mtx_);
+    tracked_ref_idx_ = current_idx_float;
+    tracked_ref_time_ = now;
+    tracked_opt_stamp_ = opt->header.stamp;
+    has_tracked_ref_ = true;
+  }
 
   double current_traj_time = current_idx_float * planner_dt;
 
