@@ -341,6 +341,11 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
   current_idx_float = std::max(0.0, current_idx_float);
 
   double current_traj_time = current_idx_float * planner_dt;
+
+  // 让 MPC 始终去追踪未来 0.15 秒的参考点，提前应对弯道，消除系统延迟感
+  double lookahead_time = 0.15;
+  current_traj_time += lookahead_time;
+
   const int N = mpc_config_.horizon;
   const double mpc_dt = mpc_config_.dt;
   out_ref.clear();
