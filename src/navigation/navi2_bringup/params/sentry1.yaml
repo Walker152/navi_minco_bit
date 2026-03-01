@@ -243,11 +243,11 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.35
+        inflation_radius: 0.30
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
-        voxel_decay: 0.8
+        voxel_decay: 0.6
         decay_model: 0
         voxel_size: 0.05
         track_unknown_space: true
@@ -302,11 +302,11 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.50
+        inflation_radius: 0.35
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
-        voxel_decay: 0.8
+        voxel_decay: 0.6
         decay_model: 0
         voxel_size: 0.15
         track_unknown_space: true
@@ -417,8 +417,8 @@ planner_server:
         penalty_weight_acc: 1000.0
         penalty_weight_att: 100.0
       static_esdf:
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/2026_esdf.pcd"
-        # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/2026_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
         esdf_resolution: 0.05
 
 smoother_server:
