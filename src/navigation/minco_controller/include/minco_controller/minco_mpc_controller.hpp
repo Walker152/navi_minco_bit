@@ -3,6 +3,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <cstdint>
 #include <vector>
 
 #include "nav2_core/controller.hpp"
@@ -16,8 +17,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "tf2_ros/buffer.h"
-
-#include "builtin_interfaces/msg/time.hpp"
 
 #include "ros_interfaces/msg/mpc_position_command.hpp"
 
@@ -118,7 +117,7 @@ private:
   // 轨迹参考索引跟踪（用于轨迹未更新时按时间前推，避免回追起点）
   mutable double tracked_ref_idx_{0.0};
   mutable rclcpp::Time tracked_ref_time_;
-  mutable builtin_interfaces::msg::Time tracked_opt_stamp_;
+  mutable uint32_t tracked_opt_traj_id_{0};
   mutable bool has_tracked_ref_{false};
 
   // Nav2 setPlan 缓存（fallback）
