@@ -17,6 +17,8 @@
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "tf2_ros/buffer.h"
 
+#include "builtin_interfaces/msg/time.hpp"
+
 #include "ros_interfaces/msg/mpc_position_command.hpp"
 
 #include "minco_controller/mpc_solver.hpp"
@@ -112,6 +114,12 @@ private:
   mutable std::mutex data_mtx_;
   ros_interfaces::msg::MpcPositionCommand::SharedPtr latest_opt_path_;
   nav_msgs::msg::Odometry::SharedPtr latest_odom_;
+
+  // 轨迹参考索引跟踪（用于轨迹未更新时按时间前推，避免回追起点）
+  mutable double tracked_ref_idx_{0.0};
+  mutable rclcpp::Time tracked_ref_time_;
+  mutable builtin_interfaces::msg::Time tracked_opt_stamp_;
+  mutable bool has_tracked_ref_{false};
 
   // Nav2 setPlan 缓存（fallback）
   nav_msgs::msg::Path global_plan_;
