@@ -153,15 +153,17 @@ namespace ns_com
 
       float vw_rpm = 0.0;
       uint8_t _is_use_mid360 = 0;
-      if(odom_x >  3.0)
+      if(odom_x >  2.5)
       {
-        vw_rpm = 40.0;
+        vw_rpm = 30.0;
       }
       tf2::Quaternion q;
       tf2::fromMsg(odom_q, q);
       double roll, pitch, yaw;
       tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
       const float current_yaw_deg = static_cast<float>(yaw * 180.0 / M_PI);
+      std::cout << "vx: " << vx_mps << " m/s, vy: " << vy_mps << " m/s, vw: " << vw_rpm << " rpm,"
+                << "current_yaw:" << current_yaw_deg << " deg " << std::endl;
       ChassisTarget target(vx_mps,
                            vy_mps,
                            vw_rpm,
