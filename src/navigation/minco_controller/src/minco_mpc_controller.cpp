@@ -31,13 +31,6 @@ namespace custom_log
 namespace minco_controller
 {
 
-static Eigen::Vector2d rotate2d(const Eigen::Vector2d & v, double yaw)
-{
-  const double c = std::cos(yaw);
-  const double s = std::sin(yaw);
-  return Eigen::Vector2d(c * v.x() - s * v.y(), s * v.x() + c * v.y());
-}
-
 double MincoMpcController::normalizeYaw(double yaw)
 {
   return std::atan2(std::sin(yaw), std::cos(yaw));
@@ -73,6 +66,7 @@ void MincoMpcController::configure(
   nav2_util::declare_parameter_if_not_declared(node, name + ".vy_max", rclcpp::ParameterValue(1.0));
   nav2_util::declare_parameter_if_not_declared(node, name + ".omega_min", rclcpp::ParameterValue(-2.0));
   nav2_util::declare_parameter_if_not_declared(node, name + ".omega_max", rclcpp::ParameterValue(2.0));
+  nav2_util::declare_parameter_if_not_declared(node, name + ".fixed_wz", rclcpp::ParameterValue(0.0));
 
   nav2_util::declare_parameter_if_not_declared(node, name + ".use_acc_constraints", rclcpp::ParameterValue(false));
   nav2_util::declare_parameter_if_not_declared(node, name + ".ax_min", rclcpp::ParameterValue(-2.0));
@@ -111,6 +105,7 @@ void MincoMpcController::configure(
   node->get_parameter(name + ".vy_max", mpc_config_.vy_max);
   node->get_parameter(name + ".omega_min", mpc_config_.omega_min);
   node->get_parameter(name + ".omega_max", mpc_config_.omega_max);
+  node->get_parameter(name + ".fixed_wz", fixed_wz_);
 
   node->get_parameter(name + ".use_acc_constraints", mpc_config_.use_acc_constraints);
   node->get_parameter(name + ".ax_min", mpc_config_.ax_min);
@@ -327,7 +322,7 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
   // t_pass = std::max(0.0, t_pass);
   // const double current_idx_float = t_pass / planner_dt;
 
-  // ===== 改为最近点搜索 =====
+  // ===== 最近点搜索 =====
   size_t best_idx = 0;
   double best_d2 = std::numeric_limits<double>::infinity();
   for (size_t i = 0; i < n_cmds; ++i) {
@@ -342,7 +337,6 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
 
   double nearest_idx_float = static_cast<double>(best_idx);
 
-  // ===== 原“投影到下一段”方式（按需求仅注释，不删除） =====
   if (best_idx < n_cmds - 1) {
     const auto & p_curr = cmds[best_idx];
     const auto & p_next = cmds[best_idx + 1];
@@ -472,7 +466,6 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
 
   const rclcpp::Time now = node->now();
   const double yaw_pose = tf2::getYaw(latest_odom_->pose.pose.orientation);
-  const double yaw_for_base_transform = yaw_pose;
 
   State curr;
   curr.x = pose.pose.position.x;
@@ -488,7 +481,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
 
   geometry_msgs::msg::TwistStamped cmd;
   cmd.header.stamp = now;
-  cmd.header.frame_id = base_frame_;
+  cmd.header.frame_id = global_frame_;
 
   if (!ok_ref || !solver_) {
     // 无参考则输出 0
@@ -555,14 +548,10 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     return cmd;
   }
   // std::cout << color_text::GREEN << "[MincoMpc] Solver Success!" << color_text::RESET << std::endl;
-  // 4) 将全局控制律 [vx, vy, omega] 转换为机器人坐标系 (base)
-  // 使用 odom 提供的 yaw（若无 odom 则回退到 pose yaw）。
-  const Eigen::Vector2d u_global_v(u_global.vx, u_global.vy);
-  const Eigen::Vector2d u_base_v = rotate2d(u_global_v, -yaw_for_base_transform);
-
-  double vx = u_base_v.x();
-  double vy = u_base_v.y();
-  double wz = u_global.omega;
+  // 4) 直接下发全局坐标系速度
+  double vx = u_global.vx;
+  double vy = u_global.vy;
+  double wz = fixed_wz_;
 
   // 5) 处理 Nav2 setSpeedLimit
   if (speed_limit_ > 1e-6) {
