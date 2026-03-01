@@ -131,6 +131,8 @@ private:
   // 动态限速（Nav2 setSpeedLimit）
   double speed_limit_{0.0};
   bool speed_limit_percentage_{false};
+
+  double fixed_wz_{0.0};
 };
 
 }  // namespace minco_controller
