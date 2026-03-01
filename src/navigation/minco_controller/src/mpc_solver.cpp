@@ -139,8 +139,6 @@ bool MpcSolver::buildCondensedQP(
     ub(i * nu + 0) = config_.vx_max;
     lb(i * nu + 1) = config_.vy_min;
     ub(i * nu + 1) = config_.vy_max;
-    lb(i * nu + 2) = config_.omega_min;
-    ub(i * nu + 2) = config_.omega_max;
   }
 
   // 加速度约束（可选）：a_min <= (v_k - v_{k-1})/dt <= a_max
