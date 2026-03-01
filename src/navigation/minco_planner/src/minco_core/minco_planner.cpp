@@ -1057,8 +1057,7 @@ bool MincoPlanner::checkCollision(const geometry_utils::Trajectory & traj)
       return false;
     }
     const unsigned char cost = costmap_->getCost(mx, my);
-    if (cost == nav2_costmap_2d::LETHAL_OBSTACLE ||
-        cost == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+    if (cost == nav2_costmap_2d::LETHAL_OBSTACLE) {
       return false;
     }
   }
