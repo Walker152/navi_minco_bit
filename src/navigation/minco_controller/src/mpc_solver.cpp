@@ -22,22 +22,6 @@ void MpcSolver::setConfig(const MPCConfig & config)
   config_ = config;
 }
 
-Eigen::Vector2d MpcSolver::globalToBodyVel(const Eigen::Vector2d & v_map, double yaw)
-{
-  const double c = std::cos(yaw);
-  const double s = std::sin(yaw);
-  // v_body = R(-yaw) v_map
-  return Eigen::Vector2d(c * v_map.x() + s * v_map.y(), -s * v_map.x() + c * v_map.y());
-}
-
-Eigen::Vector2d MpcSolver::bodyToGlobalVel(const Eigen::Vector2d & v_body, double yaw)
-{
-  const double c = std::cos(yaw);
-  const double s = std::sin(yaw);
-  // v_map = R(yaw) v_body
-  return Eigen::Vector2d(c * v_body.x() - s * v_body.y(), s * v_body.x() + c * v_body.y());
-}
-
 void MpcSolver::buildStepModel(double /*yaw_ref*/, Eigen::Matrix3d & A, Eigen::Matrix<double, 3, 3> & B) const
 {
   A.setIdentity();
@@ -147,7 +131,7 @@ bool MpcSolver::buildCondensedQP(
   // g = 2*(B^T Q d - R U_ref)
   g = 2.0 * (B_hat.transpose() * Q_bar * d - R_bar * U_ref);
 
-  // 变量边界（速度约束，body 系）
+  // 变量边界（速度约束，map/global 系）
   lb = Eigen::VectorXd::Constant(nU, -std::numeric_limits<double>::infinity());
   ub = Eigen::VectorXd::Constant(nU, std::numeric_limits<double>::infinity());
   for (int i = 0; i < N; ++i) {
@@ -336,7 +320,7 @@ bool MpcSolver::solve(const State & curr, const std::vector<ReferencePoint> & re
     static_cast<double>(xOpt[2]));
 
   // 记录上一帧全局速度，用于平滑加速度
-  last_u_body_ = u0_global;
+  last_u_global_ = u0_global;
   has_last_u_ = true;
 
   // 直接输出全局速度
