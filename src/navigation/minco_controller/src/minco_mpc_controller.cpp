@@ -459,7 +459,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   auto node = node_.lock();
 
   const rclcpp::Time now = node->now();
-  const double yaw_pose = tf2::getYaw(pose.pose.orientation);
+  const double yaw_pose = tf2::getYaw(latest_odom_->pose.pose.orientation);
   const double yaw_for_base_transform = yaw_pose;
 
   State curr;
