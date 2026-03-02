@@ -205,7 +205,7 @@ controller_server:
       vx_max: 2.0
       vy_min: -2.0
       vy_max: 2.0
-      fixed_wz: 0.0 # rpm
+      fixed_wz: -20.0 # rpm
       omega_min: -0.5
       omega_max: 0.5
 
