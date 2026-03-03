@@ -16,6 +16,7 @@
 #include <std_srvs/srv/trigger.hpp>
 #include <thread>
 #include <chrono>
+#include <cmath>
 
 #include "li_initialization.h"
 
@@ -279,12 +280,10 @@ void publish_odometry(
   const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pubOdomAftMapped,
   std::shared_ptr<tf2_ros::TransformBroadcaster> & tf_br)
 {
-  static int frame_count = 0;
-  frame_count++;
-  if (frame_count < 100) {
+  static auto last_time = std::chrono::steady_clock::now();
+  auto current_time = std::chrono::steady_clock::now();
+  if (current_time - last_time < std::chrono::milliseconds(1)) {
     return;  
-  } else {
-  frame_count = 0;
   }
   odomAftMapped.header.frame_id = "camera_init";
   odomAftMapped.child_frame_id = "body";
@@ -295,7 +294,85 @@ void publish_odometry(
   }
   set_posestamp(odomAftMapped.pose.pose);
 
+  tf2::Quaternion q_pose(
+    odomAftMapped.pose.pose.orientation.x,
+    odomAftMapped.pose.pose.orientation.y,
+    odomAftMapped.pose.pose.orientation.z,
+    odomAftMapped.pose.pose.orientation.w);
+  double roll_pose = 0.0;
+  double pitch_pose = 0.0;
+  double yaw_pose = 0.0;
+  tf2::Matrix3x3(q_pose).getRPY(roll_pose, pitch_pose, yaw_pose);
+
+  static auto diag_window_begin = std::chrono::steady_clock::now();
+  static auto diag_last_yaw_change = std::chrono::steady_clock::now();
+  static bool diag_has_last_yaw = false;
+  static double diag_last_yaw = 0.0;
+  static uint64_t diag_pub_count = 0;
+  static uint64_t diag_yaw_change_count = 0;
+  static double diag_max_hold_ms = 0.0;
+
+  if (!diag_has_last_yaw) {
+    diag_has_last_yaw = true;
+    diag_last_yaw = yaw_pose;
+    diag_last_yaw_change = current_time;
+  } else {
+    const double yaw_diff = std::atan2(std::sin(yaw_pose - diag_last_yaw), std::cos(yaw_pose - diag_last_yaw));
+    if (std::fabs(yaw_diff) > 1.0e-4) {
+      ++diag_yaw_change_count;
+      diag_last_yaw = yaw_pose;
+      diag_last_yaw_change = current_time;
+    } else {
+      const double hold_ms = std::chrono::duration<double, std::milli>(current_time - diag_last_yaw_change).count();
+      if (hold_ms > diag_max_hold_ms) {
+        diag_max_hold_ms = hold_ms;
+      }
+    }
+  }
+
+  auto set_twist_linear_from_kf = [&](const auto & kf) {
+    Eigen::Vector3d vel_world = kf.x_.vel;
+    Eigen::Quaterniond q(kf.x_.rot);
+    Eigen::Vector3d vel_body = q.inverse() * vel_world;
+
+    odomAftMapped.twist.twist.linear.x = vel_body(0);
+    odomAftMapped.twist.twist.linear.y = vel_body(1);
+    odomAftMapped.twist.twist.linear.z = vel_body(2);
+  };
+
+  if (!use_imu_as_input) {
+    set_twist_linear_from_kf(kf_output);
+    odomAftMapped.twist.twist.angular.x = kf_output.x_.omg(0);
+    odomAftMapped.twist.twist.angular.y = kf_output.x_.omg(1);
+    odomAftMapped.twist.twist.angular.z = kf_output.x_.omg(2);
+  } else {
+    set_twist_linear_from_kf(kf_input);
+    odomAftMapped.twist.twist.angular.x = angvel_avr(0);
+    odomAftMapped.twist.twist.angular.y = angvel_avr(1);
+    odomAftMapped.twist.twist.angular.z = angvel_avr(2);
+  }
+
   pubOdomAftMapped->publish(odomAftMapped);
+  ++diag_pub_count;
+
+  const double diag_window_s = std::chrono::duration<double>(current_time - diag_window_begin).count();
+  if (diag_window_s >= 1.0) {
+    const double pub_hz = static_cast<double>(diag_pub_count) / diag_window_s;
+    const double yaw_change_hz = static_cast<double>(diag_yaw_change_count) / diag_window_s;
+    const double yaw_hold_ms = std::chrono::duration<double, std::milli>(current_time - diag_last_yaw_change).count();
+    RCLCPP_INFO(
+      LOGGER,
+      "[ODOM_DIAG] pub_hz=%.1f yaw_change_hz=%.1f yaw_hold_ms=%.1f yaw_hold_max_ms=%.1f",
+      pub_hz,
+      yaw_change_hz,
+      yaw_hold_ms,
+      diag_max_hold_ms);
+
+    diag_window_begin = current_time;
+    diag_pub_count = 0;
+    diag_yaw_change_count = 0;
+    diag_max_hold_ms = yaw_hold_ms;
+  }
 
   if (tf_send_en) {
     geometry_msgs::msg::TransformStamped transform;
@@ -314,9 +391,10 @@ void publish_odometry(
     geometry_msgs::msg::TransformStamped transform_inverse;
     transform_inverse.header.frame_id = "body";
     transform_inverse.child_frame_id = "base_link";
-    transform_inverse.transform.translation.x = -0.20;
-    transform_inverse.transform.translation.y = -0;
+    transform_inverse.transform.translation.x = -0.03;
+    transform_inverse.transform.translation.y = 0.21;
     transform_inverse.transform.translation.z = 0.0;
+
 
     tf2::Quaternion q(
       odomAftMapped.pose.pose.orientation.x,
