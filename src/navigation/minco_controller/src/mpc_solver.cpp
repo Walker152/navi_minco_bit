@@ -22,39 +22,14 @@ void MpcSolver::setConfig(const MPCConfig & config)
   config_ = config;
 }
 
-Eigen::Vector2d MpcSolver::globalToBodyVel(const Eigen::Vector2d & v_map, double yaw)
+void MpcSolver::buildStepModel(double /*yaw_ref*/, Eigen::Matrix3d & A, Eigen::Matrix<double, 3, 3> & B) const
 {
-  const double c = std::cos(yaw);
-  const double s = std::sin(yaw);
-  // v_body = R(-yaw) v_map
-  return Eigen::Vector2d(c * v_map.x() + s * v_map.y(), -s * v_map.x() + c * v_map.y());
-}
-
-Eigen::Vector2d MpcSolver::bodyToGlobalVel(const Eigen::Vector2d & v_body, double yaw)
-{
-  const double c = std::cos(yaw);
-  const double s = std::sin(yaw);
-  // v_map = R(yaw) v_body
-  return Eigen::Vector2d(c * v_body.x() - s * v_body.y(), s * v_body.x() + c * v_body.y());
-}
-
-void MpcSolver::buildStepModel(double yaw_ref, Eigen::Matrix3d & A, Eigen::Matrix<double, 3, 3> & B) const
-{
-  // 状态: [x, y, yaw]
-  // 控制(决策变量): body 系 [vx, vy, omega]
-  // x_{k+1} = x_k + (vx*cos(yaw_ref) - vy*sin(yaw_ref))*dt
-  // y_{k+1} = y_k + (vx*sin(yaw_ref) + vy*cos(yaw_ref))*dt
-  // yaw_{k+1} = yaw_k + omega*dt
-  const double c = std::cos(yaw_ref);
-  const double s = std::sin(yaw_ref);
-
   A.setIdentity();
 
   B.setZero();
-  B(0, 0) = c * config_.dt;
-  B(0, 1) = -s * config_.dt;
-  B(1, 0) = s * config_.dt;
-  B(1, 1) = c * config_.dt;
+  // 纯全局坐标系控制，解耦 X, Y, Yaw
+  B(0, 0) = config_.dt;
+  B(1, 1) = config_.dt;
   B(2, 2) = config_.dt;
 }
 
@@ -126,12 +101,11 @@ bool MpcSolver::buildCondensedQP(
     X_ref(i * nx + 2) = ref_traj[i].yaw;
   }
 
-  // 参考控制堆叠 U_ref (注意：模型决策变量在 body 系)
+  // 参考控制堆叠 U_ref (直接使用全局速度)
   Eigen::VectorXd U_ref = Eigen::VectorXd::Zero(nU);
   for (int i = 0; i < N; ++i) {
-    const Eigen::Vector2d v_ref_body = globalToBodyVel(ref_traj[i].vel, ref_traj[i].yaw);
-    U_ref(i * nu + 0) = v_ref_body.x();
-    U_ref(i * nu + 1) = v_ref_body.y();
+    U_ref(i * nu + 0) = ref_traj[i].vel.x();
+    U_ref(i * nu + 1) = ref_traj[i].vel.y();
     U_ref(i * nu + 2) = ref_traj[i].yaw_rate;
   }
 
@@ -157,7 +131,7 @@ bool MpcSolver::buildCondensedQP(
   // g = 2*(B^T Q d - R U_ref)
   g = 2.0 * (B_hat.transpose() * Q_bar * d - R_bar * U_ref);
 
-  // 变量边界（速度约束，body 系）
+  // 变量边界（速度约束，map/global 系）
   lb = Eigen::VectorXd::Constant(nU, -std::numeric_limits<double>::infinity());
   ub = Eigen::VectorXd::Constant(nU, std::numeric_limits<double>::infinity());
   for (int i = 0; i < N; ++i) {
@@ -165,8 +139,6 @@ bool MpcSolver::buildCondensedQP(
     ub(i * nu + 0) = config_.vx_max;
     lb(i * nu + 1) = config_.vy_min;
     ub(i * nu + 1) = config_.vy_max;
-    lb(i * nu + 2) = config_.omega_min;
-    ub(i * nu + 2) = config_.omega_max;
   }
 
   // 加速度约束（可选）：a_min <= (v_k - v_{k-1})/dt <= a_max
@@ -182,6 +154,10 @@ bool MpcSolver::buildCondensedQP(
   lbA = Eigen::VectorXd::Zero(nC);
   ubA = Eigen::VectorXd::Zero(nC);
 
+  const double last_vx = curr.vx;
+  const double last_vy = curr.vy;
+  const double last_w = curr.omega;
+
   // 约束形式：lbA <= A_con * U <= ubA
   // 这里 A_con * U 直接表示 (v_k - v_{k-1})，再用 bounds 限制到 [a_min*dt, a_max*dt]
   for (int k = 0; k < N; ++k) {
@@ -192,9 +168,9 @@ bool MpcSolver::buildCondensedQP(
 
       if (k == 0) {
         // v0 - v(-1)
-        // v(-1) 用上一周期控制量 last_u_body_ 作为已知常数，转移到 bounds：
-        // a_min*dt <= v0 - last_u <= a_max*dt
-        const double last = has_last_u_ ? last_u_body_(axis) : 0.0;
+        // v(-1) 使用当前时刻真实全局速度作为已知常数，转移到 bounds：
+        // a_min*dt <= v0 - v_curr_global <= a_max*dt
+        const double last = (axis == 0 ? last_vx : (axis == 1 ? last_vy : last_w));
         lbA(row) = (axis == 0 ? config_.ax_min : (axis == 1 ? config_.ay_min : config_.alpha_min)) * config_.dt + last;
         ubA(row) = (axis == 0 ? config_.ax_max : (axis == 1 ? config_.ay_max : config_.alpha_max)) * config_.dt + last;
       } else {
@@ -335,21 +311,20 @@ bool MpcSolver::solve(const State & curr, const std::vector<ReferencePoint> & re
     }
   }
 
-  // 取第一个控制量 u0 (body)
-  const Eigen::Vector3d u0_body(
+  // 取第一个控制量 u0 (global)
+  const Eigen::Vector3d u0_global(
     static_cast<double>(xOpt[0]),
     static_cast<double>(xOpt[1]),
     static_cast<double>(xOpt[2]));
 
-  // 记录用于下一次加速度约束
-  last_u_body_ = u0_body;
+  // 记录上一帧全局速度，用于平滑加速度
+  last_u_global_ = u0_global;
   has_last_u_ = true;
 
-  // 对外输出为 map 系速度，插件层再转到 base。
-  const Eigen::Vector2d v0_map = bodyToGlobalVel(u0_body.head<2>(), ref_traj[0].yaw);
-  out_u.vx = v0_map.x();
-  out_u.vy = v0_map.y();
-  out_u.omega = u0_body.z();
+  // 直接输出全局速度
+  out_u.vx = u0_global.x();
+  out_u.vy = u0_global.y();
+  out_u.omega = u0_global.z();
 
   return true;
 }

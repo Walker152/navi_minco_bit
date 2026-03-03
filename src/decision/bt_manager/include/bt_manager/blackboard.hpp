@@ -1,6 +1,6 @@
 #pragma once
 
-#include "nav_zone.hpp"
+#include "bt_manager/utils/nav_zone.hpp"
 #include <behaviortree_cpp_v3/blackboard.h>
 #include <behaviortree_cpp_v3/bt_factory.h>
 #include <geometry_msgs/msg/point.hpp>
@@ -19,23 +19,20 @@ namespace Sentry_BT
       blackboard_ = BT::Blackboard::create();
 
       // 初始化黑板变量
-      blackboard_->set("health", 400.0f);                                   // 初始生命值
-      blackboard_->set("own_outpost_destroyed", false);                      // 前哨站状态
-      blackboard_->set("enemy_outpost_health", 1500);                       // 敌方前哨站状态
+      blackboard_->set("health", 400.0f);                                   // 初始生命值(百分比)
+      blackboard_->set<int>("own_outpost_health", 1500);                    // 我方前哨站血量
+      blackboard_->set<bool>("enemy_outpost_destroyed", false);             // 敌方前哨站是否被摧毁
       blackboard_->set("target_valid", false);                              // 目标锁定状态
-      blackboard_->set("target_in_range", false);                           // 目标是否在攻击范围内
       blackboard_->set("target_pose", geometry_msgs::msg::Pose());          // 目标位置
       blackboard_->set("target_armor_id", -1);                              // 目标装甲板ID
-      blackboard_->set("nav_status", static_cast<int>(NavStatus::IDLE));    // 导航状态
       blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));  // 当前模式
       blackboard_->set("nav_goal", Point2D{0.0, 0.0});                      // 当前导航目标
       blackboard_->set("patrol_index", 0);                                  // 巡逻点索引
       blackboard_->set("patrol_wait_time", 1000);                           // 巡逻等待时间（毫秒）
+      blackboard_->set<SentryStance>("current_stance", SentryStance::MOVE);
+      blackboard_->set<SentryStance>("desired_stance", SentryStance::MOVE);
       
-      blackboard_->set("want_position", 1);
-      blackboard_->set("my_position", 1);                                   // 当前姿态
       blackboard_->set("outpost_msg", false);                               // 抬头
-      blackboard_->set("retreat_msg", false);                               // 回家
     }
 
     template <typename T> void set(const std::string& key, const T& value)
@@ -58,16 +55,6 @@ namespace Sentry_BT
       set("health", health);
     }
 
-    void updateOwnOutpostStatus(bool destroyed)
-    {
-      set("own_outpost_destroyed", destroyed);
-    }
-
-    void updateEnemyOutpostStatus(int health)
-    {
-      set("enemy_outpost_health", health);
-    }
-
     void updateBonusStatus(bool active)
     {
       set("bonus_active", active);
@@ -83,11 +70,6 @@ namespace Sentry_BT
         set("target_pose", pose);
         set("target_armor_id", armor_id);
       }
-    }
-
-    void updateNavStatus(NavStatus status)
-    {
-      set("nav_status", static_cast<int>(status));
     }
 
   };

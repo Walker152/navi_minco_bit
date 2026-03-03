@@ -3,7 +3,7 @@
 int main(int argc, char** argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::executors::StaticSingleThreadedExecutor exec;
+  rclcpp::executors::MultiThreadedExecutor exec;
   auto node = std::make_shared<ns_com::ComInterfaceRos>("communication");
   node->bindCommunication();
   exec.add_node(node);
