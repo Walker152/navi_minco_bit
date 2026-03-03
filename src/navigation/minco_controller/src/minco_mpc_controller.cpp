@@ -471,9 +471,19 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   curr.x = pose.pose.position.x;
   curr.y = pose.pose.position.y;
   curr.yaw = normalizeYaw(yaw_pose);
-  curr.vx = 0.0;
-  curr.vy = 0.0;
-  curr.omega = 0.0;
+  if (latest_odom_) {
+    const double v_body_x = latest_odom_->twist.twist.linear.x;
+    const double v_body_y = latest_odom_->twist.twist.linear.y;
+    const double cos_yaw = std::cos(curr.yaw);
+    const double sin_yaw = std::sin(curr.yaw);
+    curr.vx = v_body_x * cos_yaw + v_body_y * sin_yaw;
+    curr.vy = -v_body_x * sin_yaw + v_body_y * cos_yaw;
+    curr.omega = latest_odom_->twist.twist.angular.z;
+  } else {
+    curr.vx = 0.0;
+    curr.vy = 0.0;
+    curr.omega = 0.0;
+  }
 
   // 2) 构造参考序列：优先 /opt_path
   std::vector<ReferencePoint> ref;
