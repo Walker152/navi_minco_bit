@@ -3,6 +3,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <cstdint>
 #include <vector>
 
 #include "nav2_core/controller.hpp"
@@ -113,6 +114,12 @@ private:
   ros_interfaces::msg::MpcPositionCommand::SharedPtr latest_opt_path_;
   nav_msgs::msg::Odometry::SharedPtr latest_odom_;
 
+  // 轨迹参考索引跟踪（用于轨迹未更新时按时间前推，避免回追起点）
+  mutable double tracked_ref_idx_{0.0};
+  mutable rclcpp::Time tracked_ref_time_;
+  mutable uint32_t tracked_opt_traj_id_{0};
+  mutable bool has_tracked_ref_{false};
+
   // Nav2 setPlan 缓存（fallback）
   nav_msgs::msg::Path global_plan_;
   mutable std::mutex plan_mtx_;
@@ -124,6 +131,8 @@ private:
   // 动态限速（Nav2 setSpeedLimit）
   double speed_limit_{0.0};
   bool speed_limit_percentage_{false};
+
+  double fixed_wz_{0.0};
 };
 
 }  // namespace minco_controller
