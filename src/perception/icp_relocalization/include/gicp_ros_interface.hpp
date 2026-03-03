@@ -15,6 +15,7 @@
 
 #include "std_srvs/srv/trigger.hpp"
 
+#include <chrono>
 #include <deque>
 #include <mutex>
 
@@ -75,6 +76,7 @@ namespace icp_relocalization
     void fsmTimerCallback();
     void mapTimerCallback();
     void runFSM();
+    void startFsmTimer();
     void relocalizeServiceCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                                    std::shared_ptr<std_srvs::srv::Trigger::Response> response);
 
@@ -102,6 +104,8 @@ namespace icp_relocalization
     int converged_count_threshold_;   // 收敛次数阈值
     int converged_count_ = 0;         // 当前收敛次数
     std::vector<double> initial_pose_; // 初始位姿猜测 [x, y, z, roll, pitch, yaw]
+
+    std::chrono::duration<double> fsm_period_{1.0};
 
     GicpFilter::Options gicp_options_;
   };
