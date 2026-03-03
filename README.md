@@ -171,7 +171,7 @@ $$J = J_{energy}(\text{MINCO}) + J_{constraints} + \rho \sum_i T_i$$
 严格意义的时空约束（障碍物随时间演化）通常由两部分共同承担：
 
 1) **时空感知层**：用 STVL 将点云观测写入“随时间衰减”的体素/栅格层（本仓库在 `local_costmap` / `global_costmap` 中均启用了 `spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer`）
-2) **控制层**：局部控制器在短时域内做碰撞代价评估并输出控制（本仓库默认 `nav2_mppi_controller::MPPIController`）
+2) **控制层**：局部控制器在短时域内做碰撞代价评估并输出控制
 
 而当前 MincoPlanner 作为全局规划器：
 
