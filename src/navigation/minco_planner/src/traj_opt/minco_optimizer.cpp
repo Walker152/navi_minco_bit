@@ -169,6 +169,9 @@ double MincoOptimizer::costFunctional(void *ptr, const VecDf& x, VecDf& g)
     // 7. Time regularization
     cost += rho * times.sum();
     gradByTimes.array() += rho;
+
+    // 7.5 Kinematic Time Barrier
+    computeTimeBarrier(opt_vars_, times, magnitudeBounds, cost, gradByTimes);
     
     
     // 8. Backprop time gradient (T -> tau)
@@ -180,6 +183,56 @@ double MincoOptimizer::costFunctional(void *ptr, const VecDf& x, VecDf& g)
 
 
     return cost;
+}
+
+void MincoOptimizer::computeTimeBarrier(const OptVars& opt_vars,
+                                        const VecDf& times,
+                                        const VecDf& magnitudeBounds,
+                                        double& cost,
+                                        VecDf& gradByTimes)
+{
+    const int N = static_cast<int>(times.size());
+    const double w_barrier = 100.0;
+    const double vmax_safe = std::max(1e-3, magnitudeBounds[1] * 0.8);
+    const double amax_safe = std::max(1e-3, magnitudeBounds[2]);
+    const double v_curr = opt_vars.headPVA.col(1).norm();
+    const bool has_init_ps =
+        (opt_vars.init_ps.size() == static_cast<size_t>(std::max(0, N - 1)));
+
+    for (int i = 0; i < N; ++i)
+    {
+        const double t_i = times(i);
+
+        Eigen::Vector3d p_start = opt_vars.headPVA.col(0);
+        Eigen::Vector3d p_end = opt_vars.tailPVA.col(0);
+
+        if (i > 0)
+        {
+            p_start = has_init_ps ? opt_vars.init_ps[static_cast<size_t>(i - 1)]
+                                  : opt_vars.waypoint_attractor.col(i);
+        }
+        if (i < N - 1)
+        {
+            p_end = has_init_ps ? opt_vars.init_ps[static_cast<size_t>(i)]
+                                : opt_vars.waypoint_attractor.col(i + 1);
+        }
+
+        const double dist = (p_end - p_start).norm();
+        double t_min = dist / vmax_safe;
+
+        if (i == N - 1)
+        {
+            t_min = std::max({t_min, v_curr / amax_safe, vmax_safe / amax_safe});
+        }
+
+        if (t_i < t_min)
+        {
+            const double violation = t_min - t_i;
+            const double violation2 = violation * violation;
+            cost += w_barrier * violation2 * violation;
+            gradByTimes(i) += -3.0 * w_barrier * violation2;
+        }
+    }
 }
 
 void MincoOptimizer::constraintsFunctional(const VecDf& T, 
@@ -355,19 +408,21 @@ bool MincoOptimizer::setupProblemAndCheck(const std::vector<Eigen::Vector3d>& wa
 
     // 5. Initialize time and point guesses
     DefaultInit();
-    // if (opt_vars_.default_init) {
-    //     DefaultInit();
-    // } else {
-    //     // opt_vars_.times *= 0.8;
-    //     if (opt_vars_.init_ps.size() == static_cast<size_t>(N - 1)) {
-    //         for (int i = 0; i < N - 1; ++i) {
-    //             opt_vars_.points.col(i) = opt_vars_.init_ps[i];
-    //         }
-    //     } else {
-    //         // Fallback to cold start if warm-start sizes mismatch
-    //         DefaultInit();
-    //     }
-    // }
+
+    // Apply warm-start (shifted hot start) if provided and sizes match.
+    if (!opt_vars_.default_init) {
+        const bool ts_ok = (opt_vars_.init_ts.size() == opt_vars_.times.size());
+        const bool ps_ok = (opt_vars_.init_ps.size() == static_cast<size_t>(opt_vars_.points.cols()));
+        if (ts_ok && ps_ok) {
+            opt_vars_.times = opt_vars_.init_ts;
+            for (int i = 0; i < opt_vars_.points.cols(); ++i) {
+                opt_vars_.points.col(i) = opt_vars_.init_ps[static_cast<size_t>(i)];
+            }
+        } else {
+            // Size mismatch: fallback to cold init.
+            opt_vars_.default_init = true;
+        }
+    }
     
     // 6. Set boundary conditions for MINCO
     opt_vars_.minco_solver_->setConditions(opt_vars_.headPVA, opt_vars_.tailPVA, N);
@@ -388,18 +443,17 @@ void MincoOptimizer::DefaultInit()
 
 void MincoOptimizer::setInitPsAndTs(const vec_Vec3f& init_ps, const VecDf& init_ts) 
 {
-    // 1. Use warm-start values if sizes match
+    // Store warm-start guesses. They will be applied after problem dimensions
+    // are known (inside setupProblemAndCheck()).
+    if (init_ps.empty() || init_ts.size() == 0) {
+        opt_vars_.default_init = true;
+        opt_vars_.init_ps.clear();
+        opt_vars_.init_ts.resize(0);
+        return;
+    }
+
     opt_vars_.default_init = false;
-    if (opt_vars_.times.size() != init_ts.size()) {
-        return;
-    }
-    if (static_cast<size_t>(opt_vars_.points.cols()) != init_ps.size()) {
-        return;
-    }
-    
-    for (size_t i = 0; i < init_ps.size(); ++i) {
-        opt_vars_.times[i] = init_ts[i];
-        opt_vars_.points.col(i) = init_ps[i];
-    }
+    opt_vars_.init_ps = init_ps;
+    opt_vars_.init_ts = init_ts;
 }
 } // namespace minco_planner
