@@ -195,6 +195,9 @@ controller_server:
       # MPC sampling period (s) and lookahead time (s)
       dt: 0.05
       lookahead_time : 3.0
+      use_small_gyro_mode: true
+      deadzone_speed_threshold: 0.02
+      control_delay_compensation: 0.25
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [8.0, 8.0, 2.0]
@@ -218,7 +221,7 @@ controller_server:
       alpha_min: -1.0
       alpha_max: 1.0
 
-      # Frame settings (Explicitly match your costmap configurations)
+      # Frame settings
       odom_frame: "camera_init"
       map_frame: "map"
 
