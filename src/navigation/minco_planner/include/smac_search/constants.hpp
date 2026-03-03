@@ -1,0 +1,109 @@
+// Copyright (c) 2020, Samsung Research America
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License. Reserved.
+
+#ifndef MINCO_PLANNER__SMAC_SEARCH__CONSTANTS_HPP_
+#define MINCO_PLANNER__SMAC_SEARCH__CONSTANTS_HPP_
+
+#include <string>
+
+namespace minco_planner
+{
+namespace smac
+{
+
+enum class MotionModel
+{
+  UNKNOWN = 0,
+  TWOD = 1,
+  DUBIN = 2,
+  REEDS_SHEPP = 3,
+  STATE_LATTICE = 4,
+};
+
+enum class GoalHeadingMode
+{
+  UNKNOWN = 0,
+  DEFAULT = 1,
+  BIDIRECTIONAL = 2,
+  ALL_DIRECTION = 3,
+};
+
+inline std::string toString(const MotionModel & n)
+{
+  switch (n) {
+    case MotionModel::TWOD:
+      return "2D";
+    case MotionModel::DUBIN:
+      return "Dubin";
+    case MotionModel::REEDS_SHEPP:
+      return "Reeds-Shepp";
+    case MotionModel::STATE_LATTICE:
+      return "State Lattice";
+    default:
+      return "Unknown";
+  }
+}
+
+inline MotionModel fromString(const std::string & n)
+{
+  if (n == "2D") {
+    return MotionModel::TWOD;
+  } else if (n == "DUBIN") {
+    return MotionModel::DUBIN;
+  } else if (n == "REEDS_SHEPP") {
+    return MotionModel::REEDS_SHEPP;
+  } else if (n == "STATE_LATTICE") {
+    return MotionModel::STATE_LATTICE;
+  } else {
+    return MotionModel::UNKNOWN;
+  }
+}
+
+inline std::string toString(const GoalHeadingMode & n)
+{
+  switch (n) {
+    case GoalHeadingMode::DEFAULT:
+      return "DEFAULT";
+    case GoalHeadingMode::BIDIRECTIONAL:
+      return "BIDIRECTIONAL";
+    case GoalHeadingMode::ALL_DIRECTION:
+      return "ALL_DIRECTION";
+    default:
+      return "Unknown";
+  }
+}
+
+inline GoalHeadingMode fromStringToGH(const std::string & n)
+{
+  if (n == "DEFAULT") {
+    return GoalHeadingMode::DEFAULT;
+  } else if (n == "BIDIRECTIONAL") {
+    return GoalHeadingMode::BIDIRECTIONAL;
+  } else if (n == "ALL_DIRECTION") {
+    return GoalHeadingMode::ALL_DIRECTION;
+  } else {
+    return GoalHeadingMode::UNKNOWN;
+  }
+}
+
+const float UNKNOWN_COST = 255.0;
+const float OCCUPIED_COST = 254.0;
+const float INSCRIBED_COST = 253.0;
+const float MAX_NON_OBSTACLE_COST = 252.0;
+const float FREE_COST = 0;
+
+}  // namespace smac
+}  // namespace minco_planner
+
+#endif  // MINCO_PLANNER__SMAC_SEARCH__CONSTANTS_HPP_
