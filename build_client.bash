@@ -1,1 +1,0 @@
-colcon build --symlink-install --packages-select icp_relocalization point_lio communication navi2 ros_interfaces pcd2pgm small_gicpapp bt_manager --cmake-args -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1

@@ -6,18 +6,19 @@
   <BehaviorTree ID="MainTree">
     <RecoveryNode number_of_retries="6" name="NavigateRecovery">
       <PipelineSequence name="NavigateWithReplanning">
-        <RateController hz="20">
+        <RateController hz="10">
           <RecoveryNode number_of_retries="1" name="ComputePathThroughPoses">
             <ReactiveSequence>
               <RemovePassedGoals input_goals="{goals}" output_goals="{goals}" radius="0.7"/>
-              <ComputePathThroughPoses goals="{goals}" path="{path}" planner_id="MincoPlanner"/>
+              <ComputePathThroughPoses goals="{goals}" path="{path}" planner_id="SmacPlanner"/>
+              <!-- <ComputePathThroughPoses goals="{goals}" path="{path}" planner_id="MincoPlanner"/> -->
             </ReactiveSequence>
-            <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>
+            <ClearCostmapAroundRobot name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_around_global_costmap" reset_distance="2.0"/>
           </RecoveryNode>
         </RateController>
         <RecoveryNode number_of_retries="1" name="FollowPath">
           <FollowPath path="{path}" controller_id="FollowPath"/>
-          <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+          <ClearCostmapAroundRobot name="ClearLocalCostmap-Context" service_name="local_costmap/clear_around_local_costmap" reset_distance="1.0"/>
         </RecoveryNode>
       </PipelineSequence>
       <ReactiveFallback name="RecoveryFallback">
