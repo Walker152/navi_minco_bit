@@ -520,6 +520,9 @@ int main(int argc, char ** argv)
     executor.spin_some();
     if (sync_packages(Measures)) {
       static double last_proc_time = -1.0;
+      static int startup_frame_cnt = 0;
+      startup_frame_cnt++;
+
       bool trigger_exit = false;
       std::string exit_reason = "";
 
@@ -530,13 +533,13 @@ int main(int argc, char ** argv)
       }
 
       // 2. [故障监测] 稀疏点云 (传感器故障/网线断连/严重遮挡)
-      if (!trigger_exit && Measures.lidar->points.size() < 100) { 
+      if (!trigger_exit && Measures.lidar->points.size() < 100 && startup_frame_cnt > 5) { 
          exit_reason = "Lidar Points Too Sparse (<100 points)";
          trigger_exit = true;
       }
 
       // 3. [故障监测] 网络大延时 (严重丢包/网络拥塞)
-      if (!trigger_exit && last_proc_time > 0 && (Measures.lidar_beg_time - last_proc_time) > 0.5) {
+      if (!trigger_exit && last_proc_time > 0 && (Measures.lidar_beg_time - last_proc_time) > 0.5 && startup_frame_cnt > 20) {
           exit_reason = "Large Time Gap (>0.5s)";
           trigger_exit = true;
       }
