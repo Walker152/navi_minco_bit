@@ -144,6 +144,7 @@ namespace ns_com
         std::lock_guard<std::mutex> lk(state_mutex_);
         vx_mps = cmd_vel_.linear.x;
         vy_mps = cmd_vel_.linear.y;
+        // vw_rpm = cmd_vel_.angular.z;
         vw_rpm = 20.0;
         gimbal_yaw = gimbal_yaw_.data;
         position = position_.data;
@@ -164,8 +165,9 @@ namespace ns_com
       double roll, pitch, yaw;
       tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
       const float current_yaw_deg = static_cast<float>(yaw * 180.0 / M_PI);
+      auto now = this->now();
       std::cout << "vx: " << vx_mps << " m/s, vy: " << vy_mps << " m/s, vw: " << vw_rpm << " rpm,"
-                << "current_yaw:" << current_yaw_deg << " deg " << std::endl;
+                << "current_yaw:" << current_yaw_deg << " deg " << "time:" << now.seconds() << "s" << std::endl;
       ChassisTarget target(vx_mps,
                            vy_mps,
                            vw_rpm,
