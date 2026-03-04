@@ -304,32 +304,6 @@ void publish_odometry(
   double yaw_pose = 0.0;
   tf2::Matrix3x3(q_pose).getRPY(roll_pose, pitch_pose, yaw_pose);
 
-  static auto diag_window_begin = std::chrono::steady_clock::now();
-  static auto diag_last_yaw_change = std::chrono::steady_clock::now();
-  static bool diag_has_last_yaw = false;
-  static double diag_last_yaw = 0.0;
-  static uint64_t diag_pub_count = 0;
-  static uint64_t diag_yaw_change_count = 0;
-  static double diag_max_hold_ms = 0.0;
-
-  if (!diag_has_last_yaw) {
-    diag_has_last_yaw = true;
-    diag_last_yaw = yaw_pose;
-    diag_last_yaw_change = current_time;
-  } else {
-    const double yaw_diff = std::atan2(std::sin(yaw_pose - diag_last_yaw), std::cos(yaw_pose - diag_last_yaw));
-    if (std::fabs(yaw_diff) > 1.0e-4) {
-      ++diag_yaw_change_count;
-      diag_last_yaw = yaw_pose;
-      diag_last_yaw_change = current_time;
-    } else {
-      const double hold_ms = std::chrono::duration<double, std::milli>(current_time - diag_last_yaw_change).count();
-      if (hold_ms > diag_max_hold_ms) {
-        diag_max_hold_ms = hold_ms;
-      }
-    }
-  }
-
   auto set_twist_linear_from_kf = [&](const auto & kf) {
     Eigen::Vector3d vel_world = kf.x_.vel;
     Eigen::Quaterniond q(kf.x_.rot);
@@ -353,26 +327,6 @@ void publish_odometry(
   }
 
   pubOdomAftMapped->publish(odomAftMapped);
-  ++diag_pub_count;
-
-  const double diag_window_s = std::chrono::duration<double>(current_time - diag_window_begin).count();
-  if (diag_window_s >= 1.0) {
-    const double pub_hz = static_cast<double>(diag_pub_count) / diag_window_s;
-    const double yaw_change_hz = static_cast<double>(diag_yaw_change_count) / diag_window_s;
-    const double yaw_hold_ms = std::chrono::duration<double, std::milli>(current_time - diag_last_yaw_change).count();
-    RCLCPP_INFO(
-      LOGGER,
-      "[ODOM_DIAG] pub_hz=%.1f yaw_change_hz=%.1f yaw_hold_ms=%.1f yaw_hold_max_ms=%.1f",
-      pub_hz,
-      yaw_change_hz,
-      yaw_hold_ms,
-      diag_max_hold_ms);
-
-    diag_window_begin = current_time;
-    diag_pub_count = 0;
-    diag_yaw_change_count = 0;
-    diag_max_hold_ms = yaw_hold_ms;
-  }
 
   if (tf_send_en) {
     geometry_msgs::msg::TransformStamped transform;
