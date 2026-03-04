@@ -399,7 +399,7 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
   double control_delay = control_delay_compensation_;
   
   current_traj_time += control_delay;
-
+  
   const int N = mpc_config_.horizon;
   const double mpc_dt = mpc_config_.dt;
   out_ref.clear();
@@ -495,6 +495,13 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     curr.omega = 0.0;
   }
 
+  if (control_delay_compensation_ > 1e-3) {
+      curr.x += curr.vx * control_delay_compensation_;
+      curr.y += curr.vy * control_delay_compensation_;
+      curr.yaw += curr.omega * control_delay_compensation_;
+      curr.yaw = normalizeYaw(curr.yaw);
+  }
+  
   // 2) 构造参考序列：优先 /opt_path
   std::vector<ReferencePoint> ref;
   bool ok_ref = buildReferenceFromOptPath(curr, ref);
