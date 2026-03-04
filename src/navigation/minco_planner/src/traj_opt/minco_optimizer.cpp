@@ -193,7 +193,7 @@ void MincoOptimizer::computeTimeBarrier(const OptVars& opt_vars,
 {
     const int N = static_cast<int>(times.size());
     const double w_barrier = 100.0;
-    const double vmax_safe = std::max(1e-3, magnitudeBounds[1] * 0.8);
+    const double vmax_safe = std::max(1e-3, magnitudeBounds[1] * 0.6);
     const double amax_safe = std::max(1e-3, magnitudeBounds[2]);
     const double v_curr = opt_vars.headPVA.col(1).norm();
     const bool has_init_ps =
