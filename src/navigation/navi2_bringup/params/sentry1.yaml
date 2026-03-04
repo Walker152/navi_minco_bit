@@ -194,21 +194,21 @@ controller_server:
       plugin: "minco_controller::MincoMpcController"
       # MPC sampling period (s) and lookahead time (s)
       dt: 0.05
-      lookahead_time : 3.0
+      lookahead_time : 0.5
       use_small_gyro_mode: true
       deadzone_speed_threshold: 0.02
-      control_delay_compensation: 0.25
+      control_delay_compensation: 0.01
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [10.0, 10.0, 2.0]
-      R: [3.0, 3.0, 1.0]
+      R: [1.0, 1.0, 1.0]
 
       # Velocity bounds
       vx_min: -2.0
       vx_max: 2.0
       vy_min: -2.0
       vy_max: 2.0
-      fixed_wz: 20.0 # rpm
+      fixed_wz: 40.0 # rpm
       omega_min: -0.5
       omega_max: 0.5
 
