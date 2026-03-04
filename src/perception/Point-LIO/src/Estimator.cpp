@@ -366,11 +366,12 @@ void h_model_input(
   esekfom::dyn_share_modified<double> & ekfom_data)
 {
   bool match_in_map = false;
-  VF(4) pabcd;
-  pabcd.setZero();
   normvec->resize(time_seq[k]);
   int effect_num_k = 0;
+  #pragma omp parallel for num_threads(4) reduction(+:effect_num_k)
   for (int j = 0; j < time_seq[k]; j++) {
+    VF(4) pabcd_local;
+    pabcd_local.setZero();
     PointType & point_body_j = feats_down_body->points[idx + j + 1];
     PointType & point_world_j = feats_down_world->points[idx + j + 1];
     pointBodyToWorld(&point_body_j, &point_world_j);
@@ -387,11 +388,11 @@ void h_model_input(
         point_selected_surf[idx + j + 1] = false;
       } else {
         point_selected_surf[idx + j + 1] = false;
-        if (esti_plane(pabcd, points_near, plane_thr))  //(planeValid)
+        if (esti_plane(pabcd_local, points_near, plane_thr))  //(planeValid)
         {
           float pd2 = fabs(
-            pabcd(0) * point_world_j.x + pabcd(1) * point_world_j.y + pabcd(2) * point_world_j.z +
-            pabcd(3));
+            pabcd_local(0) * point_world_j.x + pabcd_local(1) * point_world_j.y +
+            pabcd_local(2) * point_world_j.z + pabcd_local(3));
           // V3D norm_vec;
           // M3D Rpf, pf;
           // pf = crossmat_list[idx+j+1];
@@ -406,17 +407,17 @@ void h_model_input(
           // if (epsilon > 1.0)
           // {
           // 	weight = sqrt(2 * epsilon - 1) / epsilon;
-          // 	pabcd(0) = weight * pabcd(0);
-          // 	pabcd(1) = weight * pabcd(1);
-          // 	pabcd(2) = weight * pabcd(2);
-          // 	pabcd(3) = weight * pabcd(3);
+          // 	pabcd_local(0) = weight * pabcd_local(0);
+          // 	pabcd_local(1) = weight * pabcd_local(1);
+          // 	pabcd_local(2) = weight * pabcd_local(2);
+          // 	pabcd_local(3) = weight * pabcd_local(3);
           // }
           if (p_norm > match_s * pd2 * pd2) {
             point_selected_surf[idx + j + 1] = true;
-            normvec->points[j].x = pabcd(0);
-            normvec->points[j].y = pabcd(1);
-            normvec->points[j].z = pabcd(2);
-            normvec->points[j].intensity = pabcd(3);
+            normvec->points[j].x = pabcd_local(0);
+            normvec->points[j].y = pabcd_local(1);
+            normvec->points[j].z = pabcd_local(2);
+            normvec->points[j].intensity = pabcd_local(3);
             effect_num_k++;
           }
         }
@@ -429,9 +430,11 @@ void h_model_input(
   }
   ekfom_data.M_Noise = laser_point_cov;
   ekfom_data.h_x.resize(effect_num_k, 12);
-  ekfom_data.h_x = Eigen::MatrixXd::Zero(effect_num_k, 12);
+  ekfom_data.h_x.setZero(); 
   ekfom_data.z.resize(effect_num_k);
   int m = 0;
+  const M3D s_rot_trans = s.rot.transpose();
+  const M3D ext_rot_trans = s.offset_R_L_I.transpose();
 
   for (int j = 0; j < time_seq[k]; j++) {
     // ekfom_data.converge = false;
@@ -444,14 +447,14 @@ void h_model_input(
         p_crossmat << SKEW_SYM_MATRX(p_body);
         V3D point_imu = s.offset_R_L_I * p_body + s.offset_T_L_I;
         p_imu_crossmat << SKEW_SYM_MATRX(point_imu);
-        V3D C(s.rot.transpose() * norm_vec);
+        V3D C(s_rot_trans * norm_vec);
         V3D A(p_imu_crossmat * C);
-        V3D B(p_crossmat * s.offset_R_L_I.transpose() * C);
+        V3D B(p_crossmat * ext_rot_trans * C);
         ekfom_data.h_x.block<1, 12>(m, 0) << norm_vec(0), norm_vec(1), norm_vec(2),
           VEC_FROM_ARRAY(A), VEC_FROM_ARRAY(B), VEC_FROM_ARRAY(C);
       } else {
         M3D point_crossmat = crossmat_list[idx + j + 1];
-        V3D C(s.rot.transpose() * norm_vec);  // conjugate().normalized()
+        V3D C(s_rot_trans * norm_vec);  // conjugate().normalized()
         V3D A(point_crossmat * C);
         ekfom_data.h_x.block<1, 12>(m, 0) << norm_vec(0), norm_vec(1), norm_vec(2),
           VEC_FROM_ARRAY(A), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
@@ -472,11 +475,12 @@ void h_model_output(
   esekfom::dyn_share_modified<double> & ekfom_data)
 {
   bool match_in_map = false;
-  VF(4) pabcd;
-  pabcd.setZero();
   normvec->resize(time_seq[k]);
   int effect_num_k = 0;
+  #pragma omp parallel for num_threads(4) reduction(+:effect_num_k)
   for (int j = 0; j < time_seq[k]; j++) {
+    VF(4) pabcd_local;
+    pabcd_local.setZero();
     PointType & point_body_j = feats_down_body->points[idx + j + 1];
     PointType & point_world_j = feats_down_world->points[idx + j + 1];
     pointBodyToWorld(&point_body_j, &point_world_j);
@@ -495,11 +499,11 @@ void h_model_output(
         point_selected_surf[idx + j + 1] = false;
       } else {
         point_selected_surf[idx + j + 1] = false;
-        if (esti_plane(pabcd, points_near, plane_thr))  //(planeValid)
+        if (esti_plane(pabcd_local, points_near, plane_thr))  //(planeValid)
         {
           float pd2 = fabs(
-            pabcd(0) * point_world_j.x + pabcd(1) * point_world_j.y + pabcd(2) * point_world_j.z +
-            pabcd(3));
+            pabcd_local(0) * point_world_j.x + pabcd_local(1) * point_world_j.y +
+            pabcd_local(2) * point_world_j.z + pabcd_local(3));
           // V3D norm_vec;
           // M3D Rpf, pf;
           // pf = crossmat_list[idx+j+1];
@@ -513,18 +517,18 @@ void h_model_output(
           // if (epsilon > 1.0)
           // {
           // 	weight = sqrt(2 * epsilon - 1) / epsilon;
-          // 	pabcd(0) = weight * pabcd(0);
-          // 	pabcd(1) = weight * pabcd(1);
-          // 	pabcd(2) = weight * pabcd(2);
-          // 	pabcd(3) = weight * pabcd(3);
+          // 	pabcd_local(0) = weight * pabcd_local(0);
+          // 	pabcd_local(1) = weight * pabcd_local(1);
+          // 	pabcd_local(2) = weight * pabcd_local(2);
+          // 	pabcd_local(3) = weight * pabcd_local(3);
           // }
           if (p_norm > match_s * pd2 * pd2) {
             // point_selected_surf[i] = true;
             point_selected_surf[idx + j + 1] = true;
-            normvec->points[j].x = pabcd(0);
-            normvec->points[j].y = pabcd(1);
-            normvec->points[j].z = pabcd(2);
-            normvec->points[j].intensity = pabcd(3);
+            normvec->points[j].x = pabcd_local(0);
+            normvec->points[j].y = pabcd_local(1);
+            normvec->points[j].z = pabcd_local(2);
+            normvec->points[j].intensity = pabcd_local(3);
             effect_num_k++;
           }
         }
@@ -537,9 +541,11 @@ void h_model_output(
   }
   ekfom_data.M_Noise = laser_point_cov;
   ekfom_data.h_x.resize(effect_num_k, 12);
-  ekfom_data.h_x = Eigen::MatrixXd::Zero(effect_num_k, 12);
+  ekfom_data.h_x = setZero();
   ekfom_data.z.resize(effect_num_k);
   int m = 0;
+  const M3D s_rot_trans = s.rot.transpose();
+  const M3D ext_rot_trans = s.offset_R_L_I.transpose();
   for (int j = 0; j < time_seq[k]; j++) {
     // ekfom_data.converge = false;
     if (point_selected_surf[idx + j + 1]) {
@@ -550,14 +556,14 @@ void h_model_output(
         p_crossmat << SKEW_SYM_MATRX(p_body);
         V3D point_imu = s.offset_R_L_I * p_body + s.offset_T_L_I;
         p_imu_crossmat << SKEW_SYM_MATRX(point_imu);
-        V3D C(s.rot.transpose() * norm_vec);
+        V3D C(s_rot_trans * norm_vec);
         V3D A(p_imu_crossmat * C);
-        V3D B(p_crossmat * s.offset_R_L_I.transpose() * C);
+        V3D B(p_crossmat * ext_rot_trans * C);
         ekfom_data.h_x.block<1, 12>(m, 0) << norm_vec(0), norm_vec(1), norm_vec(2),
           VEC_FROM_ARRAY(A), VEC_FROM_ARRAY(B), VEC_FROM_ARRAY(C);
       } else {
         M3D point_crossmat = crossmat_list[idx + j + 1];
-        V3D C(s.rot.transpose() * norm_vec);  // conjugate().normalized()
+        V3D C(s_rot_trans * norm_vec);  // conjugate().normalized()
         V3D A(point_crossmat * C);
         ekfom_data.h_x.block<1, 12>(m, 0) << norm_vec(0), norm_vec(1), norm_vec(2),
           VEC_FROM_ARRAY(A), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
