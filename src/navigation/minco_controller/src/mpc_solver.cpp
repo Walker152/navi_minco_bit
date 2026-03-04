@@ -154,9 +154,9 @@ bool MpcSolver::buildCondensedQP(
   lbA = Eigen::VectorXd::Zero(nC);
   ubA = Eigen::VectorXd::Zero(nC);
 
-  const double last_vx = curr.vx;
-  const double last_vy = curr.vy;
-  const double last_w = curr.omega;
+  const double last_vx = last_u_global_.x();
+  const double last_vy = last_u_global_.y();
+  const double last_w = last_u_global_.z();
 
   // 约束形式：lbA <= A_con * U <= ubA
   // 这里 A_con * U 直接表示 (v_k - v_{k-1})，再用 bounds 限制到 [a_min*dt, a_max*dt]
