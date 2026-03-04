@@ -46,6 +46,23 @@ namespace icp_relocalization
     gicp_options_.height_filter_min_z = this->declare_parameter<double>("height_filter.min_z", -1000.0);
     gicp_options_.height_filter_max_z = this->declare_parameter<double>("height_filter.max_z", 1000.0);
 
+    // Source Crop Parameters
+    gicp_options_.source_crop_enabled = this->declare_parameter<bool>("source_crop.enable", true);
+    gicp_options_.source_crop_min_x = this->declare_parameter<double>("source_crop.min_x", -20.0);
+    gicp_options_.source_crop_max_x = this->declare_parameter<double>("source_crop.max_x", 20.0);
+    gicp_options_.source_crop_min_y = this->declare_parameter<double>("source_crop.min_y", -20.0);
+    gicp_options_.source_crop_max_y = this->declare_parameter<double>("source_crop.max_y", 20.0);
+    gicp_options_.source_crop_min_z = this->declare_parameter<double>("source_crop.min_z", -2.5);
+    gicp_options_.source_crop_max_z = this->declare_parameter<double>("source_crop.max_z", 2.5);
+
+    gicp_options_.source_self_crop_enabled = this->declare_parameter<bool>("source_self_crop.enable", false);
+    gicp_options_.source_self_crop_min_x = this->declare_parameter<double>("source_self_crop.min_x", -1.0);
+    gicp_options_.source_self_crop_max_x = this->declare_parameter<double>("source_self_crop.max_x", 1.5);
+    gicp_options_.source_self_crop_min_y = this->declare_parameter<double>("source_self_crop.min_y", -0.8);
+    gicp_options_.source_self_crop_max_y = this->declare_parameter<double>("source_self_crop.max_y", 0.8);
+    gicp_options_.source_self_crop_min_z = this->declare_parameter<double>("source_self_crop.min_z", -1.5);
+    gicp_options_.source_self_crop_max_z = this->declare_parameter<double>("source_self_crop.max_z", 1.8);
+
     // SAC-IA Parameters
     gicp_options_.sac_ia_min_sample_distance = this->declare_parameter<double>("sac_ia.min_sample_distance", 0.5);
     gicp_options_.sac_ia_correspondence_randomness =
@@ -85,7 +102,21 @@ namespace icp_relocalization
                     NV(gicp_options_.euclidean_fitness_epsilon),
                     NV(gicp_options_.height_filter_enabled),
                     NV(gicp_options_.height_filter_min_z),
-                    NV(gicp_options_.height_filter_max_z));
+                    NV(gicp_options_.height_filter_max_z),
+                    NV(gicp_options_.source_crop_enabled),
+                    NV(gicp_options_.source_crop_min_x),
+                    NV(gicp_options_.source_crop_max_x),
+                    NV(gicp_options_.source_crop_min_y),
+                    NV(gicp_options_.source_crop_max_y),
+                    NV(gicp_options_.source_crop_min_z),
+                    NV(gicp_options_.source_crop_max_z),
+                    NV(gicp_options_.source_self_crop_enabled),
+                    NV(gicp_options_.source_self_crop_min_x),
+                    NV(gicp_options_.source_self_crop_max_x),
+                    NV(gicp_options_.source_self_crop_min_y),
+                    NV(gicp_options_.source_self_crop_max_y),
+                    NV(gicp_options_.source_self_crop_min_z),
+                    NV(gicp_options_.source_self_crop_max_z));
     std::cout << BOLDCYAN << "  ----------SAC-IA Options----------" << RESET << std::endl;
     LOG_DEBUG_BLOCK(std::string(CYAN) + "[SAC-IA] ",
                     NV(gicp_options_.sac_ia_min_sample_distance),
@@ -187,7 +218,7 @@ namespace icp_relocalization
                 color_text::RESET.c_str());
 
     // 1. Reset State
-    mode_ = Mode::INITIAL_GUESS;
+    mode_ = Mode::SAC_IA;
     state_ = State::UNINITIALIZED;
     converged_count_ = 0;
     current_accumulated_frames_ = 0;
@@ -210,7 +241,6 @@ namespace icp_relocalization
 
     // 3. Restart FSM Timer
     startFsmTimer();
-    RCLCPP_INFO(this->get_logger(), "FSM timer restarted.");
 
     response->success = true;
     response->message = "Relocalization process restarted.";
