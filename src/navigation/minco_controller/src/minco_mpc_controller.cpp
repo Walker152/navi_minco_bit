@@ -143,13 +143,14 @@ void MincoMpcController::configure(
 
   RCLCPP_INFO(
     logger_,
-    "%s: MincoMpcController configured (dt=%.3f, lookahead_time=%.3f, deadzone=%.3f, delay_comp=%.3f, small_gyro=%s)",
+    "%s: MincoMpcController configured (dt=%.3f, lookahead_time=%.3f, deadzone=%.3f, delay_comp=%.3f, small_gyro=%s, fixed_wz=%.3f)",
     name_.c_str(),
     dt,
     lookahead_time,
     deadzone_speed_threshold_,
     control_delay_compensation_,
-    use_small_gyro_mode_ ? "true" : "false");
+    use_small_gyro_mode_ ? "true" : "false",
+    fixed_wz_);
 }
 
 void MincoMpcController::cleanup()
@@ -485,8 +486,8 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     const double v_body_y = latest_odom_->twist.twist.linear.y;
     const double cos_yaw = std::cos(curr.yaw);
     const double sin_yaw = std::sin(curr.yaw);
-    curr.vx = v_body_x * cos_yaw + v_body_y * sin_yaw;
-    curr.vy = -v_body_x * sin_yaw + v_body_y * cos_yaw;
+    curr.vx = v_body_x * cos_yaw - v_body_y * sin_yaw;
+    curr.vy = v_body_x * sin_yaw + v_body_y * cos_yaw;
     curr.omega = latest_odom_->twist.twist.angular.z;
   } else {
     curr.vx = 0.0;
@@ -573,7 +574,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   if (!use_small_gyro_mode_) {
     wz = std::min(mpc_config_.omega_max, std::max(mpc_config_.omega_min, u_global.omega));
   }
-
+  
   // 5) 处理 Nav2 setSpeedLimit
   if (speed_limit_ > 1e-6) {
     const double v_norm = std::hypot(vx, vy);
