@@ -5,7 +5,7 @@
 
 class DepthClusterNode : public rclcpp::Node
 {
-private:
+private:      
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr point_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr ground_pub_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
@@ -17,7 +17,7 @@ public:
     point_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_filter_baselink", 10);
     ground_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_baselink", 10);
     cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-      "/cloud_registered", 10,
+      "/gicp_map", 10,
       std::bind(&DepthClusterNode::CloudCB, this, std::placeholders::_1));
   }
 
@@ -59,9 +59,12 @@ public:
       
       for (int idx : cluster_vec)
       {
-        laserCloudColor->points[idx].r = r;
-        laserCloudColor->points[idx].g = g;
-        laserCloudColor->points[idx].b = b;
+        if (idx >= 0 && static_cast<size_t>(idx) < laserCloudColor->points.size())
+        {
+          laserCloudColor->points[idx].r = r;
+          laserCloudColor->points[idx].g = g;
+          laserCloudColor->points[idx].b = b;
+        }
       }
     }
 
@@ -70,14 +73,26 @@ public:
     // 地面点设置为绿色
     for (int idx : ground_index)
     {
-      laserCloudColor->points[idx].r = 0;
-      laserCloudColor->points[idx].g = 255;
-      laserCloudColor->points[idx].b = 0;
+      if (idx >= 0 && static_cast<size_t>(idx) < laserCloudColor->points.size())
+      {
+        laserCloudColor->points[idx].r = 0;
+        laserCloudColor->points[idx].g = 255;
+        laserCloudColor->points[idx].b = 0;
+      }
     }
 
     // 步骤5：发布地面点云（绿色）
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr ground_points(new pcl::PointCloud<pcl::PointXYZRGB>());
-    pcl::copyPointCloud(*laserCloudColor, ground_index, *ground_points);
+    std::vector<int> valid_ground_index;
+    valid_ground_index.reserve(ground_index.size());
+    for (int idx : ground_index)
+    {
+      if (idx >= 0 && static_cast<size_t>(idx) < laserCloudColor->points.size())
+      {
+        valid_ground_index.push_back(idx);
+      }
+    }
+    pcl::copyPointCloud(*laserCloudColor, valid_ground_index, *ground_points);
     sensor_msgs::msg::PointCloud2 ground_msg;
     pcl::toROSMsg(*ground_points, ground_msg);
     ground_msg.header = cloud_ptr->header;
@@ -86,7 +101,16 @@ public:
     // 步骤6：发布障碍物聚类结果（彩色）
     auto cluster_indices = depthCluster_.getMergedClustersIndex();
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_points(new pcl::PointCloud<pcl::PointXYZRGB>());
-    pcl::copyPointCloud(*laserCloudColor, cluster_indices, *cluster_points);
+    std::vector<int> valid_cluster_indices;
+    valid_cluster_indices.reserve(cluster_indices.size());
+    for (int idx : cluster_indices)
+    {
+      if (idx >= 0 && static_cast<size_t>(idx) < laserCloudColor->points.size())
+      {
+        valid_cluster_indices.push_back(idx);
+      }
+    }
+    pcl::copyPointCloud(*laserCloudColor, valid_cluster_indices, *cluster_points);
     sensor_msgs::msg::PointCloud2 cluster_msg;
     pcl::toROSMsg(*cluster_points, cluster_msg);
     cluster_msg.header = cloud_ptr->header;
