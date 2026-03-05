@@ -10,8 +10,8 @@
           <RecoveryNode number_of_retries="1" name="ComputePathThroughPoses">
             <ReactiveSequence>
               <RemovePassedGoals input_goals="{goals}" output_goals="{goals}" radius="0.7"/>
-              <ComputePathThroughPoses goals="{goals}" path="{path}" planner_id="SmacPlanner"/>
-              <!-- <ComputePathThroughPoses goals="{goals}" path="{path}" planner_id="MincoPlanner"/> -->
+              <!-- <ComputePathThroughPoses goals="{goals}" path="{path}" planner_id="SmacPlanner"/> -->
+              <ComputePathThroughPoses goals="{goals}" path="{path}" planner_id="MincoPlanner"/>
             </ReactiveSequence>
             <ClearCostmapAroundRobot name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_around_global_costmap" reset_distance="2.0"/>
           </RecoveryNode>
