@@ -12,6 +12,7 @@ namespace Sentry_BT
   };
 
   std::vector<Point2D> patrol_points_normal = {
+    // for
       {14.2, 11.5},
       {17.5, 8.2},
       {16.0, 4.2},

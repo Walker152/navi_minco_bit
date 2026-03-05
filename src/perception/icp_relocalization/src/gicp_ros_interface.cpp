@@ -150,7 +150,7 @@ namespace icp_relocalization
     lidar_sub_options.callback_group = callback_group_lidar_;
 
     lidar_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-        "/cloud_registered",
+        "/livox/stdpc",
         rclcpp::SensorDataQoS(),
         std::bind(&GicpRosInterface::lidarCallback, this, std::placeholders::_1),
         lidar_sub_options);
