@@ -221,6 +221,10 @@ controller_server:
       alpha_min: -1.0
       alpha_max: 1.0
 
+      # Lidar extrinsic parameters
+      lidar_offset_x: 0.0
+      lidar_offset_y: 0.0
+      
       # Frame settings
       odom_frame: "camera_init"
       map_frame: "map"
