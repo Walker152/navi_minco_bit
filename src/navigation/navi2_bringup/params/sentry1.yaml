@@ -271,7 +271,7 @@ local_costmap:
         observation_sources: mid360
         mid360:
           data_type: PointCloud2
-          topic: /cloud_registered
+          topic: /cloud_registered_body
           marking: true
           clearing: true
           obstacle_range: 5.0
@@ -334,7 +334,7 @@ global_costmap:
         observation_sources: mid360
         mid360:
           data_type: PointCloud2
-          topic: /cloud_registered
+          topic: /cloud_registered_body
           marking: true
           clearing: true
           obstacle_range: 5.0
