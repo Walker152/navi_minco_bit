@@ -27,8 +27,4 @@
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>tf2_sensor_msgs</exec_depend>
   <exec_depend>yaml-cpp</exec_depend>
-
-  <export>
-    <build_type>ament_cmake</build_type>
-  </export>
 </package>
