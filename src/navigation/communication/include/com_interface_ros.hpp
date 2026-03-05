@@ -145,8 +145,8 @@ namespace ns_com
         vx_mps = cmd_vel_.linear.x;
         vy_mps = cmd_vel_.linear.y;
         // vw_rpm = cmd_vel_.angular.z;
-        // vw_rpm = 40.0;
-        vw_rpm = 0.0;
+        vw_rpm = 40.0;
+        // vw_rpm = 0.0;
         gimbal_yaw = gimbal_yaw_.data;
         position = position_.data;
         outpost_msg = outpost_msg_.data;
