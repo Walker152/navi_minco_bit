@@ -287,14 +287,14 @@ void publish_odometry(
   }
   last_time = current_time;
 
-  // -------------------- Odom / Yaw 调试统计 --------------------
-  static bool yaw_initialized = false;
-  static double last_yaw = 0.0;
-  static auto same_yaw_start_time = current_time;
-  static auto last_yaw_change_time = current_time;
-  static auto stats_window_start_time = current_time;
-  static size_t odom_pub_count_in_window = 0;
-  static size_t yaw_update_count_in_window = 0;
+  // // -------------------- Odom / Yaw 调试统计 --------------------
+  // static bool yaw_initialized = false;
+  // static double last_yaw = 0.0;
+  // static auto same_yaw_start_time = current_time;
+  // static auto last_yaw_change_time = current_time;
+  // static auto stats_window_start_time = current_time;
+  // static size_t odom_pub_count_in_window = 0;
+  // static size_t yaw_update_count_in_window = 0;
 
   constexpr double kYawDiffEps = 1e-4;  // rad，小于该阈值认为 yaw 未变化
 
@@ -326,57 +326,57 @@ void publish_odometry(
   double yaw_pose = 0.0;
   tf2::Matrix3x3(q_pose).getRPY(roll_pose, pitch_pose, yaw_pose);
 
-  odom_pub_count_in_window++;
-  if (!yaw_initialized) {
-    yaw_initialized = true;
-    last_yaw = yaw_pose;
-    same_yaw_start_time = current_time;
-    last_yaw_change_time = current_time;
-  } else {
-    const double yaw_diff = normalize_angle(yaw_pose - last_yaw);
-    if (std::fabs(yaw_diff) <= kYawDiffEps) {
-      // yaw 保持不变，持续时间统计由周期日志打印
-    } else {
-      // yaw 发生更新：打印上一段“yaw 不变”的持续时长
-      const double same_yaw_duration =
-        std::chrono::duration<double>(current_time - same_yaw_start_time).count();
-      RCLCPP_INFO(
-        LOGGER,
-        "[ODOM DEBUG] Yaw unchanged duration: %.3f s, then updated by %.6f rad",
-        same_yaw_duration,
-        std::fabs(yaw_diff));
+  // odom_pub_count_in_window++;
+  // if (!yaw_initialized) {
+  //   yaw_initialized = true;
+  //   last_yaw = yaw_pose;
+  //   same_yaw_start_time = current_time;
+  //   last_yaw_change_time = current_time;
+  // } else {
+  //   const double yaw_diff = normalize_angle(yaw_pose - last_yaw);
+  //   if (std::fabs(yaw_diff) <= kYawDiffEps) {
+  //     // yaw 保持不变，持续时间统计由周期日志打印
+  //   } else {
+  //     // yaw 发生更新：打印上一段“yaw 不变”的持续时长
+  //     const double same_yaw_duration =
+  //       std::chrono::duration<double>(current_time - same_yaw_start_time).count();
+  //     RCLCPP_INFO(
+  //       LOGGER,
+  //       "[ODOM DEBUG] Yaw unchanged duration: %.3f s, then updated by %.6f rad",
+  //       same_yaw_duration,
+  //       std::fabs(yaw_diff));
 
-      yaw_update_count_in_window++;
-      last_yaw_change_time = current_time;
-      same_yaw_start_time = current_time;
-      last_yaw = yaw_pose;
-    }
-  }
+  //     yaw_update_count_in_window++;
+  //     last_yaw_change_time = current_time;
+  //     same_yaw_start_time = current_time;
+  //     last_yaw = yaw_pose;
+  //   }
+  // }
 
-  const double window_dt =
-    std::chrono::duration<double>(current_time - stats_window_start_time).count();
-  if (window_dt >= 1.0) {
-    const double odom_pub_hz = static_cast<double>(odom_pub_count_in_window) / window_dt;
-    const double yaw_update_hz = static_cast<double>(yaw_update_count_in_window) / window_dt;
-    const double yaw_same_duration_now =
-      std::chrono::duration<double>(current_time - same_yaw_start_time).count();
-    const double since_last_yaw_update =
-      std::chrono::duration<double>(current_time - last_yaw_change_time).count();
+  // const double window_dt =
+  //   std::chrono::duration<double>(current_time - stats_window_start_time).count();
+  // if (window_dt >= 1.0) {
+  //   const double odom_pub_hz = static_cast<double>(odom_pub_count_in_window) / window_dt;
+  //   const double yaw_update_hz = static_cast<double>(yaw_update_count_in_window) / window_dt;
+  //   const double yaw_same_duration_now =
+  //     std::chrono::duration<double>(current_time - same_yaw_start_time).count();
+  //   const double since_last_yaw_update =
+  //     std::chrono::duration<double>(current_time - last_yaw_change_time).count();
 
-    RCLCPP_INFO(
-      LOGGER,
-      "[ODOM DEBUG] odom_pub: %.2f Hz | yaw_update: %.2f Hz | yaw_same_now: %.3f s | "
-      "since_last_yaw_update: %.3f s | yaw: %.6f rad",
-      odom_pub_hz,
-      yaw_update_hz,
-      yaw_same_duration_now,
-      since_last_yaw_update,
-      yaw_pose);
+  //   RCLCPP_INFO(
+  //     LOGGER,
+  //     "[ODOM DEBUG] odom_pub: %.2f Hz | yaw_update: %.2f Hz | yaw_same_now: %.3f s | "
+  //     "since_last_yaw_update: %.3f s | yaw: %.6f rad",
+  //     odom_pub_hz,
+  //     yaw_update_hz,
+  //     yaw_same_duration_now,
+  //     since_last_yaw_update,
+  //     yaw_pose);
 
-    stats_window_start_time = current_time;
-    odom_pub_count_in_window = 0;
-    yaw_update_count_in_window = 0;
-  }
+  //   stats_window_start_time = current_time;
+  //   odom_pub_count_in_window = 0;
+  //   yaw_update_count_in_window = 0;
+  // }
 
   auto set_twist_linear_from_kf = [&](const auto & kf) {
     Eigen::Vector3d vel_world = kf.x_.vel;
@@ -561,7 +561,7 @@ int main(int argc, char ** argv)
       }
 
       // 2. [故障监测] 网络大延时 (严重丢包/网络拥塞)
-      if (!trigger_exit && last_proc_time > 0 && (Measures.lidar_beg_time - last_proc_time) > 1.0 && startup_frame_cnt > 20) {
+      if (!trigger_exit && last_proc_time > 0 && (Measures.lidar_beg_time - last_proc_time) > 1.0 && startup_frame_cnt > 2000) {
           exit_reason = "Large Time Gap (>0.5s)";
           trigger_exit = true;
       }
