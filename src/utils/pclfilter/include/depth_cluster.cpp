@@ -26,12 +26,6 @@ namespace pclfilter
 
     void DepthCluster::setInputCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr &msg)
     {
-        paramsReset();
-        if (!msg || msg->empty())
-        {
-            cout << "Input cloud is empty, skip clustering" << endl;
-            return;
-        }
         cout << "---------------- Algorithm Start ----------------" << endl;
         vector<vector<int>> label_image(image_rows_, vector<int>(image_cols_, -1));
         exactGroundPoints(msg, label_image);
@@ -43,21 +37,12 @@ namespace pclfilter
 
     vector<int> DepthCluster::exactGroundPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr &msg, vector<vector<int>> &label_image)
     {
-        if (!msg || msg->empty())
-        {
-            return {};
-        }
         clock_t time_start = clock();
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_copy(new pcl::PointCloud<pcl::PointXYZ>); // shared ptr, dont need to be deleted by self
         pcl::copyPointCloud(*msg, *cloud_copy);                                               //
         vector<int> ground_indices;
         pcl::PointCloud<pcl::PointXYZ>::Ptr initial_ground_points(new pcl::PointCloud<pcl::PointXYZ>); //
         extractInitialGroundPoint(cloud_copy, initial_ground_points);
-        if (initial_ground_points->empty())
-        {
-            cout << "No initial ground points, skip ground extraction" << endl;
-            return {};
-        }
         Eigen::Vector4f ground_params = estimatePlaneParams(initial_ground_points);
         ground_indices = exactGroundCloudIndices(msg, label_image, ground_params);
         clock_t time_end = clock();
@@ -141,10 +126,6 @@ namespace pclfilter
 
     Eigen::Vector4f DepthCluster::estimatePlaneParams(pcl::PointCloud<pcl::PointXYZ>::Ptr &initial_ground_points)
     {
-        if (!initial_ground_points || initial_ground_points->empty())
-        {
-            return Eigen::Vector4f(0.0f, 0.0f, 1.0f, 0.0f);
-        }
         Eigen::Matrix3f cov;
         Eigen::Vector4f pc_mean;
         pcl::computeMeanAndCovarianceMatrix(*initial_ground_points, cov, pc_mean);
@@ -317,8 +298,6 @@ namespace pclfilter
     void DepthCluster::paramsReset()
     {
         sorted_Pointcloud_->clear();
-        ground_points_indices_.clear();
-        clusters_indices_vec_.clear();
     }
 
     bool DepthCluster::calculateCoordinate(const pcl::PointXYZ &point, int &row, int &col)
@@ -333,9 +312,9 @@ namespace pclfilter
         {
             row_index = 0;
         }
-        else if (row_index >= image_rows_)
+        else if (row_index > vertical_angle_max_)
         {
-            row_index = image_rows_ - 1;
+            row_index = vertical_angle_max_;
         }
 
         int col_index = -round((horizon_angle) / horizontal_resolution_) + image_cols_ / 2.0;
