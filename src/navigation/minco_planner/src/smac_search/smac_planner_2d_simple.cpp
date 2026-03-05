@@ -213,9 +213,6 @@ bool SmacPlanner2DSimple::createPath(
   path.clear();
 
   if (!costmap_) {
-    if (node_) {
-      RCLCPP_ERROR(node_->get_logger(), "Costmap not set!");
-    }
     return false;
   }
 
@@ -254,10 +251,10 @@ bool SmacPlanner2DSimple::createPath(
       if (cost == nav2_costmap_2d::NO_INFORMATION) {
         return allow_unknown_;
       }
-      return cost < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+      return cost < nav2_costmap_2d::LETHAL_OBSTACLE;
     };
 
-  if (!is_traversable(start_index) || !is_traversable(goal_index)) {
+  if (!is_traversable(goal_index)) {
     return false;
   }
 
