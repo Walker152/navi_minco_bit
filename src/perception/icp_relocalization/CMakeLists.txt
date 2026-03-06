@@ -47,7 +47,7 @@ target_link_libraries(gicp_filter
 )
 
 # GICP Node Executable (ROS Wrapper)
-add_executable(gicp_node src/gicp_node.cpp src/gicp_ros_interface.cpp)
+add_executable(gicp_node src/gicp_node.cpp src/gicp_ros_interface.cpp src/gicp_utils.cpp)
 ament_target_dependencies(gicp_node
   rclcpp
   std_srvs
