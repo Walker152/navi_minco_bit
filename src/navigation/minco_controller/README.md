@@ -1,250 +1,155 @@
-# BIT minco_controller
+# minco_controller（RM 高动态底盘 Nav2 控制器）
 
-`minco_controller` 是一个面向地面移动机器人的 **Nav2 Controller 插件**：
-- 从上游 `minco_planner` 发布的 `/opt_path`（`ros_interfaces::msg::MpcPositionCommand`）中提取前瞻参考序列；
-- 使用基于 qpOASES 的线性 MPC（condensed QP）实时求解速度控制量；
-- 输出 `TwistStamped` 给 Nav2 控制链路，并提供预测/实际轨迹可视化。
+`minco_controller` 是一个面向 RoboMaster（RM）等高动态地面机器人的 **Nav2 Controller 插件**，核心目标是：
 
-> 插件导出：`minco_controller::MincoMpcController`（见 `minco_controller.xml`）。
+- 吃满上游 `minco_planner` 的高频前馈（位置/速度/加速度/jerk/yaw）；
+- 在 **全局坐标系** 直接进行 MPC 解算与约束处理；
+- 以低延迟方式输出可执行速度指令，兼容 RM 战队常见“上层解算 + 底盘 MCU 二次映射”的控制架构。
 
----
-
-## 1. 功能包简介
-
-在导航系统中，`minco_controller` 的定位是 **轨迹跟踪控制器**：
-
-- **输入**
-  - 上游规划：`/opt_path`（位置/速度/加速度/jerk/yaw 等前馈信息序列）。
-  - 状态估计：`/aft_mapped_to_init`（里程计，含线速度与角速度，用于延迟补偿）。
-  - TF：用于将 `/opt_path` 的坐标系转换到控制器的工作坐标系。
-
-- **输出**
-  - Nav2 控制输出：`geometry_msgs::msg::TwistStamped`。
-  - 可视化：预测轨迹 `/mpc_predict_path` 与实际轨迹 `/mpc_real_path`。
+插件导出类：`minco_controller::MincoMpcController`。
 
 ---
 
-## 2. Mermaid 流程图（算法与数据流）
+## 1. 项目简介
+
+在整套导航链路中，本功能包定位为 **轨迹跟踪控制器**，每个控制周期完成：
+
+1. 接收并缓存 `/opt_path`（`ros_interfaces::msg::MpcPositionCommand`）与 `/aft_mapped_to_init`；
+2. 从前馈轨迹中构造时域对齐的参考序列；
+3. 构建并求解带约束的 Condensed QP；
+4. 结合战队策略分支（小陀螺 / 平动）输出 `TwistStamped`（全局速度）。
+
+
+---
+
+## 2. Mermaid 算法流程图（纵向数据流）
 
 ```mermaid
 flowchart TD
-  subgraph IN["Inputs"]
-    A["/opt_path<br/>MpcPositionCommand"] 
-    C["/aft_mapped_to_init<br/>Odometry"] 
-  end
+  A[/输入: /opt_path\nMpcPositionCommand含 P/V/A/J/Yaw 前馈/]
+  B[/输入: /aft_mapped_to_init参与状态前馈/]
 
-  subgraph RT["computeVelocityCommands() 每周期"]
-    G["延迟补偿<br/>使用 odom 时间戳外推 pose"] --> H["从 opt_path 构造参考序列<br/>最近点 + 线性插值 + yaw 连续化"]
-    A --> H
-    C --> G
+  A --> E[参考索引更新]
+  B --> E
 
-    H --> I["构建 condensed QP<br/>H, g, bounds, (可选) 加速度差分约束"]
-    I --> J["qpOASES 求解 QP"]
-    J --> K["输出控制 u0<br/>速度/角速度限幅 + setSpeedLimit"]
-  end
+  E --> F[控制延迟补偿]
+  F --> H[参考序列构造按 dt 重采样 + yaw 连续化P/V/A/J 插值]
 
-  K --> OUT["TwistStamped -> Nav2"]
+  H --> I[构建全局运动学推演 + 速度/加速度约束]
+  I --> J[qpOASES 实时求解输出首控制量 u0]
+
+  J --> K{use_small_gyro_mode ?}
+  K -->|true| L[进入小陀螺]
+  K -->|false| M[航向角跟随]
+
+  L --> N[死区截断]
+  M --> N
+
+  N --> O[/输出: TwistStamped/]
 ```
 
 ---
 
-## 3. 算法工作流程（整体详细、局部简述）
+## 3. 核心控制流程详述
 
-本节按“数据接入 → 参考构造 → QP 建模 → 求解与输出”的顺序说明。
+### 3.1 输入接入与坐标统一
 
-### 3.1 数据接入与缓存
+- `/opt_path` 是主信息源，`cmds` 内包含位置、速度、加速度、jerk、yaw、yaw_rate 等高阶前馈；
+- `/aft_mapped_to_init` 用于提供位姿参考（Pose），避免把延迟较大的速度估计直接灌入控制状态；
+- 若 `opt_path.header.frame_id` 为空，回退 `map_frame`，随后统一变换到控制器工作坐标系（通常为 `global_frame_`）。
 
-- 订阅 `/opt_path`：缓存最新一帧 `MpcPositionCommand`（`cmds` 为离散时间序列）。
-- 订阅 `/aft_mapped_to_init`：缓存最新里程计，用于对控制周期内的 **感知/通讯延迟** 做简单补偿。
+### 3.2 参考轨迹处理：防回退 + 延迟补偿
 
-### 3.2 坐标系转换（opt_path → 控制坐标系）
+参考索引不是每帧“盲目最近点重定位”，而是：
 
-`/opt_path` 可能来自 `map` 等坐标系，而控制器通常在 costmap 的 `global_frame_` 下工作。
+1. 先做几何最近点与线段投影，得到 `nearest_idx_float`；
+2. 再根据历史 `tracked_ref_idx_`、`tracked_ref_time_`、`trajectory_id` 做 **单调前向推进**；
+3. 仅当轨迹 ID 切换时重置跟踪状态，防止重复发布时间戳导致“假回退”；
+4. 通过 `control_delay_compensation` 把采样时刻整体前推，直接追踪“未来一点”的参考。
 
-- 若 `opt->header.frame_id` 为空，则默认使用 `map_frame` 参数；
-- 通过 TF 查询 `target_frame <- source_frame` 的变换；
-- 对每个 `PositionCommand`：
-  - 位置点 `PointStamped` 做变换；
-  - 速度向量 `Vector3Stamped` 做变换；
-  - 航向 `yaw` 按变换的 yaw 差进行叠加并归一化。
+### 3.4 QP 建模与约束：全局系线性推演 + 差分加速度
 
-### 3.3 参考序列构造（最近点 + 时间对齐 + 插值）
-
-目标：从高频离散的 `/opt_path.cmds` 中提取长度为 `horizon` 的参考序列 `ref[k]`。
-
-1) **最近点搜索**：在 `cmds` 中寻找与当前状态最近的索引 `best_idx`。
-2) **轨迹段投影**：将机器人位置投影到 `best_idx -> best_idx+1` 线段上，得到连续索引 `current_idx_float`（并 clamp 到非负，避免 size_t 转换溢出）。
-3) **时间对齐**：
-   - 规划器频率 `planner_dt = 1 / planner_freq`（默认与 `minco_planner.opt_freq` 一致）；
-   - 用 `current_traj_time = current_idx_float * planner_dt` 作为参考时间原点。
-4) **按 MPC dt 采样**：
-   - `target_time = current_traj_time + k * mpc_dt`；
-   - 线性插值 `pos/vel/yaw/yaw_rate` 得到 `ReferencePoint`。
-5) **yaw 连续化**：
-   - 首点 yaw 对齐到当前 yaw 的邻域；
-   - 后续点逐步展开，避免 $\pi$ 跳变。
-
-### 3.4 MPC 模型与代价（condensed QP）
-
-#### 3.4.1 离散线性模型（按参考 yaw 线性化）
-
-状态：$x=[p_x, p_y, \psi]$，控制（决策变量）：body 系 $u=[v_x, v_y, \omega]$。
-
-单步模型：
+`mpc_solver` 使用 Condensed QP：
 
 $$
-\begin{aligned}
- p_x^{k+1} &= p_x^k + (v_x\cos\psi_r - v_y\sin\psi_r)\,dt \\
- p_y^{k+1} &= p_y^k + (v_x\sin\psi_r + v_y\cos\psi_r)\,dt \\
- \psi^{k+1} &= \psi^k + \omega\,dt
-\end{aligned}
+\min_U \frac{1}{2}U^T H U + g^T U
 $$
 
-其中 $\psi_r$ 取参考轨迹的 yaw。
+其中：
 
-#### 3.4.2 condensed QP 形式
+- 状态堆叠：$X = A_{hat}x_0 + B_{hat}U$；
+- 代价项：位置/航向误差权重 `Q` + 控制偏差权重 `R`；
+- 约束项：速度盒约束 + 可选差分加速度约束。
 
-将 horizon 内的控制量堆叠为 $U\in\mathbb{R}^{3N}$，得到：
+差分加速度约束核心形式：
 
-$$\min_U\ \frac{1}{2}U^T H U + g^T U$$
+$$
+a_{min} \cdot dt \le (v_k - v_{k-1}) \le a_{max} \cdot dt
+$$
 
-- 代价由状态跟踪误差 $Q$ 与控制偏差 $R$ 组成；
-- 参考控制 $U_{ref}$ 直接来自参考轨迹的 map/global 速度。
+在全局坐标系下直接约束 `vx/vy/omega`，并把首步历史项并入边界。
 
-#### 3.4.3 约束
+### 3.5 输出处理：策略分支 + 安全截断
 
-- **速度约束（box bounds）**：对每步的 $v_x, v_y, \omega$ 设置上下界。
-- **可选加速度约束（差分约束）**：
-  - 形式：$a_{min}\,dt \le (v_k - v_{k-1}) \le a_{max}\,dt$；
-  - $k=0$ 使用上一周期控制 `last_u_global_` 作为已知常数完成约束平移。
+求解得到 `u_global` 后，控制器按战队模式分支：
 
-#### 3.4.4 数值稳定
-
-- Hessian 添加正则项：`eps_regularization * I`，降低奇异/病态风险。
-
-### 3.5 求解与输出
-
-- 使用 qpOASES 的 `QProblem` 求解 QP；
-- 取第一个控制量 $u_0$ 作为当前周期输出；
-- 求解器直接输出 map/global 速度（插件层再转换到 base 坐标系）；
-- 支持 Nav2 `setSpeedLimit`：对输出速度做幅值缩放。
+- `use_small_gyro_mode = true`：角速度强制 `fixed_wz`（小陀螺）；
+- `use_small_gyro_mode = false`：采用 MPC 求解 `omega` 并限幅；
+- 最后做 `setSpeedLimit` 与 `deadzone_speed_threshold` 截断，输出稳定可落地的指令。
 
 ---
 
-## 4. 可视化模块简介
+## 4. 核心参数说明（Nav2 YAML）
 
-本包提供轻量可视化：
-- `/mpc_predict_path`：发布 MPC 预测轨迹（map/global_frame）。
-- `/mpc_real_path`：发布实际行走轨迹历史（默认 1Hz 降频，带简单距离滤波）。
+> 参数命名均为 `<controller_name>.*`，例如 `FollowPath.dt`。
 
-用于对齐 `/opt_path`、观察跟踪误差、诊断 QP 不可行等问题。
-
----
-
-## 5. 参数配置说明
-
-参数以 Nav2 插件名称为前缀（`<controller_name>.*`）。下面以 `<controller_name> = minco_controller` 举例。
-
-### 5.1 时间与 horizon
-
-| 参数 | 类型 | 默认值 | 说明 |
-|---|---:|---:|---|
-| `dt` | double | 0.05 | MPC 控制周期（秒）。 |
-| `lookahead_time` | double | 0.5 | 预测总时长（秒），`horizon = ceil(lookahead_time/dt)`。 |
-| `horizon` | int | 10 | 预留：当前实现会根据 `lookahead_time/dt` 覆盖该值。 |
-
-> 注意：源码中 `lookahead_time` 会被读取但未显式 declare；若你使用严格参数声明模式，建议在配置文件中显式提供该参数。
-
-### 5.2 代价权重
-
-| 参数 | 类型 | 默认值 | 说明 |
-|---|---:|---:|---|
-| `Q` | double[3] | [5.0, 5.0, 2.0] | 状态误差权重，对应 [x, y, yaw]。 |
-| `R` | double[3] | [1.0, 1.0, 0.5] | 控制误差权重，对应 [vx, vy, omega]。 |
-
-### 5.3 速度/角速度约束（body 系）
-
-| 参数 | 类型 | 默认值 | 说明 |
-|---|---:|---:|---|
-| `vx_min` / `vx_max` | double | -3.0 / 3.0 | x 方向速度边界。 |
-| `vy_min` / `vy_max` | double | -3.0 / 3.0 | y 方向速度边界。 |
-| `omega_min` / `omega_max` | double | -2.0 / 2.0 | 角速度边界。 |
-
-### 5.4 可选加速度约束
-
-| 参数 | 类型 | 默认值 | 说明 |
-|---|---:|---:|---|
-| `use_acc_constraints` | bool | false | 是否启用差分加速度约束。 |
-| `ax_min` / `ax_max` | double | -2.0 / 2.0 | vx 的加速度边界（m/s²）。 |
-| `ay_min` / `ay_max` | double | -2.0 / 2.0 | vy 的加速度边界（m/s²）。 |
-| `alpha_min` / `alpha_max` | double | -4.0 / 4.0 | omega 的角加速度边界（rad/s²）。 |
-
-### 5.5 坐标系
-
-| 参数 | 类型 | 默认值 | 说明 |
-|---|---:|---:|---|
-| `odom_frame` | string | camera_init | 兜底 odom frame（当 `global_frame_` 为空时）。 |
-| `map_frame` | string | map | 当 `/opt_path.header.frame_id` 为空时使用。 |
+| 参数 | 类型 | 典型值/默认值 | 调参建议 |
+|---|---|---|---|
+| `dt` | double | 0.05 | 控制周期。底盘算力足够时可适当减小。 |
+| `lookahead_time` | double | 0.5 | **建议 0.6~0.8s**，高速对抗下兼顾预见性与可控性。 |
+| `Q` | double[3] | `[5.0, 5.0, 2.0]` | RM 竞技建议显著提高位置项惩罚（x/y），强化贴轨与抢位。 |
+| `R` | double[3] | `[1.0, 1.0, 0.5]` | RM 场景建议大幅减小速度惩罚，解除平移响应“封印”。 |
+| `vx_min`, `vx_max` | double | `-1.0`, `1.0` | 全局 x 速度边界，按底盘实际极限与供电状态设定。 |
+| `vy_min`, `vy_max` | double | `-1.0`, `1.0` | 全局 y 速度边界，麦轮/全向盘建议与 x 同级别。 |
+| `omega_min`, `omega_max` | double | `-2.0`, `2.0` | 角速度边界，平动模式下生效。 |
+| `use_acc_constraints` | bool | `false` | 建议实车开启并联调，可显著改善突变指令可执行性。 |
+| `ax_min`, `ax_max` | double | `-2.0`, `2.0` | x 向加速度边界。 |
+| `ay_min`, `ay_max` | double | `-2.0`, `2.0` | y 向加速度边界。 |
+| `alpha_min`, `alpha_max` | double | `-4.0`, `4.0` | 角加速度边界。 |
+| `use_small_gyro_mode` | bool | `true` | 小陀螺总开关。 |
+| `fixed_wz` | double | `0.0` | 小陀螺固定角速度(rpm)，建议按枪口稳定性与供电余量标定。 |
+| `deadzone_speed_threshold` | double | `0.02` | 速度死区阈值，抑制低速抖动与电机啸叫。 |
+| `control_delay_compensation` | double | `0.25` | 控制延迟补偿时间，建议结合日志与高速回放标定。 |
 
 ---
 
-## 6. 依赖与安装
+## 5. 依赖与安装
 
-### 6.1 主要依赖
+### 5.1 依赖
 
-- ROS 2 + Nav2：`nav2_core`, `nav2_util`, `nav2_costmap_2d`, `pluginlib`, `tf2_ros` 等。
-- Eigen3。
-- qpOASES：优先使用系统安装；若未找到，会自动编译并链接 `third_party/qpOASES`。
+- ROS 2 + Nav2（`nav2_core`, `nav2_util`, `nav2_costmap_2d`, `pluginlib`, `tf2_ros` 等）；
+- Eigen3；
+- qpOASES（系统安装优先，或工程内 third-party 版本）。
 
-### 6.2 编译
-
-在工作区根目录使用 colcon 构建：
+### 5.2 编译
 
 ```bash
 colcon build --packages-select minco_controller --cmake-args -DCMAKE_BUILD_TYPE=Release
 ```
 
-运行前加载环境：
-
 ```bash
 source install/setup.bash
 ```
 
-### 6.3 Nav2 配置示例（片段）
-
-> 以下为示意，请按你的 controller_server 配置调整。
-
-```yaml
-controller_server:
-  ros__parameters:
-    controller_plugins: ["FollowPath"]
-    FollowPath:
-      plugin: "minco_controller::MincoMpcController"
-      dt: 0.05
-      lookahead_time: 0.5
-      planner_freq: 20.0
-      Q: [5.0, 5.0, 2.0]
-      R: [1.0, 1.0, 0.5]
-      vx_min: -1.0
-      vx_max:  1.0
-      vy_min: -1.0
-      vy_max:  1.0
-      omega_min: -2.0
-      omega_max:  2.0
-      use_acc_constraints: false
-      odom_frame: "camera_init"
-      map_frame: "map"
-```
-
 ---
 
-## 7. 测试效果展示
+## 6. ⚠️ 特殊注意
 
-- [ ] 典型路径跟踪截图（/mpc_predict_path vs /mpc_real_path）
-- [ ] 跟踪误差统计（横向/航向误差、速度误差）
-- [ ] qpOASES 求解耗时与失败率
+> ### 规则 1：全局坐标系速度输出（不旋转回 `base_link`）
+> 受战队底盘 MCU 与上层控制架构约束，本 MPC **不会**把解算速度旋转回 `base_link`。求得的 `u_global(vx, vy)` 直接作为 `TwistStamped.linear.x/.y` 下发；全局到本地的力矩映射由底盘 MCU 完成。
+>
+> ### 规则 2：小陀螺模式 / 平动模式
+> - **小陀螺模式（`use_small_gyro_mode = true`）**：屏蔽 MPC 求得角速度，强制输出 `fixed_wz`，实现“平移与旋转解耦”的高压机动。
+> - **平动模式（`use_small_gyro_mode = false`）**：采用 MPC 的 `u_global.omega`，适用于常规指向跟随和姿态控制。
+
 ---
-
-使用注意：
-- 本控制器依赖 `/opt_path` 的高频前馈信息；若上游未发布或坐标系 TF 不可用，会输出零速度。
-- 当前实现默认将求解得到的 map 系速度直接作为 base 输出（未再旋转到 base_link）；如你的底盘速度接口严格要求 base 系，请在集成时确认坐标系约定。

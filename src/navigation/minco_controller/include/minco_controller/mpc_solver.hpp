@@ -25,6 +25,11 @@ public:
   // @return 是否求解成功
   bool solve(const State & curr, const std::vector<ReferencePoint> & ref_traj, Control & out_u, std::vector<State> * out_pred = nullptr);
 
+  Eigen::Vector3d getLastControl() const
+  {
+    return last_u_global_;
+  }
+  
 private:
   // 构建离散线性模型：x_{k+1} = A x_k + B_k u_k
   // 状态为 [x,y,yaw]，控制变量 u_k 为 map/global 系 [vx, vy, omega]

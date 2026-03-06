@@ -171,8 +171,8 @@ BT::NodeStatus CheckInStairsZone::tick()
   double y = current_pose.position.y;
 
   // 4. 定义台阶区域（根据实际场地调整）
-   bool in_stairs_zone = (x > 8.2 && x < 11.0 && y > 0.6 && y < 1.7);
-
+   bool in_stairs_zone = (x > 3.2 && x < 6.0 && y > -6.4 && y < -5.3);
+  std::cout<<"Current Position: ("<<x<<", "<<y<<")"<<std::endl;
   // 5. 判断是否在台阶相关区域
   if (in_stairs_zone) {
     return BT::NodeStatus::SUCCESS; // 在台阶区域，可以执行撤离
