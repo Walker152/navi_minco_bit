@@ -7,6 +7,8 @@
 #include <cmath>
 #include <limits>
 
+#include <Eigen/Geometry>
+
 #ifdef MINCO_DEBUG
 #include <iostream>
 #include <chrono>
@@ -67,6 +69,9 @@ void MincoMpcController::configure(
   nav2_util::declare_parameter_if_not_declared(node, name + ".omega_min", rclcpp::ParameterValue(-2.0));
   nav2_util::declare_parameter_if_not_declared(node, name + ".omega_max", rclcpp::ParameterValue(2.0));
   nav2_util::declare_parameter_if_not_declared(node, name + ".fixed_wz", rclcpp::ParameterValue(0.0));
+  nav2_util::declare_parameter_if_not_declared(node, name + ".deadzone_speed_threshold", rclcpp::ParameterValue(0.02));
+  nav2_util::declare_parameter_if_not_declared(node, name + ".control_delay_compensation", rclcpp::ParameterValue(0.25));
+  nav2_util::declare_parameter_if_not_declared(node, name + ".use_small_gyro_mode", rclcpp::ParameterValue(true));
 
   nav2_util::declare_parameter_if_not_declared(node, name + ".use_acc_constraints", rclcpp::ParameterValue(false));
   nav2_util::declare_parameter_if_not_declared(node, name + ".ax_min", rclcpp::ParameterValue(-2.0));
@@ -78,6 +83,8 @@ void MincoMpcController::configure(
 
   nav2_util::declare_parameter_if_not_declared(node, name + ".odom_frame", rclcpp::ParameterValue("camera_init"));
   nav2_util::declare_parameter_if_not_declared(node, name + ".map_frame", rclcpp::ParameterValue("map"));
+  nav2_util::declare_parameter_if_not_declared(node, name + ".lidar_offset_x", rclcpp::ParameterValue(0.0));
+  nav2_util::declare_parameter_if_not_declared(node, name + ".lidar_offset_y", rclcpp::ParameterValue(0.0));
 
   double dt = 0.05;
   double lookahead_time = 0.5;
@@ -106,6 +113,9 @@ void MincoMpcController::configure(
   node->get_parameter(name + ".omega_min", mpc_config_.omega_min);
   node->get_parameter(name + ".omega_max", mpc_config_.omega_max);
   node->get_parameter(name + ".fixed_wz", fixed_wz_);
+  node->get_parameter(name + ".deadzone_speed_threshold", deadzone_speed_threshold_);
+  node->get_parameter(name + ".control_delay_compensation", control_delay_compensation_);
+  node->get_parameter(name + ".use_small_gyro_mode", use_small_gyro_mode_);
 
   node->get_parameter(name + ".use_acc_constraints", mpc_config_.use_acc_constraints);
   node->get_parameter(name + ".ax_min", mpc_config_.ax_min);
@@ -117,6 +127,8 @@ void MincoMpcController::configure(
 
   node->get_parameter(name + ".odom_frame", odom_frame_);
   node->get_parameter(name + ".map_frame", map_frame_);
+  node->get_parameter(name + ".lidar_offset_x", lidar_offset_x_);
+  node->get_parameter(name + ".lidar_offset_y", lidar_offset_y_);
 
   solver_ = std::make_unique<MpcSolver>(mpc_config_);
 
@@ -125,7 +137,7 @@ void MincoMpcController::configure(
     "/opt_path", rclcpp::SystemDefaultsQoS(),
     std::bind(&MincoMpcController::onOptPath, this, std::placeholders::_1));
 
-  // 订阅里程计：用于延迟补偿
+  // 订阅里程计：用于延迟补偿和mpc输入状态
   odom_sub_ = node->create_subscription<nav_msgs::msg::Odometry>(
     "/aft_mapped_to_init", rclcpp::SystemDefaultsQoS(),
     std::bind(&MincoMpcController::onOdom, this, std::placeholders::_1));
@@ -135,7 +147,74 @@ void MincoMpcController::configure(
   real_path_history_.clear();
   last_real_path_pub_time_ = node->now();
 
-  RCLCPP_INFO(logger_, "%s: MincoMpcController configured (dt=%.3f, lookahead_time=%.3f)", name_.c_str(), dt, lookahead_time);
+  RCLCPP_INFO(
+    logger_,
+    "%s: MincoMpcController configured (dt=%.3f, lookahead_time=%.3f, deadzone=%.3f, delay_comp=%.3f, small_gyro=%s, fixed_wz=%.3f, lidar_offset_x=%.3f, lidar_offset_y=%.3f)",
+    name_.c_str(),
+    dt,
+    lookahead_time,
+    deadzone_speed_threshold_,
+    control_delay_compensation_,
+    use_small_gyro_mode_ ? "true" : "false",
+    fixed_wz_,
+    lidar_offset_x_,
+    lidar_offset_y_);
+}
+
+void MincoMpcController::compensateLeverArm(
+  double v_lidar_x,
+  double v_lidar_y,
+  double omega_z,
+  double yaw,
+  double & vx_global,
+  double & vy_global,
+  double & omega_global) const
+{
+  const double v_body_x = v_lidar_x + omega_z * lidar_offset_y_;
+  const double v_body_y = v_lidar_y - omega_z * lidar_offset_x_;
+
+  const double cos_yaw = std::cos(yaw);
+  const double sin_yaw = std::sin(yaw);
+
+  vx_global = v_body_x * cos_yaw - v_body_y * sin_yaw;
+  vy_global = v_body_x * sin_yaw + v_body_y * cos_yaw;
+  omega_global = omega_z;
+}
+
+void MincoMpcController::extractGlobalVelocityAndYaw(
+  const nav_msgs::msg::Odometry::SharedPtr & odom,
+  double & vx_global,
+  double & vy_global,
+  double & omega_global,
+  double & yaw_global) const
+{
+  // 1. 提取 3D 体轴速度 (IMU 物理中心的局部速度)
+  Eigen::Vector3d v_body_imu(
+    odom->twist.twist.linear.x,
+    odom->twist.twist.linear.y,
+    odom->twist.twist.linear.z);
+
+  // 2. 提取全量 3D 姿态四元数
+  Eigen::Quaterniond q(
+    odom->pose.pose.orientation.w,
+    odom->pose.pose.orientation.x,
+    odom->pose.pose.orientation.y,
+    odom->pose.pose.orientation.z);
+
+  // 3. 3D 旋转：将倾斜机体系下的速度无损映射回与地面平行的全局系
+  Eigen::Vector3d v_imu_global = q * v_body_imu;
+
+  // 4. 提取角速度与 Yaw 角
+  omega_global = odom->twist.twist.angular.z;
+  yaw_global = tf2::getYaw(odom->pose.pose.orientation);
+
+  // 5. 计算全局杆臂补偿 (将底盘水平安装偏置旋转到全局系)
+  double offset_global_x = std::cos(yaw_global) * lidar_offset_x_ - std::sin(yaw_global) * lidar_offset_y_;
+  double offset_global_y = std::sin(yaw_global) * lidar_offset_x_ + std::cos(yaw_global) * lidar_offset_y_;
+
+  // 6. 计算底盘旋转中心的全局速度
+  vx_global = v_imu_global.x() + omega_global * offset_global_y;
+  vy_global = v_imu_global.y() - omega_global * offset_global_x;
 }
 
 void MincoMpcController::cleanup()
@@ -208,6 +287,7 @@ bool MincoMpcController::transformPathToOdom(
     }
   }
 
+  // 从costmap获取全局坐标系，优先使用global_frame_，如果未设置则退回到odom_frame_
   std::string target_frame = global_frame_;
   if (target_frame.empty()) {
     target_frame = odom_frame_;
@@ -218,11 +298,12 @@ bool MincoMpcController::transformPathToOdom(
     return true;
   }
 
+  // 如果坐标系不同，尝试进行转换
   try {
     geometry_msgs::msg::TransformStamped transform = tf_->lookupTransform(
       target_frame, source_frame, tf2::TimePointZero);
 
-    out_cmds = opt->cmds; // Copy
+    out_cmds = opt->cmds;
     for (auto & cmd : out_cmds) {
       // Transform position
       geometry_msgs::msg::PointStamped p_in, p_out;
@@ -257,19 +338,7 @@ bool MincoMpcController::transformPathToOdom(
       cmd.yaw = normalizeYaw(cmd.yaw + yaw_diff);
     }
 
-    auto node_ptr = node_.lock();
-    if (node_ptr) {
-      RCLCPP_INFO_THROTTLE(logger_, *node_ptr->get_clock(), 5000,
-        "Transformed opt_path from %s to %s", source_frame.c_str(), target_frame.c_str());
-    }
-
   } catch (tf2::TransformException & ex) {
-    auto node_ptr = node_.lock();
-    if (node_ptr) {
-      RCLCPP_WARN_THROTTLE(logger_, *node_ptr->get_clock(), 2000,
-        "Could not transform opt_path from %s to %s: %s", 
-        source_frame.c_str(), target_frame.c_str(), ex.what());
-    }
     return false;
   }
   return true;
@@ -283,6 +352,7 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
   }
   const rclcpp::Time now = node->now();
 
+  // 获取最新的优化轨迹和里程计数据，以及当前跟踪状态（索引、时间戳、轨迹ID）
   ros_interfaces::msg::MpcPositionCommand::SharedPtr opt;
   double tracked_ref_idx = 0.0;
   rclcpp::Time tracked_ref_time;
@@ -313,16 +383,7 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
     return false;
   }
 
-  // ===== 原“时间投影”方式（按需求仅注释，不删除） =====
-  // auto node = node_.lock();
-  // if (!node) {
-  //   return false;
-  // }
-  // double t_pass = (node->now() - opt->header.stamp).seconds();
-  // t_pass = std::max(0.0, t_pass);
-  // const double current_idx_float = t_pass / planner_dt;
-
-  // ===== 最近点搜索 =====
+  // 最近点搜索（基于最小欧式距离），并计算更精确的最近点投影索引 
   size_t best_idx = 0;
   double best_d2 = std::numeric_limits<double>::infinity();
   for (size_t i = 0; i < n_cmds; ++i) {
@@ -386,11 +447,11 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
 
   double current_traj_time = current_idx_float * planner_dt;
 
-  // 让 MPC 始终去追踪未来 0.15 秒的参考点，提前应对弯道，消除系统延迟感
-  double lookahead_time = 0.25;
+  // 让 MPC 始终去追踪未来一段时间的参考点，用于控制延迟补偿
+  double control_delay = control_delay_compensation_;
   
-  current_traj_time += lookahead_time;
-
+  current_traj_time += control_delay;
+  
   const int N = mpc_config_.horizon;
   const double mpc_dt = mpc_config_.dt;
   out_ref.clear();
@@ -412,8 +473,7 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
     ReferencePoint rp;
     if (next_idx < n_cmds)
     {
-      // Second-order feed-forward interpolation (Taylor expansion) using P/V/A/J.
-      // We use the left knot (target_idx) as expansion point.
+      // 二次前馈插值（泰勒展开），使用 P/V/A/J 进行插值，补偿控制延迟带来的误差。
       const double dt = std::max(0.0, std::min(planner_dt, alpha * planner_dt));
       const double dt2 = dt * dt;
       const double dt3 = dt2 * dt;
@@ -425,6 +485,8 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
 
       rp.pos = p_i + v_i * dt + 0.5 * a_i * dt2 + (1.0 / 6.0) * j_i * dt3;
       rp.vel = v_i + a_i * dt + 0.5 * j_i * dt2;
+
+      // 线性角度插值
       rp.yaw = interpolateYaw(cmds[target_idx].yaw, cmds[next_idx].yaw, alpha);
       rp.yaw_rate = interpolate(
         cmds[target_idx].yaw_dot,
@@ -440,14 +502,13 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
     out_ref.push_back(rp);
   }
 
+  // 对参考序列的 yaw 进行连续性处理
   if (!out_ref.empty()) {
-    // 1. 先把第一个点的 yaw 对齐到 curr.yaw 附近
     double diff = out_ref[0].yaw - curr.yaw;
     // 将 diff 限制在 [-PI, PI]
     diff = std::atan2(std::sin(diff), std::cos(diff));
     out_ref[0].yaw = curr.yaw + diff;
 
-    // 2. 后续点相对于前一个点进行平滑连续化
     for (size_t i = 1; i < out_ref.size(); ++i) {
       double d_yaw = out_ref[i].yaw - out_ref[i - 1].yaw;
       d_yaw = std::atan2(std::sin(d_yaw), std::cos(d_yaw));
@@ -465,16 +526,52 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   auto node = node_.lock();
 
   const rclcpp::Time now = node->now();
-  const double yaw_pose = tf2::getYaw(latest_odom_->pose.pose.orientation);
+  nav_msgs::msg::Odometry::SharedPtr latest_odom;
+  {
+    std::lock_guard<std::mutex> lk(data_mtx_);
+    latest_odom = latest_odom_;
+  }
 
+  // 1) 构造当前状态（基于 pose + 最新里程计速度，用于延迟补偿）
   State curr;
   curr.x = pose.pose.position.x;
   curr.y = pose.pose.position.y;
-  curr.yaw = normalizeYaw(yaw_pose);
-  curr.vx = 0.0;
-  curr.vy = 0.0;
-  curr.omega = 0.0;
+  curr.yaw = normalizeYaw(tf2::getYaw(pose.pose.orientation));
+  if (latest_odom) {
+    double vx = 0.0;
+    double vy = 0.0;
+    double omega = 0.0;
+    double yaw = 0.0;
+    extractGlobalVelocityAndYaw(latest_odom, vx, vy, omega, yaw);
 
+    curr.yaw = normalizeYaw(yaw);
+    curr.vx = vx;
+    curr.vy = vy;
+    curr.omega = omega;
+
+    const double noise_threshold = 0.03;
+    if (std::abs(curr.vx) < noise_threshold) {
+      curr.vx = 0.0;
+    }
+    if (std::abs(curr.vy) < noise_threshold) {
+      curr.vy = 0.0;
+    }
+    if (std::abs(curr.omega) < noise_threshold) {
+      curr.omega = 0.0;
+    }
+  } else {
+    curr.vx = 0.0;
+    curr.vy = 0.0;
+    curr.omega = 0.0;
+  }
+
+  if (control_delay_compensation_ > 1e-3) {
+      curr.x += curr.vx * control_delay_compensation_;
+      curr.y += curr.vy * control_delay_compensation_;
+      curr.yaw += curr.omega * control_delay_compensation_;
+      curr.yaw = normalizeYaw(curr.yaw);
+  }
+  
   // 2) 构造参考序列：优先 /opt_path
   std::vector<ReferencePoint> ref;
   bool ok_ref = buildReferenceFromOptPath(curr, ref);
@@ -497,9 +594,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
 #ifdef MINCO_DEBUG
   auto t_start = std::chrono::high_resolution_clock::now();
 #endif
-  // std::cout << color_text::BLUE << "[MincoMpc] Start Solving..." << color_text::RESET << std::endl;
   bool success = solver_->solve(curr, ref, u_global, &pred_states);
-  // std::cout << color_text::BLUE << "[MincoMpc] Solve Finished." << color_text::RESET << std::endl;
   
   publishVisualization(pred_states, curr);
 
@@ -547,12 +642,16 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     cmd.twist.angular.z = 0.0;
     return cmd;
   }
-  // std::cout << color_text::GREEN << "[MincoMpc] Solver Success!" << color_text::RESET << std::endl;
   // 4) 直接下发全局坐标系速度
   double vx = u_global.vx;
   double vy = u_global.vy;
   double wz = fixed_wz_;
 
+  // 小陀螺模式：当启用时，始终输出固定的旋转速度，而不使用 MPC 输出的角速度。
+  if (!use_small_gyro_mode_) {
+    wz = std::min(mpc_config_.omega_max, std::max(mpc_config_.omega_min, u_global.omega));
+  }
+  
   // 5) 处理 Nav2 setSpeedLimit
   if (speed_limit_ > 1e-6) {
     const double v_norm = std::hypot(vx, vy);
@@ -566,6 +665,13 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
       vx *= scale;
       vy *= scale;
     }
+  }
+
+  // 6) 死区截断
+  const double deadzone = deadzone_speed_threshold_;
+  if (std::hypot(vx, vy) < deadzone) {
+    vx = 0.0;
+    vy = 0.0;
   }
 
   cmd.twist.linear.x = vx;
