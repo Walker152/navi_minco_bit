@@ -285,6 +285,28 @@ void publish_odometry(
   if (current_time - last_time < std::chrono::milliseconds(1)) {
     return;  
   }
+  last_time = current_time;
+
+  // // -------------------- Odom / Yaw 调试统计 --------------------
+  // static bool yaw_initialized = false;
+  // static double last_yaw = 0.0;
+  // static auto same_yaw_start_time = current_time;
+  // static auto last_yaw_change_time = current_time;
+  // static auto stats_window_start_time = current_time;
+  // static size_t odom_pub_count_in_window = 0;
+  // static size_t yaw_update_count_in_window = 0;
+
+  constexpr double kYawDiffEps = 1e-4;  // rad，小于该阈值认为 yaw 未变化
+
+  auto normalize_angle = [](double a) {
+    while (a > M_PI) {
+      a -= 2.0 * M_PI;
+    }
+    while (a < -M_PI) {
+      a += 2.0 * M_PI;
+    }
+    return a;
+  };
   odomAftMapped.header.frame_id = "camera_init";
   odomAftMapped.child_frame_id = "body";
   if (publish_odometry_without_downsample) {
@@ -304,31 +326,57 @@ void publish_odometry(
   double yaw_pose = 0.0;
   tf2::Matrix3x3(q_pose).getRPY(roll_pose, pitch_pose, yaw_pose);
 
-  static auto diag_window_begin = std::chrono::steady_clock::now();
-  static auto diag_last_yaw_change = std::chrono::steady_clock::now();
-  static bool diag_has_last_yaw = false;
-  static double diag_last_yaw = 0.0;
-  static uint64_t diag_pub_count = 0;
-  static uint64_t diag_yaw_change_count = 0;
-  static double diag_max_hold_ms = 0.0;
+  // odom_pub_count_in_window++;
+  // if (!yaw_initialized) {
+  //   yaw_initialized = true;
+  //   last_yaw = yaw_pose;
+  //   same_yaw_start_time = current_time;
+  //   last_yaw_change_time = current_time;
+  // } else {
+  //   const double yaw_diff = normalize_angle(yaw_pose - last_yaw);
+  //   if (std::fabs(yaw_diff) <= kYawDiffEps) {
+  //     // yaw 保持不变，持续时间统计由周期日志打印
+  //   } else {
+  //     // yaw 发生更新：打印上一段“yaw 不变”的持续时长
+  //     const double same_yaw_duration =
+  //       std::chrono::duration<double>(current_time - same_yaw_start_time).count();
+  //     RCLCPP_INFO(
+  //       LOGGER,
+  //       "[ODOM DEBUG] Yaw unchanged duration: %.3f s, then updated by %.6f rad",
+  //       same_yaw_duration,
+  //       std::fabs(yaw_diff));
 
-  if (!diag_has_last_yaw) {
-    diag_has_last_yaw = true;
-    diag_last_yaw = yaw_pose;
-    diag_last_yaw_change = current_time;
-  } else {
-    const double yaw_diff = std::atan2(std::sin(yaw_pose - diag_last_yaw), std::cos(yaw_pose - diag_last_yaw));
-    if (std::fabs(yaw_diff) > 1.0e-4) {
-      ++diag_yaw_change_count;
-      diag_last_yaw = yaw_pose;
-      diag_last_yaw_change = current_time;
-    } else {
-      const double hold_ms = std::chrono::duration<double, std::milli>(current_time - diag_last_yaw_change).count();
-      if (hold_ms > diag_max_hold_ms) {
-        diag_max_hold_ms = hold_ms;
-      }
-    }
-  }
+  //     yaw_update_count_in_window++;
+  //     last_yaw_change_time = current_time;
+  //     same_yaw_start_time = current_time;
+  //     last_yaw = yaw_pose;
+  //   }
+  // }
+
+  // const double window_dt =
+  //   std::chrono::duration<double>(current_time - stats_window_start_time).count();
+  // if (window_dt >= 1.0) {
+  //   const double odom_pub_hz = static_cast<double>(odom_pub_count_in_window) / window_dt;
+  //   const double yaw_update_hz = static_cast<double>(yaw_update_count_in_window) / window_dt;
+  //   const double yaw_same_duration_now =
+  //     std::chrono::duration<double>(current_time - same_yaw_start_time).count();
+  //   const double since_last_yaw_update =
+  //     std::chrono::duration<double>(current_time - last_yaw_change_time).count();
+
+  //   RCLCPP_INFO(
+  //     LOGGER,
+  //     "[ODOM DEBUG] odom_pub: %.2f Hz | yaw_update: %.2f Hz | yaw_same_now: %.3f s | "
+  //     "since_last_yaw_update: %.3f s | yaw: %.6f rad",
+  //     odom_pub_hz,
+  //     yaw_update_hz,
+  //     yaw_same_duration_now,
+  //     since_last_yaw_update,
+  //     yaw_pose);
+
+  //   stats_window_start_time = current_time;
+  //   odom_pub_count_in_window = 0;
+  //   yaw_update_count_in_window = 0;
+  // }
 
   auto set_twist_linear_from_kf = [&](const auto & kf) {
     Eigen::Vector3d vel_world = kf.x_.vel;
@@ -353,26 +401,6 @@ void publish_odometry(
   }
 
   pubOdomAftMapped->publish(odomAftMapped);
-  ++diag_pub_count;
-
-  const double diag_window_s = std::chrono::duration<double>(current_time - diag_window_begin).count();
-  if (diag_window_s >= 1.0) {
-    const double pub_hz = static_cast<double>(diag_pub_count) / diag_window_s;
-    const double yaw_change_hz = static_cast<double>(diag_yaw_change_count) / diag_window_s;
-    const double yaw_hold_ms = std::chrono::duration<double, std::milli>(current_time - diag_last_yaw_change).count();
-    RCLCPP_INFO(
-      LOGGER,
-      "[ODOM_DIAG] pub_hz=%.1f yaw_change_hz=%.1f yaw_hold_ms=%.1f yaw_hold_max_ms=%.1f",
-      pub_hz,
-      yaw_change_hz,
-      yaw_hold_ms,
-      diag_max_hold_ms);
-
-    diag_window_begin = current_time;
-    diag_pub_count = 0;
-    diag_yaw_change_count = 0;
-    diag_max_hold_ms = yaw_hold_ms;
-  }
 
   if (tf_send_en) {
     geometry_msgs::msg::TransformStamped transform;
@@ -520,6 +548,9 @@ int main(int argc, char ** argv)
     executor.spin_some();
     if (sync_packages(Measures)) {
       static double last_proc_time = -1.0;
+      static int startup_frame_cnt = 0;
+      startup_frame_cnt++;
+
       bool trigger_exit = false;
       std::string exit_reason = "";
 
@@ -529,14 +560,8 @@ int main(int argc, char ** argv)
          trigger_exit = true;
       }
 
-      // 2. [故障监测] 稀疏点云 (传感器故障/网线断连/严重遮挡)
-      if (!trigger_exit && Measures.lidar->points.size() < 100) { 
-         exit_reason = "Lidar Points Too Sparse (<100 points)";
-         trigger_exit = true;
-      }
-
-      // 3. [故障监测] 网络大延时 (严重丢包/网络拥塞)
-      if (!trigger_exit && last_proc_time > 0 && (Measures.lidar_beg_time - last_proc_time) > 0.5) {
+      // 2. [故障监测] 网络大延时 (严重丢包/网络拥塞)
+      if (!trigger_exit && last_proc_time > 0 && (Measures.lidar_beg_time - last_proc_time) > 1.0 && startup_frame_cnt > 2000) {
           exit_reason = "Large Time Gap (>0.5s)";
           trigger_exit = true;
       }

@@ -265,18 +265,17 @@ BT::PortsList SetStairsPosition::providedPorts()
 
 BT::NodeStatus SetStairsPosition::tick()
 {
- 
   auto blackboard = config().blackboard;
   std::cout << MAGENTA << "---------- SetStairsPosition ----------" << RESET << std::endl;
-  // 创建一个固定目标点（台阶前准备位置）（硬编码）
-  geometry_msgs::msg::Point goal_point;
+  
+  // 创建 Sentry_BT::Point2D 类型的固定目标点
+  Sentry_BT::Point2D goal_point;
   goal_point.x = 9.5;  
   goal_point.y = 1.5;  
-  goal_point.z = 0.0;  
 
   blackboard->set("nav_goal", goal_point);
   
-  return BT::NodeStatus::SUCCESS; // 总是成功
+  return BT::NodeStatus::SUCCESS;
 }
 
 }  // namespace Sentry_BT

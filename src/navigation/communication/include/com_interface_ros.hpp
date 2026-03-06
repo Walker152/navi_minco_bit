@@ -131,6 +131,7 @@ namespace ns_com
     {
       float vx_mps = 0.0f;
       float vy_mps = 0.0f;
+      float vw_rpm = 0.0f;
       float gimbal_yaw = 0.0f;
       int32_t position = 0;
       bool outpost_msg = false;
@@ -143,27 +144,31 @@ namespace ns_com
         std::lock_guard<std::mutex> lk(state_mutex_);
         vx_mps = cmd_vel_.linear.x;
         vy_mps = cmd_vel_.linear.y;
+        // vw_rpm = cmd_vel_.angular.z;
+        vw_rpm = 40.0;
+        // vw_rpm = 0.0;
         gimbal_yaw = gimbal_yaw_.data;
         position = position_.data;
         outpost_msg = outpost_msg_.data;
         odom_x = odom_.pose.pose.position.x;
         odom_y = odom_.pose.pose.position.y;
         odom_q = odom_.pose.pose.orientation;
+        
       }
-
-      float vw_rpm = 0.0;
+      
       uint8_t _is_use_mid360 = 0;
       if(odom_x >  2.5)
       {
-        vw_rpm = 30.0;
+        // vw_rpm = 30.0;
       }
       tf2::Quaternion q;
       tf2::fromMsg(odom_q, q);
       double roll, pitch, yaw;
       tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
       const float current_yaw_deg = static_cast<float>(yaw * 180.0 / M_PI);
+      auto now = this->now();
       std::cout << "vx: " << vx_mps << " m/s, vy: " << vy_mps << " m/s, vw: " << vw_rpm << " rpm,"
-                << "current_yaw:" << current_yaw_deg << " deg " << std::endl;
+                << "current_yaw:" << current_yaw_deg << " deg " << "time:" << now.seconds() << "s" << std::endl;
       ChassisTarget target(vx_mps,
                            vy_mps,
                            vw_rpm,
