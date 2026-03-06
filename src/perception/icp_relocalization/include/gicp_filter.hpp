@@ -53,15 +53,6 @@ namespace icp_relocalization
       double source_crop_min_z = -2.5;
       double source_crop_max_z = 2.5;
 
-      // Optional self-body exclusion box around origin
-      bool source_self_crop_enabled = false;
-      double source_self_crop_min_x = -1.0;
-      double source_self_crop_max_x = 1.5;
-      double source_self_crop_min_y = -0.8;
-      double source_self_crop_max_y = 0.8;
-      double source_self_crop_min_z = -1.5;
-      double source_self_crop_max_z = 1.8;
-
       // SAC-IA
       double sac_ia_min_sample_distance = 0.5;
       int sac_ia_correspondence_randomness = 6;
@@ -101,12 +92,17 @@ namespace icp_relocalization
       return target_cloud_filtered_;
     }
 
+    PointCloud::Ptr getCurrentLocalMapCloud() const
+    {
+      return local_map_cloud_;
+    }
+
   private:
     // Apply optional height(z) pass-through filter.
     // Returns the original cloud when disabled.
     PointCloud::Ptr applyHeightFilter(const PointCloud::Ptr& cloud) const;
 
-    // 对 source cloud 进行空间裁剪（含可选自车剔除）
+    // 对 source cloud 进行空间裁剪
     PointCloud::Ptr cropSourceCloud(const PointCloud::Ptr& source_cloud) const;
 
     // 初始化处理流程
@@ -129,6 +125,7 @@ namespace icp_relocalization
     bool local_map_initialized_ = false;
     double local_map_radius_ = 20.0;
     PointCloud::Ptr global_map_;
+    PointCloud::Ptr local_map_cloud_;
   };
 
 }  // namespace icp_relocalization
