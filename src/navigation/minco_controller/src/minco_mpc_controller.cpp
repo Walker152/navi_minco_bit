@@ -7,6 +7,8 @@
 #include <cmath>
 #include <limits>
 
+#include <Eigen/Geometry>
+
 #ifdef MINCO_DEBUG
 #include <iostream>
 #include <chrono>
@@ -81,6 +83,8 @@ void MincoMpcController::configure(
 
   nav2_util::declare_parameter_if_not_declared(node, name + ".odom_frame", rclcpp::ParameterValue("camera_init"));
   nav2_util::declare_parameter_if_not_declared(node, name + ".map_frame", rclcpp::ParameterValue("map"));
+  nav2_util::declare_parameter_if_not_declared(node, name + ".lidar_offset_x", rclcpp::ParameterValue(0.0));
+  nav2_util::declare_parameter_if_not_declared(node, name + ".lidar_offset_y", rclcpp::ParameterValue(0.0));
 
   double dt = 0.05;
   double lookahead_time = 0.5;
@@ -123,6 +127,8 @@ void MincoMpcController::configure(
 
   node->get_parameter(name + ".odom_frame", odom_frame_);
   node->get_parameter(name + ".map_frame", map_frame_);
+  node->get_parameter(name + ".lidar_offset_x", lidar_offset_x_);
+  node->get_parameter(name + ".lidar_offset_y", lidar_offset_y_);
 
   solver_ = std::make_unique<MpcSolver>(mpc_config_);
 
@@ -143,14 +149,72 @@ void MincoMpcController::configure(
 
   RCLCPP_INFO(
     logger_,
-    "%s: MincoMpcController configured (dt=%.3f, lookahead_time=%.3f, deadzone=%.3f, delay_comp=%.3f, small_gyro=%s, fixed_wz=%.3f)",
+    "%s: MincoMpcController configured (dt=%.3f, lookahead_time=%.3f, deadzone=%.3f, delay_comp=%.3f, small_gyro=%s, fixed_wz=%.3f, lidar_offset_x=%.3f, lidar_offset_y=%.3f)",
     name_.c_str(),
     dt,
     lookahead_time,
     deadzone_speed_threshold_,
     control_delay_compensation_,
     use_small_gyro_mode_ ? "true" : "false",
-    fixed_wz_);
+    fixed_wz_,
+    lidar_offset_x_,
+    lidar_offset_y_);
+}
+
+void MincoMpcController::compensateLeverArm(
+  double v_lidar_x,
+  double v_lidar_y,
+  double omega_z,
+  double yaw,
+  double & vx_global,
+  double & vy_global,
+  double & omega_global) const
+{
+  const double v_body_x = v_lidar_x + omega_z * lidar_offset_y_;
+  const double v_body_y = v_lidar_y - omega_z * lidar_offset_x_;
+
+  const double cos_yaw = std::cos(yaw);
+  const double sin_yaw = std::sin(yaw);
+
+  vx_global = v_body_x * cos_yaw - v_body_y * sin_yaw;
+  vy_global = v_body_x * sin_yaw + v_body_y * cos_yaw;
+  omega_global = omega_z;
+}
+
+void MincoMpcController::extractGlobalVelocityAndYaw(
+  const nav_msgs::msg::Odometry::SharedPtr & odom,
+  double & vx_global,
+  double & vy_global,
+  double & omega_global,
+  double & yaw_global) const
+{
+  // 1. 提取 3D 体轴速度 (IMU 物理中心的局部速度)
+  Eigen::Vector3d v_body_imu(
+    odom->twist.twist.linear.x,
+    odom->twist.twist.linear.y,
+    odom->twist.twist.linear.z);
+
+  // 2. 提取全量 3D 姿态四元数
+  Eigen::Quaterniond q(
+    odom->pose.pose.orientation.w,
+    odom->pose.pose.orientation.x,
+    odom->pose.pose.orientation.y,
+    odom->pose.pose.orientation.z);
+
+  // 3. 3D 旋转：将倾斜机体系下的速度无损映射回与地面平行的全局系
+  Eigen::Vector3d v_imu_global = q * v_body_imu;
+
+  // 4. 提取角速度与 Yaw 角
+  omega_global = odom->twist.twist.angular.z;
+  yaw_global = tf2::getYaw(odom->pose.pose.orientation);
+
+  // 5. 计算全局杆臂补偿 (将底盘水平安装偏置旋转到全局系)
+  double offset_global_x = std::cos(yaw_global) * lidar_offset_x_ - std::sin(yaw_global) * lidar_offset_y_;
+  double offset_global_y = std::sin(yaw_global) * lidar_offset_x_ + std::cos(yaw_global) * lidar_offset_y_;
+
+  // 6. 计算底盘旋转中心的全局速度
+  vx_global = v_imu_global.x() + omega_global * offset_global_y;
+  vy_global = v_imu_global.y() - omega_global * offset_global_x;
 }
 
 void MincoMpcController::cleanup()
@@ -274,19 +338,7 @@ bool MincoMpcController::transformPathToOdom(
       cmd.yaw = normalizeYaw(cmd.yaw + yaw_diff);
     }
 
-    auto node_ptr = node_.lock();
-    if (node_ptr) {
-      RCLCPP_INFO_THROTTLE(logger_, *node_ptr->get_clock(), 5000,
-        "Transformed opt_path from %s to %s", source_frame.c_str(), target_frame.c_str());
-    }
-
   } catch (tf2::TransformException & ex) {
-    auto node_ptr = node_.lock();
-    if (node_ptr) {
-      RCLCPP_WARN_THROTTLE(logger_, *node_ptr->get_clock(), 2000,
-        "Could not transform opt_path from %s to %s: %s", 
-        source_frame.c_str(), target_frame.c_str(), ex.what());
-    }
     return false;
   }
   return true;
@@ -474,21 +526,39 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   auto node = node_.lock();
 
   const rclcpp::Time now = node->now();
-  const double yaw_pose = tf2::getYaw(latest_odom_->pose.pose.orientation);
+  nav_msgs::msg::Odometry::SharedPtr latest_odom;
+  {
+    std::lock_guard<std::mutex> lk(data_mtx_);
+    latest_odom = latest_odom_;
+  }
 
   // 1) 构造当前状态（基于 pose + 最新里程计速度，用于延迟补偿）
   State curr;
   curr.x = pose.pose.position.x;
   curr.y = pose.pose.position.y;
-  curr.yaw = normalizeYaw(yaw_pose);
-  if (latest_odom_) {
-    const double v_body_x = latest_odom_->twist.twist.linear.x;
-    const double v_body_y = latest_odom_->twist.twist.linear.y;
-    const double cos_yaw = std::cos(curr.yaw);
-    const double sin_yaw = std::sin(curr.yaw);
-    curr.vx = v_body_x * cos_yaw - v_body_y * sin_yaw;
-    curr.vy = v_body_x * sin_yaw + v_body_y * cos_yaw;
-    curr.omega = latest_odom_->twist.twist.angular.z;
+  curr.yaw = normalizeYaw(tf2::getYaw(pose.pose.orientation));
+  if (latest_odom) {
+    double vx = 0.0;
+    double vy = 0.0;
+    double omega = 0.0;
+    double yaw = 0.0;
+    extractGlobalVelocityAndYaw(latest_odom, vx, vy, omega, yaw);
+
+    curr.yaw = normalizeYaw(yaw);
+    curr.vx = vx;
+    curr.vy = vy;
+    curr.omega = omega;
+
+    const double noise_threshold = 0.03;
+    if (std::abs(curr.vx) < noise_threshold) {
+      curr.vx = 0.0;
+    }
+    if (std::abs(curr.vy) < noise_threshold) {
+      curr.vy = 0.0;
+    }
+    if (std::abs(curr.omega) < noise_threshold) {
+      curr.omega = 0.0;
+    }
   } else {
     curr.vx = 0.0;
     curr.vy = 0.0;
