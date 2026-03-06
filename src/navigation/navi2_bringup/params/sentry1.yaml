@@ -221,6 +221,10 @@ controller_server:
       alpha_min: -1.0
       alpha_max: 1.0
 
+      # Lidar extrinsic parameters
+      lidar_offset_x: 0.0
+      lidar_offset_y: 0.0
+      
       # Frame settings
       odom_frame: "camera_init"
       map_frame: "map"
@@ -246,7 +250,7 @@ local_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
+        cost_scaling_factor: 6.0
         inflation_radius: 0.30
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
@@ -267,7 +271,7 @@ local_costmap:
         observation_sources: mid360
         mid360:
           data_type: PointCloud2
-          topic: /cloud_registered
+          topic: /cloud_registered_body
           marking: true
           clearing: true
           obstacle_range: 5.0
@@ -309,7 +313,7 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
+        cost_scaling_factor: 6.0
         inflation_radius: 0.35
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
@@ -330,7 +334,7 @@ global_costmap:
         observation_sources: mid360
         mid360:
           data_type: PointCloud2
-          topic: /cloud_registered
+          topic: /cloud_registered_body
           marking: true
           clearing: true
           obstacle_range: 5.0
@@ -403,8 +407,8 @@ planner_server:
       odom_topic: /aft_mapped_to_init
 
       corridor:
-        robot_radius: 0.4
-        extra_margin: 0.15
+        robot_radius: 0.25
+        extra_margin: 0.05
 
       smac_2d:
         use_esdf_cost: true
@@ -414,7 +418,7 @@ planner_server:
 
       minco_optimizer:
         opt_freq: 20.0
-        safe_dist: 0.4
+        safe_dist: 0.35
         lookahead_dist: 5.0  # 前视距离,用于minco部分优化
         max_velocity: 2.0
         max_acceleration: 3.0
