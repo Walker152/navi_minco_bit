@@ -64,6 +64,22 @@ private:
     const ros_interfaces::msg::MpcPositionCommand::SharedPtr & opt,
     std::vector<ros_interfaces::msg::PositionCommand> & out_cmds) const;
 
+  void compensateLeverArm(
+    double v_lidar_x,
+    double v_lidar_y,
+    double omega_z,
+    double yaw,
+    double & vx_global,
+    double & vy_global,
+    double & omega_global) const;
+
+  void extractGlobalVelocityAndYaw(
+    const nav_msgs::msg::Odometry::SharedPtr & odom,
+    double & vx_global,
+    double & vy_global,
+    double & omega_global,
+    double & yaw_global) const;
+
   static double normalizeYaw(double yaw);
   inline static double interpolateYaw(double yaw1, double yaw2, double alpha) {
     double diff = std::atan2(std::sin(yaw2 - yaw1), std::cos(yaw2 - yaw1));
@@ -102,6 +118,7 @@ private:
   // 发布：可视化路径
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mpc_predict_path_pub_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mpc_real_path_pub_;
+
   // 记录实际行走路径
   std::vector<geometry_msgs::msg::PoseStamped> real_path_history_;
   rclcpp::Time last_real_path_pub_time_;
@@ -120,7 +137,7 @@ private:
   mutable uint32_t tracked_opt_traj_id_{0};
   mutable bool has_tracked_ref_{false};
 
-  // Nav2 setPlan 缓存（fallback）
+  // Nav2 setPlan 缓存
   nav_msgs::msg::Path global_plan_;
   mutable std::mutex plan_mtx_;
 
@@ -132,7 +149,13 @@ private:
   double speed_limit_{0.0};
   bool speed_limit_percentage_{false};
 
+  // 其他参数
   double fixed_wz_{0.0};
+  double deadzone_speed_threshold_{0.02};
+  double control_delay_compensation_{0.25};
+  double lidar_offset_x_{0.0};
+  double lidar_offset_y_{0.0};
+  bool use_small_gyro_mode_{true};
 };
 
 }  // namespace minco_controller
