@@ -49,24 +49,6 @@ namespace icp_relocalization
                                        1.0f));
     source_crop.filter(*source_cropped);
 
-    if(options_.source_self_crop_enabled)
-    {
-      PointCloud::Ptr source_no_self(new PointCloud());
-      pcl::CropBox<pcl::PointXYZ> self_crop;
-      self_crop.setInputCloud(source_cropped);
-      self_crop.setMin(Eigen::Vector4f(static_cast<float>(options_.source_self_crop_min_x),
-                                       static_cast<float>(options_.source_self_crop_min_y),
-                                       static_cast<float>(options_.source_self_crop_min_z),
-                                       1.0f));
-      self_crop.setMax(Eigen::Vector4f(static_cast<float>(options_.source_self_crop_max_x),
-                                       static_cast<float>(options_.source_self_crop_max_y),
-                                       static_cast<float>(options_.source_self_crop_max_z),
-                                       1.0f));
-      self_crop.setNegative(true);
-      self_crop.filter(*source_no_self);
-      source_cropped = source_no_self;
-    }
-
     return source_cropped;
   }
 
@@ -85,6 +67,7 @@ namespace icp_relocalization
     : options_(options)
   {
     preprocessMap(target_cloud);
+    local_map_cloud_ = target_cloud_filtered_;
   }
 
   void GicpFilter::preprocessMap(const PointCloud::Ptr& cloud)
@@ -158,6 +141,8 @@ namespace icp_relocalization
     {
       return;
     }
+
+    local_map_cloud_ = cropped_cloud;
 
     constexpr int kCovNeighbors = 20;
     constexpr int kCovThreads = 8;
