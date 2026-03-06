@@ -64,6 +64,22 @@ private:
     const ros_interfaces::msg::MpcPositionCommand::SharedPtr & opt,
     std::vector<ros_interfaces::msg::PositionCommand> & out_cmds) const;
 
+  void compensateLeverArm(
+    double v_lidar_x,
+    double v_lidar_y,
+    double omega_z,
+    double yaw,
+    double & vx_global,
+    double & vy_global,
+    double & omega_global) const;
+
+  void extractGlobalVelocityAndYaw(
+    const nav_msgs::msg::Odometry::SharedPtr & odom,
+    double & vx_global,
+    double & vy_global,
+    double & omega_global,
+    double & yaw_global) const;
+
   static double normalizeYaw(double yaw);
   inline static double interpolateYaw(double yaw1, double yaw2, double alpha) {
     double diff = std::atan2(std::sin(yaw2 - yaw1), std::cos(yaw2 - yaw1));
@@ -137,6 +153,8 @@ private:
   double fixed_wz_{0.0};
   double deadzone_speed_threshold_{0.02};
   double control_delay_compensation_{0.25};
+  double lidar_offset_x_{0.0};
+  double lidar_offset_y_{0.0};
   bool use_small_gyro_mode_{true};
 };
 
