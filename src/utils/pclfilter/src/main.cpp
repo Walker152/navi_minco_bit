@@ -5,7 +5,7 @@
 
 class DepthClusterNode : public rclcpp::Node
 {
-private:
+private:      
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr point_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr ground_pub_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
