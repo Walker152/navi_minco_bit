@@ -2,7 +2,8 @@ gicp_relocalization_node:
   ros__parameters:
     # General Configuration
     mode: "initial_guess" # Options: "sac_ia", "initial_guess"
-    target_pcd_file: "src/perception/icp_relocalization/maps/111.pcd"
+    target_pcd_file: "src/perception/icp_relocalization/maps/rmuc.pcd"
+    # target_pcd_file: "src/perception/icp_relocalization/maps/111.pcd"
     # target_pcd_file: "src/perception/Point-LIO/PCD/scans.pcd"
     map_frame: "map"
     alignment_frequency: 5.0
@@ -13,8 +14,8 @@ gicp_relocalization_node:
     converged_count_threshold: 1
     
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
-    initial_pose: [2.0, 6.0, 0.0, 0.0, 0.0, 0.4]
-    # initial_pose: [5.0, 7.0, 0.0, 0.0, 0.0, 0.4] （for RMUC）
+    # initial_pose: [2.0, 6.0, 0.0, 0.0, 0.0, 0.4]
+    initial_pose: [5.0, 7.0, 0.0, 0.0, 0.0, 0.4]
     # Feature Extraction
     feature_k_search: 20
 
@@ -26,9 +27,9 @@ gicp_relocalization_node:
 
     # GICP Parameters
     gicp:
-      target_voxel_leaf_size: 0.1
-      source_voxel_leaf_size: 0.1
-      max_correspondence_distance: 1.5
+      target_voxel_leaf_size: 0.05
+      source_voxel_leaf_size: 0.05
+      max_correspondence_distance: 0.5
       max_iterations: 100
       transformation_epsilon: 0.001
       euclidean_fitness_epsilon: 0.001
