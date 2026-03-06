@@ -8,9 +8,13 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/registration/gicp.h>
 #include <pcl/registration/ia_ransac.h>
 #include <pcl/search/kdtree.h>
+#include "small_gicp/ann/kdtree_omp.hpp"
+#include "small_gicp/pcl/pcl_point.hpp"
+#include "small_gicp/pcl/pcl_registration.hpp"
+#include "small_gicp/registration/reduction_omp.hpp"
+#include "small_gicp/util/downsampling_omp.hpp"
 #include <string>
 
 namespace icp_relocalization
@@ -20,6 +24,10 @@ namespace icp_relocalization
   using PointNormal = pcl::PointCloud<pcl::Normal>;
   using Feature = pcl::FPFHSignature33;
   using FPFHFeature = pcl::PointCloud<Feature>;
+  using SmallGicpPointCloud = pcl::PointCloud<pcl::PointCovariance>;
+  using SmallGicpKdTree = small_gicp::KdTree<SmallGicpPointCloud>;
+  using SmallGicpRegister =
+      small_gicp::Registration<small_gicp::GICPFactor, small_gicp::ParallelReductionOMP>;
 
   // GICP算法的核心封装，不含任何ROS依赖
   class GicpFilter
@@ -35,6 +43,24 @@ namespace icp_relocalization
       // Voxel Grid
       double target_voxel_leaf_size = 2.0;
       double source_voxel_leaf_size = 2.0;
+
+      // Source local crop for registration input
+      bool source_crop_enabled = true;
+      double source_crop_min_x = -20.0;
+      double source_crop_max_x = 20.0;
+      double source_crop_min_y = -20.0;
+      double source_crop_max_y = 20.0;
+      double source_crop_min_z = -2.5;
+      double source_crop_max_z = 2.5;
+
+      // Optional self-body exclusion box around origin
+      bool source_self_crop_enabled = false;
+      double source_self_crop_min_x = -1.0;
+      double source_self_crop_max_x = 1.5;
+      double source_self_crop_min_y = -0.8;
+      double source_self_crop_max_y = 0.8;
+      double source_self_crop_min_z = -1.5;
+      double source_self_crop_max_z = 1.8;
 
       // SAC-IA
       double sac_ia_min_sample_distance = 0.5;
@@ -80,16 +106,29 @@ namespace icp_relocalization
     // Returns the original cloud when disabled.
     PointCloud::Ptr applyHeightFilter(const PointCloud::Ptr& cloud) const;
 
+    // 对 source cloud 进行空间裁剪（含可选自车剔除）
+    PointCloud::Ptr cropSourceCloud(const PointCloud::Ptr& source_cloud) const;
+
     // 初始化处理流程
     void preprocessMap(const PointCloud::Ptr& cloud);
 
     // 计算点云的FPFH特征
     FPFHFeature::Ptr computeFPFH(const PointCloud::Ptr& cloud);
 
+    // 根据当前位姿更新局部地图
+    void updateLocalMap(const Eigen::Matrix4f& current_pose);
+
     Options options_;
     PointCloud::Ptr target_cloud_filtered_;
     FPFHFeature::Ptr target_features_;
-    pcl::search::KdTree<pcl::PointXYZ>::Ptr target_tree_;
+    SmallGicpPointCloud::Ptr small_gicp_target_;
+    SmallGicpKdTree::Ptr target_tree_;
+    SmallGicpKdTree::Ptr source_tree_;
+
+    Eigen::Vector3f last_local_map_center_ = Eigen::Vector3f::Zero();
+    bool local_map_initialized_ = false;
+    double local_map_radius_ = 20.0;
+    PointCloud::Ptr global_map_;
   };
 
 }  // namespace icp_relocalization

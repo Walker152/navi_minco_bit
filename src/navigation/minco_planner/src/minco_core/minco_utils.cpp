@@ -104,7 +104,6 @@ void publishOptimizedTrajectory(
   traj_msg.header = header;
   traj_msg.command_flag = ros_interfaces::msg::MpcPositionCommand::NORMAL_COMMAND;
   traj_msg.cmds.resize(steps);
-
   const uint32_t traj_id = ++trajectory_id_counter;
   for (int i = 0; i < steps; ++i) {
     double t = i * t_step;
