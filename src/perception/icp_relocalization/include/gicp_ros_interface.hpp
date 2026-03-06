@@ -2,8 +2,6 @@
 
 #include "rclcpp/rclcpp.hpp"
 
-#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 
 #include "pcl_conversions/pcl_conversions.h"
@@ -16,8 +14,6 @@
 #include "std_srvs/srv/trigger.hpp"
 
 #include <chrono>
-#include <deque>
-#include <mutex>
 
 #include "color_text.hpp"
 #include "gicp_filter.hpp"
@@ -53,10 +49,8 @@ namespace icp_relocalization
     void lidarCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
 
     void setupGicp(const std::string& target_pcd_file);
-
-    void publishStaticTf(const rclcpp::Time& stamp);
-    void publishVisualization(const PointCloud::Ptr& cloud, const rclcpp::Time& stamp);
-    void printEvaluation(const Eigen::Matrix4f& initial_guess, const Eigen::Matrix4f& final_transformation, double fitness_score, double time_ms);
+    void activateLidarSubscription();
+    void initializeDebugPublishers();
 
     // ROS 接口
     std::unique_ptr<GicpFilter> gicp_filter_;
@@ -64,6 +58,10 @@ namespace icp_relocalization
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr map_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr source_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr aligned_cloud_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_source_raw_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_source_cropped_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_target_raw_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_target_cropped_;
     std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
@@ -97,6 +95,8 @@ namespace icp_relocalization
 
     // 默认参数
     std::string map_frame_;
+    bool visualization_en_ = true;
+    std::string source_cloud_topic_;
     double alignment_frequency_;      // 地图对齐(GICP)低频执行频率
     Mode mode_ = Mode::SAC_IA;        // 重定位模式
     int accumulate_frames_;           // 参与配准的累积帧数
