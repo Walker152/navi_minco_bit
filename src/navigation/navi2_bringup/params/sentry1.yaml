@@ -456,9 +456,13 @@ behavior_server:
     wait:
       plugin: "nav2_behaviors/Wait"
     backup:
-      plugin: "nav2_behaviors/BackUp"
-      # plugin: "nav2_behaviors/BackUpTwzFree"
-      # robot_radius: 0.3
+      # plugin: "nav2_behaviors/BackUp"
+      plugin: "nav2_behaviors/BackUpTwzFree"
+      local_costmap_global_frame: camera_init
+      local_costmap_robot_base_frame: base_link
+      robot_radius: 0.3
+      cost_threshold: 0.0
+      visualization: true
     global_frame: map
     robot_base_frame: base_link
     transform_tolerance: 0.1
