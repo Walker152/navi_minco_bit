@@ -10,7 +10,6 @@ cmake-build-*/
 build-*/
 .cache
 .vscode
-*.pcd
 *.bash
 *.csv
 *.db
