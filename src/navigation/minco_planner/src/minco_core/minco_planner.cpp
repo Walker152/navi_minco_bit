@@ -599,7 +599,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   auto opt_start_time = rclcpp::Clock().now().seconds();
   double final_cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
 
-  const double max_allowed_cost = 10000.0;
+  const double max_allowed_cost = 5000.0;
   if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
     RCLCPP_WARN(
       logger_,
@@ -1057,7 +1057,7 @@ bool MincoPlanner::checkCollision(const geometry_utils::Trajectory & traj)
       return false;
     }
     const unsigned char cost = costmap_->getCost(mx, my);
-    if (cost == nav2_costmap_2d::LETHAL_OBSTACLE || cost == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+    if (cost == nav2_costmap_2d::LETHAL_OBSTACLE) {
       return false;
     }
   }
