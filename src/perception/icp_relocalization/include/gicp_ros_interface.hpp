@@ -42,7 +42,7 @@ namespace icp_relocalization
 
     enum class Mode
     {
-      SAC_IA,
+      MULTI_GUESS,
       INITIAL_GUESS
     };
 
@@ -51,15 +51,14 @@ namespace icp_relocalization
     void setupGicp(const std::string& target_pcd_file);
     void activateLidarSubscription();
     void initializeDebugPublishers();
+    void startVisualizationTimer();
 
     // ROS 接口
     std::unique_ptr<GicpFilter> gicp_filter_;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr lidar_sub_;
-    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr map_pub_;
-    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr source_pub_;
-    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr aligned_cloud_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_source_raw_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_source_cropped_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_source_aligned_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_target_raw_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_target_cropped_;
     std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
@@ -68,11 +67,11 @@ namespace icp_relocalization
     rclcpp::CallbackGroup::SharedPtr callback_group_lidar_;
     rclcpp::CallbackGroup::SharedPtr callback_group_service_;
     rclcpp::TimerBase::SharedPtr fsm_timer_;
-    rclcpp::TimerBase::SharedPtr map_timer_;
+    rclcpp::TimerBase::SharedPtr visualization_timer_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr relocalize_srv_;
 
     void fsmTimerCallback();
-    void mapTimerCallback();
+    void visualizationTimerCallback();
     void runFSM();
     void startFsmTimer();
     void relocalizeServiceCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
@@ -83,9 +82,13 @@ namespace icp_relocalization
 
     // 点云累积
     PointCloud::Ptr accumulated_cloud_;
+    PointCloud::Ptr latest_source_raw_cloud_;
+    PointCloud::Ptr latest_source_cloud_for_visualization_;
     int current_accumulated_frames_ = 0;
     rclcpp::Time last_cloud_stamp_;
+    rclcpp::Time last_source_raw_stamp_;
     std::string cloud_frame_id_;
+    std::string source_raw_frame_id_;
 
     bool gicp_initialized_ = false;
     rclcpp::Time last_icp_time_;
@@ -95,10 +98,10 @@ namespace icp_relocalization
 
     // 默认参数
     std::string map_frame_;
-    bool visualization_en_ = true;
-    std::string source_cloud_topic_;
+    bool visualization_en_ = true;    // 是否启用可视化
+    std::string source_cloud_topic_;  // 激光雷达点云话题
     double alignment_frequency_;      // 地图对齐(GICP)低频执行频率
-    Mode mode_ = Mode::SAC_IA;        // 重定位模式
+    Mode mode_ = Mode::MULTI_GUESS;   // 重定位模式
     int accumulate_frames_;           // 参与配准的累积帧数
     double fitness_score_threshold_;  // 配准得分阈值
     int converged_count_threshold_;   // 收敛次数阈值

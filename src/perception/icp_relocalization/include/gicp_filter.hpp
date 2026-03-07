@@ -2,13 +2,10 @@
 
 #include <Eigen/Core>
 #include <memory>
-#include <pcl/features/fpfh_omp.h>
-#include <pcl/features/normal_3d_omp.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/registration/ia_ransac.h>
 #include <pcl/search/kdtree.h>
 #include "small_gicp/ann/kdtree_omp.hpp"
 #include "small_gicp/pcl/pcl_point.hpp"
@@ -16,23 +13,31 @@
 #include "small_gicp/registration/reduction_omp.hpp"
 #include "small_gicp/util/downsampling_omp.hpp"
 #include <string>
+#include <vector>
 
 namespace icp_relocalization
 {
 
   using PointCloud = pcl::PointCloud<pcl::PointXYZ>;
-  using PointNormal = pcl::PointCloud<pcl::Normal>;
-  using Feature = pcl::FPFHSignature33;
-  using FPFHFeature = pcl::PointCloud<Feature>;
   using SmallGicpPointCloud = pcl::PointCloud<pcl::PointCovariance>;
   using SmallGicpKdTree = small_gicp::KdTree<SmallGicpPointCloud>;
   using SmallGicpRegister =
       small_gicp::Registration<small_gicp::GICPFactor, small_gicp::ParallelReductionOMP>;
 
+  struct SearchArea
+  {
+    double min_x = 0.0;
+    double max_x = 0.0;
+    double min_y = 0.0;
+    double max_y = 0.0;
+  };
+
   // GICP算法的核心封装，不含任何ROS依赖
   class GicpFilter
   {
   public:
+    using SearchArea = icp_relocalization::SearchArea;
+
     struct Options
     {
       // Height filter (PassThrough on z)
@@ -53,12 +58,12 @@ namespace icp_relocalization
       double source_crop_min_z = -2.5;
       double source_crop_max_z = 2.5;
 
-      // SAC-IA
-      double sac_ia_min_sample_distance = 0.5;
-      int sac_ia_correspondence_randomness = 6;
-      int sac_ia_num_samples = 3;
-      double sac_ia_max_correspondence_distance = 1.0;
-      int feature_k_search = 10;
+      // Multi-Guess search
+      std::vector<SearchArea> search_areas;
+      std::vector<double> z_candidates;
+      double step_x = 1.0;
+      double step_y = 1.0;
+      double step_yaw = 0.2;
 
       // GICP
       double max_correspondence_distance = 10.0;
@@ -80,7 +85,7 @@ namespace icp_relocalization
     // 构造函数，直接使用点云数据
     GicpFilter(const PointCloud::Ptr& target_cloud, const Options& options);
 
-    // 全局初始定位：使用SAC-IA粗定位 + GICP精细定位
+    // 全局初始定位：由上层提供初值策略，再进行GICP精细定位
     Result initialAlign(const PointCloud::Ptr& source_cloud);
 
     // 增量定位：使用给定的初始猜测进行GICP定位
@@ -108,15 +113,11 @@ namespace icp_relocalization
     // 初始化处理流程
     void preprocessMap(const PointCloud::Ptr& cloud);
 
-    // 计算点云的FPFH特征
-    FPFHFeature::Ptr computeFPFH(const PointCloud::Ptr& cloud);
-
     // 根据当前位姿更新局部地图
     void updateLocalMap(const Eigen::Matrix4f& current_pose);
 
     Options options_;
     PointCloud::Ptr target_cloud_filtered_;
-    FPFHFeature::Ptr target_features_;
     SmallGicpPointCloud::Ptr small_gicp_target_;
     SmallGicpKdTree::Ptr target_tree_;
     SmallGicpKdTree::Ptr source_tree_;

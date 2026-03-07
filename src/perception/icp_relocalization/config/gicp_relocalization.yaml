@@ -1,7 +1,7 @@
 gicp_relocalization_node:
   ros__parameters:
     # General Configuration
-    mode: "initial_guess" # Options: "sac_ia", "initial_guess"
+    mode: "multi_guess" # Options: "multi_guess", "initial_guess"
     # target_pcd_file: "src/perception/icp_relocalization/maps/rmuc.pcd"
     # target_pcd_file: "src/perception/icp_relocalization/maps/111.pcd"
     target_pcd_file: "src/perception/icp_relocalization/maps/rmul.pcd"
@@ -10,7 +10,6 @@ gicp_relocalization_node:
     source_cloud_topic: "/livox_stdpc"
     alignment_frequency: 5.0
     accumulate_frames: 5
-    local_map_radius: 5.0
     
     # Convergence Criteria
     fitness_score_threshold: 0.1
@@ -19,8 +18,13 @@ gicp_relocalization_node:
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
     # initial_pose: [2.0, 6.0, 0.0, 0.0, 0.0, 0.4]
     initial_pose: [5.0, 7.0, 0.0, 0.0, 0.0, 0.4]
-    # Feature Extraction
-    feature_k_search: 20
+    # Multi-Guess Parameters
+    multi_guess:
+      search_rectangles: [0.0, 3.0, 0.0, 3.0, -2.0, 0.0, -1.0, 1.0]
+      z_candidates: [0.0, 0.4]
+      step_x: 2.0
+      step_y: 2.0
+      step_yaw: 0.785398
 
     # Height Filter (PassThrough on z) - optional performance optimization
     height_filter:
@@ -46,10 +50,3 @@ gicp_relocalization_node:
       max_iterations: 100
       transformation_epsilon: 0.001
       euclidean_fitness_epsilon: 0.001
-
-    # SAC-IA Parameters
-    sac_ia:
-      min_sample_distance: 0.5
-      correspondence_randomness: 6
-      num_samples: 3
-      max_correspondence_distance: 1.0

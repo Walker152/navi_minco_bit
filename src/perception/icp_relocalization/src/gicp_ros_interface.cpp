@@ -12,15 +12,15 @@ namespace icp_relocalization
   {
     RCLCPP_INFO(this->get_logger(), "Loading parameters from YAML file...");
     // Default parameters
-    std::string mode_str = this->declare_parameter<std::string>("mode", "sac_ia");
-    if(mode_str == "sac_ia")
-      mode_ = Mode::SAC_IA;
+    std::string mode_str = this->declare_parameter<std::string>("mode", "multi_guess");
+    if(mode_str == "multi_guess")
+      mode_ = Mode::MULTI_GUESS;
     else if(mode_str == "initial_guess")
       mode_ = Mode::INITIAL_GUESS;
     else
     {
-      RCLCPP_WARN(this->get_logger(), "Invalid mode: %s. Defaulting to sac_ia.", mode_str.c_str());
-      mode_ = Mode::SAC_IA;
+      RCLCPP_WARN(this->get_logger(), "Invalid mode: %s. Defaulting to multi_guess.", mode_str.c_str());
+      mode_ = Mode::MULTI_GUESS;
     }
 
     map_frame_ = this->declare_parameter<std::string>("map_frame", "map");
@@ -36,7 +36,6 @@ namespace icp_relocalization
     initial_pose_ = this->declare_parameter<std::vector<double>>("initial_pose", {0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
 
     // GICP Parameters
-    gicp_options_.feature_k_search = this->declare_parameter<int>("feature_k_search", 20);
     gicp_options_.target_voxel_leaf_size = this->declare_parameter<double>("gicp.target_voxel_leaf_size", 0.1);
     gicp_options_.source_voxel_leaf_size = this->declare_parameter<double>("gicp.source_voxel_leaf_size", 0.1);
     gicp_options_.max_correspondence_distance = this->declare_parameter<double>("gicp.max_correspondence_distance", 1.5);
@@ -58,13 +57,31 @@ namespace icp_relocalization
     gicp_options_.source_crop_min_z = this->declare_parameter<double>("source_crop.min_z", -2.5);
     gicp_options_.source_crop_max_z = this->declare_parameter<double>("source_crop.max_z", 2.5);
 
-    // SAC-IA Parameters
-    gicp_options_.sac_ia_min_sample_distance = this->declare_parameter<double>("sac_ia.min_sample_distance", 0.5);
-    gicp_options_.sac_ia_correspondence_randomness =
-        this->declare_parameter<int>("sac_ia.correspondence_randomness", 6);
-    gicp_options_.sac_ia_num_samples = this->declare_parameter<int>("sac_ia.num_samples", 3);
-    gicp_options_.sac_ia_max_correspondence_distance =
-        this->declare_parameter<double>("sac_ia.max_correspondence_distance", 1.0);
+    // Multi-Guess Parameters
+    const auto rects =
+      this->declare_parameter<std::vector<double>>("multi_guess.search_rectangles", std::vector<double>{});
+    gicp_options_.z_candidates =
+      this->declare_parameter<std::vector<double>>("multi_guess.z_candidates", std::vector<double>{0.0});
+    gicp_options_.step_x = this->declare_parameter<double>("multi_guess.step_x", 1.0);
+    gicp_options_.step_y = this->declare_parameter<double>("multi_guess.step_y", 1.0);
+    gicp_options_.step_yaw = this->declare_parameter<double>("multi_guess.step_yaw", 0.785);
+
+    if(rects.size() % 4 != 0)
+    {
+      RCLCPP_WARN(this->get_logger(),
+                  "multi_guess.search_rectangles size (%zu) is not divisible by 4. Ignoring tail values.",
+                  rects.size());
+    }
+    gicp_options_.search_areas.clear();
+    for(size_t i = 0; i + 3 < rects.size(); i += 4)
+    {
+      GicpFilter::SearchArea area;
+      area.min_x = rects[i];
+      area.max_x = rects[i + 1];
+      area.min_y = rects[i + 2];
+      area.max_y = rects[i + 3];
+      gicp_options_.search_areas.push_back(area);
+    }
 
     std::cout << BOLDCYAN << " ========== GICP Relocalization ==========" << RESET << std::endl;
     LOG_DEBUG_BLOCK(std::string(CYAN) + "[RELOCALIZATION] ",
@@ -107,17 +124,17 @@ namespace icp_relocalization
                     NV(gicp_options_.source_crop_max_y),
                     NV(gicp_options_.source_crop_min_z),
                     NV(gicp_options_.source_crop_max_z));
-    std::cout << BOLDCYAN << "  ----------SAC-IA Options----------" << RESET << std::endl;
-    LOG_DEBUG_BLOCK(std::string(CYAN) + "[SAC-IA] ",
-                    NV(gicp_options_.sac_ia_min_sample_distance),
-                    NV(gicp_options_.sac_ia_correspondence_randomness),
-                    NV(gicp_options_.sac_ia_num_samples),
-                    NV(gicp_options_.sac_ia_max_correspondence_distance),
-                    NV(gicp_options_.feature_k_search));
+    std::cout << BOLDCYAN << "  ----------Multi-Guess Options----------" << RESET << std::endl;
+    LOG_DEBUG_BLOCK(std::string(CYAN) + "[MULTI-GUESS] ",
+            NV(gicp_options_.step_x),
+            NV(gicp_options_.step_y),
+            NV(gicp_options_.step_yaw),
+            NV(gicp_options_.z_candidates.size()),
+            NV(gicp_options_.search_areas.size()));
     
-    if(mode_ == Mode::SAC_IA)
+    if(mode_ == Mode::MULTI_GUESS)
     {
-      RCLCPP_INFO(this->get_logger(), "Mode: SAC-IA. Waiting for lidar scan to initialize.");
+      RCLCPP_INFO(this->get_logger(), "Mode: MULTI_GUESS. Waiting for lidar scan to initialize.");
     }
     else
     {
@@ -136,11 +153,6 @@ namespace icp_relocalization
 
     activateLidarSubscription();
 
-    map_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/gicp_map", rclcpp::QoS(1).transient_local());
-    source_pub_ =
-        this->create_publisher<sensor_msgs::msg::PointCloud2>("/gicp_source", 10);  // Debug: accumulated cloud
-    aligned_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/gicp_aligned", 10);
-
     initializeDebugPublishers();
 
     setupGicp(target_pcd_file);
@@ -151,13 +163,8 @@ namespace icp_relocalization
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
     accumulated_cloud_ = std::make_shared<PointCloud>();
-
-    // 发布一次地图
-    sensor_msgs::msg::PointCloud2 map_msg;
-    pcl::toROSMsg(*gicp_filter_->getTargetCloud(), map_msg);
-    map_msg.header.frame_id = map_frame_;
-    map_msg.header.stamp = this->now();
-    map_pub_->publish(map_msg);
+    latest_source_raw_cloud_ = std::make_shared<PointCloud>();
+    latest_source_cloud_for_visualization_ = std::make_shared<PointCloud>();
 
     // 初始化FSM定时器
     if(alignment_frequency_ <= 0.0)
@@ -167,10 +174,8 @@ namespace icp_relocalization
     }
     fsm_period_ = std::chrono::duration<double>(1.0 / alignment_frequency_);
     startFsmTimer();
-    
-    // 初始化地图发布定时器
-    map_timer_ = this->create_wall_timer(std::chrono::seconds(2),
-                                         std::bind(&GicpRosInterface::mapTimerCallback, this));
+    startVisualizationTimer();
+
     // 初始化重定位服务
     relocalize_srv_ = this->create_service<std_srvs::srv::Trigger>(
         "/gicp_recall",
@@ -199,6 +204,7 @@ namespace icp_relocalization
 
     pub_source_raw_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/source_raw", 10);
     pub_source_cropped_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/source_cropped", 10);
+    pub_source_aligned_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/source_aligned", 10);
     pub_target_raw_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/target_raw", 10);
     pub_target_cropped_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/target_cropped", 10);
   }
@@ -217,6 +223,25 @@ namespace icp_relocalization
         callback_group_lidar_);
   }
 
+  void GicpRosInterface::startVisualizationTimer()
+  {
+    if(!visualization_en_)
+    {
+      return;
+    }
+
+    if(visualization_timer_)
+    {
+      visualization_timer_->cancel();
+      visualization_timer_.reset();
+    }
+
+    visualization_timer_ = this->create_wall_timer(
+        std::chrono::milliseconds(1000),
+        std::bind(&GicpRosInterface::visualizationTimerCallback, this),
+        callback_group_lidar_);
+  }
+
   void GicpRosInterface::relocalizeServiceCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                                                   std::shared_ptr<std_srvs::srv::Trigger::Response> response)
   {
@@ -227,11 +252,12 @@ namespace icp_relocalization
                 color_text::RESET.c_str());
 
     // 1. Reset State
-    mode_ = Mode::SAC_IA;
+    mode_ = Mode::MULTI_GUESS;
     state_ = State::UNINITIALIZED;
     converged_count_ = 0;
     current_accumulated_frames_ = 0;
     if(accumulated_cloud_) accumulated_cloud_->clear();
+    if(latest_source_cloud_for_visualization_) latest_source_cloud_for_visualization_->clear();
     gicp_initialized_ = false;
     last_cloud_stamp_ = rclcpp::Time(0, 0, this->get_clock()->get_clock_type());
 
@@ -249,17 +275,6 @@ namespace icp_relocalization
     response->message = "Relocalization process restarted.";
   }
 
-  void GicpRosInterface::mapTimerCallback()
-  {
-      if (map_pub_->get_subscription_count() > 0 && gicp_filter_) {
-          sensor_msgs::msg::PointCloud2 map_msg;
-          pcl::toROSMsg(*gicp_filter_->getTargetCloud(), map_msg);
-          map_msg.header.frame_id = map_frame_;
-          map_msg.header.stamp = this->now();
-          map_pub_->publish(map_msg);
-      }
-  }
-
   void GicpRosInterface::setupGicp(const std::string& target_pcd_file)
   {
     try
@@ -269,15 +284,6 @@ namespace icp_relocalization
       if(pcl::io::loadPCDFile<pcl::PointXYZ>(target_pcd_file, *target_cloud) == -1)
       {
         throw std::runtime_error("Couldn't read file " + target_pcd_file);
-      }
-
-      if(visualization_en_ && pub_target_raw_)
-      {
-        sensor_msgs::msg::PointCloud2 target_raw_msg;
-        pcl::toROSMsg(*target_cloud, target_raw_msg);
-        target_raw_msg.header.frame_id = map_frame_;
-        target_raw_msg.header.stamp = this->now();
-        pub_target_raw_->publish(target_raw_msg);
       }
 
       // 2. 初始化 GICP Filter
@@ -295,13 +301,11 @@ namespace icp_relocalization
     PointCloud::Ptr temp_cloud(new PointCloud());
     pcl::fromROSMsg(*msg, *temp_cloud);
 
-    if(visualization_en_ && pub_source_raw_)
+    if(visualization_en_ && latest_source_raw_cloud_)
     {
-      sensor_msgs::msg::PointCloud2 source_raw_msg;
-      pcl::toROSMsg(*temp_cloud, source_raw_msg);
-      source_raw_msg.header.frame_id = msg->header.frame_id;
-      source_raw_msg.header.stamp = msg->header.stamp;
-      pub_source_raw_->publish(source_raw_msg);
+      *latest_source_raw_cloud_ = *temp_cloud;
+      last_source_raw_stamp_ = msg->header.stamp;
+      source_raw_frame_id_ = msg->header.frame_id;
     }
     
     *accumulated_cloud_ += *temp_cloud;
@@ -323,6 +327,65 @@ namespace icp_relocalization
     runFSM();
   }
 
+  void GicpRosInterface::visualizationTimerCallback()
+  {
+    if(!visualization_en_)
+    {
+      return;
+    }
+
+    rclcpp::Time now_stamp = this->now();
+
+    if(pub_source_raw_ && latest_source_raw_cloud_ && !latest_source_raw_cloud_->empty() &&
+       pub_source_raw_->get_subscription_count() > 0)
+    {
+      sensor_msgs::msg::PointCloud2 source_raw_msg;
+      pcl::toROSMsg(*latest_source_raw_cloud_, source_raw_msg);
+      source_raw_msg.header.frame_id = source_raw_frame_id_.empty() ? map_frame_ : source_raw_frame_id_;
+      source_raw_msg.header.stamp =
+          (last_source_raw_stamp_.nanoseconds() == 0) ? now_stamp : last_source_raw_stamp_;
+      pub_source_raw_->publish(source_raw_msg);
+    }
+
+    if(pub_target_raw_ && gicp_filter_ && pub_target_raw_->get_subscription_count() > 0)
+    {
+      sensor_msgs::msg::PointCloud2 target_raw_msg;
+      pcl::toROSMsg(*gicp_filter_->getTargetCloud(), target_raw_msg);
+      target_raw_msg.header.frame_id = map_frame_;
+      target_raw_msg.header.stamp = now_stamp;
+      pub_target_raw_->publish(target_raw_msg);
+    }
+
+    if(!latest_source_cloud_for_visualization_ || latest_source_cloud_for_visualization_->empty())
+    {
+      return;
+    }
+
+    rclcpp::Time cloud_stamp = (last_cloud_stamp_.nanoseconds() == 0) ? now_stamp : last_cloud_stamp_;
+
+    gicp_utils::publishSourceCroppedDebug(visualization_en_,
+                                          gicp_options_,
+                                          map_frame_,
+                                          latest_source_cloud_for_visualization_,
+                                          map_to_camera_init_,
+                                          cloud_stamp,
+                                          pub_source_cropped_);
+
+    gicp_utils::publishTargetCroppedDebug(visualization_en_,
+                                          map_frame_,
+                                          cloud_stamp,
+                                          gicp_filter_.get(),
+                                          pub_target_cropped_);
+
+    gicp_utils::publishVisualization(latest_source_cloud_for_visualization_,
+                                     cloud_stamp,
+                                     visualization_en_,
+                                     gicp_initialized_,
+                                     map_frame_,
+                                     map_to_camera_init_,
+                                     pub_source_aligned_);
+  }
+
   void GicpRosInterface::runFSM()
   {
     // 检查是否有足够的点云帧进行累积
@@ -333,33 +396,26 @@ namespace icp_relocalization
 
     PointCloud::Ptr source_cloud(new PointCloud());
     *source_cloud = *accumulated_cloud_;
-    
-    // Clear accumulation for next batch
-    accumulated_cloud_->clear();
-    current_accumulated_frames_ = 0;
 
     if(source_cloud->empty() || source_cloud->size() < 100)
     {
       RCLCPP_WARN(this->get_logger(), "Accumulated cloud is empty or too small (%zu points).", source_cloud->size());
+      accumulated_cloud_->clear();
+      current_accumulated_frames_ = 0;
       return;
     }
 
-    // Debug: 发布累积后的点云
-    gicp_utils::publishVisualization(source_cloud,
-                     last_cloud_stamp_,
-                     visualization_en_,
-                     gicp_initialized_,
-                     map_frame_,
-                     map_to_camera_init_,
-                     source_pub_,
-                     aligned_cloud_pub_);
+    if(visualization_en_ && latest_source_cloud_for_visualization_)
+    {
+      *latest_source_cloud_for_visualization_ = *source_cloud;
+    }
 
     // 状态机逻辑
     switch(state_)
     {
     case State::UNINITIALIZED:
     {
-      if(mode_ == Mode::SAC_IA)
+      if(mode_ == Mode::MULTI_GUESS)
       {
         state_ = State::INITIALIZING;
       }
@@ -387,29 +443,15 @@ namespace icp_relocalization
 
     case State::INITIALIZING:
     {
-      RCLCPP_INFO(this->get_logger(), "Starting initial alignment (SAC-IA)...");
+      RCLCPP_INFO(this->get_logger(), "Starting initial alignment (MULTI_GUESS)...");
 
-      gicp_utils::publishSourceCroppedDebug(visualization_en_,
-                    gicp_options_,
-                    map_frame_,
-                    source_cloud,
-                    Eigen::Matrix4f::Identity(),
-                    last_cloud_stamp_,
-                    pub_source_cropped_);
-
-      auto result = gicp_filter_->initialAlign(source_cloud);
-
-      gicp_utils::publishTargetCroppedDebug(visualization_en_,
-                    map_frame_,
-                    last_cloud_stamp_,
-                    gicp_filter_.get(),
-                    pub_target_cropped_);
+      auto result = gicp_filter_->initialAlign(accumulated_cloud_);
 
       if(result.converged)
       {
         RCLCPP_INFO(this->get_logger(), "Initial alignment successful! Fitness score: %f", result.fitness_score);
 
-        // GICP/SAC-IA 计算的是 Source(camera_init) -> Target(map) 的变换
+        // GICP 计算的是 Source(camera_init) -> Target(map) 的变换
         map_to_camera_init_ = result.final_transformation;
 
         gicp_initialized_ = true;
@@ -429,31 +471,17 @@ namespace icp_relocalization
       if(!gicp_initialized_)
       {
         state_ = State::UNINITIALIZED;
-        return;
+        break;
       }
 
       RCLCPP_INFO(this->get_logger(), "Verifying convergence (Count: %d/%d)...", converged_count_, converged_count_threshold_);
       
       Eigen::Matrix4f initial_guess = map_to_camera_init_;
 
-      gicp_utils::publishSourceCroppedDebug(visualization_en_,
-                    gicp_options_,
-                    map_frame_,
-                    source_cloud,
-                    initial_guess,
-                    last_cloud_stamp_,
-                    pub_source_cropped_);
-
       auto start_time = std::chrono::high_resolution_clock::now();
       auto result = gicp_filter_->align(source_cloud, initial_guess);
       auto end_time = std::chrono::high_resolution_clock::now();
       double time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
-
-      gicp_utils::publishTargetCroppedDebug(visualization_en_,
-                    map_frame_,
-                    last_cloud_stamp_,
-                    gicp_filter_.get(),
-                    pub_target_cropped_);
 
       if(result.converged && result.fitness_score < fitness_score_threshold_)
       {
@@ -491,7 +519,7 @@ namespace icp_relocalization
       {
         std::cout << YELLOW << "[GICP] Failed to converge or score too high (" << result.fitness_score << "). Resetting count." << RESET << std::endl;
         converged_count_ = 0;
-        // If we were in SAC_IA mode, maybe we should restart?
+        // If we were in MULTI_GUESS mode, maybe we should restart?
         // If we were in INITIAL_GUESS mode, maybe we should wait for new guess?
         // For now, let's go back to UNINITIALIZED to be safe.
         state_ = State::UNINITIALIZED;
@@ -511,6 +539,10 @@ namespace icp_relocalization
     default:
       break;
     }
+
+    // Clear accumulation for next batch after processing
+    accumulated_cloud_->clear();
+    current_accumulated_frames_ = 0;
   }
 
   

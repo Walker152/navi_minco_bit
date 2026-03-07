@@ -1,5 +1,9 @@
 #include "gicp_filter.hpp"
 #include <iostream>
+#include <limits>
+#include <cmath>
+
+#include <Eigen/Geometry>
 
 #include <pcl/filters/filter.h>
 #include <pcl/filters/passthrough.h>
@@ -91,9 +95,6 @@ namespace icp_relocalization
     target_cloud_filtered_ = std::make_shared<PointCloud>();
     vg.filter(*target_cloud_filtered_);
 
-    // 为降采样后的地图计算FPFH特征
-    target_features_ = computeFPFH(target_cloud_filtered_);
-
     // small_gicp 后端使用的地图预处理：voxel + covariance + kd-tree
     constexpr int kCovNeighbors = 20;
     constexpr int kCovThreads = 8;
@@ -164,78 +165,110 @@ namespace icp_relocalization
     local_map_initialized_ = true;
   }
 
-  FPFHFeature::Ptr GicpFilter::computeFPFH(const PointCloud::Ptr& cloud)
-  {
-    // 估算法线
-    PointNormal::Ptr normals(new PointNormal);
-    pcl::NormalEstimationOMP<pcl::PointXYZ, pcl::Normal> norm_est;
-    norm_est.setKSearch(options_.feature_k_search);
-    norm_est.setInputCloud(cloud);
-    norm_est.compute(*normals);
-
-    // 估算FPFH特征
-    FPFHFeature::Ptr features(new FPFHFeature);
-    pcl::FPFHEstimationOMP<pcl::PointXYZ, pcl::Normal, pcl::FPFHSignature33> fpfh_est;
-    fpfh_est.setKSearch(options_.feature_k_search);
-    fpfh_est.setInputCloud(cloud);
-    fpfh_est.setInputNormals(normals);
-    fpfh_est.compute(*features);
-
-    return features;
-  }
-
   GicpFilter::Result GicpFilter::initialAlign(const PointCloud::Ptr& source_cloud)
   {
-    // 高度滤波（可选）：先裁剪再降采样/特征，减少计算量
     PointCloud::Ptr source_filtered_height = applyHeightFilter(source_cloud);
-
-    // 先验点云同样通过统一的crop流程
     PointCloud::Ptr source_cropped = cropSourceCloud(source_filtered_height);
+
     if(!source_cropped || source_cropped->empty())
     {
       Result result;
       result.converged = false;
       result.fitness_score = -1.0;
+      result.final_transformation = Eigen::Matrix4f::Identity();
       return result;
     }
 
-    // 1. 对源点云进行降采样
-    PointCloud::Ptr source_cloud_filtered(new PointCloud());
-    pcl::VoxelGrid<pcl::PointXYZ> vg;
-    vg.setLeafSize(options_.source_voxel_leaf_size, options_.source_voxel_leaf_size, options_.source_voxel_leaf_size);
-    vg.setInputCloud(source_cropped);
-    vg.filter(*source_cloud_filtered);
+    constexpr int kCovNeighbors = 20;
+    constexpr int kCovThreads = 8;
 
-    // 2. 为源点云计算FPFH特征
-    FPFHFeature::Ptr source_features = computeFPFH(source_cloud_filtered);
-
-    // 3. 配置并运行SAC-IA进行粗略对齐
-    pcl::SampleConsensusInitialAlignment<pcl::PointXYZ, pcl::PointXYZ, pcl::FPFHSignature33> sac_ia;
-    sac_ia.setMinSampleDistance(options_.sac_ia_min_sample_distance);
-    sac_ia.setMaxCorrespondenceDistance(options_.sac_ia_max_correspondence_distance);
-    sac_ia.setMaximumIterations(1000);  // 增加迭代次数以提高成功率
-    sac_ia.setCorrespondenceRandomness(options_.sac_ia_correspondence_randomness);
-    sac_ia.setNumberOfSamples(options_.sac_ia_num_samples);
-
-    sac_ia.setInputSource(source_cloud_filtered);
-    sac_ia.setSourceFeatures(source_features);
-
-    sac_ia.setInputTarget(target_cloud_filtered_);
-    sac_ia.setTargetFeatures(target_features_);
-
-    PointCloud final_cloud;
-    sac_ia.align(final_cloud);
-
-    if(!sac_ia.hasConverged())
+    SmallGicpPointCloud::Ptr source_small =
+        small_gicp::voxelgrid_sampling_omp<PointCloud, SmallGicpPointCloud>(*source_cropped,
+                                                                             options_.source_voxel_leaf_size);
+    if(!source_small || source_small->empty())
     {
       Result result;
       result.converged = false;
       result.fitness_score = -1.0;
+      result.final_transformation = Eigen::Matrix4f::Identity();
       return result;
     }
 
-    // 4. 使用SAC-IA的结果作为GICP的初始猜测进行精细对齐
-    return align(source_cloud, sac_ia.getFinalTransformation());
+    small_gicp::estimate_covariances_omp(*source_small, kCovNeighbors, kCovThreads);
+    source_tree_ = std::make_shared<SmallGicpKdTree>(source_small,
+                                                     small_gicp::KdTreeBuilderOMP(kCovThreads));
+
+    if(!small_gicp_target_ || small_gicp_target_->empty() || !target_tree_)
+    {
+      Result result;
+      result.converged = false;
+      result.fitness_score = -1.0;
+      result.final_transformation = Eigen::Matrix4f::Identity();
+      return result;
+    }
+
+    if(options_.step_x <= 0.0 || options_.step_y <= 0.0 || options_.step_yaw <= 0.0)
+    {
+      Result result;
+      result.converged = false;
+      result.fitness_score = -1.0;
+      result.final_transformation = Eigen::Matrix4f::Identity();
+      return result;
+    }
+
+    if(options_.search_areas.empty() || options_.z_candidates.empty())
+    {
+      Result result;
+      result.converged = false;
+      result.fitness_score = -1.0;
+      result.final_transformation = Eigen::Matrix4f::Identity();
+      return result;
+    }
+
+    double best_score = std::numeric_limits<double>::max();
+    Eigen::Matrix4f best_pose = Eigen::Matrix4f::Identity();
+    bool best_converged = false;
+
+    SmallGicpRegister register_engine;
+    register_engine.reduction.num_threads = kCovThreads;
+    register_engine.rejector.max_dist_sq =
+        options_.max_correspondence_distance * options_.max_correspondence_distance;
+    register_engine.optimizer.max_iterations = options_.max_iterations;
+
+    for(double z : options_.z_candidates)
+    {
+      for(const auto& area : options_.search_areas)
+      {
+        for(double x = area.min_x; x <= area.max_x; x += options_.step_x)
+        {
+          for(double y = area.min_y; y <= area.max_y; y += options_.step_y)
+          {
+            for(double yaw = -M_PI; yaw <= M_PI; yaw += options_.step_yaw)
+            {
+              Eigen::Isometry3d init_guess_d = Eigen::Isometry3d::Identity();
+              init_guess_d.translation() << x, y, z;
+              init_guess_d.linear() = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()).toRotationMatrix();
+
+              const small_gicp::RegistrationResult reg_result =
+                  register_engine.align(*small_gicp_target_, *source_small, *target_tree_, init_guess_d);
+
+              if(reg_result.converged && reg_result.error < best_score)
+              {
+                best_score = reg_result.error;
+                best_pose = reg_result.T_target_source.matrix().cast<float>();
+                best_converged = true;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    Result result;
+    result.converged = best_converged;
+    result.fitness_score = best_converged ? best_score : -1.0;
+    result.final_transformation = best_pose;
+    return result;
   }
 
   GicpFilter::Result GicpFilter::align(const PointCloud::Ptr& source_cloud, const Eigen::Matrix4f& initial_guess)
