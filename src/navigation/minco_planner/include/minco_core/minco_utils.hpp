@@ -52,6 +52,7 @@ Eigen::Vector3d interpolateByArcLength(
 
 void publishOptimizedTrajectory(
   const traj_opt::Trajectory & opt_traj,
+  const traj_opt::Trajectory & yaw_traj,
   const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
   uint32_t & trajectory_id_counter,
   const std_msgs::msg::Header & header,

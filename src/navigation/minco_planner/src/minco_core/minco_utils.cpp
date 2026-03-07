@@ -90,6 +90,7 @@ Eigen::Vector3d interpolateByArcLength(
 
 void publishOptimizedTrajectory(
   const traj_opt::Trajectory & opt_traj,
+  const traj_opt::Trajectory & yaw_traj,
   const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
   uint32_t & trajectory_id_counter,
   const std_msgs::msg::Header & header,
@@ -105,6 +106,7 @@ void publishOptimizedTrajectory(
   traj_msg.command_flag = ros_interfaces::msg::MpcPositionCommand::NORMAL_COMMAND;
   traj_msg.cmds.resize(steps);
   const uint32_t traj_id = ++trajectory_id_counter;
+  const double yaw_total_duration = yaw_traj.getTotalDuration();
   for (int i = 0; i < steps; ++i) {
     double t = i * t_step;
     if (t > opt_traj.getTotalDuration()) {
@@ -115,12 +117,9 @@ void publishOptimizedTrajectory(
     const Eigen::Vector3d acc = opt_traj.getAcc(t);
     const Eigen::Vector3d jer = opt_traj.getJer(t);
 
-    double yaw = 0.0;
-    if (vel.norm() > 1e-4) {
-      yaw = std::atan2(vel(1), vel(0));
-    } else if (i > 0) {
-      yaw = traj_msg.cmds[i - 1].yaw;
-    }
+    const double yaw_sample_time = clampValue(t, 0.0, std::max(0.0, yaw_total_duration));
+    const double yaw = yaw_traj.getPos(yaw_sample_time)(0);
+    const double yaw_dot = yaw_traj.getVel(yaw_sample_time)(0);
 
     auto & cmd = traj_msg.cmds[i];
     cmd.header = traj_msg.header;
@@ -140,7 +139,7 @@ void publishOptimizedTrajectory(
     cmd.angular_velocity.y = 0.0;
     cmd.angular_velocity.z = 0.0;
     cmd.yaw = yaw;
-    cmd.yaw_dot = 0.0;
+    cmd.yaw_dot = yaw_dot;
     cmd.vel_norm = vel.norm();
     cmd.acc_norm = acc.norm();
     cmd.kx = {0.0, 0.0, 0.0};
@@ -188,8 +187,9 @@ void publishBackupTrajectory(
     jer.z() = 0.0;
 
     double yaw = 0.0;
-    if (vel.head<2>().norm() > 1e-4) {
-      yaw = std::atan2(vel(1), vel(0));
+    Eigen::Vector3d initial_vel = backup_traj.getVel(0.0);
+    if (initial_vel.head<2>().norm() > 1e-4) {
+      yaw = std::atan2(initial_vel(1), initial_vel(0));
     } else if (i > 0) {
       yaw = traj_msg.cmds[i - 1].yaw;
     }
