@@ -35,6 +35,7 @@
 #include "minco_core/corridor_generator.hpp"
 #include "traj_opt/minco_optimizer.hpp"
 #include "traj_opt/backup_traj_optimizer_s4.h"
+#include "traj_opt/yaw_traj_opt.h"
 
 #include "utils/header/color_text.hpp"
 namespace minco_planner
@@ -140,6 +141,12 @@ private:
     const traj_opt::Trajectory & traj,
     const Eigen::Vector3d & expected_end_pos);
 
+  bool optimizeYaw(
+    const Eigen::Matrix3d & start_state,
+    const traj_opt::Trajectory & pos_traj,
+    traj_opt::Trajectory & out_yaw_traj,
+    PlanningState state);
+
   std::shared_ptr<tf2_ros::Buffer> tf_;
   nav2_util::LifecycleNode::WeakPtr node_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
@@ -157,6 +164,7 @@ private:
 
   // Backup Trajectory Optimizer
   std::unique_ptr<traj_opt::BackupTrajOpt> backup_opt_;
+  std::unique_ptr<traj_opt::YawTrajOpt> yaw_opt_;
   
   // Static ESDF Map
   small_rog_map::HybridESDFMap::Ptr esdf_map_;
@@ -191,6 +199,8 @@ private:
 
   geometry_utils::Trajectory last_traj_;
   bool has_last_traj_ = false;
+  geometry_utils::Trajectory last_yaw_traj_;
+  bool has_last_yaw_traj_ = false;
 
   std::atomic_bool is_traj_safe_{true};
 
