@@ -1,4 +1,4 @@
-image: 2026rmul.pgm
+image: rmul2026.pgm
 mode: trinary
 resolution: 0.05
 origin: [0.063, 0.043, 0]
