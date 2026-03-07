@@ -144,9 +144,8 @@ namespace ns_com
         std::lock_guard<std::mutex> lk(state_mutex_);
         vx_mps = cmd_vel_.linear.x;
         vy_mps = cmd_vel_.linear.y;
-        // vw_rpm = cmd_vel_.angular.z;
-        vw_rpm = 40.0;
-        // vw_rpm = 0.0;
+        vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
+        // vw_rpm = 40.0f;
         gimbal_yaw = gimbal_yaw_.data;
         position = position_.data;
         outpost_msg = outpost_msg_.data;
