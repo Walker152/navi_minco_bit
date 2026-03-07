@@ -25,7 +25,6 @@ void publishVisualization(const PointCloud::Ptr& cloud,
                           bool gicp_initialized,
                           const std::string& map_frame,
                           const Eigen::Matrix4f& map_to_camera_init,
-                          const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr& source_pub,
                           const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr& aligned_cloud_pub);
 
 void printEvaluation(const Eigen::Matrix4f& initial_guess,
