@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(pcd2pgm)
 
-## Use C++14
-set(CMAKE_CXX_STANDARD 14)
+## Use C++17
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ## Export compile commands for clangd
@@ -21,12 +21,15 @@ ament_auto_find_build_dependencies()
 ###########
 
 ament_auto_add_library(${PROJECT_NAME} SHARED
-  DIRECTORY src
+  src/pcd2pgm.cpp
 )
 
-rclcpp_components_register_node(${PROJECT_NAME}
-  PLUGIN pcd2pgm::PCLFiltersNode
-  EXECUTABLE ${PROJECT_NAME}_node
+ament_auto_add_executable(${PROJECT_NAME}_node
+  src/main.cpp
+)
+
+target_link_libraries(${PROJECT_NAME}_node
+  ${PROJECT_NAME}
 )
 
 #############

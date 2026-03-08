@@ -3,6 +3,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <cstdint>
 #include <vector>
 
 #include "nav2_core/controller.hpp"
@@ -63,11 +64,25 @@ private:
     const ros_interfaces::msg::MpcPositionCommand::SharedPtr & opt,
     std::vector<ros_interfaces::msg::PositionCommand> & out_cmds) const;
 
+  void compensateLeverArm(
+    double v_lidar_x,
+    double v_lidar_y,
+    double omega_z,
+    double yaw,
+    double & vx_global,
+    double & vy_global,
+    double & omega_global) const;
+
+  void extractGlobalVelocityAndYaw(
+    const nav_msgs::msg::Odometry::SharedPtr & odom,
+    double & vx_global,
+    double & vy_global,
+    double & omega_global,
+    double & yaw_global) const;
+
   static double normalizeYaw(double yaw);
   inline static double interpolateYaw(double yaw1, double yaw2, double alpha) {
-    double diff = yaw2 - yaw1;
-    while (diff > M_PI) diff -= 2.0 * M_PI;
-    while (diff < -M_PI) diff += 2.0 * M_PI;
+    double diff = std::atan2(std::sin(yaw2 - yaw1), std::cos(yaw2 - yaw1));
     return yaw1 + diff * alpha;
   }
 
@@ -100,12 +115,29 @@ private:
   rclcpp::Subscription<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
 
+  // 发布：可视化路径
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mpc_predict_path_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mpc_real_path_pub_;
+
+  // 记录实际行走路径
+  std::vector<geometry_msgs::msg::PoseStamped> real_path_history_;
+  rclcpp::Time last_real_path_pub_time_;
+  
+  // 用于可视化发布封装
+  void publishVisualization(const std::vector<State> & pred_path, const State & curr_state);
+
   // 缓存：最新轨迹/里程计
   mutable std::mutex data_mtx_;
   ros_interfaces::msg::MpcPositionCommand::SharedPtr latest_opt_path_;
   nav_msgs::msg::Odometry::SharedPtr latest_odom_;
 
-  // Nav2 setPlan 缓存（fallback）
+  // 轨迹参考索引跟踪（用于轨迹未更新时按时间前推，避免回追起点）
+  mutable double tracked_ref_idx_{0.0};
+  mutable rclcpp::Time tracked_ref_time_;
+  mutable uint32_t tracked_opt_traj_id_{0};
+  mutable bool has_tracked_ref_{false};
+
+  // Nav2 setPlan 缓存
   nav_msgs::msg::Path global_plan_;
   mutable std::mutex plan_mtx_;
 
@@ -116,6 +148,14 @@ private:
   // 动态限速（Nav2 setSpeedLimit）
   double speed_limit_{0.0};
   bool speed_limit_percentage_{false};
+
+  // 其他参数
+  double fixed_wz_{0.0};
+  double deadzone_speed_threshold_{0.02};
+  double control_delay_compensation_{0.25};
+  double lidar_offset_x_{0.0};
+  double lidar_offset_y_{0.0};
+  bool use_small_gyro_mode_{true};
 };
 
 }  // namespace minco_controller

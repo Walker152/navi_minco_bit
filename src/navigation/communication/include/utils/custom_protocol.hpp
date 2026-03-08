@@ -111,8 +111,8 @@ struct __attribute__((packed, aligned(1))) _Event_Status
 {
   uint16_t self_health;        // 自身健康值，范围0-400
   uint16_t num_shoot;
-  bool own_outpost_destroyed;  // 我方前哨被摧毁标志
-  uint16_t enemy_outpost_health;
+  uint16_t own_outpost_health;  // 我方前哨站血量
+  bool enemy_outpost_destroyed; // 敌方前哨站是否被摧毁标志
   bool buff_active;            // buff是否激活标志
   bool is_get;                 // 是否检测到敌人
   float x;                     // 敌人位置x坐标
@@ -140,8 +140,8 @@ struct __attribute__((packed, aligned(1))) _Event_Status
 
   _Event_Status(float _self_health,
                 uint16_t _num_shoot,
-                bool _own_outpost_destroyed,
-                uint16_t _enemy_outpost_health,
+                bool _enemy_outpost_destroyed,
+                uint16_t _own_outpost_health,
                 bool _buff_active,
                 bool _is_get,
                 float _x,
@@ -151,8 +151,8 @@ struct __attribute__((packed, aligned(1))) _Event_Status
                 int32_t _position)
     : self_health(_self_health)
     , num_shoot(_num_shoot)
-    , own_outpost_destroyed(_own_outpost_destroyed)
-    , enemy_outpost_health(_enemy_outpost_health)
+    , own_outpost_health(_own_outpost_health)
+    , enemy_outpost_destroyed(_enemy_outpost_destroyed)
     , buff_active(_buff_active)
     , position(_position)
   {

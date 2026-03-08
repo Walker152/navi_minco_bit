@@ -8,17 +8,16 @@ livox_to_pointcloud2:
     # ==================== 平移变换 (米) ====================
     # 点云坐标系相对于目标坐标系的平移
     # 例如: 如果雷达安装在机器人中心前方0.3m，设置 translation_x: 0.3
-    translation_x: 0.2
-    translation_y: 0.0
+    translation_x: 0.0
+    translation_y: 0.21
     translation_z: 0.0
     
     # ==================== 旋转变换 (弧度) ====================
     # 点云坐标系相对于目标坐标系的旋转（欧拉角）
     # Roll (绕X轴旋转), Pitch (绕Y轴旋转), Yaw (绕Z轴旋转)
     # 例如: 如果雷达倒装，设置 rotation_roll: 3.14159 (180度)
-    rotation_roll: -0.0150  # 绕X轴旋转
-    # rotation_pitch: 0.0  # 绕Y轴旋转
-    rotation_pitch: -0.0643 # 绕Y轴旋转
+    rotation_roll: 0.35   # 绕X轴旋转
+    rotation_pitch: 0.0  # 绕Y轴旋转
     rotation_yaw: 0.0  # 绕Z轴旋转
     
     # ==================== 点云裁剪 ====================
