@@ -16,10 +16,15 @@ def generate_launch_description():
     # 创建 Launch 配置
     use_sim_time = launch.substitutions.LaunchConfiguration(
         'use_sim_time', default='False')
+    
+    # map_yaml_path = launch.substitutions.LaunchConfiguration(
+        # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmuc2026.yaml'))
     map_yaml_path = launch.substitutions.LaunchConfiguration(
-        'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmuc2026.yaml'))
+        'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmul2026.yaml'))
+    # map_yaml_path = launch.substitutions.LaunchConfiguration(
+        # 'map', default=os.path.join(DreamChaser_dir, 'maps', 'first_floor/first_floor1.yaml'))
     nav2_param_path = launch.substitutions.LaunchConfiguration(
-        'params_file', default=os.path.join(DreamChaser_dir, 'params', 'sentry2.yaml'))
+        'params_file', default=os.path.join(DreamChaser_dir, 'params', 'sentry1.yaml'))
 
     return launch.LaunchDescription([
         # 静态TF: map -> camera_init
@@ -27,7 +32,9 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             name='static_tf_map_to_camera_init',
-            arguments=['0', '0', '0', '0', '0', '0', 'map', 'camera_init'],
+            arguments=['2', '6', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['0', '0', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
         # 静态TF: camera_init -> body
