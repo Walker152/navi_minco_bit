@@ -6,7 +6,48 @@
 
 ---
 
-## 1. 系统整体架构（System Architecture）
+## 1. 系统启动全流程 (System Workflow)
+
+本系统的启动逻辑封装在 `start.bash` 脚本中，实现了从硬件驱动到上层决策的自动化挂载。
+
+### Step 1: 硬件驱动 (Hardware Driver)
+*   **Node**: `livox_ros_driver2`
+*   **功能**: 驱动 MID-360 激光雷达。
+*   **输出**: 发布 `/livox/lidar` (包含自定义 Tag 信息) 和 `/livox/imu` 原始数据。
+
+### Step 2: 里程计 (Odometry)
+*   **Node**: `point_lio`
+*   **功能**: 运行高频激光惯性里程计 (LIO) 并去除点云运动畸变。
+*   **关键输出**:
+    *   `/aft_mapped_to_init`: 高频里程计（用于控制反馈）。
+    *   `/livox/stdpc(msg_convert输出)` / `/cloud_registered`: 畸变去除后的标准点云（用于建图与重定位）。
+
+### Step 3: 初始重定位 (Relocalization)
+*   **Node**: `icp_relocalization` (GicpRosInterface)
+*   **功能**: 修正里程计累计漂移，提供全局一致性。
+*   **状态机流程**:
+    1.  **UNINITIALIZED**: 等待点云帧累积（Accumulate Frames）。
+    2.  **INITIALIZING**: 使用 **SAC-IA或Initial pose** 进行粗配准，快速对齐全局地图。
+    3.  **CONVERGING**: 使用 **GICP (Generalized ICP)** 进行精细迭代优化。
+    4.  **LOCALIZED**: 连续 N 帧收敛后锁定状态。
+*   **关键动作**: 收敛后发布静态 TF `map` -> `camera_init`，将 Point-LIO 的局部坐标系对齐到全局地图。
+
+### Step 4: 导航栈 (Navigation Stack)
+*   **Launch**: `navi2/launch/navigation2.launch.py`
+*   **核心服务**:
+    *   **Planner Server**: 加载自定义插件 `MincoPlanner`。
+    *   **Controller Server**: 加载自定义插件 `MincoMpcController`。
+*   **Costmap**: 启动 `spatio_temporal_voxel_layer` 构建动态体素地图。
+
+### Step 5: 决策与通信 (Decision & Comm)
+*   **Node**: `bt_manager` (Behavior Tree)
+    *   处理比赛逻辑（巡逻、追击、逃跑），发送 Action 指令给 Nav2。
+*   **Node**: `communication`
+    *   将上层规划的速度指令下发给 STM32 底盘，同时回传裁判系统数据。
+
+---
+
+## 2. 系统整体架构（System Architecture）
 
 下图是“从传感器到控制”的完整链路（以本仓库现有默认配置为准），标注了核心 Topic / TF 关系。
 
@@ -34,7 +75,7 @@ graph TD
   MINCO -->|nav_msgs/Path: /plan| NAV2
 
   %% Control
-  NAV2 -->|nav2_mppi_controller 输出速度指令| CTRL["局部控制器<br/>MPPI / 可选 PID/MPC"]
+  NAV2 -->|minco_mpc_controller 输出速度指令| CTRL["局部控制器<br/>MPPI / 可选 PID/MPC"]
   CTRL -->|cmd_vel, Twist| ACT[底盘/电控]
 
   %% Decision
@@ -56,9 +97,9 @@ graph TD
 
 ---
 
-## 2. 核心模块原理深度解析（Core Modules）
+## 3. 核心模块原理深度解析（Core Modules）
 
-### A. 导航算法：MincoPlanner（重点）
+### A. 导航算法：MincoPlanner
 
 #### A.1 它是什么
 
@@ -130,7 +171,7 @@ $$J = J_{energy}(\text{MINCO}) + J_{constraints} + \rho \sum_i T_i$$
 严格意义的时空约束（障碍物随时间演化）通常由两部分共同承担：
 
 1) **时空感知层**：用 STVL 将点云观测写入“随时间衰减”的体素/栅格层（本仓库在 `local_costmap` / `global_costmap` 中均启用了 `spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer`）
-2) **控制层**：局部控制器在短时域内做碰撞代价评估并输出控制（本仓库默认 `nav2_mppi_controller::MPPIController`）
+2) **控制层**：局部控制器在短时域内做碰撞代价评估并输出控制
 
 而当前 MincoPlanner 作为全局规划器：
 
@@ -148,9 +189,9 @@ graph TD
   F1 --> SP["粗路径转世界坐标<br/>guide_path"]
   SP --> C["走廊近似/路标稀疏化<br/>getSparseWaypoints + isLineFree"]
   C --> O1["MINCO 轨迹优化<br/>optimize(waypoints, head/tail state)"]
-  O1 --> RES["按时间重采样<br/>dt=0.1s 生成 poses"]
+  O1 --> RES["按时间重采样<br/>dt=0.05s 生成 poses"]
   RES --> P["nav_msgs/Path 输出"]
-  P --> N["交给 Nav2<br/>controller_server 跟踪"]
+  P --> N["minco_mpc_controller 跟踪"]
 ```
 
 #### A.7 关键可调参数（与代码一致）
@@ -184,11 +225,35 @@ MincoPlanner:
 
 ---
 
-### B. 感知与重定位：ICP Relocalization（icp_relocalization）
+### B. 局部控制器：MincoMpcController (Local Controller)
+
+这是一个专为跟踪 Minco 轨迹设计的非线性模型预测控制器（替代了默认的 MPPI）。
+
+**输入**:
+*   订阅 `/opt_path` 获取参考轨迹（包含完整多项式系数）。
+*   订阅 `/aft_mapped_to_init` 获取高频里程计。
+
+**延迟补偿 (Latency Compensation)**:
+由于通信与计算存在延迟，控制器会基于里程计历史和当前速度，将机器人状态外推至“未来时刻”（`dt_delay`），确保控制指令匹配机器人当前的真实状态。
+
+**MPC 求解**:
+构建优化问题，在满足动态约束的前提下，计算能最好跟踪参考轨迹的速度矢量。
+
+#### ⚠️ [关键细节] 世界系速度控制 (World Frame Velocity Control)
+
+与其他常见的机器人控制器（通常输出 Body Frame 速度，如 `cmd_vel.linear.x` 为前进）不同，**MincoMpcController 直接输出世界坐标系下的速度指令**。
+
+*   **代码依据**: `linear_x = u_global.x();` (在 `computeVelocityCommands` 中直接赋值求解结果)
+*   **硬件要求**: 下位机（底盘 MCU）**必须** 处于“绝对坐标系控制模式”或自行根据底盘当前的 Yaw 角进行向量分解。
+*   **设计意图**: 哨兵云台通常带有增稳功能（云台与底盘解耦）。在世界系规划与控制有助于在云台剧烈旋转时，底盘仍能平滑地沿预定轨迹移动，不受云台姿态干扰。
+
+---
+
+### C. 感知与重定位：ICP Relocalization（icp_relocalization）
 
 本模块解决的问题是：
 
-> Point-LIO 在短时间内给出高频里程计（`camera_init` 相关坐标系），但会有累计漂移；`icp_relocalization` 用离线全局地图（PCD）做配准，在 **收敛后发布一次静态 TF** 将 `camera_init/odom` 锚定到 `map`，从而修正漂移。
+> Point-LIO 在短时间内给出高频里程计（`camera_init` 相关坐标系），但会有手动摆放误差；`icp_relocalization` 用离线全局地图（PCD）做配准，在 **收敛后发布一次静态 TF** 将 `camera_init/odom` 锚定到 `map`，从而修正漂移。
 
 #### B.1 输入、输出与状态机
 
@@ -260,7 +325,7 @@ height_filter:
 
 ---
 
-### C. 决策系统：bt_manager（Decision）
+### D. 决策系统：bt_manager（Decision）
 
 `bt_manager` 使用 BehaviorTree.CPP v3，通过 `navigate_to_pose` action 给 Nav2 下发目标点。
 
@@ -275,7 +340,7 @@ height_filter:
 
 > “充能/补给”在代码中以 `nav_points[1] = BONUS` 形式预留（`nav_zone.cpp`），但在当前 `nav_tree.xml` 主逻辑里尚未接入对应的 Sequence。要实现“充能模式”，可新增一条分支在 Fallback 中通过 `SetCoordinate goal="1"` 下发 BONUS 点。
 
-#### C.2 决策逻辑图（基于 XML）
+#### C.2 决策逻辑图
 
 主树：`decision/bt_manager/tree/nav_tree.xml`。
 
@@ -324,7 +389,7 @@ graph TD
 
 ---
 
-## 3. 使用指南与依赖（Usage & Build）
+## 4. 使用指南与依赖（Usage & Build）
 
 ### 3.1 关键依赖（按代码/配置实际使用）
 
@@ -379,20 +444,5 @@ colcon build --symlink-install --packages-select icp_relocalization point_lio co
 
 如果你运行在无桌面环境，请按上述顺序在多个终端中手动执行。
 
----
 
-## Getting Started
-
-本仓库提供了 `start.bash` 作为一键启动脚本（依赖 `gnome-terminal`）。启动顺序如下：
-
-1) source 本工作区环境（`install/setup.bash`）
-2) source Livox 工作区环境（`~/ws_livox/install/setup.bash`）
-3) 启动 Livox 驱动：`ros2 launch livox_ros_driver2 msg_MID360_launch.py`
-4) 启动 Point-LIO：`ros2 launch point_lio point_lio.launch.py`
-5) 启动重定位：`ros2 launch icp_relocalization gicp_relocalization.launch.py`
-6) 启动 Nav2：`ros2 launch navi2 navigation2.launch.py`
-7) 可选：启动决策：`ros2 launch bt_manager bt_manager.launch.py`
-8) 可选：启动通信：`ros2 launch communication com.launch.py`
-
-如果你在无桌面/无 `gnome-terminal` 环境运行，请在多个终端里按上述顺序手动执行。
 
