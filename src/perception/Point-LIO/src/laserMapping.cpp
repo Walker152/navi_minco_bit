@@ -12,6 +12,11 @@
 
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/path.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <std_srvs/srv/trigger.hpp>
+#include <thread>
+#include <chrono>
+#include <cmath>
 
 #include "li_initialization.h"
 
@@ -275,13 +280,33 @@ void publish_odometry(
   const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pubOdomAftMapped,
   std::shared_ptr<tf2_ros::TransformBroadcaster> & tf_br)
 {
-  static int frame_count = 0;
-  frame_count++;
-  if (frame_count < 100) {
+  static auto last_time = std::chrono::steady_clock::now();
+  auto current_time = std::chrono::steady_clock::now();
+  if (current_time - last_time < std::chrono::milliseconds(1)) {
     return;  
-  } else {
-  frame_count = 0;
   }
+  last_time = current_time;
+
+  // // -------------------- Odom / Yaw 调试统计 --------------------
+  // static bool yaw_initialized = false;
+  // static double last_yaw = 0.0;
+  // static auto same_yaw_start_time = current_time;
+  // static auto last_yaw_change_time = current_time;
+  // static auto stats_window_start_time = current_time;
+  // static size_t odom_pub_count_in_window = 0;
+  // static size_t yaw_update_count_in_window = 0;
+
+  constexpr double kYawDiffEps = 1e-4;  // rad，小于该阈值认为 yaw 未变化
+
+  auto normalize_angle = [](double a) {
+    while (a > M_PI) {
+      a -= 2.0 * M_PI;
+    }
+    while (a < -M_PI) {
+      a += 2.0 * M_PI;
+    }
+    return a;
+  };
   odomAftMapped.header.frame_id = "camera_init";
   odomAftMapped.child_frame_id = "body";
   if (publish_odometry_without_downsample) {
@@ -290,6 +315,90 @@ void publish_odometry(
     odomAftMapped.header.stamp = get_ros_time(lidar_end_time);
   }
   set_posestamp(odomAftMapped.pose.pose);
+
+  tf2::Quaternion q_pose(
+    odomAftMapped.pose.pose.orientation.x,
+    odomAftMapped.pose.pose.orientation.y,
+    odomAftMapped.pose.pose.orientation.z,
+    odomAftMapped.pose.pose.orientation.w);
+  double roll_pose = 0.0;
+  double pitch_pose = 0.0;
+  double yaw_pose = 0.0;
+  tf2::Matrix3x3(q_pose).getRPY(roll_pose, pitch_pose, yaw_pose);
+
+  // odom_pub_count_in_window++;
+  // if (!yaw_initialized) {
+  //   yaw_initialized = true;
+  //   last_yaw = yaw_pose;
+  //   same_yaw_start_time = current_time;
+  //   last_yaw_change_time = current_time;
+  // } else {
+  //   const double yaw_diff = normalize_angle(yaw_pose - last_yaw);
+  //   if (std::fabs(yaw_diff) <= kYawDiffEps) {
+  //     // yaw 保持不变，持续时间统计由周期日志打印
+  //   } else {
+  //     // yaw 发生更新：打印上一段“yaw 不变”的持续时长
+  //     const double same_yaw_duration =
+  //       std::chrono::duration<double>(current_time - same_yaw_start_time).count();
+  //     RCLCPP_INFO(
+  //       LOGGER,
+  //       "[ODOM DEBUG] Yaw unchanged duration: %.3f s, then updated by %.6f rad",
+  //       same_yaw_duration,
+  //       std::fabs(yaw_diff));
+
+  //     yaw_update_count_in_window++;
+  //     last_yaw_change_time = current_time;
+  //     same_yaw_start_time = current_time;
+  //     last_yaw = yaw_pose;
+  //   }
+  // }
+
+  // const double window_dt =
+  //   std::chrono::duration<double>(current_time - stats_window_start_time).count();
+  // if (window_dt >= 1.0) {
+  //   const double odom_pub_hz = static_cast<double>(odom_pub_count_in_window) / window_dt;
+  //   const double yaw_update_hz = static_cast<double>(yaw_update_count_in_window) / window_dt;
+  //   const double yaw_same_duration_now =
+  //     std::chrono::duration<double>(current_time - same_yaw_start_time).count();
+  //   const double since_last_yaw_update =
+  //     std::chrono::duration<double>(current_time - last_yaw_change_time).count();
+
+  //   RCLCPP_INFO(
+  //     LOGGER,
+  //     "[ODOM DEBUG] odom_pub: %.2f Hz | yaw_update: %.2f Hz | yaw_same_now: %.3f s | "
+  //     "since_last_yaw_update: %.3f s | yaw: %.6f rad",
+  //     odom_pub_hz,
+  //     yaw_update_hz,
+  //     yaw_same_duration_now,
+  //     since_last_yaw_update,
+  //     yaw_pose);
+
+  //   stats_window_start_time = current_time;
+  //   odom_pub_count_in_window = 0;
+  //   yaw_update_count_in_window = 0;
+  // }
+
+  auto set_twist_linear_from_kf = [&](const auto & kf) {
+    Eigen::Vector3d vel_world = kf.x_.vel;
+    Eigen::Quaterniond q(kf.x_.rot);
+    Eigen::Vector3d vel_body = q.inverse() * vel_world;
+
+    odomAftMapped.twist.twist.linear.x = vel_body(0);
+    odomAftMapped.twist.twist.linear.y = vel_body(1);
+    odomAftMapped.twist.twist.linear.z = vel_body(2);
+  };
+
+  if (!use_imu_as_input) {
+    set_twist_linear_from_kf(kf_output);
+    odomAftMapped.twist.twist.angular.x = kf_output.x_.omg(0);
+    odomAftMapped.twist.twist.angular.y = kf_output.x_.omg(1);
+    odomAftMapped.twist.twist.angular.z = kf_output.x_.omg(2);
+  } else {
+    set_twist_linear_from_kf(kf_input);
+    odomAftMapped.twist.twist.angular.x = angvel_avr(0);
+    odomAftMapped.twist.twist.angular.y = angvel_avr(1);
+    odomAftMapped.twist.twist.angular.z = angvel_avr(2);
+  }
 
   pubOdomAftMapped->publish(odomAftMapped);
 
@@ -310,9 +419,10 @@ void publish_odometry(
     geometry_msgs::msg::TransformStamped transform_inverse;
     transform_inverse.header.frame_id = "body";
     transform_inverse.child_frame_id = "base_link";
-    transform_inverse.transform.translation.x = -0.20;
-    transform_inverse.transform.translation.y = -0;
+    transform_inverse.transform.translation.x = -0.03;
+    transform_inverse.transform.translation.y = 0.21;
     transform_inverse.transform.translation.z = 0.0;
+
 
     tf2::Quaternion q(
       odomAftMapped.pose.pose.orientation.x,
@@ -350,6 +460,7 @@ int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
   auto nh = std::make_shared<rclcpp::Node>("laserMapping");
+  auto icp_client = nh->create_client<std_srvs::srv::Trigger>("/gicp_recall");
 
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(nh);
@@ -436,6 +547,44 @@ int main(int argc, char ** argv)
     if (flg_exit) break;
     executor.spin_some();
     if (sync_packages(Measures)) {
+      static double last_proc_time = -1.0;
+      static int startup_frame_cnt = 0;
+      startup_frame_cnt++;
+
+      bool trigger_exit = false;
+      std::string exit_reason = "";
+
+      // 1. [故障监测] 时间戳乱序 (严重系统错误)
+      if (last_proc_time > 0 && Measures.lidar_beg_time < last_proc_time) {
+         exit_reason = "Time Disorder Detected (Curr < Last)";
+         trigger_exit = true;
+      }
+
+      // 2. [故障监测] 网络大延时 (严重丢包/网络拥塞)
+      if (!trigger_exit && last_proc_time > 0 && (Measures.lidar_beg_time - last_proc_time) > 1.0 && startup_frame_cnt > 2000) {
+          exit_reason = "Large Time Gap (>0.5s)";
+          trigger_exit = true;
+      }
+
+      // [执行] 触发退出，由 ROS launch 的 respawn 机制接管
+      if (trigger_exit) {
+          RCLCPP_FATAL(LOGGER, "[CRASH MONITOR] %s. Respawning...", exit_reason.c_str());
+          
+          if (icp_client->wait_for_service(std::chrono::seconds(1))) {
+             auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
+             auto result = icp_client->async_send_request(request);
+             // 简单等待3s，期间维持通信，确保请求发出
+             auto start = std::chrono::steady_clock::now();
+             while(rclcpp::ok() && (std::chrono::steady_clock::now() - start) < std::chrono::seconds(3)) {
+                 if(result.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) break;
+                 executor.spin_some();
+                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
+             }
+          }
+          exit(EXIT_FAILURE); 
+      }
+
+      last_proc_time = Measures.lidar_beg_time;
       if (flg_reset) {
         RCLCPP_WARN(LOGGER, "reset when rosbag play back");
         p_imu->Reset();

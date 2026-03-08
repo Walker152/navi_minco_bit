@@ -11,6 +11,7 @@
  */
 
 #include "preprocess.h"
+#include <omp.h>
 
 // Livox雷达数据返回状态定义
 #define RETURN0 0x00        ///< 正常返回状态
@@ -253,6 +254,8 @@ void Preprocess::process_cut_frame_pcl2(
       memset(is_first, true, sizeof(is_first));
     }
 
+    const double blind_sq = blind * blind;
+    const double det_range_sq = det_range * det_range;
     for (int i = 0; i < plsize; i++) {
       PointType added_pt;
       added_pt.normal_x = 0;
@@ -264,11 +267,9 @@ void Preprocess::process_cut_frame_pcl2(
       added_pt.intensity = pl_orig.points[i].intensity;
       added_pt.curvature = pl_orig.points[i].time * 1000.0;  //ms
 
+      if (std::isnan(added_pt.x) || std::isnan(added_pt.y) || std::isnan(added_pt.z)) continue;
       double dist = added_pt.x * added_pt.x + added_pt.y * added_pt.y + added_pt.z * added_pt.z;
-      if (
-        dist < blind * blind || dist > det_range * det_range || isnan(added_pt.x) ||
-        isnan(added_pt.y) || isnan(added_pt.z))
-        continue;
+      if (dist < blind_sq || dist > det_range_sq) continue;
 
       if (!given_offset_time) {
         int layer = pl_orig.points[i].ring;
@@ -303,6 +304,8 @@ void Preprocess::process_cut_frame_pcl2(
     pcl::fromROSMsg(*msg, pl_orig);
     int plsize = pl_orig.points.size();
     pl_surf.reserve(plsize);
+    const double blind_sq = blind * blind;
+    const double det_range_sq = det_range * det_range;
     for (int i = 0; i < plsize; i++) {
       PointType added_pt;
       added_pt.normal_x = 0;
@@ -314,11 +317,9 @@ void Preprocess::process_cut_frame_pcl2(
       added_pt.intensity = pl_orig.points[i].intensity;
       added_pt.curvature = pl_orig.points[i].t / 1e6;  //ns to ms
 
+      if (std::isnan(added_pt.x) || std::isnan(added_pt.y) || std::isnan(added_pt.z)) continue;
       double dist = added_pt.x * added_pt.x + added_pt.y * added_pt.y + added_pt.z * added_pt.z;
-      if (
-        dist < blind * blind || dist > det_range * det_range || isnan(added_pt.x) ||
-        isnan(added_pt.y) || isnan(added_pt.z))
-        continue;
+      if (dist < blind_sq || dist > det_range_sq) continue;
 
       if (i % point_filter_num == 0 && pl_orig.points[i].ring < N_SCANS) {
         pl_surf.points.push_back(added_pt);
@@ -329,6 +330,8 @@ void Preprocess::process_cut_frame_pcl2(
     pcl::fromROSMsg(*msg, pl_orig);
     int plsize = pl_orig.points.size();
     pl_surf.reserve(plsize);
+    const double blind_sq = blind * blind;
+    const double det_range_sq = det_range * det_range;
     for (int i = 0; i < plsize; i++) {
       PointType added_pt;
       added_pt.normal_x = 0;
@@ -341,11 +344,9 @@ void Preprocess::process_cut_frame_pcl2(
       added_pt.curvature =
         (pl_orig.points[i].timestamp - rclcpp::Time(msg->header.stamp).seconds()) * 1000;  //s to ms
 
+      if (std::isnan(added_pt.x) || std::isnan(added_pt.y) || std::isnan(added_pt.z)) continue;
       double dist = added_pt.x * added_pt.x + added_pt.y * added_pt.y + added_pt.z * added_pt.z;
-      if (
-        dist < blind * blind || dist > det_range * det_range || isnan(added_pt.x) ||
-        isnan(added_pt.y) || isnan(added_pt.z))
-        continue;
+      if (dist < blind_sq || dist > det_range_sq) continue;
 
       if (i % point_filter_num == 0 && pl_orig.points[i].ring < N_SCANS) {
         pl_surf.points.push_back(added_pt);

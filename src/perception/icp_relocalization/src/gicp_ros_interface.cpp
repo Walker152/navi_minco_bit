@@ -1,7 +1,8 @@
 #include "gicp_ros_interface.hpp"
-#include "geometry_msgs/msg/transform_stamped.hpp"
+#include "gicp_utils.hpp"
 #include <Eigen/Geometry>
 #include <tf2_eigen/tf2_eigen.hpp>
+#include <pcl_conversions/pcl_conversions.h>
 
 namespace icp_relocalization
 {
@@ -11,18 +12,20 @@ namespace icp_relocalization
   {
     RCLCPP_INFO(this->get_logger(), "Loading parameters from YAML file...");
     // Default parameters
-    std::string mode_str = this->declare_parameter<std::string>("mode", "sac_ia");
-    if(mode_str == "sac_ia")
-      mode_ = Mode::SAC_IA;
+    std::string mode_str = this->declare_parameter<std::string>("mode", "multi_guess");
+    if(mode_str == "multi_guess")
+      mode_ = Mode::MULTI_GUESS;
     else if(mode_str == "initial_guess")
       mode_ = Mode::INITIAL_GUESS;
     else
     {
-      RCLCPP_WARN(this->get_logger(), "Invalid mode: %s. Defaulting to sac_ia.", mode_str.c_str());
-      mode_ = Mode::SAC_IA;
+      RCLCPP_WARN(this->get_logger(), "Invalid mode: %s. Defaulting to multi_guess.", mode_str.c_str());
+      mode_ = Mode::MULTI_GUESS;
     }
 
     map_frame_ = this->declare_parameter<std::string>("map_frame", "map");
+    visualization_en_ = this->declare_parameter<bool>("visualization_en", true);
+    source_cloud_topic_ = this->declare_parameter<std::string>("source_cloud_topic", "/livox_stdpc");
     alignment_frequency_ = this->declare_parameter<double>("alignment_frequency", 1.0);
     accumulate_frames_ = this->declare_parameter<int>("accumulate_frames", 5);
     fitness_score_threshold_ = this->declare_parameter<double>("fitness_score_threshold", 0.5);
@@ -33,7 +36,6 @@ namespace icp_relocalization
     initial_pose_ = this->declare_parameter<std::vector<double>>("initial_pose", {0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
 
     // GICP Parameters
-    gicp_options_.feature_k_search = this->declare_parameter<int>("feature_k_search", 20);
     gicp_options_.target_voxel_leaf_size = this->declare_parameter<double>("gicp.target_voxel_leaf_size", 0.1);
     gicp_options_.source_voxel_leaf_size = this->declare_parameter<double>("gicp.source_voxel_leaf_size", 0.1);
     gicp_options_.max_correspondence_distance = this->declare_parameter<double>("gicp.max_correspondence_distance", 1.5);
@@ -46,18 +48,47 @@ namespace icp_relocalization
     gicp_options_.height_filter_min_z = this->declare_parameter<double>("height_filter.min_z", -1000.0);
     gicp_options_.height_filter_max_z = this->declare_parameter<double>("height_filter.max_z", 1000.0);
 
-    // SAC-IA Parameters
-    gicp_options_.sac_ia_min_sample_distance = this->declare_parameter<double>("sac_ia.min_sample_distance", 0.5);
-    gicp_options_.sac_ia_correspondence_randomness =
-        this->declare_parameter<int>("sac_ia.correspondence_randomness", 6);
-    gicp_options_.sac_ia_num_samples = this->declare_parameter<int>("sac_ia.num_samples", 3);
-    gicp_options_.sac_ia_max_correspondence_distance =
-        this->declare_parameter<double>("sac_ia.max_correspondence_distance", 1.0);
+    // Source Crop Parameters
+    gicp_options_.source_crop_enabled = this->declare_parameter<bool>("source_crop.enable", true);
+    gicp_options_.source_crop_min_x = this->declare_parameter<double>("source_crop.min_x", -20.0);
+    gicp_options_.source_crop_max_x = this->declare_parameter<double>("source_crop.max_x", 20.0);
+    gicp_options_.source_crop_min_y = this->declare_parameter<double>("source_crop.min_y", -20.0);
+    gicp_options_.source_crop_max_y = this->declare_parameter<double>("source_crop.max_y", 20.0);
+    gicp_options_.source_crop_min_z = this->declare_parameter<double>("source_crop.min_z", -2.5);
+    gicp_options_.source_crop_max_z = this->declare_parameter<double>("source_crop.max_z", 2.5);
+
+    // Multi-Guess Parameters
+    const auto rects =
+      this->declare_parameter<std::vector<double>>("multi_guess.search_rectangles", std::vector<double>{});
+    gicp_options_.z_candidates =
+      this->declare_parameter<std::vector<double>>("multi_guess.z_candidates", std::vector<double>{0.0});
+    gicp_options_.step_x = this->declare_parameter<double>("multi_guess.step_x", 1.0);
+    gicp_options_.step_y = this->declare_parameter<double>("multi_guess.step_y", 1.0);
+    gicp_options_.step_yaw = this->declare_parameter<double>("multi_guess.step_yaw", 0.785);
+
+    if(rects.size() % 4 != 0)
+    {
+      RCLCPP_WARN(this->get_logger(),
+                  "multi_guess.search_rectangles size (%zu) is not divisible by 4. Ignoring tail values.",
+                  rects.size());
+    }
+    gicp_options_.search_areas.clear();
+    for(size_t i = 0; i + 3 < rects.size(); i += 4)
+    {
+      GicpFilter::SearchArea area;
+      area.min_x = rects[i];
+      area.max_x = rects[i + 1];
+      area.min_y = rects[i + 2];
+      area.max_y = rects[i + 3];
+      gicp_options_.search_areas.push_back(area);
+    }
 
     std::cout << BOLDCYAN << " ========== GICP Relocalization ==========" << RESET << std::endl;
     LOG_DEBUG_BLOCK(std::string(CYAN) + "[RELOCALIZATION] ",
                     NV(mode_str),
                     NV(map_frame_),
+                    NV(visualization_en_),
+                    NV(source_cloud_topic_),
                     NV(alignment_frequency_),
                     NV(accumulate_frames_),
                     NV(converged_count_threshold_),
@@ -85,18 +116,25 @@ namespace icp_relocalization
                     NV(gicp_options_.euclidean_fitness_epsilon),
                     NV(gicp_options_.height_filter_enabled),
                     NV(gicp_options_.height_filter_min_z),
-                    NV(gicp_options_.height_filter_max_z));
-    std::cout << BOLDCYAN << "  ----------SAC-IA Options----------" << RESET << std::endl;
-    LOG_DEBUG_BLOCK(std::string(CYAN) + "[SAC-IA] ",
-                    NV(gicp_options_.sac_ia_min_sample_distance),
-                    NV(gicp_options_.sac_ia_correspondence_randomness),
-                    NV(gicp_options_.sac_ia_num_samples),
-                    NV(gicp_options_.sac_ia_max_correspondence_distance),
-                    NV(gicp_options_.feature_k_search));
+                    NV(gicp_options_.height_filter_max_z),
+                    NV(gicp_options_.source_crop_enabled),
+                    NV(gicp_options_.source_crop_min_x),
+                    NV(gicp_options_.source_crop_max_x),
+                    NV(gicp_options_.source_crop_min_y),
+                    NV(gicp_options_.source_crop_max_y),
+                    NV(gicp_options_.source_crop_min_z),
+                    NV(gicp_options_.source_crop_max_z));
+    std::cout << BOLDCYAN << "  ----------Multi-Guess Options----------" << RESET << std::endl;
+    LOG_DEBUG_BLOCK(std::string(CYAN) + "[MULTI-GUESS] ",
+            NV(gicp_options_.step_x),
+            NV(gicp_options_.step_y),
+            NV(gicp_options_.step_yaw),
+            NV(gicp_options_.z_candidates.size()),
+            NV(gicp_options_.search_areas.size()));
     
-    if(mode_ == Mode::SAC_IA)
+    if(mode_ == Mode::MULTI_GUESS)
     {
-      RCLCPP_INFO(this->get_logger(), "Mode: SAC-IA. Waiting for lidar scan to initialize.");
+      RCLCPP_INFO(this->get_logger(), "Mode: MULTI_GUESS. Waiting for lidar scan to initialize.");
     }
     else
     {
@@ -108,23 +146,16 @@ namespace icp_relocalization
       }
     }
 
-    setupGicp(target_pcd_file);
-
     // ROS接口初始化
     callback_group_lidar_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-    rclcpp::SubscriptionOptions lidar_sub_options;
-    lidar_sub_options.callback_group = callback_group_lidar_;
+    // Serialize service callback with lidar/timer callbacks to avoid races under MultiThreadedExecutor.
+    callback_group_service_ = callback_group_lidar_;
 
-    lidar_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-        "/livox/stdpc",
-        rclcpp::SensorDataQoS(),
-        std::bind(&GicpRosInterface::lidarCallback, this, std::placeholders::_1),
-        lidar_sub_options);
+    activateLidarSubscription();
 
-    map_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/gicp_map", rclcpp::QoS(1).transient_local());
-    source_pub_ =
-        this->create_publisher<sensor_msgs::msg::PointCloud2>("/gicp_source", 10);  // Debug: accumulated cloud
-    aligned_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/gicp_aligned", 10);
+    initializeDebugPublishers();
+
+    setupGicp(target_pcd_file);
     
     // Use StaticTransformBroadcaster for static map->camera_init transform
     static_tf_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
@@ -132,18 +163,116 @@ namespace icp_relocalization
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
     accumulated_cloud_ = std::make_shared<PointCloud>();
-
-    // 发布一次地图
-    sensor_msgs::msg::PointCloud2 map_msg;
-    pcl::toROSMsg(*gicp_filter_->getTargetCloud(), map_msg);
-    map_msg.header.frame_id = map_frame_;
-    map_pub_->publish(map_msg);
+    latest_source_raw_cloud_ = std::make_shared<PointCloud>();
+    latest_source_cloud_for_visualization_ = std::make_shared<PointCloud>();
 
     // 初始化FSM定时器
-    double period = 1.0 / alignment_frequency_;
-    fsm_timer_ = this->create_wall_timer(std::chrono::duration<double>(period),
-                                         std::bind(&GicpRosInterface::fsmTimerCallback, this),
-                                         callback_group_lidar_);
+    if(alignment_frequency_ <= 0.0)
+    {
+      RCLCPP_WARN(this->get_logger(), "alignment_frequency <= 0 (%.3f). Forcing to 1.0 Hz.", alignment_frequency_);
+      alignment_frequency_ = 1.0;
+    }
+    fsm_period_ = std::chrono::duration<double>(1.0 / alignment_frequency_);
+    startFsmTimer();
+    startVisualizationTimer();
+
+    // 初始化重定位服务
+    relocalize_srv_ = this->create_service<std_srvs::srv::Trigger>(
+        "/gicp_recall",
+        std::bind(&GicpRosInterface::relocalizeServiceCallback, this, std::placeholders::_1, std::placeholders::_2),
+        rmw_qos_profile_services_default,
+        callback_group_service_);
+  }
+
+  void GicpRosInterface::activateLidarSubscription()
+  {
+    rclcpp::SubscriptionOptions lidar_sub_options;
+    lidar_sub_options.callback_group = callback_group_lidar_;
+    lidar_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+        source_cloud_topic_,
+        rclcpp::SensorDataQoS(),
+        std::bind(&GicpRosInterface::lidarCallback, this, std::placeholders::_1),
+        lidar_sub_options);
+  }
+
+  void GicpRosInterface::initializeDebugPublishers()
+  {
+    if(!visualization_en_)
+    {
+      return;
+    }
+
+    pub_source_raw_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/source_raw", 10);
+    pub_source_cropped_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/source_cropped", 10);
+    pub_source_aligned_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/source_aligned", 10);
+    pub_target_raw_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/target_raw", 10);
+    pub_target_cropped_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/debug/target_cropped", 10);
+  }
+
+  void GicpRosInterface::startFsmTimer()
+  {
+    if(fsm_timer_)
+    {
+      fsm_timer_->cancel();
+      fsm_timer_.reset();
+    }
+
+    fsm_timer_ = this->create_wall_timer(
+        fsm_period_,
+        std::bind(&GicpRosInterface::fsmTimerCallback, this),
+        callback_group_lidar_);
+  }
+
+  void GicpRosInterface::startVisualizationTimer()
+  {
+    if(!visualization_en_)
+    {
+      return;
+    }
+
+    if(visualization_timer_)
+    {
+      visualization_timer_->cancel();
+      visualization_timer_.reset();
+    }
+
+    visualization_timer_ = this->create_wall_timer(
+        std::chrono::milliseconds(1000),
+        std::bind(&GicpRosInterface::visualizationTimerCallback, this),
+        callback_group_lidar_);
+  }
+
+  void GicpRosInterface::relocalizeServiceCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+                                                  std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+  {
+    (void)request;
+    RCLCPP_INFO(this->get_logger(),
+                "%sReceived request to re-trigger relocalization.%s",
+                color_text::MAGENTA.c_str(),
+                color_text::RESET.c_str());
+
+    // 1. Reset State
+    mode_ = Mode::MULTI_GUESS;
+    state_ = State::UNINITIALIZED;
+    converged_count_ = 0;
+    current_accumulated_frames_ = 0;
+    if(accumulated_cloud_) accumulated_cloud_->clear();
+    if(latest_source_cloud_for_visualization_) latest_source_cloud_for_visualization_->clear();
+    gicp_initialized_ = false;
+    last_cloud_stamp_ = rclcpp::Time(0, 0, this->get_clock()->get_clock_type());
+
+    // 2. Reactivate Lidar Subscription if needed
+    if(!lidar_sub_)
+    {
+      activateLidarSubscription();
+      RCLCPP_INFO(this->get_logger(), "Lidar subscription reactivated.");
+    }
+
+    // 3. Restart FSM Timer
+    startFsmTimer();
+
+    response->success = true;
+    response->message = "Relocalization process restarted.";
   }
 
   void GicpRosInterface::setupGicp(const std::string& target_pcd_file)
@@ -159,25 +288,26 @@ namespace icp_relocalization
 
       // 2. 初始化 GICP Filter
       gicp_filter_ = std::make_unique<GicpFilter>(target_cloud, gicp_options_);
-
-      RCLCPP_INFO(this->get_logger(), "GICP filter initialized with map: %s", target_pcd_file.c_str());
     }
     catch(const std::runtime_error& e)
     {
-      RCLCPP_FATAL(this->get_logger(), "Failed to initialize GICP filter: %s", e.what());
       rclcpp::shutdown();
     }
   }
-
 
   void GicpRosInterface::lidarCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
   {
     // Accumulate points directly
     PointCloud::Ptr temp_cloud(new PointCloud());
     pcl::fromROSMsg(*msg, *temp_cloud);
+
+    if(visualization_en_ && latest_source_raw_cloud_)
+    {
+      *latest_source_raw_cloud_ = *temp_cloud;
+      last_source_raw_stamp_ = msg->header.stamp;
+      source_raw_frame_id_ = msg->header.frame_id;
+    }
     
-    // Assuming input cloud is already in the correct frame (camera_init/odom)
-    // If not, we might need to transform it, but user said it's ensured.
     *accumulated_cloud_ += *temp_cloud;
     current_accumulated_frames_++;
     last_cloud_stamp_ = msg->header.stamp;
@@ -186,17 +316,74 @@ namespace icp_relocalization
     // Reset if too large (safety)
     if(accumulated_cloud_->size() > 100000) 
     {
-        // Keep last N points or just clear? 
-        // For relocalization, we usually want a specific window.
-        // If we just keep adding, it grows indefinitely until FSM runs.
-        // FSM runs at 1Hz (default), lidar at 10Hz. 
-        // accumulate_frames_ is 5.
+      RCLCPP_WARN(this->get_logger(), "Accumulated cloud too large (%zu points). Clearing buffer.", accumulated_cloud_->size());
+      accumulated_cloud_->clear();
+      current_accumulated_frames_ = 0;
     }
   }
 
   void GicpRosInterface::fsmTimerCallback()
   {
     runFSM();
+  }
+
+  void GicpRosInterface::visualizationTimerCallback()
+  {
+    if(!visualization_en_)
+    {
+      return;
+    }
+
+    rclcpp::Time now_stamp = this->now();
+
+    if(pub_source_raw_ && latest_source_raw_cloud_ && !latest_source_raw_cloud_->empty() &&
+       pub_source_raw_->get_subscription_count() > 0)
+    {
+      sensor_msgs::msg::PointCloud2 source_raw_msg;
+      pcl::toROSMsg(*latest_source_raw_cloud_, source_raw_msg);
+      source_raw_msg.header.frame_id = source_raw_frame_id_.empty() ? map_frame_ : source_raw_frame_id_;
+      source_raw_msg.header.stamp =
+          (last_source_raw_stamp_.nanoseconds() == 0) ? now_stamp : last_source_raw_stamp_;
+      pub_source_raw_->publish(source_raw_msg);
+    }
+
+    if(pub_target_raw_ && gicp_filter_ && pub_target_raw_->get_subscription_count() > 0)
+    {
+      sensor_msgs::msg::PointCloud2 target_raw_msg;
+      pcl::toROSMsg(*gicp_filter_->getTargetCloud(), target_raw_msg);
+      target_raw_msg.header.frame_id = map_frame_;
+      target_raw_msg.header.stamp = now_stamp;
+      pub_target_raw_->publish(target_raw_msg);
+    }
+
+    if(!latest_source_cloud_for_visualization_ || latest_source_cloud_for_visualization_->empty())
+    {
+      return;
+    }
+
+    rclcpp::Time cloud_stamp = (last_cloud_stamp_.nanoseconds() == 0) ? now_stamp : last_cloud_stamp_;
+
+    gicp_utils::publishSourceCroppedDebug(visualization_en_,
+                                          gicp_options_,
+                                          map_frame_,
+                                          latest_source_cloud_for_visualization_,
+                                          map_to_camera_init_,
+                                          cloud_stamp,
+                                          pub_source_cropped_);
+
+    gicp_utils::publishTargetCroppedDebug(visualization_en_,
+                                          map_frame_,
+                                          cloud_stamp,
+                                          gicp_filter_.get(),
+                                          pub_target_cropped_);
+
+    gicp_utils::publishVisualization(latest_source_cloud_for_visualization_,
+                                     cloud_stamp,
+                                     visualization_en_,
+                                     gicp_initialized_,
+                                     map_frame_,
+                                     map_to_camera_init_,
+                                     pub_source_aligned_);
   }
 
   void GicpRosInterface::runFSM()
@@ -209,26 +396,26 @@ namespace icp_relocalization
 
     PointCloud::Ptr source_cloud(new PointCloud());
     *source_cloud = *accumulated_cloud_;
-    
-    // Clear accumulation for next batch
-    accumulated_cloud_->clear();
-    current_accumulated_frames_ = 0;
 
     if(source_cloud->empty() || source_cloud->size() < 100)
     {
       RCLCPP_WARN(this->get_logger(), "Accumulated cloud is empty or too small (%zu points).", source_cloud->size());
+      accumulated_cloud_->clear();
+      current_accumulated_frames_ = 0;
       return;
     }
 
-    // Debug: 发布累积后的点云
-    publishVisualization(source_cloud, last_cloud_stamp_);
+    if(visualization_en_ && latest_source_cloud_for_visualization_)
+    {
+      *latest_source_cloud_for_visualization_ = *source_cloud;
+    }
 
     // 状态机逻辑
     switch(state_)
     {
     case State::UNINITIALIZED:
     {
-      if(mode_ == Mode::SAC_IA)
+      if(mode_ == Mode::MULTI_GUESS)
       {
         state_ = State::INITIALIZING;
       }
@@ -256,15 +443,15 @@ namespace icp_relocalization
 
     case State::INITIALIZING:
     {
-      RCLCPP_INFO(this->get_logger(), "Starting initial alignment (SAC-IA)...");
+      RCLCPP_INFO(this->get_logger(), "Starting initial alignment (MULTI_GUESS)...");
 
-      auto result = gicp_filter_->initialAlign(source_cloud);
+      auto result = gicp_filter_->initialAlign(accumulated_cloud_);
 
       if(result.converged)
       {
         RCLCPP_INFO(this->get_logger(), "Initial alignment successful! Fitness score: %f", result.fitness_score);
 
-        // GICP/SAC-IA 计算的是 Source(camera_init) -> Target(map) 的变换
+        // GICP 计算的是 Source(camera_init) -> Target(map) 的变换
         map_to_camera_init_ = result.final_transformation;
 
         gicp_initialized_ = true;
@@ -284,7 +471,7 @@ namespace icp_relocalization
       if(!gicp_initialized_)
       {
         state_ = State::UNINITIALIZED;
-        return;
+        break;
       }
 
       RCLCPP_INFO(this->get_logger(), "Verifying convergence (Count: %d/%d)...", converged_count_, converged_count_threshold_);
@@ -298,27 +485,41 @@ namespace icp_relocalization
 
       if(result.converged && result.fitness_score < fitness_score_threshold_)
       {
-        printEvaluation(initial_guess, result.final_transformation, result.fitness_score, time_ms);
+        gicp_utils::printEvaluation(initial_guess, result.final_transformation, result.fitness_score, time_ms);
 
-        RCLCPP_INFO(this->get_logger(), "GICP converged with score: %f", result.fitness_score);
-        
+        std::cout << MAGENTA << "[GICP] Converged! Score: " << result.fitness_score << RESET << std::endl;
+
         map_to_camera_init_ = result.final_transformation;
         
         converged_count_++;
         if(converged_count_ >= converged_count_threshold_)
         {
-          RCLCPP_INFO(this->get_logger(), "Relocalization converged successfully! Switching to LOCALIZED state.");
+          std::cout << GREEN << "[GICP] Localization confirmed after " << converged_count_ << " consecutive convergences!" << RESET << std::endl;
           state_ = State::LOCALIZED;
           
           // Publish Static TF once converged
-          publishStaticTf(this->now());
+          gicp_utils::publishStaticTf(static_tf_broadcaster_,
+                                      map_frame_,
+                                      cloud_frame_id_,
+                                      map_to_camera_init_,
+                                      this->now());
+
+          // Suspend operations to save resources
+          RCLCPP_INFO(this->get_logger(), "Suspending GICP update timer and lidar subscription.");
+          if (fsm_timer_) {
+              fsm_timer_->cancel();
+          }
+          // Reset subscriber to stop receiving data completely
+          if (lidar_sub_) {
+             lidar_sub_.reset(); 
+          }
         }
       }
       else
       {
-        RCLCPP_WARN(this->get_logger(), "GICP failed to converge or score too high (%f). Resetting count.", result.fitness_score);
+        std::cout << YELLOW << "[GICP] Failed to converge or score too high (" << result.fitness_score << "). Resetting count." << RESET << std::endl;
         converged_count_ = 0;
-        // If we were in SAC_IA mode, maybe we should restart?
+        // If we were in MULTI_GUESS mode, maybe we should restart?
         // If we were in INITIAL_GUESS mode, maybe we should wait for new guess?
         // For now, let's go back to UNINITIALIZED to be safe.
         state_ = State::UNINITIALIZED;
@@ -338,92 +539,12 @@ namespace icp_relocalization
     default:
       break;
     }
+
+    // Clear accumulation for next batch after processing
+    accumulated_cloud_->clear();
+    current_accumulated_frames_ = 0;
   }
 
-  void GicpRosInterface::publishStaticTf(const rclcpp::Time& stamp)
-  {
-    if(cloud_frame_id_.empty()) return;
-
-    geometry_msgs::msg::TransformStamped t;
-    t.header.stamp = stamp;
-    t.header.frame_id = map_frame_;
-    t.child_frame_id = cloud_frame_id_; // camera_init or odom
-
-    Eigen::Matrix4f current_map_to_init = map_to_camera_init_;
-
-    Eigen::Vector3f tf_pos = current_map_to_init.block<3, 1>(0, 3);
-    Eigen::Quaternionf tf_quat(current_map_to_init.block<3, 3>(0, 0));
-
-    t.transform.translation.x = tf_pos.x();
-    t.transform.translation.y = tf_pos.y();
-    t.transform.translation.z = tf_pos.z();
-    t.transform.rotation.x = tf_quat.x();
-    t.transform.rotation.y = tf_quat.y();
-    t.transform.rotation.z = tf_quat.z();
-    t.transform.rotation.w = tf_quat.w();
-
-    static_tf_broadcaster_->sendTransform(t);
-    RCLCPP_INFO(this->get_logger(), "Published static TF: %s -> %s", t.header.frame_id.c_str(), t.child_frame_id.c_str());
-  }  
   
-  void GicpRosInterface::publishVisualization(const PointCloud::Ptr& cloud, const rclcpp::Time& stamp)
-  {
-    // 1. 发布原始累积点云 (Source Cloud)
-    if(source_pub_->get_subscription_count() > 0)
-    {
-      sensor_msgs::msg::PointCloud2 source_msg;
-      pcl::toROSMsg(*cloud, source_msg);
-      source_msg.header.frame_id = "camera_init"; // Fallback
-      source_msg.header.stamp = stamp;
-      source_pub_->publish(source_msg);
-    }
-
-    // 2. 发布配准后的点云 (Aligned Cloud)
-    // 将点云变换到 map 坐标系下发布，用于验证配准效果
-    if(aligned_cloud_pub_->get_subscription_count() > 0 && gicp_initialized_)
-    {
-      PointCloud::Ptr aligned_cloud(new PointCloud());
-      Eigen::Matrix4f transform = map_to_camera_init_;
-      pcl::transformPointCloud(*cloud, *aligned_cloud, transform);
-
-      sensor_msgs::msg::PointCloud2 aligned_msg;
-      pcl::toROSMsg(*aligned_cloud, aligned_msg);
-      aligned_msg.header.frame_id = map_frame_;
-      aligned_msg.header.stamp = stamp;
-      aligned_cloud_pub_->publish(aligned_msg);
-    }
-  }
-
-  void GicpRosInterface::printEvaluation(const Eigen::Matrix4f& initial_guess, 
-                                         const Eigen::Matrix4f& final_transformation, 
-                                         double fitness_score, 
-                                         double time_ms)
-  {
-    float init_x = initial_guess(0, 3);
-    float init_y = initial_guess(1, 3);
-    float final_x = final_transformation(0, 3);
-    float final_y = final_transformation(1, 3);
-    
-    float dx = final_x - init_x;
-    float dy = final_y - init_y;
-    
-    float init_yaw = std::atan2(initial_guess(1, 0), initial_guess(0, 0));
-    float final_yaw = std::atan2(final_transformation(1, 0), final_transformation(0, 0));
-    float dyaw = final_yaw - init_yaw;
-    // Normalize angle
-    const double PI = 3.14159265358979323846;
-    while (dyaw > PI) dyaw -= 2 * PI;
-    while (dyaw < -PI) dyaw += 2 * PI;
-
-    const std::string GREEN = "\033[32m";
-    const std::string RESET = "\033[0m";
-    
-    std::cout << GREEN << "--------------------------------------------------" << RESET << std::endl;
-    printf("%s[GICP Eval] Score: %.4f, Time: %.2f ms%s\n", GREEN.c_str(), fitness_score, time_ms, RESET.c_str());
-    printf("%sExpected(Init): x=%.3f, y=%.3f, yaw=%.3f%s\n", GREEN.c_str(), init_x, init_y, init_yaw, RESET.c_str());
-    printf("%sActual(Final) : x=%.3f, y=%.3f, yaw=%.3f%s\n", GREEN.c_str(), final_x, final_y, final_yaw, RESET.c_str());
-    printf("%sDeviation     : dx=%.3f, dy=%.3f, dyaw=%.3f%s\n", GREEN.c_str(), dx, dy, dyaw, RESET.c_str());
-    std::cout << GREEN << "--------------------------------------------------" << RESET << std::endl;
-  }
 
 }  // namespace icp_relocalization
