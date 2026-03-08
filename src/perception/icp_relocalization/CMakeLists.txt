@@ -15,6 +15,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
@@ -46,9 +47,10 @@ target_link_libraries(gicp_filter
 )
 
 # GICP Node Executable (ROS Wrapper)
-add_executable(gicp_node src/gicp_node.cpp src/gicp_ros_interface.cpp)
+add_executable(gicp_node src/gicp_node.cpp src/gicp_ros_interface.cpp src/gicp_utils.cpp)
 ament_target_dependencies(gicp_node
   rclcpp
+  std_srvs
   sensor_msgs
   nav_msgs
   geometry_msgs

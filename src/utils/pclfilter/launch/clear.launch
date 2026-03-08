@@ -1,0 +1,8 @@
+<launch>
+    <node pkg="pclfilter" type="clear" name="clear_node" output="screen" />
+    <remap from="/odom_topic" to="/a" />
+    <remap from="/cloud_registered" to="/cloud_registered" />
+    <remap from="/cloud_filter_baselink" to="/cloud_filter_baselink" />
+    <rosparam command="load" file="$(find pclfilter)/config/cube.yaml" />
+    <!-- <rosparam command="load" file="$(find pclfilter)/config/region.yaml" /> -->
+  </launch>

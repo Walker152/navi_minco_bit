@@ -13,6 +13,9 @@ struct State
   double x{0.0};
   double y{0.0};
   double yaw{0.0};
+  double vx{0.0};
+  double vy{0.0};
+  double omega{0.0};
 };
 
 // 控制量：速度命令 (vx, vy, omega)
@@ -48,7 +51,7 @@ struct MPCConfig
   Eigen::Vector3d Q{5.0, 5.0, 2.0};
   Eigen::Vector3d R{1.0, 1.0, 0.5};
 
-  // 速度约束（作用在 body/base 速度上，求解后会旋转回 map 输出）
+  // 速度约束（作用在 map/global 速度变量上）
   double vx_min{-1.0};
   double vx_max{1.0};
   double vy_min{-1.0};
