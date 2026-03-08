@@ -1,0 +1,7 @@
+lidar_merger_node:
+  ros__parameters:
+    front_topic: "/livox/lidar_192_168_1_10"
+    back_topic: "/livox/lidar_192_168_1_12"
+    merged_topic: "/livox/lidar_merged"
+    merged_frame_id: "livox_front_frame"
+    extrinsic_back_to_front: [-0.3, 0.0, 0.0, 0.0, 0.0, 3.1415926] # 示例值：后雷达在前雷达后方0.3米处，且旋转了180度
