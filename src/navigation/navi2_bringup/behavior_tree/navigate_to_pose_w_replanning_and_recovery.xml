@@ -11,7 +11,9 @@
           <RecoveryNode number_of_retries="1" name="ComputePathToPose">
             <Sequence name="ComputeAndSmoothPath">
                 <GoalUpdater input_goal="{goal}" output_goal="{updated_goal}">
-                    <ComputePathToPose goal="{updated_goal}" path="{path}" planner_id="MincoPlanner"/>
+                    <!-- <ComputePathToPose goal="{updated_goal}" path="{path}" planner_id="MincoPlanner"/> -->
+                    <ComputePathToPose goal="{updated_goal}" path="{path}" planner_id="SmacPlanner"/>
+
                 </GoalUpdater>
                 <SmoothPath unsmoothed_path="{path}" smoothed_path="{smoothed_path}"/>
             </Sequence>

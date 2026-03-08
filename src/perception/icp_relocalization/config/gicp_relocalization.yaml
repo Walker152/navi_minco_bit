@@ -9,11 +9,12 @@ gicp_relocalization_node:
     accumulate_frames: 5
     
     # Convergence Criteria
-    fitness_score_threshold: 0.5
+    fitness_score_threshold: 0.01
+
     converged_count_threshold: 1
     
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
-    initial_pose: [0.6, 0.7, 0.0, 0.0, 0.0, 0.4]
+    initial_pose: [0.4, 0.8, 0.0, 0.0, 0.0, 0.4]
 
     # Feature Extraction
     feature_k_search: 20
@@ -28,7 +29,7 @@ gicp_relocalization_node:
     gicp:
       target_voxel_leaf_size: 0.1
       source_voxel_leaf_size: 0.1
-      max_correspondence_distance: 1.5
+      max_correspondence_distance: 0.8
       max_iterations: 100
       transformation_epsilon: 0.0001
       euclidean_fitness_epsilon: 0.0001
