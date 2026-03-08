@@ -11,6 +11,7 @@
 #include <string>
 #include <cmath>
 #include <limits>
+#include <cstdint>
 #include <filesystem>
 
 /**
@@ -143,6 +144,7 @@ public:
 
         // 3. 初始化距离场缓冲区
         std::vector<double> dist_buffer(width_ * height_, 1e10);
+        std::vector<uint8_t> occupied_mask(width_ * height_, 0);
         size_t occupied_cnt = 0;
         for (int r = 0; r < height_; ++r) {
             for (int c = 0; c < width_; ++c) {
@@ -159,6 +161,7 @@ public:
 
                 if (is_occupied) {
                     dist_buffer[r * width_ + c] = 0;
+                    occupied_mask[r * width_ + c] = 1;
                     occupied_cnt++;
                 }
             }
@@ -185,11 +188,13 @@ public:
 
         double min_intensity = std::numeric_limits<double>::infinity();
         double max_intensity = 0.0;
+        size_t neg_inf_cnt = 0;
 
         for (int r = 0; r < height_; ++r) {
             for (int c = 0; c < width_; ++c) {
-                double d2 = dist_buffer[r * width_ + c];
-                if (d2 > max_px_dist_sq) continue;
+                const int idx = r * width_ + c;
+                double d2 = dist_buffer[idx];
+                if (d2 > max_px_dist_sq) d2 = max_px_dist_sq;
 
                 pcl::PointXYZI pt;
                 // 注意：PGM 的 (0,0) 是左上角，行代表 Y 轴减方向。
@@ -199,9 +204,17 @@ public:
                 pt.x = origin_[0] + (double)c * resolution_;
                 pt.y = origin_[1] + (double)(height_ - r - 1) * resolution_;
                 pt.z = 0.0;
-                pt.intensity = std::sqrt(d2) * resolution_; // 物理距离 (米)
-                min_intensity = std::min(min_intensity, (double)pt.intensity);
-                max_intensity = std::max(max_intensity, (double)pt.intensity);
+
+                // 需求：障碍物层的距离标记为负无穷。
+                // 注意：PointXYZI::intensity 是 float。
+                if (occupied_mask[idx]) {
+                    pt.intensity = -std::numeric_limits<float>::infinity();
+                    neg_inf_cnt++;
+                } else {
+                    pt.intensity = static_cast<float>(std::sqrt(d2) * resolution_); // 物理距离 (米)
+                    min_intensity = std::min(min_intensity, (double)pt.intensity);
+                    max_intensity = std::max(max_intensity, (double)pt.intensity);
+                }
                 out_cloud->push_back(pt);
             }
         }
@@ -211,7 +224,13 @@ public:
             return;
         }
 
-        RCLCPP_INFO(this->get_logger(), "ESDF intensity range: [%.3f, %.3f] (meters)", min_intensity, max_intensity);
+        if (min_intensity == std::numeric_limits<double>::infinity()) {
+            RCLCPP_WARN(this->get_logger(), "All cells are marked as occupied; intensity is -inf everywhere (%lu points)",
+                        (unsigned long)neg_inf_cnt);
+        } else {
+            RCLCPP_INFO(this->get_logger(), "ESDF intensity range (free cells only): [%.3f, %.3f] (meters). -inf cells: %lu",
+                        min_intensity, max_intensity, (unsigned long)neg_inf_cnt);
+        }
 
         // 6. 保存与发布
         out_cloud->width = out_cloud->size();
