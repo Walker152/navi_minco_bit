@@ -153,7 +153,6 @@ bool Astar::calcPath(int /*nplan*/)
     if (min_c == c) break;
 
     if (npath >= ns - 1) {
-      RCLCPP_ERROR(rclcpp::get_logger("Astar"), "Path buffer overflow! Force breaking.");
       break;
     }
 

@@ -4,7 +4,7 @@ bt_navigator:
     global_frame: map
     robot_base_frame: "base_link"
     odom_topic: /aft_mapped_to_init
-    bt_loop_duration: 20 # ms
+    bt_loop_duration: 5 # ms
     # 行为树超时时间，秒
     default_server_timeout: 20
     # 毫秒
@@ -13,6 +13,8 @@ bt_navigator:
     # nav2_bt_navigator/navigate_to_pose_w_replanning_and_recovery.xml
     # nav2_bt_navigator/navigate_through_poses_w_replanning_and_recovery.xml
     # They can be set here or via a RewrittenYaml remap from a parent launch file to Nav2.
+    # default_nav_through_poses_bt_xml: /home/rm/2025-sentry-navi/src/navigation/navi2_bringup/behavior_tree/navigate_through_pose_w_replanning_and_recovery.xml
+    # default_nav_to_pose_bt_xml: /home/rm/2025-sentry-navi/src/navigation/navi2_bringup/behavior_tree/navigate_to_pose_w_replanning_and_recovery.xml
     default_nav_through_poses_bt_xml: src/navigation/navi2_bringup/behavior_tree/navigate_through_pose_w_replanning_and_recovery.xml
     default_nav_to_pose_bt_xml: src/navigation/navi2_bringup/behavior_tree/navigate_to_pose_w_replanning_and_recovery.xml
     plugin_lib_names:
@@ -89,7 +91,7 @@ controller_server:
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.2
-      movement_time_allowance: 10.0
+      movement_time_allowance: 100.0
     # Goal checker parameters
     #precise_goal_checker:
     #  plugin: "nav2_controller::SimpleGoalChecker"
@@ -101,175 +103,141 @@ controller_server:
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.15
       yaw_goal_tolerance: 6.28
-    # # 北极熊
-    # FollowPath:
-    #   plugin: "pb_omni_pid_pursuit_controller::OmniPidPursuitController"
-    #   translation_kp: 3.0
-    #   translation_ki: 0.1
-    #   translation_kd: 0.3
-    #   enable_rotation: false
-    #   rotation_kp: 3.0
-    #   rotation_ki: 0.1
-    #   rotation_kd: 0.3
-    #   # TF 超时时间，全局坐标系 && 机器人坐标系
-    #   transform_tolerance: 0.1
-    #   min_max_sum_error: 1.0
-    #   # 前瞻点 
-    #   lookahead_dist: 0.5
-    #   use_velocity_scaled_lookahead_dist: true # 根据速度调整前瞻点距离
-    #   lookahead_time: 1.0
-    #   min_lookahead_dist: 0.5
-    #   max_lookahead_dist: 1.0
-    #   use_interpolation: false
-    #   use_rotate_to_heading: false
-    #   use_rotate_to_heading_treshold: 0.1
-    #   min_approach_linear_velocity: 0.5
-    #   approach_velocity_scaling_dist: 1.0
-    #   # 速度限制
-    #   v_linear_min: -1.0
-    #   v_linear_max: 1.0
-    #   v_angular_min: -3.0
-    #   v_angular_max: 3.0
-    #   curvature_min: 0.4                                # 低曲率阈值，低于此值不减速。
-    #   curvature_max: 0.7                                # 高曲率阈值，高于此值大幅减速。
-    #   reduction_ratio_at_high_curvature: 0.5            # 高曲率时的速度降低比例。 0.5 (即减速 50%)
-    #   curvature_forward_dist: 0.7                       # 前向距离，用于曲率计算
-    #   curvature_backward_dist: 0.3                      # 后向距离，用于曲率计算
-    #   max_velocity_scaling_factor_rate: 0.9             # 速度缩放因子的最大变化率
 
-    # FollowPath:
-    #   plugin: "nav2_mppi_controller::MPPIController"
-    #   time_steps: 56
-    #   model_dt: 0.0167
-    #   batch_size: 2000
-    #   vx_std: 0.4   # Average linear velocity noise standard deviation, this controls the real velocity standard
-    #   vy_std: 0.4     # Average linear velocity noise standard deviation, this controls the real velocity standard
-    #   wz_std: 0.1
-    #   vx_max: 1.0
-    #   vx_min: -1.0
-    #   vy_max: 1.0
-    #   wz_max: 0.1
-    #   iteration_count: 1
-    #   prune_distance: 1.7
-    #   transform_tolerance: 0.1
-    #   temperature: 0.3
-    #   gamma: 0.015
-    #   motion_model: "Omni"
-    #   visualize: false
-    #   reset_period: 1.0 # (only in Humble)
-    #   TrajectoryVisualizer:
-    #     trajectory_step: 5
-    #     time_step: 3
-    #   AckermannConstrains:
-    #     min_turning_r: 0.2
-    #   critics: ["ObstaclesCritic", "GoalCritic", "PathAlignCritic", "PathFollowCritic", "PreferForwardCritic", "VelocityDeadbandCritic"]
-    #   GoalCritic:
-    #     enabled: true
-    #     cost_power: 1
-    #     cost_weight: 5.0
-    #     threshold_to_consider: 1.0
-    #   PreferForwardCritic:
-    #     enabled: true
-    #     cost_power: 1
-    #     cost_weight: 5.0
-    #     threshold_to_consider: 1.0
-    #   ## Only choose one between ObstaclesCritic and CostCritic
-    #   ObstaclesCritic:
-    #     enabled: true
-    #     cost_power: 1
-    #     repulsion_weight: 2.0
-    #     critical_weight: 30.0
-    #     consider_footprint: false
-    #     collision_cost: 1000.0
-    #     collision_margin_distance: 0.2
-    #     near_goal_distance: 0.1
-    #     inflation_layer_name: "inflation_layer"
-    #   # CostCritic:
-    #   #   enabled: true
-    #   #   cost_power: 1
-    #   #   cost_weight: 3.81
-    #   #   critical_cost: 300.0
-    #   #   consider_footprint: true
-    #   #   collision_cost: 1000000.0
-    #   #   near_goal_distance: 1.0
-    #   #   trajectory_point_step: 2
-    #   PathAlignCritic:
-    #     enabled: true
-    #     cost_power: 1
-    #     cost_weight: 14.0
-    #     max_path_occupancy_ratio: 0.05
-    #     trajectory_point_step: 3
-    #     threshold_to_consider: 0.40   # Distance between robot and goal above which path align cost stops being considered
-    #     offset_from_furthest: 20      # Distance checks that the candidate trajectories are sufficiently far along their way tracking the path to apply the alignment critic.
-    #   PathFollowCritic:
-    #     enabled: true
-    #     cost_power: 1
-    #     cost_weight: 5.0
-    #     offset_from_furthest: 10
-    #     threshold_to_consider: 0.6
-    #   # PathAngleCritic:
-    #   #   enabled: true
-    #   #   cost_power: 1
-    #   #   cost_weight: 2.0
-    #   #   offset_from_furthest: 4
-    #   #   threshold_to_consider: 0.40
-    #   #   max_angle_to_furthest: 1.0
-    #   VelocityDeadbandCritic:
-    #     enabled: true
-    #     cost_power: 1
-    #     cost_weight: 5.0
-    #     deadband_velocities: [0.05, 0.05, 0.05]
-    #   # TwirlingCritic:
-    #   #   enabled: true
-    #   #   twirling_cost_power: 1
-    #   #   twirling_cost_weight: 10.0
-    
     FollowPath:
-      plugin: "minco_controller::MincoMpcController"
-      # MPC sampling period (s) and horizon steps
-      dt: 0.05
-      horizon: 10
+      plugin: "nav2_mppi_controller::MPPIController"
+      time_steps: 56
+      model_dt: 0.0167
+      batch_size: 2000
+      vx_std: 0.6   # Average linear velocity noise standard deviation, this controls the real velocity standard
+      vy_std: 0.6     # Average linear velocity noise standard deviation, this controls the real velocity standard
+      wz_std: 0.1
+      vx_max: 1.2
+      vx_min: -1.2
+      vy_max: 1.2
+      vy_min: -1.2
+      wz_max: 0.1
+      iteration_count: 1
+      prune_distance: 1.7
+      transform_tolerance: 0.1
+      temperature: 0.3
+      gamma: 0.015
+      motion_model: "Omni"
+      visualize: false
+      reset_period: 1.0 # (only in Humble)
+      TrajectoryVisualizer:
+        trajectory_step: 5
+        time_step: 3
+      AckermannConstrains:
+        min_turning_r: 0.2
+      critics: ["ObstaclesCritic", "GoalCritic", "PathAlignCritic", "PathFollowCritic", "PreferForwardCritic", "VelocityDeadbandCritic"]
+      GoalCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        threshold_to_consider: 1.0
+      PreferForwardCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        threshold_to_consider: 1.0
+      ## Only choose one between ObstaclesCritic and CostCritic
+      ObstaclesCritic:
+        enabled: true
+        cost_power: 1
+        repulsion_weight: 2.0
+        critical_weight: 30.0
+        consider_footprint: false
+        collision_cost: 1000.0
+        collision_margin_distance: 0.2
+        near_goal_distance: 0.1
+        inflation_layer_name: "inflation_layer"
+      # CostCritic:
+      #   enabled: true
+      #   cost_power: 1
+      #   cost_weight: 3.81
+      #   critical_cost: 300.0
+      #   consider_footprint: true
+      #   collision_cost: 1000000.0
+      #   near_goal_distance: 1.0
+      #   trajectory_point_step: 2
+      PathAlignCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 14.0
+        max_path_occupancy_ratio: 0.05
+        trajectory_point_step: 3
+        threshold_to_consider: 0.40   # Distance between robot and goal above which path align cost stops being considered
+        offset_from_furthest: 20      # Distance checks that the candidate trajectories are sufficiently far along their way tracking the path to apply the alignment critic.
+      PathFollowCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        offset_from_furthest: 10
+        threshold_to_consider: 0.6
+      # PathAngleCritic:
+      #   enabled: true
+      #   cost_power: 1
+      #   cost_weight: 2.0
+      #   offset_from_furthest: 4
+      #   threshold_to_consider: 0.40
+      #   max_angle_to_furthest: 1.0
+      VelocityDeadbandCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        deadband_velocities: [0.05, 0.05, 0.05]
+      # TwirlingCritic:
+      #   enabled: true
+      #   twirling_cost_power: 1
+      #   twirling_cost_weight: 10.0
+    
+    # FollowPath:
+    #   plugin: "minco_controller::MincoMpcController"
+    #   # MPC sampling period (s) and lookahead time (s)
+    #   dt: 0.05
+    #   lookahead_time : 3.0
 
-      # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
-      Q: [5.0, 5.0, 2.0]
-      R: [1.0, 1.0, 0.5]
+    #   # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
+    #   Q: [5.0, 5.0, 2.0]
+    #   R: [1.0, 1.0, 0.5]
 
-      # Velocity bounds
-      vx_min: -2.5
-      vx_max: 5.0
-      vy_min: -2.5
-      vy_max: 5.0
-      omega_min: -0.5
-      omega_max: 0.5
+    #   # Velocity bounds
+    #   vx_min: -2.5
+    #   vx_max: 5.0
+    #   vy_min: -2.5
+    #   vy_max: 5.0
+    #   omega_min: -0.5
+    #   omega_max: 0.5
 
-      # Optional acceleration constraints
-      use_acc_constraints: false
-      ax_min: -2.5
-      ax_max: 2.5
-      ay_min: -2.5
-      ay_max: 2.5
-      alpha_min: -1.0
-      alpha_max: 1.0
+    #   # Optional acceleration constraints
+    #   use_acc_constraints: false
+    #   ax_min: -2.5
+    #   ax_max: 2.5
+    #   ay_min: -2.5
+    #   ay_max: 2.5
+    #   alpha_min: -1.0
+    #   alpha_max: 1.0
 
-      # Frame settings (Explicitly match your costmap configurations)
-      odom_frame: "camera_init"
-      map_frame: "map"
+    #   # Frame settings (Explicitly match your costmap configurations)
+    #   odom_frame: "camera_init"
+    #   map_frame: "map"
 
 
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 10.0
-      publish_frequency: 10.0
+      update_frequency: 20.0
+      publish_frequency: 20.0
       global_frame: camera_init
       robot_base_frame: base_link
       use_sim_time: False
       rolling_window: true
-      width: 10
-      height: 10
+      width: 5
+      height: 5
       resolution: 0.05
       # robot_radius: 0.22
-      robot_radius: 0.3
+      robot_radius: 0.2
       plugins: ["static_layer", "stvl_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
@@ -277,7 +245,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.35
+        inflation_radius: 0.25
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
@@ -288,7 +256,7 @@ local_costmap:
         unknown_threshold: 15
         mark_threshold: 0
         update_footprint_enabled: true
-        combination_method: 0
+        combination_method: 1
         origin_z: 0.0
         publish_voxel_map: true
         transform_tolerance: 0.2
@@ -311,8 +279,8 @@ local_costmap:
           clear_after_reading: true
           max_z: 7.0
           min_z: 0.1
-          vertical_fov_angle: 0.8745
-          horizontal_fov_angle: 1.048
+          vertical_fov_angle: 1.03
+          horizontal_fov_angle: 6.28
           decay_acceleration: 15.0
           model_type: 0
       always_send_full_costmap: True
@@ -320,15 +288,15 @@ local_costmap:
 global_costmap:
   global_costmap:
     ros__parameters:
-      update_frequency: 20.0
-      publish_frequency: 20.0
+      update_frequency: 10.0
+      publish_frequency: 10.0
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: False
       # robot_radius: 0.22
-      robot_radius: 0.3
+      robot_radius: 0.2
       resolution: 0.05
-      track_unknown_space: true
+      track_unknown_space: false
       plugins: ["static_layer", "stvl_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
@@ -336,7 +304,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.50
+        inflation_radius: 0.40
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
@@ -347,7 +315,7 @@ global_costmap:
         unknown_threshold: 15
         mark_threshold: 0
         update_footprint_enabled: true
-        combination_method: 0
+        combination_method: 1
         origin_z: 0.0
         publish_voxel_map: true
         transform_tolerance: 0.2
@@ -370,8 +338,8 @@ global_costmap:
           clear_after_reading: true
           max_z: 2.0
           min_z: 0.1
-          vertical_fov_angle: 0.8745
-          horizontal_fov_angle: 1.048
+          vertical_fov_angle: 1.03
+          horizontal_fov_angle: 6.28
           decay_acceleration: 15.0
           model_type: 0
       always_send_full_costmap: True
@@ -396,7 +364,7 @@ planner_server:
     expected_planner_frequency: 20.0
     use_sim_time: False
     # 同时加载 SmacPlanner 和 MincoPlanner 两个全局规划插件
-    planner_plugins: ["SmacPlanner", "MincoPlanner"]
+    planner_plugins: ["SmacPlanner"]
 
     SmacPlanner:
       plugin: "nav2_smac_planner/SmacPlanner2D"
@@ -417,28 +385,30 @@ planner_server:
         do_refinement: true
         refinement_num: 2
 
-    MincoPlanner:
-      plugin: "minco_planner/MincoPlanner"
-      tolerance: 0.3
-      use_astar: true
-      allow_unknown: false
-      minco_optimizer:
-        safe_dist: 0.6
-        max_velocity: 2.0
-        max_acceleration: 5.0
-        time_allocation_iters: 15
-        penalty_weight_time: 100.0
-        smooth_eps: 0.01
-        integral_res: 16
-        opt_accuracy: 0.0001
-        print_optimizer_log: true
-        penalty_weight_pos: 10000.0
-        penalty_weight_vel: 1000.0
-        penalty_weight_acc: 10000.0
-        penalty_weight_att: 1000.0
-      static_esdf:
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/2026_esdf.pcd"
-        esdf_resolution: 0.05
+    # MincoPlanner:
+    #   plugin: "minco_planner/MincoPlanner"
+    #   tolerance: 0.3
+    #   use_astar: true
+    #   allow_unknown: false
+    #   minco_optimizer:
+    #     opt_freq: 20.0
+    #     safe_dist: 0.4
+    #     lookahead_dist: 22.0  # 前视距离,用于minco部分优化
+    #     max_velocity: 3.0
+    #     max_acceleration: 6.0
+    #     time_allocation_iters: 15
+    #     smooth_eps: 0.01
+    #     integral_res: 16
+    #     opt_accuracy: 0.0001
+    #     print_optimizer_log: false
+    #     penalty_weight_time: 500.0
+    #     penalty_weight_pos: 100000.0
+    #     penalty_weight_vel: 1000.0
+    #     penalty_weight_acc: 1000.0
+    #     penalty_weight_att: 100.0
+    #   static_esdf:
+    #     esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
+    #     esdf_resolution: 0.05
 
 smoother_server:
   ros__parameters:
@@ -459,7 +429,13 @@ behavior_server:
     wait:
       plugin: "nav2_behaviors/Wait"
     backup:
-      plugin: "nav2_behaviors/BackUp"
+      # plugin: "nav2_behaviors/BackUp"
+      plugin: "nav2_behaviors/BackUpTwzFree"
+      local_costmap_global_frame: camera_init
+      local_costmap_robot_base_frame: base_link
+      robot_radius: 0.3
+      cost_threshold: 0.0
+      visualization: true
     global_frame: map
     robot_base_frame: base_link
     transform_tolerance: 0.1
