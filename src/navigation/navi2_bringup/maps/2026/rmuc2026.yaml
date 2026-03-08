@@ -1,8 +1,8 @@
 image: rmuc2026.pgm
 mode: trinary
 resolution: 0.05
-origin: [-5, -7, 0] # x,y,yaw
-# origin: [0, 0, 0] # x,y,yaw
+origin: [0, 0, 0] # x,y,yaw
+# origin: [-3.06, -9.6, -0]
 negate: 0
 occupied_thresh: 0.65
 free_thresh: 0.25
