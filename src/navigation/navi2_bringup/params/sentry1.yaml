@@ -209,7 +209,7 @@ controller_server:
       vy_min: -2.0
       vy_max: 2.0
       fixed_wz: 4.18 # rad/s, used if use_small_gyro_mode is true
-      omega_min: 4.5
+      omega_min: -4.5
       omega_max: 4.5
 
       # Optional acceleration constraints
@@ -497,10 +497,10 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
-    max_velocity: [2.5, 2.5, 0.5]
-    min_velocity: [-2.5, -2.5, -0.5]
-    max_accel: [2.5, 2.5, 1.0]
-    max_decel: [-2.5, -2.5, -1.0]
+    max_velocity: [5.0, 5.0, 4.5]
+    min_velocity: [-5.0, -5.0, -4.5]
+    max_accel: [5.0, 5.0, 10.0]
+    max_decel: [-5.0, -5.0, -10.0]
     odom_topic: "aft_mapped_to_init"
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]
