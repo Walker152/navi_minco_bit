@@ -93,7 +93,7 @@ namespace ns_com
       sub_opt.callback_group = sub_cb_group_;
       
       chassis_sub_ = create_subscription<geometry_msgs::msg::Twist>(
-          "/cmd_vel", 1,
+          "/cmd_vel_nav", 1,
           [this](geometry_msgs::msg::Twist::ConstSharedPtr msg) { sendChassisCtrlCB(msg, outpost_msg_); },
           sub_opt);
       odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
