@@ -21,6 +21,7 @@
 
 #include "ros_interfaces/msg/event_status.hpp"
 #include "ros_interfaces/msg/nav.hpp"
+#include "ros_interfaces/msg/behavior.hpp"
 
 #include "com.hpp"
 #include "utils/custom_protocol.hpp"
@@ -80,6 +81,7 @@ namespace ns_com
   private:
     std_msgs::msg::Int32 position_;
     std_msgs::msg::Bool outpost_msg_;
+    ros_interfaces::msg::Behavior behavior_;
     void initRos()
     {
       cmd_vel_.linear.x = 0.0;
@@ -103,11 +105,19 @@ namespace ns_com
           "/gimbal_yaw", 1,
           [this](std_msgs::msg::Float32::ConstSharedPtr msg) { desiredYawCB(msg); },
           sub_opt);
-      position_sub_ = create_subscription<std_msgs::msg::Int32>(
-          "/sentry/want_position", 1,
-          [this](std_msgs::msg::Int32::ConstSharedPtr msg) {
+      // position_sub_ = create_subscription<std_msgs::msg::Int32>(
+      //     "/sentry/want_position", 1,
+      //     [this](std_msgs::msg::Int32::ConstSharedPtr msg) {
+      //       std::lock_guard<std::mutex> lk(state_mutex_);
+      //       position_.data = msg->data;
+      //     },
+      //     sub_opt);
+      behavior_sub_ = create_subscription<ros_interfaces::msg::Behavior>(
+          "/sentry/behaivor_send", 1,
+          [this](ros_interfaces::msg::Behavior::ConstSharedPtr msg) {
             std::lock_guard<std::mutex> lk(state_mutex_);
-            position_.data = msg->data;
+              behavior_ = *msg;
+              position_.data = msg->desired_stance;
           },
           sub_opt);
       outpost_msg_sub_ = create_subscription<std_msgs::msg::Bool>(
@@ -218,7 +228,8 @@ namespace ns_com
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr gimbal_yaw_sub_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr position_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr outpost_msg_sub_;
-    
+    rclcpp::Subscription<ros_interfaces::msg::Behavior>::SharedPtr behavior_sub_;
+
     // Publishers
     rclcpp::Publisher<ros_interfaces::msg::Nav>::SharedPtr nav_pub_;
     rclcpp::Publisher<ros_interfaces::msg::EventStatus>::SharedPtr event_status_pub_;
