@@ -19,7 +19,7 @@ sleep 4s
 # gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py ; exec bash"
 
 # BT-manager
-gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
+# gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
 
 # COM
 gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
