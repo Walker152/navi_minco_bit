@@ -21,7 +21,7 @@ namespace Sentry_BT
       // 初始化黑板变量
       blackboard_->set("health", 400.0f);                                   // 初始生命值(百分比)
       blackboard_->set<int>("own_outpost_health", 1500);                    // 我方前哨站血量
-      blackboard_->set<bool>("enemy_outpost_destroyed", false);             // 敌方前哨站是否被摧毁
+      blackboard_->set<bool>("enemy_outpost_destroyed", true);             // 敌方前哨站是否被摧毁
       blackboard_->set("target_valid", false);                              // 目标锁定状态
       blackboard_->set("target_pose", geometry_msgs::msg::Pose());          // 目标位置
       blackboard_->set("target_armor_id", -1);                              // 目标装甲板ID
