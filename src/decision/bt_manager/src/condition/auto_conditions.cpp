@@ -86,6 +86,29 @@ namespace Sentry_BT
 
     std::cout << WHITE << "Target valid: " << (target_valid ? "true" : "false") << RESET << std::endl;
 
+
+    //检查目标是否处于可追击范围
+    try {
+      target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
+    } catch(...) {
+      return BT::NodeStatus::FAILURE;
+    }
+
+    //rmuc
+    // Sentry_BT::Area_Square highland_area = {{6.7, 2.0}, {13.0, -1.8}};
+    // Sentry_BT::Area_Square enemy_outpost_area = {{8.5, 4.5}, {11.5, 2.8}};
+    // Sentry_BT::Area_Square own_outpost_area = {{8.5, -2.7}, {11.5, -4.2}};  //待修改
+
+    //rmul
+    Sentry_BT::Area_Square attack_area = {{7.0, 7.0}, {0.0, 0.0}};
+    
+    if(!attack_area.contains({target_pose.position.x, target_pose.position.y}))
+    {
+      std::cout << "Target out of effective area: (" << target_pose.position.x << ", " << target_pose.position.y << ")"
+              << std::endl;
+      return BT::NodeStatus::FAILURE;
+    }
+
     // 使用静态变量记录最后一次看到敌人的时间
     static std::chrono::time_point<std::chrono::system_clock> last_seen_time = std::chrono::system_clock::now();
 
