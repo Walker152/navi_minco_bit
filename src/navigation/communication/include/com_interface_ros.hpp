@@ -158,7 +158,7 @@ namespace ns_com
       uint8_t _is_use_mid360 = 0;
       if(odom_x >  2.5)
       {
-        // vw_rpm = 30.0;
+        vw_rpm = 30.0;
       }
       tf2::Quaternion q;
       tf2::fromMsg(odom_q, q);
