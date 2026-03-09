@@ -19,6 +19,7 @@
 
 #include "ros_interfaces/msg/event_status.hpp"
 #include "ros_interfaces/msg/nav.hpp"
+#include "ros_interfaces/msg/behavior.hpp"
 
 #include "com.hpp"
 #include "utils/custom_protocol.hpp"
@@ -81,6 +82,7 @@ namespace ns_com
 
   private:
     std_msgs::msg::Bool outpost_msg_;
+    ros_interfaces::msg::Behavior behavior_;
     void initRos()
     {
       cmd_vel_.linear.x = 0.0;
@@ -104,7 +106,14 @@ namespace ns_com
           "/sentry/outpost_status", 1,
           [this](std_msgs::msg::Bool::ConstSharedPtr msg) {
             std::lock_guard<std::mutex> lk(state_mutex_);
-            outpost_msg_.data = msg->data;
+            outpost_msg_ = *msg;
+          },
+          sub_opt);
+      behavior_sub_ = create_subscription<ros_interfaces::msg::Behavior>(
+          "/sentry/behaivor_send", 1,
+          [this](ros_interfaces::msg::Behavior::ConstSharedPtr msg) {
+            std::lock_guard<std::mutex> lk(state_mutex_);
+            behavior_ = *msg;
           },
           sub_opt);
       nav_pub_ = create_publisher<ros_interfaces::msg::Nav>("/NavRequest", 10);
@@ -137,8 +146,10 @@ namespace ns_com
         vy_mps = cmd_vel_.linear.y;
         vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
         // vw_rpm = 40.0f;
-        desire_stance = 0; // TODO: 这里暂时写死，后续根据实际情况修改
-        desire_lifter_pos = LifterPos::BOTTOM; // TODO: 这里暂时写死，后续根据实际情况修改
+        // desire_stance = ros_interfaces::msg::Behavior::STANCE_MOVE; // TODO: 这里暂时写死，后续根据实际情况修改
+        // desire_lifter_pos = LifterPos::BOTTOM; // TODO: 这里暂时写死，后续根据实际情况修改
+        desire_stance = behavior_.desired_stance; // 之前写死了，现作修改
+        desire_lifter_pos = behavior_.desire_lifter_pos; // 之前写死了，现作修改
         outpost_msg = outpost_msg_.data;
         odom_x = odom_.pose.pose.position.x;
         odom_y = odom_.pose.pose.position.y;
@@ -189,11 +200,10 @@ namespace ns_com
         }
       }
     }
-    void sendChassisCtrlCB(const geometry_msgs::msg::Twist::ConstSharedPtr& velPtr, std_msgs::msg::Bool _outpost_msg)
+    void sendChassisCtrlCB(const geometry_msgs::msg::Twist::ConstSharedPtr& velPtr)
     {
       std::lock_guard<std::mutex> lk(state_mutex_);
       cmd_vel_ = *velPtr;
-      outpost_msg_ = _outpost_msg;
     }
 
     void odomCB(const nav_msgs::msg::Odometry::ConstSharedPtr& odomPtr)
@@ -206,7 +216,8 @@ namespace ns_com
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr chassis_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr outpost_msg_sub_;
-    
+    rclcpp::Subscription<ros_interfaces::msg::Behavior>::SharedPtr behavior_sub_;
+
     // Publishers
     rclcpp::Publisher<ros_interfaces::msg::Nav>::SharedPtr nav_pub_;
     rclcpp::Publisher<ros_interfaces::msg::EventStatus>::SharedPtr event_status_pub_;
