@@ -51,6 +51,7 @@ namespace Sentry_BT
           behavior_msg.desired_stance = static_cast<int8_t>(desired_stance);
           behavior_msg.is_reach_outpost_enemy = is_reach_outpost_enemy;
           behavior_msg.is_reach_outpost_own = is_reach_outpost_own;
+          behavior_msg.desire_lifter_pos = ros_interfaces::msg::Behavior::LIFTER_BOTTOM; // TODO: 这里暂时写死，后续根据实际情况修改
           behavior_pub->publish(behavior_msg);
         });
   }
@@ -78,6 +79,13 @@ namespace Sentry_BT
     blackboard_->set<bool>("bonus_active", msg->buff_active);
     blackboard_->set<bool>("target_valid", msg->enemy_detected.is_detect);
     blackboard_->set<Sentry_BT::SentryStance>("current_stance", static_cast<Sentry_BT::SentryStance>(msg->current_stance));
+
+    // 3月9日新增数据，不知道有什么用，先放在黑板里
+    blackboard_->set<uint8_t>("game_status", msg->game_status);
+    blackboard_->set<uint8_t>("lifter_pos_now", msg->lifter_pos_now);
+    blackboard_->set<float>("gimbal_yaw", msg->gimbal_yaw);
+    blackboard_->set<uint16_t>("num_shoot", msg->num_shoot);
+
     // if(msg->position >= 1 && msg->position <= 3)
     // {
     //   blackboard_->set<Sentry_BT::SentryStance>("current_stance",
@@ -93,7 +101,7 @@ namespace Sentry_BT
       target_pose_in.position.z = (msg->enemy_detected.position.z) / 1000.0;
       TransformPose(target_pose_in, target_pose);
       target_pose.orientation.w = 1.0;  // 设置默认朝向
-      blackboard_->set<int>("target_armor_id", (int)msg->enemy_detected.armor_id);
+      blackboard_->set<uint8_t>("target_armor_id", msg->enemy_detected.armor_id);
       blackboard_->set<geometry_msgs::msg::Pose>("target_pose", target_pose);
     }
 
