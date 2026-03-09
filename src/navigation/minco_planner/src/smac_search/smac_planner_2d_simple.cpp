@@ -202,6 +202,25 @@ float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my
   return esdf_cost_cache_[idx];
 }
 
+float SmacPlanner2DSimple::evaluateInflationCost(unsigned char cell_cost)
+{
+  if (cell_cost == nav2_costmap_2d::NO_INFORMATION) {
+    return 1.0f;
+  }
+
+  const float normalized_cost = static_cast<float>(cell_cost) / MAX_NON_OBSTACLE_COST;
+
+  if (cell_cost >= 253u) {
+    return 50.0f;
+  }
+
+  if (cell_cost > 128u) {
+    return 1.0f + 20.0f * (normalized_cost * normalized_cost * normalized_cost);
+  }
+
+  return 1.0f + search_info_.cost_penalty * (normalized_cost * normalized_cost);
+}
+
 bool SmacPlanner2DSimple::createPath(
   const unsigned int & start_x,
   const unsigned int & start_y,
@@ -352,16 +371,8 @@ bool SmacPlanner2DSimple::createPath(
       const bool diagonal = (k >= 4);
       const float step_cost = diagonal ? step_diagonal : step_cardinal;
 
-      // Inline traversal cost (avoid Node2D / virtual / std::function overhead).
       const unsigned char cell_cost = charmap[neighbor_i];
-      float normalized_cost = 0.0f;
-      if (cell_cost != nav2_costmap_2d::NO_INFORMATION) {
-        normalized_cost = static_cast<float>(cell_cost) / MAX_NON_OBSTACLE_COST;
-      }
-      if (search_info_.use_quadratic_cost_penalty) {
-        normalized_cost = normalized_cost * normalized_cost;
-      }
-      const float traversal_factor = 1.0f + search_info_.cost_penalty * normalized_cost;
+      const float traversal_factor = evaluateInflationCost(cell_cost);
 
       float tentative_g = g_current + step_cost * traversal_factor;
       if (use_esdf_cost_) {
