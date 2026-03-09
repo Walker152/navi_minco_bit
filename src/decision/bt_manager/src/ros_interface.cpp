@@ -77,7 +77,7 @@ namespace Sentry_BT
     blackboard_->set<bool>("enemy_outpost_destroyed", msg->enemy_outpost_destroyed);
     blackboard_->set<bool>("bonus_active", msg->buff_active);
     blackboard_->set<bool>("target_valid", msg->enemy_detected.is_detect);
-    blackboard_->set<Sentry_BT::SentryStance>("current_stance", static_cast<Sentry_BT::SentryStance>(msg->position));
+    blackboard_->set<Sentry_BT::SentryStance>("current_stance", static_cast<Sentry_BT::SentryStance>(msg->current_stance));
     // if(msg->position >= 1 && msg->position <= 3)
     // {
     //   blackboard_->set<Sentry_BT::SentryStance>("current_stance",
