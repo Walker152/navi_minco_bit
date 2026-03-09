@@ -28,6 +28,8 @@ namespace Sentry_BT
                                                                   }); 
 
     // 定时发布行为状态（10Hz）
+    behavior_pub = this->create_publisher<ros_interfaces::msg::Behavior>("/sentry/behaivor_send", 10);
+    cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
     timer_ = this->create_wall_timer(
         std::chrono::milliseconds(100),
         [this]()
@@ -51,8 +53,6 @@ namespace Sentry_BT
           behavior_msg.is_reach_outpost_own = is_reach_outpost_own;
           behavior_pub->publish(behavior_msg);
         });
-    behavior_pub = this->create_publisher<ros_interfaces::msg::Behavior>("/sentry/behaivor_send", 10);
-    cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
   }
 
   void ros_interface::publishCmdVel(double linear_y, double angular_z)
@@ -77,6 +77,7 @@ namespace Sentry_BT
     blackboard_->set<bool>("enemy_outpost_destroyed", msg->enemy_outpost_destroyed);
     blackboard_->set<bool>("bonus_active", msg->buff_active);
     blackboard_->set<bool>("target_valid", msg->enemy_detected.is_detect);
+    blackboard_->set<Sentry_BT::SentryStance>("current_stance", static_cast<Sentry_BT::SentryStance>(msg->position));
     // if(msg->position >= 1 && msg->position <= 3)
     // {
     //   blackboard_->set<Sentry_BT::SentryStance>("current_stance",
