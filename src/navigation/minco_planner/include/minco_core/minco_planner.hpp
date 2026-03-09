@@ -174,6 +174,7 @@ private:
   // Parameters
   double tolerance_;
   bool allow_unknown_;
+  bool use_yaw_opt_{true};
   double opt_freq_;
   double lookahead_dist_;
   double traj_goal_tolerance_{0.5};
