@@ -114,6 +114,10 @@ void MincoPlanner::configure(
   node->get_parameter(prefix + "minco_optimizer.max_yaw_dot", max_yaw_dot);
 
   nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "minco_optimizer.enable_yaw_opt", rclcpp::ParameterValue(true));
+  node->get_parameter(prefix + "minco_optimizer.enable_yaw_opt", use_yaw_opt_);
+
+  nav2_util::declare_parameter_if_not_declared(
     node, prefix + "minco_optimizer.time_allocation_iters", rclcpp::ParameterValue(15));
   node->get_parameter(prefix + "minco_optimizer.time_allocation_iters", minco_config.time_allocation_iters);
 
@@ -641,12 +645,23 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   }
 
   traj_opt::Trajectory yaw_traj;
-  const bool yaw_success = optimizeYaw(start_state, opt_traj, yaw_traj, state);
-  if (!yaw_success) {
-    std::cout << YELLOW
-              << "[MincoPlanner] Yaw optimization failed. Falling back to constant yaw trajectory."
-              << RESET << std::endl;
+  if (use_yaw_opt_) {
+    const bool yaw_success = optimizeYaw(start_state, opt_traj, yaw_traj, state);
+    if (!yaw_success) {
+      std::cout << YELLOW
+                << "[MincoPlanner] Yaw optimization failed. Falling back to constant yaw trajectory."
+                << RESET << std::endl;
 
+      const double fallback_yaw = std::atan2(start_state.col(1).y(), start_state.col(1).x());
+      Eigen::MatrixXd cMat(3, 6);
+      cMat.setZero();
+      cMat(0, 5) = std::isfinite(fallback_yaw) ? fallback_yaw : 0.0;
+      const double yaw_dur = std::max(0.02, opt_traj.getTotalDuration());
+      yaw_traj.clear();
+      yaw_traj.emplace_back(yaw_dur, cMat);
+      yaw_traj.start_WT = opt_traj.start_WT;
+    }
+  } else {
     const double fallback_yaw = std::atan2(start_state.col(1).y(), start_state.col(1).x());
     Eigen::MatrixXd cMat(3, 6);
     cMat.setZero();
