@@ -32,12 +32,15 @@ namespace pclfilter
                      float horizontal_resolution,
                      int lidar_lines,
                      int cluster_size);
+        void setGroundDistanceThreshold(float thresh);
+        void setGroundHeightThreshold(float thresh);
+        void setGroundMaxSlopeAngle(float angle_deg);
         void initParams();
         // 点云输入
-        void setInputCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr &msg);
+        void setInputCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &msg);
 
         // 输入点云指针，返回拟合平面的参数
-        Eigen::Vector4f estimatePlaneParams(pcl::PointCloud<pcl::PointXYZ>::Ptr &initial_ground_points);
+        Eigen::Vector4f estimatePlaneParams(const pcl::PointCloud<pcl::PointXYZ>::Ptr &initial_ground_points);
         /**
          * 地面点提取主函数
          * @param msg 输入点云
@@ -102,6 +105,9 @@ namespace pclfilter
         pcl::PointCloud<pcl::PointXYZ>::Ptr sorted_Pointcloud_; // 排序后的点云？？？？？？？？？？/
         vector<int> ground_points_indices_;                      // indices释义:索引
         float sensor_height_;
+        float ground_distance_threshold_;
+        float ground_height_threshold_;
+        float ground_max_slope_angle_;
         // 聚类参数
         float vertcal_resolution_;
         float horizontal_resolution_;
