@@ -1,5 +1,5 @@
 # !/bin/bash 
-cd ~/2025_sentry_navi
+cd ~/2025-sentry-navi
 # MID360
 source ~/ws_livox/install/setup.bash
 # sleep 1s
