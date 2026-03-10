@@ -82,7 +82,7 @@ controller_server:
     min_theta_velocity_threshold: 0.001
     failure_tolerance: 0.1
     progress_checker_plugin: "progress_checker"
-    goal_checker_plugins: ["general_goal_checker"] # "precise_goal_checker"
+    goal_checker_plugins: ["general_goal_checker"] 
     controller_plugins: ["FollowPath"]
 
     # Progress checker parameters
@@ -91,105 +91,12 @@ controller_server:
       required_movement_radius: 0.2
       movement_time_allowance: 100.0
     # Goal checker parameters
-    #precise_goal_checker:
-    #  plugin: "nav2_controller::SimpleGoalChecker"
-    #  xy_goal_tolerance: 0.25
-    #  yaw_goal_tolerance: 0.25
-    #  stateful: True
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.15
       yaw_goal_tolerance: 6.28
 
-    # FollowPath:
-    #   plugin: "nav2_mppi_controller::MPPIController"
-    #   time_steps: 56
-    #   model_dt: 0.0167
-    #   batch_size: 2000
-    #   vx_std: 0.8   # Average linear velocity noise standard deviation, this controls the real velocity standard
-    #   vy_std: 0.8     # Average linear velocity noise standard deviation, this controls the real velocity standard
-    #   wz_std: 0.1
-    #   vx_max: 1.5
-    #   vx_min: -1.5
-    #   vy_max: 1.5
-    #   vy_min: -1.5
-    #   wz_max: 0.1
-    #   iteration_count: 1
-    #   prune_distance: 1.7
-    #   transform_tolerance: 0.1
-    #   temperature: 0.3
-    #   gamma: 0.015
-    #   motion_model: "Omni"
-    #   visualize: false
-    #   reset_period: 1.0 # (only in Humble)
-    #   TrajectoryVisualizer:
-    #     trajectory_step: 5
-    #     time_step: 3
-    #   AckermannConstrains:
-    #     min_turning_r: 0.2
-    #   critics: ["ObstaclesCritic", "GoalCritic", "PathAlignCritic", "PathFollowCritic", "PreferForwardCritic", "VelocityDeadbandCritic"]
-    #   GoalCritic:
-    #     enabled: true
-    #     cost_power: 1
-    #     cost_weight: 5.0
-    #     threshold_to_consider: 1.0
-    #   PreferForwardCritic:
-    #     enabled: true
-    #     cost_power: 1
-    #     cost_weight: 5.0
-    #     threshold_to_consider: 1.0
-    #   ## Only choose one between ObstaclesCritic and CostCritic
-    #   ObstaclesCritic:
-    #     enabled: true
-    #     cost_power: 1
-    #     repulsion_weight: 2.0
-    #     critical_weight: 30.0
-    #     consider_footprint: false
-    #     collision_cost: 1000.0
-    #     collision_margin_distance: 0.2
-    #     near_goal_distance: 0.1
-    #     inflation_layer_name: "inflation_layer"
-    #   # CostCritic:
-    #   #   enabled: true
-    #   #   cost_power: 1
-    #   #   cost_weight: 3.81
-    #   #   critical_cost: 300.0
-    #   #   consider_footprint: true
-    #   #   collision_cost: 1000000.0
-    #   #   near_goal_distance: 1.0
-    #   #   trajectory_point_step: 2
-    #   PathAlignCritic:
-    #     enabled: true
-    #     cost_power: 1
-    #     cost_weight: 14.0
-    #     max_path_occupancy_ratio: 0.05
-    #     trajectory_point_step: 3
-    #     threshold_to_consider: 0.40   # Distance between robot and goal above which path align cost stops being considered
-    #     offset_from_furthest: 20      # Distance checks that the candidate trajectories are sufficiently far along their way tracking the path to apply the alignment critic.
-    #   PathFollowCritic:
-    #     enabled: true
-    #     cost_power: 1
-    #     cost_weight: 5.0
-    #     offset_from_furthest: 10
-    #     threshold_to_consider: 0.6
-    #   # PathAngleCritic:
-    #   #   enabled: true
-    #   #   cost_power: 1
-    #   #   cost_weight: 2.0
-    #   #   offset_from_furthest: 4
-    #   #   threshold_to_consider: 0.40
-    #   #   max_angle_to_furthest: 1.0
-    #   VelocityDeadbandCritic:
-    #     enabled: true
-    #     cost_power: 1
-    #     cost_weight: 5.0
-    #     deadband_velocities: [0.05, 0.05, 0.05]
-    #   # TwirlingCritic:
-    #   #   enabled: true
-    #   #   twirling_cost_power: 1
-    #   #   twirling_cost_weight: 10.0
-    
     FollowPath:
       plugin: "minco_controller::MincoMpcController"
       # MPC sampling period (s) and lookahead time (s)
@@ -377,31 +284,11 @@ planner_server:
   ros__parameters:
     expected_planner_frequency: 20.0
     use_sim_time: False
-    # 同时加载 SmacPlanner 和 MincoPlanner 两个全局规划插件
-    planner_plugins: ["MincoPlanner"]  # , "SmacPlanner"] --- IGNORE ---
-
-    # SmacPlanner:
-    #   plugin: "nav2_smac_planner/SmacPlanner2D"
-    #   tolerance: 0.1                      # tolerance for planning if unable to reach exact pose, in meters
-    #   downsample_costmap: false           # whether or not to downsample the map
-    #   downsampling_factor: 1              # multiplier for the resolution of the costmap layer (e.g. 2 on a 5cm costmap would be 10cm)
-    #   allow_unknown: true                 # allow traveling in unknown space
-    #   max_iterations: 1000000             # maximum total iterations to search for before failing (in case unreachable), set to -1 to disable
-    #   max_on_approach_iterations: 1000    # Maximum number of iterations after within tolerances to continue to try to find exact solution
-    #   max_planning_time: 1.0              # max time in s for planner to plan, smooth
-    #   cost_travel_multiplier: 2.0         # Cost multiplier to apply to search to steer away from high cost areas.
-    #   use_final_approach_orientation: true # Whether to set the final path pose to the goal's orientation.
-    #   smoother:
-    #     max_iterations: 1000
-    #     w_smooth: 0.3
-    #     w_data: 0.2
-    #     tolerance: 1.0e-10
-    #     do_refinement: true
-    #     refinement_num: 2
+    planner_plugins: ["MincoPlanner"]
 
     MincoPlanner:
       plugin: "minco_planner/MincoPlanner"
-      tolerance: 0.3
+      tolerance: 0.3  
       use_smac: true
       allow_unknown: false
       odom_topic: /aft_mapped_to_init
