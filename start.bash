@@ -1,4 +1,5 @@
 # !/bin/bash 
+cd ~/2025_sentry_navi
 # MID360
 source ~/ws_livox/install/setup.bash
 # sleep 1s
@@ -21,6 +22,6 @@ sleep 4s
 # gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
 
 # COM
-# gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
 
 # gnome-terminal -- bash -c "cd /home/rm/rosbag && ros2 bag record -a ;exec bash"
