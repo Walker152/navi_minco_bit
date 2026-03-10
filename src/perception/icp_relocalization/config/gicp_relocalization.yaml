@@ -1,13 +1,13 @@
 gicp_relocalization_node:
   ros__parameters:
     # General Configuration
-    mode: "multi_guess" # Options: "multi_guess", "initial_guess"
+    mode: "initial_guess" # Options: "multi_guess", "initial_guess"
     # target_pcd_file: "src/perception/icp_relocalization/maps/rmuc.pcd"
     # target_pcd_file: "src/perception/icp_relocalization/maps/111.pcd"
     target_pcd_file: "src/perception/icp_relocalization/maps/rmul.pcd"
     map_frame: "map"
     visualization_en: true
-    source_cloud_topic: "/livox_stdpc"
+    source_cloud_topic: "/livox/stdpc"
     alignment_frequency: 5.0
     accumulate_frames: 5
     
