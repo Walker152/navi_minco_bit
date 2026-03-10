@@ -81,8 +81,8 @@ namespace Sentry_BT
     blackboard_->set<Sentry_BT::SentryStance>("current_stance", static_cast<Sentry_BT::SentryStance>(msg->current_stance));
 
     // 3月9日新增数据，不知道有什么用，先放在黑板里
-    blackboard_->set<uint8_t>("game_status", msg->game_status);
-    blackboard_->set<uint8_t>("lifter_pos_now", msg->lifter_pos_now);
+    blackboard_->set<int>("game_status", static_cast<int>(msg->game_status));
+    blackboard_->set<int>("lifter_pos_now", static_cast<int>(msg->lifter_pos_now));
     blackboard_->set<float>("gimbal_yaw", msg->gimbal_yaw);
     blackboard_->set<uint16_t>("num_shoot", msg->num_shoot);
 
@@ -100,8 +100,10 @@ namespace Sentry_BT
       target_pose_in.position.y = (msg->enemy_detected.position.y) / 1000.0;
       target_pose_in.position.z = (msg->enemy_detected.position.z) / 1000.0;
       TransformPose(target_pose_in, target_pose);
+      std::cout << "Target pose: " << target_pose.position.x << ", " << target_pose.position.y << std::endl;
+      std::cout<<"target pose in: "<<target_pose_in.position.x<<","<<target_pose_in.position.y<<","<<target_pose_in.position.z<<std::endl;
       target_pose.orientation.w = 1.0;  // 设置默认朝向
-      blackboard_->set<uint8_t>("target_armor_id", msg->enemy_detected.armor_id);
+      blackboard_->set<int>("target_armor_id", (int)msg->enemy_detected.armor_id);
       blackboard_->set<geometry_msgs::msg::Pose>("target_pose", target_pose);
     }
 
