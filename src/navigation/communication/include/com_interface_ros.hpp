@@ -96,7 +96,7 @@ namespace ns_com
       
       chassis_sub_ = create_subscription<geometry_msgs::msg::Twist>(
           "/cmd_vel_nav", 1,
-          [this](geometry_msgs::msg::Twist::ConstSharedPtr msg) { sendChassisCtrlCB(msg, outpost_msg_); },
+          [this](geometry_msgs::msg::Twist::ConstSharedPtr msg) { sendChassisCtrlCB(msg); },
           sub_opt);
       odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
           "/aft_mapped_to_init", 1,
