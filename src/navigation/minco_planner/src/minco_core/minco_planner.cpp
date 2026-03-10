@@ -652,7 +652,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
                 << "[MincoPlanner] Yaw optimization failed. Falling back to constant yaw trajectory."
                 << RESET << std::endl;
 
-      const double fallback_yaw = std::atan2(start_state.col(1).y(), start_state.col(1).x());
+      const double fallback_yaw = 0.0;
       Eigen::MatrixXd cMat(3, 6);
       cMat.setZero();
       cMat(0, 5) = std::isfinite(fallback_yaw) ? fallback_yaw : 0.0;
@@ -662,7 +662,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
       yaw_traj.start_WT = opt_traj.start_WT;
     }
   } else {
-    const double fallback_yaw = std::atan2(start_state.col(1).y(), start_state.col(1).x());
+    const double fallback_yaw = 0.0;
     Eigen::MatrixXd cMat(3, 6);
     cMat.setZero();
     cMat(0, 5) = std::isfinite(fallback_yaw) ? fallback_yaw : 0.0;
