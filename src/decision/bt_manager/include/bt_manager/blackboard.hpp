@@ -3,6 +3,7 @@
 #include "bt_manager/utils/nav_zone.hpp"
 #include <behaviortree_cpp_v3/blackboard.h>
 #include <behaviortree_cpp_v3/bt_factory.h>
+#include <cstdint>
 #include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 
@@ -21,10 +22,15 @@ namespace Sentry_BT
       // 初始化黑板变量
       blackboard_->set("health", 400.0f);                                   // 初始生命值(百分比)
       blackboard_->set<int>("own_outpost_health", 1500);                    // 我方前哨站血量
-      blackboard_->set<bool>("enemy_outpost_destroyed", false);             // 敌方前哨站是否被摧毁
+      blackboard_->set<bool>("enemy_outpost_destroyed", true);             // 敌方前哨站是否被摧毁
       blackboard_->set("target_valid", false);                              // 目标锁定状态
       blackboard_->set("target_pose", geometry_msgs::msg::Pose());          // 目标位置
       blackboard_->set("target_armor_id", -1);                              // 目标装甲板ID
+      blackboard_->set("bonus_active", false);                              // 增益区是否激活
+      blackboard_->set("game_status", 0);                                   // 比赛状态
+      blackboard_->set("lifter_pos_now", 0);                                // 升降机构当前位置
+      blackboard_->set("gimbal_yaw", 0.0f);                                 // 云台偏航角
+      blackboard_->set<uint16_t>("num_shoot", 0);                           // 已发射数量
       blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));  // 当前模式
       blackboard_->set("nav_goal", Point2D{0.0, 0.0});                      // 当前导航目标
       blackboard_->set("patrol_index", 0);                                  // 巡逻点索引
