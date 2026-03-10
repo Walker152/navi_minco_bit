@@ -90,13 +90,12 @@ controller_server:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.2
       movement_time_allowance: 100.0
-    # Goal checker parameters
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.15
       yaw_goal_tolerance: 6.28
-
+    
     FollowPath:
       plugin: "minco_controller::MincoMpcController"
       # MPC sampling period (s) and lookahead time (s)
@@ -116,21 +115,21 @@ controller_server:
       vy_min: -3.0
       vy_max: 3.0
       fixed_wz: 4.18 # rad/s, used if use_small_gyro_mode is true
-      omega_min: -4.5
-      omega_max: 4.5
+      omega_min: -2.5
+      omega_max: 2.5
 
       # Optional acceleration constraints
       use_acc_constraints: true
-      ax_min: -5.0
-      ax_max: 5.0
-      ay_min: -5.0
-      ay_max: 5.0
+      ax_min: -2.0
+      ax_max: 2.0
+      ay_min: -2.0
+      ay_max: 2.0
       alpha_min: -10.0
       alpha_max: 10.0
 
       # Lidar extrinsic parameters
       lidar_offset_x: 0.0
-      lidar_offset_y: 0.0
+      lidar_offset_y: 0.21
       
       # Frame settings
       odom_frame: "camera_init"
@@ -182,7 +181,7 @@ local_costmap:
           marking: true
           clearing: true
           obstacle_range: 8.0
-          min_obstacle_height: 0.1
+          min_obstacle_height: -0.1
           max_obstacle_height: 3.0
           expected_update_rate: 0.0
           observation_persistence: 0.0
@@ -305,12 +304,12 @@ planner_server:
 
       minco_optimizer:
         opt_freq: 20.0
-        enable_yaw_opt: true
+        enable_yaw_opt: false
         safe_dist: 0.35
         lookahead_dist: 5.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
-        max_acceleration: 5.0
-        max_yaw_dot: 4.5
+        max_acceleration: 2.0
+        max_yaw_dot: 2.0
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
@@ -385,10 +384,10 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
-    max_velocity: [5.0, 5.0, 4.5]
-    min_velocity: [-5.0, -5.0, -4.5]
-    max_accel: [5.0, 5.0, 10.0]
-    max_decel: [-5.0, -5.0, -10.0]
+    max_velocity: [3.0, 3.0, 4.5]
+    min_velocity: [-3.0, -3.0, -4.5]
+    max_accel: [2.0, 2.0, 5.0]
+    max_decel: [-2.0, -2.0, -5.0]
     odom_topic: "aft_mapped_to_init"
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]
