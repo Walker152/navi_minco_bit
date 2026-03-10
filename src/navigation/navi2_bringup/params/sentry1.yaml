@@ -204,20 +204,20 @@ controller_server:
       R: [1.0, 1.0, 0.5]
 
       # Velocity bounds
-      vx_min: -2.0
-      vx_max: 2.0
-      vy_min: -2.0
-      vy_max: 2.0
+      vx_min: -3.0
+      vx_max: 3.0
+      vy_min: -3.0
+      vy_max: 3.0
       fixed_wz: 4.18 # rad/s, used if use_small_gyro_mode is true
       omega_min: -4.5
       omega_max: 4.5
 
       # Optional acceleration constraints
       use_acc_constraints: true
-      ax_min: -3.0
-      ax_max: 3.0
-      ay_min: -3.0
-      ay_max: 3.0
+      ax_min: -5.0
+      ax_max: 5.0
+      ay_min: -5.0
+      ay_max: 5.0
       alpha_min: -10.0
       alpha_max: 10.0
 
@@ -304,7 +304,7 @@ global_costmap:
       robot_base_frame: base_link
       use_sim_time: False
       # robot_radius: 0.22
-      robot_radius: 0.3
+      robot_radius: 0.25
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "stvl_layer", "inflation_layer"]
@@ -314,7 +314,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.35
+        inflation_radius: 0.25
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
@@ -338,7 +338,7 @@ global_costmap:
           marking: true
           clearing: true
           obstacle_range: 8.0
-          min_obstacle_height: 0.1
+          min_obstacle_height: -0.1
           max_obstacle_height: 3.0
           expected_update_rate: 0.0
           observation_persistence: 0.0
@@ -412,16 +412,17 @@ planner_server:
 
       smac_2d:
         use_esdf_cost: true
-        esdf_weight: 0.5
-        esdf_decay: 0.5
-        esdf_max_cost: 0.3
+        esdf_weight: 3.0
+        esdf_decay: 0.7
+        esdf_max_cost: 10.0
 
       minco_optimizer:
         opt_freq: 20.0
+        enable_yaw_opt: true
         safe_dist: 0.35
         lookahead_dist: 5.0  # 前视距离,用于minco部分优化
-        max_velocity: 2.0
-        max_acceleration: 3.0
+        max_velocity: 3.0
+        max_acceleration: 5.0
         max_yaw_dot: 4.5
         time_allocation_iters: 15
         smooth_eps: 0.01
@@ -435,8 +436,8 @@ planner_server:
         penalty_weight_att: 100.0
       static_esdf:
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
-        # esdf_pcd_path: "src/utils/pcd2esdf/maps/room_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/room_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
         esdf_resolution: 0.05
 
@@ -488,7 +489,7 @@ waypoint_follower:
     wait_at_waypoint:
       plugin: "nav2_waypoint_follower::WaitAtWaypoint"
       enabled: True
-      waypoint_pause_duration: 200
+      waypoint_pause_duration: 0
 
 velocity_smoother:
   ros__parameters:

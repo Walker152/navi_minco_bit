@@ -34,7 +34,7 @@ class CheckTargetLocked : public BT::ConditionNode
 {
 public:
   CheckTargetLocked(const std::string& name, const BT::NodeConfiguration& config);
-  
+  geometry_msgs::msg::Pose target_pose;
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
 };
