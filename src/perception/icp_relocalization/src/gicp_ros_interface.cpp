@@ -10,7 +10,6 @@ namespace icp_relocalization
   GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions& options)
     : Node("gicp_relocalization_node", options)
   {
-    RCLCPP_INFO(this->get_logger(), "Loading parameters from YAML file...");
     // Default parameters
     std::string mode_str = this->declare_parameter<std::string>("mode", "multi_guess");
     if(mode_str == "multi_guess")
@@ -25,7 +24,7 @@ namespace icp_relocalization
 
     map_frame_ = this->declare_parameter<std::string>("map_frame", "map");
     visualization_en_ = this->declare_parameter<bool>("visualization_en", true);
-    source_cloud_topic_ = this->declare_parameter<std::string>("source_cloud_topic", "/livox_stdpc");
+    source_cloud_topic_ = this->declare_parameter<std::string>("source_cloud_topic", "/livox/stdpc");
     alignment_frequency_ = this->declare_parameter<double>("alignment_frequency", 1.0);
     accumulate_frames_ = this->declare_parameter<int>("accumulate_frames", 5);
     fitness_score_threshold_ = this->declare_parameter<double>("fitness_score_threshold", 0.5);
@@ -316,7 +315,6 @@ namespace icp_relocalization
     // Reset if too large (safety)
     if(accumulated_cloud_->size() > 100000) 
     {
-      RCLCPP_WARN(this->get_logger(), "Accumulated cloud too large (%zu points). Clearing buffer.", accumulated_cloud_->size());
       accumulated_cloud_->clear();
       current_accumulated_frames_ = 0;
     }
