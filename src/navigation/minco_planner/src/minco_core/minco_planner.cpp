@@ -108,6 +108,15 @@ void MincoPlanner::configure(
     node, prefix + "minco_optimizer.max_acceleration", rclcpp::ParameterValue(4.0));
   node->get_parameter(prefix + "minco_optimizer.max_acceleration", minco_config.max_acc);
 
+  double max_yaw_dot = 3.14;
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "minco_optimizer.max_yaw_dot", rclcpp::ParameterValue(max_yaw_dot));
+  node->get_parameter(prefix + "minco_optimizer.max_yaw_dot", max_yaw_dot);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "minco_optimizer.enable_yaw_opt", rclcpp::ParameterValue(true));
+  node->get_parameter(prefix + "minco_optimizer.enable_yaw_opt", use_yaw_opt_);
+
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "minco_optimizer.time_allocation_iters", rclcpp::ParameterValue(15));
   node->get_parameter(prefix + "minco_optimizer.time_allocation_iters", minco_config.time_allocation_iters);
@@ -245,6 +254,7 @@ void MincoPlanner::configure(
   corridor_gen_->setSafetyMargins(corridor_robot_radius, corridor_extra_margin);
 
   backup_opt_ = std::make_unique<traj_opt::BackupTrajOpt>();
+  yaw_opt_ = std::make_unique<traj_opt::YawTrajOpt>(max_yaw_dot);
 
   // Planner handle for FSM (non-owning; lifetime managed by pluginlib).
   planner_handle_ = MincoPlanner::Ptr(this, [](MincoPlanner *) {});
@@ -289,6 +299,7 @@ void MincoPlanner::cleanup()
   astar_planner_.reset();
   minco_optimizer_.reset();
   backup_opt_.reset();
+  yaw_opt_.reset();
   opt_path_pub_.reset();
   backup_path_pub_.reset();
 }
@@ -380,7 +391,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   // 4. Determine state (HOT/COLD).
   PlanningState state = PlanningState::COLD_START;
-  geometry_utils::Trajectory last_traj_snapshot;
+  traj_opt::Trajectory last_traj_snapshot;
   bool has_last_traj_snapshot = false;
   double last_traj_start_WT = 0.0;
   {
@@ -412,7 +423,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
     // Extract remaining trajectory segment as shifted warm-start seed.
     if (has_last_traj_snapshot) {
-      geometry_utils::Trajectory remain;
+      traj_opt::Trajectory remain;
       const double total = last_traj_snapshot.getTotalDuration();
       if (std::isfinite(t_dur) && t_dur > 0.0 && total > t_dur + 1e-3 &&
           last_traj_snapshot.getPartialTrajectoryByTime(t_dur, total, remain)) {
@@ -599,7 +610,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   auto opt_start_time = rclcpp::Clock().now().seconds();
   double final_cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
 
-  const double max_allowed_cost = 5000.0;
+  const double max_allowed_cost = 3000.0;
   if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
     RCLCPP_WARN(
       logger_,
@@ -633,13 +644,41 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     return false;
   }
 
+  traj_opt::Trajectory yaw_traj;
+  if (use_yaw_opt_) {
+    const bool yaw_success = optimizeYaw(start_state, opt_traj, yaw_traj, state);
+    if (!yaw_success) {
+      std::cout << YELLOW
+                << "[MincoPlanner] Yaw optimization failed. Falling back to constant yaw trajectory."
+                << RESET << std::endl;
+
+      const double fallback_yaw = 0.0;
+      Eigen::MatrixXd cMat(3, 6);
+      cMat.setZero();
+      cMat(0, 5) = std::isfinite(fallback_yaw) ? fallback_yaw : 0.0;
+      const double yaw_dur = std::max(0.02, opt_traj.getTotalDuration());
+      yaw_traj.clear();
+      yaw_traj.emplace_back(yaw_dur, cMat);
+      yaw_traj.start_WT = opt_traj.start_WT;
+    }
+  } else {
+    const double fallback_yaw = 0.0;
+    Eigen::MatrixXd cMat(3, 6);
+    cMat.setZero();
+    cMat(0, 5) = std::isfinite(fallback_yaw) ? fallback_yaw : 0.0;
+    const double yaw_dur = std::max(0.02, opt_traj.getTotalDuration());
+    yaw_traj.clear();
+    yaw_traj.emplace_back(yaw_dur, cMat);
+    yaw_traj.start_WT = opt_traj.start_WT;
+  }
+
   // 9. Publish and cache.
   const double t_step = 0.05;
   int steps = static_cast<int>(std::ceil(opt_traj.getTotalDuration() / t_step)) + 1;
   steps = std::max(2, steps);
 
   utils::publishOptimizedTrajectory(
-    opt_traj, opt_path_pub_, opt_trajectory_id_, header_msg, steps, t_step);
+    opt_traj, yaw_traj, opt_path_pub_, opt_trajectory_id_, header_msg, steps, t_step);
 
   if (visualizer_) {
     nav_msgs::msg::Path astar_path_msg;
@@ -655,6 +694,9 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   last_traj_ = opt_traj;
   last_traj_.start_WT = rclcpp::Clock().now().seconds();
   has_last_traj_ = true;
+  last_yaw_traj_ = yaw_traj;
+  last_yaw_traj_.start_WT = last_traj_.start_WT;
+  has_last_yaw_traj_ = true;
 
   is_traj_safe_.store(true);
   return true;
@@ -926,6 +968,54 @@ void MincoPlanner::prepareHotStart(
   start_state.col(2) = last_traj_.getAcc(t_dur);
 }
 
+bool MincoPlanner::optimizeYaw(
+  const Eigen::Matrix3d & start_state,
+  const traj_opt::Trajectory & pos_traj,
+  traj_opt::Trajectory & out_yaw_traj,
+  PlanningState state)
+{
+  if (!yaw_opt_) {
+    return false;
+  }
+
+  const double pos_dur = pos_traj.getTotalDuration();
+  if (!(std::isfinite(pos_dur) && pos_dur > 1e-6)) {
+    return false;
+  }
+
+  Eigen::Vector4d init_yaw_state = Eigen::Vector4d::Zero();
+  Eigen::Vector4d goal_yaw_state = Eigen::Vector4d::Zero();
+
+  bool use_hot_seed = false;
+  if (state == PlanningState::HOT_START) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (has_last_yaw_traj_ && has_last_traj_) {
+      const double t_dur = nowSeconds() - last_traj_.start_WT;
+      const double yaw_dur = last_yaw_traj_.getTotalDuration();
+      if (std::isfinite(t_dur) && std::isfinite(yaw_dur) && yaw_dur > 1e-6 && t_dur >= 0.0) {
+        const double sample_t = std::min(t_dur, yaw_dur);
+        init_yaw_state(0) = last_yaw_traj_.getPos(sample_t)(0);
+        init_yaw_state(1) = last_yaw_traj_.getVel(sample_t)(0);
+        use_hot_seed = true;
+      }
+    }
+  }
+
+  if (!use_hot_seed) {
+    init_yaw_state(0) = std::atan2(start_state.col(1).y(), start_state.col(1).x());
+    init_yaw_state(1) = 0.0;
+  }
+
+  return yaw_opt_->optimize(
+    init_yaw_state,
+    goal_yaw_state,
+    pos_traj,
+    out_yaw_traj,
+    5,
+    false,
+    true);
+}
+
 // -----------------------------------------------------------------------------
 // 5) Helpers / callbacks / getters
 // -----------------------------------------------------------------------------
@@ -1003,7 +1093,7 @@ bool MincoPlanner::checkCollision()
   }
 
   // Snapshot trajectory under mutex to avoid data races with ReplanLocal().
-  geometry_utils::Trajectory traj_snapshot;
+  traj_opt::Trajectory traj_snapshot;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!has_last_traj_) {
@@ -1035,7 +1125,7 @@ bool MincoPlanner::checkCollision()
   return true;
 }
 
-bool MincoPlanner::checkCollision(const geometry_utils::Trajectory & traj)
+bool MincoPlanner::checkCollision(const traj_opt::Trajectory & traj)
 {
   if (!costmap_) {
     return true;
@@ -1099,7 +1189,7 @@ void MincoPlanner::publishEmergencyStop(const geometry_msgs::msg::PoseStamped & 
   }
 
   traj_opt::Trajectory backup_traj = generateBackupTraj(start_state);
-  utils::publishOptimizedTrajectory(
+  utils::publishBackupTrajectory(
     backup_traj, opt_path_pub_, opt_trajectory_id_, header_msg, 20, 0.1);
 }
 
