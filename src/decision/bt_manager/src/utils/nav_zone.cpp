@@ -23,10 +23,11 @@ namespace Sentry_BT
     //   {14.0, 12.0}
     // for test
       {5.6, 6.0},
-      {9.5, 5.1},
+      {4.5, 5.1},
       {5.5, 3.5}
 
     // for rmul
+    
   };
 
   std::vector<int> patrol_points_milliseconds = {
@@ -45,7 +46,7 @@ namespace Sentry_BT
 
     // for test
     {5.6, 6.0},
-    {9.5, 5.1},
+    {4.5, 5.1},
     {5.5, 3.5}
   };
 

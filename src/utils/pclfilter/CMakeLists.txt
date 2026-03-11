@@ -93,4 +93,10 @@ install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
 )
 
+# Install Python preprocessing script
+install(PROGRAMS
+  scripts/preprocess_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_package()
