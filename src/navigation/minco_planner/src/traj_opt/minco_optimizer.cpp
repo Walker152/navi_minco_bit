@@ -431,13 +431,46 @@ bool MincoOptimizer::setupProblemAndCheck(const std::vector<Eigen::Vector3d>& wa
 
 void MincoOptimizer::DefaultInit() 
 {
-    // 1. Initialize segment times from distance and max velocity
-    const VecDf dis = (opt_vars_.waypoint_attractor.leftCols(opt_vars_.piece_num) -
-                           opt_vars_.waypoint_attractor.rightCols(opt_vars_.piece_num)).colwise().norm().transpose();
-    double speed = cfg_.max_vel * 0.8;
-    opt_vars_.times = (dis / speed).cwiseMax(0.1); // Avoid divide-by-zero
+    // 1. Extract segment distance computation logic.
+    const auto computeDis = [this]() -> VecDf {
+        return (opt_vars_.waypoint_attractor.leftCols(opt_vars_.piece_num) -
+                opt_vars_.waypoint_attractor.rightCols(opt_vars_.piece_num))
+            .colwise()
+            .norm()
+            .transpose();
+    };
+    const VecDf dis = computeDis();
 
-    // 2. Initialize intermediate points from guide waypoints
+    // 2. Allocate initial times with kinematic-aware startup / stopping compensation.
+    const double max_vel = (std::isfinite(cfg_.max_vel) && cfg_.max_vel > 1e-3) ? cfg_.max_vel : 1.0;
+    const double max_acc = (std::isfinite(cfg_.max_acc) && cfg_.max_acc > 1e-3) ? cfg_.max_acc : 2.0;
+    const double cruise_speed = std::max(1e-3, max_vel * 0.8);
+
+    opt_vars_.times.resize(opt_vars_.piece_num);
+    for (int i = 0; i < opt_vars_.piece_num; ++i) {
+        const double d = std::max(0.0, dis(i));
+        double t = 0.1;
+
+        if (i == 0) {
+            // First segment: conservative startup time to avoid speed spike.
+            const double t_acc = std::sqrt(std::max(0.0, 2.0 * d / max_acc));
+            const double t_cons = d / std::max(1e-3, max_vel * 0.5);
+            t = std::max(t_acc, t_cons);
+        } else if (i == opt_vars_.piece_num - 1) {
+            // Last segment: add braking compensation for stop behavior.
+            const double t_cruise = d / cruise_speed;
+            const double t_brake = std::sqrt(std::max(0.0, 2.0 * d / max_acc));
+            t = std::max(t_cruise, t_brake);
+        } else {
+            // Middle segments: keep original uniform-speed allocation.
+            t = d / cruise_speed;
+        }
+
+        opt_vars_.times(i) = t;
+    }
+    opt_vars_.times = opt_vars_.times.cwiseMax(0.1);
+
+    // 3. Initialize intermediate points from guide waypoints (unchanged).
     opt_vars_.points = opt_vars_.waypoint_attractor.block(0, 1, 3, opt_vars_.piece_num - 1);
 }
 
