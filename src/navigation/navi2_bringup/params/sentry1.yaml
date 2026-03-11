@@ -224,7 +224,7 @@ global_costmap:
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
-        voxel_decay: 1.0
+        voxel_decay: 0.6
         decay_model: 0
         voxel_size: 0.05
         track_unknown_space: true
@@ -314,12 +314,12 @@ planner_server:
         smooth_eps: 0.01
         integral_res: 16
         opt_accuracy: 0.0001
-        print_optimizer_log: false
-        penalty_weight_time: 50.0
+        print_optimizer_log: true
+        penalty_weight_time: 1.0
         penalty_weight_pos: 1000000.0
-        penalty_weight_vel: 5000.0
-        penalty_weight_acc: 1000.0
-        penalty_weight_att: 100.0
+        penalty_weight_vel: 50000.0
+        penalty_weight_acc: 50000.0
+        penalty_weight_att: 1000.0
       static_esdf:
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
