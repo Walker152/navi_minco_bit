@@ -22,7 +22,9 @@ int main(int argc, char** argv)
   msg.enemy_detected.position.y = 0.3;
   msg.enemy_detected.position.z = 8.0;
   msg.enemy_detected.armor_id = 3;
-  msg.position = 1;
+  msg.current_stance = 1;
+  msg.gimbal_yaw = 0.0;
+  msg.lifter_pos_now = 0.0;
 
   RCLCPP_INFO(node->get_logger(), "初始状态：血量=400.0，前哨站存在，无敌人，巡逻状态");
 
@@ -54,7 +56,7 @@ int main(int argc, char** argv)
       msg.self_health = 400.0;
       msg.enemy_outpost_destroyed = true;
       msg.enemy_detected.is_detect = false;
-      msg.position = 1;
+      msg.current_stance = 1;
     }
     else if(phase == 1)  // [15, 30)
     {
@@ -72,7 +74,7 @@ int main(int argc, char** argv)
       msg.enemy_detected.position.z = 10700;
       if(time_counter == 18)
       {
-        msg.position = 2;
+        msg.current_stance = 2;
       }
     }
     else if(phase == 2)  // [30, 45)
@@ -88,7 +90,7 @@ int main(int argc, char** argv)
       msg.enemy_detected.is_detect = false;
       if(time_counter == 35)
       {
-        msg.position = 1;
+        msg.current_stance = 1;
       }
     }
     else if(phase == 3)  // [45, 60)
@@ -128,7 +130,7 @@ int main(int argc, char** argv)
       msg.enemy_outpost_destroyed = false;
       if(time_counter == 80)
       {
-        msg.position = 3;
+        msg.current_stance = 3;
       }
     }
     else  // phase == 6, [90, 105)
@@ -142,7 +144,7 @@ int main(int argc, char** argv)
       msg.self_health = 400.0;
       msg.enemy_outpost_destroyed = false;
       msg.enemy_detected.is_detect = false;
-      msg.position = 1;
+      msg.current_stance = 1;
     }
 
     // 发布消息
@@ -154,7 +156,7 @@ int main(int argc, char** argv)
               << ", enemy_outpost_destroyed=" << (msg.enemy_outpost_destroyed ? "true" : "false")
               << ", own_outpost_health=" << msg.own_outpost_health
               << ", is_detect=" << (msg.enemy_detected.is_detect ? "true" : "false")
-              << ", position=" << static_cast<int>(msg.position)
+              << ", current_stance=" << static_cast<int>(msg.current_stance)
               << ", armor_id=" << static_cast<int>(msg.enemy_detected.armor_id);
 
     if(msg.enemy_detected.is_detect)

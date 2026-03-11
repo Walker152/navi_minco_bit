@@ -145,6 +145,11 @@ private:
    */
   float getESDFPotentialCost(unsigned int mx, unsigned int my);
 
+  /**
+   * @brief Evaluate inflation traversal factor from costmap cell cost
+   */
+  float evaluateInflationCost(unsigned char cell_cost);
+
   // Parameters
   bool allow_unknown_;
   int max_iterations_;

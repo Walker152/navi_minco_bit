@@ -242,7 +242,9 @@ private:
       std::memcpy(cloud_msg_->data.data(), temp_buffer.data(), output_point_num * sizeof(PointXYZI));
     }
 
-    // 发布转换后的点云
+    // 更新消息头并发布转换后的点云
+    cloud_msg_->header.stamp = this->now();
+    cloud_msg_->header.frame_id = frame_id_;
     pub_->publish(*cloud_msg_);
     auto publish_time = this->now();
     // std::cout << "Transform time: " << (publish_time.seconds() - receive_time.seconds()) * 1000 << " ms" << std::endl
