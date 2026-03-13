@@ -28,6 +28,7 @@ namespace Sentry_BT
                                                                   }); 
 
     // 定时发布行为状态（10Hz）
+    gimbal_yaw_pub = this->create_publisher<std_msgs::msg::Float32>("/sentry/gimbal_yaw", 10);
     behavior_pub = this->create_publisher<ros_interfaces::msg::Behavior>("/sentry/behaivor_send", 10);
     cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
     timer_ = this->create_wall_timer(
@@ -86,6 +87,7 @@ namespace Sentry_BT
     blackboard_->set<float>("gimbal_yaw", msg->gimbal_yaw);
     blackboard_->set<uint16_t>("num_shoot", msg->num_shoot);
 
+    gimbal_yaw_pub->publish(std_msgs::msg::Float32().set__data(msg->gimbal_yaw));
     // if(msg->position >= 1 && msg->position <= 3)
     // {
     //   blackboard_->set<Sentry_BT::SentryStance>("current_stance",

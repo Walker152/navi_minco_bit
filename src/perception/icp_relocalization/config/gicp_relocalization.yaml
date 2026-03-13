@@ -3,21 +3,21 @@ gicp_relocalization_node:
     # General Configuration
     mode: "initial_guess" # Options: "multi_guess", "initial_guess"
     # target_pcd_file: "src/perception/icp_relocalization/maps/rmuc.pcd"
-    # target_pcd_file: "src/perception/icp_relocalization/maps/111.pcd"
-    target_pcd_file: "src/perception/icp_relocalization/maps/rmul.pcd"
+    target_pcd_file: "src/perception/icp_relocalization/maps/111.pcd"
+    # target_pcd_file: "src/perception/icp_relocalization/maps/rmul.pcd"
     map_frame: "map"
     visualization_en: true
     source_cloud_topic: "/livox/stdpc"
     alignment_frequency: 5.0
     accumulate_frames: 5
-    
+    tf_publish_frequency: 30.0
     # Convergence Criteria
-    fitness_score_threshold: 0.1
+    fitness_score_threshold: 100.0
     converged_count_threshold: 1
     
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
-    # initial_pose: [2.0, 6.0, 0.0, 0.0, 0.0, 0.4]
-    initial_pose: [5.0, 7.0, 0.0, 0.0, 0.0, 0.4]
+    initial_pose: [2.0, 6.0, 0.0, 0.0, 0.0, 0.4]
+    # initial_pose: [5.0, 7.0, 0.0, 0.0, 0.0, 0.4]
     # Multi-Guess Parameters
     multi_guess:
       search_rectangles: [0.0, 3.0, 0.0, 3.0, -2.0, 0.0, -1.0, 1.0]
@@ -30,7 +30,7 @@ gicp_relocalization_node:
     height_filter:
       enable: true
       min_z: 0.0
-      max_z: 5.0
+      max_z: 2.5
 
     # Source Crop Parameters
     source_crop:

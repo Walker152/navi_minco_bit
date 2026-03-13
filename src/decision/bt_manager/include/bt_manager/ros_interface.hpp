@@ -7,6 +7,7 @@
 #include <geometry_msgs/msg/pose.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <std_msgs/msg/detail/float32__struct.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_msgs/msg/bool.hpp>
@@ -30,6 +31,7 @@ namespace Sentry_BT
     rclcpp::Subscription<ros_interfaces::msg::EventStatus>::SharedPtr event_sub;
     rclcpp::Publisher<ros_interfaces::msg::Behavior>::SharedPtr behavior_pub;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub;
+    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr gimbal_yaw_pub;
 
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub;
 
