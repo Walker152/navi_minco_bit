@@ -109,6 +109,7 @@ namespace Sentry_BT
       return BT::NodeStatus::FAILURE;
     }
 
+    
     // 使用静态变量记录最后一次看到敌人的时间
     static std::chrono::time_point<std::chrono::system_clock> last_seen_time = std::chrono::system_clock::now();
 
