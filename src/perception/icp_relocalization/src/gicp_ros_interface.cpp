@@ -1,6 +1,8 @@
 #include "gicp_ros_interface.hpp"
 #include "gicp_utils.hpp"
+#include <cmath>
 #include <Eigen/Geometry>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <pcl_conversions/pcl_conversions.h>
 
@@ -26,6 +28,7 @@ namespace icp_relocalization
     visualization_en_ = this->declare_parameter<bool>("visualization_en", true);
     source_cloud_topic_ = this->declare_parameter<std::string>("source_cloud_topic", "/livox/stdpc");
     alignment_frequency_ = this->declare_parameter<double>("alignment_frequency", 1.0);
+    tf_publish_frequency_ = this->declare_parameter<double>("tf_publish_frequency", 10.0);
     accumulate_frames_ = this->declare_parameter<int>("accumulate_frames", 5);
     fitness_score_threshold_ = this->declare_parameter<double>("fitness_score_threshold", 0.5);
     converged_count_threshold_ = this->declare_parameter<int>("converged_count_threshold", 5);
@@ -89,6 +92,7 @@ namespace icp_relocalization
                     NV(visualization_en_),
                     NV(source_cloud_topic_),
                     NV(alignment_frequency_),
+                    NV(tf_publish_frequency_),
                     NV(accumulate_frames_),
                     NV(converged_count_threshold_),
                     NV(target_pcd_file));
@@ -156,8 +160,7 @@ namespace icp_relocalization
 
     setupGicp(target_pcd_file);
     
-    // Use StaticTransformBroadcaster for static map->camera_init transform
-    static_tf_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
+    tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
@@ -171,9 +174,16 @@ namespace icp_relocalization
       RCLCPP_WARN(this->get_logger(), "alignment_frequency <= 0 (%.3f). Forcing to 1.0 Hz.", alignment_frequency_);
       alignment_frequency_ = 1.0;
     }
+    if(tf_publish_frequency_ <= 0.0)
+    {
+      RCLCPP_WARN(this->get_logger(), "tf_publish_frequency <= 0 (%.3f). Forcing to 10.0 Hz.", tf_publish_frequency_);
+      tf_publish_frequency_ = 10.0;
+    }
     fsm_period_ = std::chrono::duration<double>(1.0 / alignment_frequency_);
+    tf_publish_period_ = std::chrono::duration<double>(1.0 / tf_publish_frequency_);
     startFsmTimer();
     startVisualizationTimer();
+    startTfPublishTimer();
 
     // 初始化重定位服务
     relocalize_srv_ = this->create_service<std_srvs::srv::Trigger>(
@@ -239,6 +249,58 @@ namespace icp_relocalization
         std::chrono::milliseconds(1000),
         std::bind(&GicpRosInterface::visualizationTimerCallback, this),
         callback_group_lidar_);
+  }
+
+  void GicpRosInterface::startTfPublishTimer()
+  {
+    if(tf_publish_timer_)
+    {
+      tf_publish_timer_->cancel();
+      tf_publish_timer_.reset();
+    }
+
+    tf_publish_timer_ = this->create_wall_timer(
+        tf_publish_period_,
+        std::bind(&GicpRosInterface::tfPublishTimerCallback, this),
+        callback_group_lidar_);
+  }
+
+  void GicpRosInterface::tfPublishTimerCallback()
+  {
+    if(state_ != State::LOCALIZED || !gicp_initialized_ || cloud_frame_id_.empty())
+    {
+      return;
+    }
+
+    publishCurrentTransform(this->now());
+  }
+
+  void GicpRosInterface::publishCurrentTransform(const rclcpp::Time& stamp)
+  {
+    if(!tf_broadcaster_ || cloud_frame_id_.empty())
+    {
+      return;
+    }
+
+    geometry_msgs::msg::TransformStamped t;
+    t.header.stamp = stamp;
+    t.header.frame_id = map_frame_;
+    t.child_frame_id = "camera_init";
+
+    // 仅发布平面位姿：x, y, yaw；其余项强制为 0
+    const float x = map_to_camera_init_(0, 3);
+    const float y = map_to_camera_init_(1, 3);
+    const float yaw = std::atan2(map_to_camera_init_(1, 0), map_to_camera_init_(0, 0));
+
+    t.transform.translation.x = x;
+    t.transform.translation.y = y;
+    t.transform.translation.z = 0.0;
+    t.transform.rotation.x = 0.0;
+    t.transform.rotation.y = 0.0;
+    t.transform.rotation.z = std::sin(static_cast<double>(yaw) * 0.5);
+    t.transform.rotation.w = std::cos(static_cast<double>(yaw) * 0.5);
+
+    tf_broadcaster_->sendTransform(t);
   }
 
   void GicpRosInterface::relocalizeServiceCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
@@ -494,13 +556,9 @@ namespace icp_relocalization
         {
           std::cout << GREEN << "[GICP] Localization confirmed after " << converged_count_ << " consecutive convergences!" << RESET << std::endl;
           state_ = State::LOCALIZED;
-          
-          // Publish Static TF once converged
-          gicp_utils::publishStaticTf(static_tf_broadcaster_,
-                                      map_frame_,
-                                      cloud_frame_id_,
-                                      map_to_camera_init_,
-                                      this->now());
+
+          // Publish TF immediately, then keep periodic publish by tf timer
+          publishCurrentTransform(this->now());
 
           // Suspend operations to save resources
           RCLCPP_INFO(this->get_logger(), "Suspending GICP update timer and lidar subscription.");
