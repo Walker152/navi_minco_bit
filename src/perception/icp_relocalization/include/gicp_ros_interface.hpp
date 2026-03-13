@@ -52,6 +52,9 @@ namespace icp_relocalization
     void activateLidarSubscription();
     void initializeDebugPublishers();
     void startVisualizationTimer();
+    void startTfPublishTimer();
+    void tfPublishTimerCallback();
+    void publishCurrentTransform(const rclcpp::Time& stamp);
 
     // ROS 接口
     std::unique_ptr<GicpFilter> gicp_filter_;
@@ -61,13 +64,14 @@ namespace icp_relocalization
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_source_aligned_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_target_raw_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_target_cropped_;
-    std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     rclcpp::CallbackGroup::SharedPtr callback_group_lidar_;
     rclcpp::CallbackGroup::SharedPtr callback_group_service_;
     rclcpp::TimerBase::SharedPtr fsm_timer_;
     rclcpp::TimerBase::SharedPtr visualization_timer_;
+    rclcpp::TimerBase::SharedPtr tf_publish_timer_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr relocalize_srv_;
 
     void fsmTimerCallback();
@@ -109,6 +113,8 @@ namespace icp_relocalization
     std::vector<double> initial_pose_; // 初始位姿猜测 [x, y, z, roll, pitch, yaw]
 
     std::chrono::duration<double> fsm_period_{1.0};
+    double tf_publish_frequency_ = 10.0;
+    std::chrono::duration<double> tf_publish_period_{0.1};
 
     GicpFilter::Options gicp_options_;
   };
