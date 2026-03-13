@@ -610,7 +610,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   auto opt_start_time = rclcpp::Clock().now().seconds();
   double final_cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
 
-  const double max_allowed_cost = 3000.0;
+  const double max_allowed_cost = 1000.0;
   if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
     RCLCPP_WARN(
       logger_,
