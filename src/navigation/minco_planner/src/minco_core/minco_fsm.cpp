@@ -114,11 +114,11 @@ void MincoFsm::callMainFsmOnce()
         planner_->isTrajectoryTimeExpired(now_s) ||
         !planner_->isTrajSafe();
 
-      // 强制高频重规划：10Hz（每 0.1s）刷新轨迹，避免轨迹“卡死”不更新。
+      // 强制高频重规划：1Hz刷新轨迹，避免轨迹“卡死”不更新。
       if (has_odom) {
         static double last_replan_time = 0.0;
         const double current_time = planner_->nowSeconds();
-        if (current_time - last_replan_time > 0.2) {
+        if (current_time - last_replan_time > 1.0) {
           need_replan = true;
           last_replan_time = current_time;
         }
