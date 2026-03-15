@@ -32,6 +32,14 @@ namespace icp_relocalization
     explicit GicpRosInterface(const rclcpp::NodeOptions& options);
 
   private:
+  //超时处理
+    std::chrono::steady_clock::time_point reloc_start_time_;//重定位开始时间
+    double timeout_seconds_;// 超时阈值
+    std::vector<double> default_pose_on_timeout_;  // 超时后发布的默认位姿
+  
+    // 默认位姿发布函数
+    void publishDefaultPose();
+
     enum class State
     {
       UNINITIALIZED,
