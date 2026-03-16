@@ -101,6 +101,11 @@ Vec3f ProbMap::getLocalMapSize() const {
     return cfg_.map_size_d;
 }
 
+void ProbMap::getLocalUpdateBox(Vec3i& min_i, Vec3i& max_i) const {
+    min_i = local_map_bound_min_i_;
+    max_i = local_map_bound_max_i_;
+}
+
 // Query====================================================
 bool ProbMap::isOccupied(const Vec3f& pos) const {
     if (!insideLocalMap(pos)) {
@@ -207,6 +212,30 @@ bool ProbMap::isFrontier(const Vec3i& id_g) const {
         }
     }
     return false;
+}
+
+void ProbMap::forceUnknown(const Vec3i& id_g) {
+    if (!insideLocalMap(id_g)) {
+        return;
+    }
+    const int hash_id = getHashIndexFromGlobalIndex(id_g);
+    float& ret = occupancy_buffer_[hash_id];
+
+    // 如果当前确实是占据状态，通知下游图层进行清除
+    if (isOccupied(ret)) {
+        Vec3f center_pos;
+        globalIndexToPos(id_g, center_pos);
+        
+        // 更新膨胀层
+        if (inf_map_) {
+            inf_map_->updateGridCounter(center_pos, super_utils::GridType::OCCUPIED, super_utils::GridType::UNKNOWN);
+        }
+        // 更新 ESDF 距离场
+        if (cfg_.esdf_en && esdf_map_) {
+            esdf_map_->updateGridCounter(center_pos, super_utils::GridType::OCCUPIED, super_utils::GridType::UNKNOWN);
+        }
+        ret = 0.0f;
+    }
 }
 
 bool ProbMap::isKnownFreeInflate(const Vec3f& pos) const {
