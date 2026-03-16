@@ -26,9 +26,12 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <visualization_msgs/msg/marker_array.hpp>
+
+#include <cmath>
 
 #include <rog_map/rog_map.h>
 #include <super_utils/color_msg_utils.hpp>
@@ -66,9 +69,18 @@ namespace rog_map {
             int unfinished_frame_cnt{0};
             Pose pc_pose;
             PointCloud pc;
+            rclcpp::Time last_cloud_stamp;
+            bool has_cloud_stamp{false};
             rclcpp::TimerBase::SharedPtr update_timer;
             mutex updete_lock;
         } rc_;
+
+        // Projection params
+        double proj_min_z_{0.1};
+        double proj_max_z_{1.5};
+
+        // 2D grid publisher
+        rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr grid2d_pub_;
 
         void odomCallback(const nav_msgs::msg::Odometry::SharedPtr odom_msg) {
             updateRobotState(std::make_pair(Vec3f(odom_msg->pose.pose.position.x,
@@ -109,6 +121,8 @@ namespace rog_map {
             rc_.updete_lock.lock();
             rc_.pc = temp_pc;
             rc_.pc_pose = std::make_pair(robot_state_.p, robot_state_.q);
+            rc_.last_cloud_stamp = cloud_msg->header.stamp;
+            rc_.has_cloud_stamp = true;
             rc_.unfinished_frame_cnt++;
             map_empty_ = false;
             rc_.updete_lock.unlock();
@@ -160,8 +174,58 @@ namespace rog_map {
                 boundBoxByLocalMap(box_min, box_max);
                 elev_map_->updateFromMap(*this, box_min, box_max);
             }
+
+            if (grid2d_pub_) {
+                const rclcpp::Time stamp = rc_.has_cloud_stamp ? rc_.last_cloud_stamp : nh_->get_clock()->now();
+                publish2DGrid(stamp);
+            }
             
             writeTimeConsumingToLog(time_log_file_);
+        }
+
+        void publish2DGrid(const rclcpp::Time& stamp) {
+            if (!grid2d_pub_) {
+                return;
+            }
+
+            auto cfg = getMapConfig();
+            const Vec3f local_origin = getLocalMapOrigin();
+            const Vec3f local_size = cfg.map_size_d;
+
+            nav_msgs::msg::OccupancyGrid grid;
+            grid.header.stamp = stamp;
+            grid.header.frame_id = cfg.frame_id;
+
+            grid.info.resolution = static_cast<float>(cfg.resolution);
+            grid.info.width = static_cast<uint32_t>(std::round(local_size.x() / cfg.resolution));
+            grid.info.height = static_cast<uint32_t>(std::round(local_size.y() / cfg.resolution));
+            grid.info.origin.position.x = local_origin.x() - local_size.x() / 2.0;
+            grid.info.origin.position.y = local_origin.y() - local_size.y() / 2.0;
+            grid.info.origin.position.z = 0.0;
+            grid.info.origin.orientation.w = 1.0;
+
+            const size_t cell_num = static_cast<size_t>(grid.info.width) * static_cast<size_t>(grid.info.height);
+            grid.data.assign(cell_num, 0);
+
+            const double res = cfg.resolution;
+            for (uint32_t y = 0; y < grid.info.height; ++y) {
+                const double py = grid.info.origin.position.y + (static_cast<double>(y) + 0.5) * res;
+                for (uint32_t x = 0; x < grid.info.width; ++x) {
+                    const double px = grid.info.origin.position.x + (static_cast<double>(x) + 0.5) * res;
+                    const size_t idx = static_cast<size_t>(y) * static_cast<size_t>(grid.info.width) + x;
+
+                    bool occ = false;
+                    for (double pz = proj_min_z_; pz <= proj_max_z_; pz += res) {
+                        if (isOccupied(Vec3f(px, py, pz))) {
+                            occ = true;
+                            break;
+                        }
+                    }
+                    grid.data[idx] = occ ? 100 : 0;
+                }
+            }
+
+            grid2d_pub_->publish(grid);
         }
 
         void vizCallback() {
@@ -331,6 +395,9 @@ namespace rog_map {
                                   .durability_volatile());
 
             cfg_ = rog_map::Config(cfg_path);
+            proj_min_z_ = nh_->declare_parameter("proj_min_z", 0.1);
+            proj_max_z_ = nh_->declare_parameter("proj_max_z", 1.5);
+            grid2d_pub_ = nh_->create_publisher<nav_msgs::msg::OccupancyGrid>("/rog_map/grid2d", 10);
             // 创建 TransformBroadcaster
             br_map_ego_ = std::make_shared<tf2_ros::TransformBroadcaster>(nh_);
 
