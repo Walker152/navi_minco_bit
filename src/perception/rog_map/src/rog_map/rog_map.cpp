@@ -30,6 +30,12 @@ void ROGMap::init() {
 
     initProbMap();
 
+    // Initialize STVL layer with default config (can be replaced by YAML loading later).
+    stvl_cfg_.enabled = true;
+    stvl_cfg_.voxel_decay = 0.6;
+    stvl_map_ = std::make_shared<SpatioTemporalMap>();
+    stvl_map_->initSpatioTemporalMap(cfg_.half_map_size_i, cfg_.resolution, stvl_cfg_);
+
     map_info_log_file_.open(DEBUG_FILE_DIR("rm_info_log.csv"), std::ios::out | std::ios::trunc);
     time_log_file_.open(DEBUG_FILE_DIR("rm_performance_log.csv"), std::ios::out | std::ios::trunc);
 
@@ -273,6 +279,13 @@ void ROGMap::updateMap(const PointCloud& cloud, const Pose& pose) {
 
     updateRobotState(pose);
     updateProbMap(cloud, pose);
+
+    // Dynamic obstacle trimming layer (STVL): run immediately after ProbMap update.
+    if (stvl_map_ && stvl_cfg_.enabled) {
+        const double current_time = robot_state_.rcv_time;
+        ProbMap::Ptr prob_map_alias(this, [](ProbMap*) {});
+        stvl_map_->applyTemporalDecay(prob_map_alias, robot_state_, current_time);
+    }
 
 
     writeTimeConsumingToLog(time_log_file_);

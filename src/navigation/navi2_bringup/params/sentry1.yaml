@@ -320,6 +320,11 @@ planner_server:
         penalty_weight_vel: 2000.0
         penalty_weight_acc: 2000.0
         penalty_weight_att: 10.0
+        # penalty_weight_time: 5.0       # (原 25.0) -> 大幅降低
+        # penalty_weight_pos: 20000.0    # (原 1000000.0) -> 降低两个数量级
+        # penalty_weight_vel: 1000.0     # (原 2000.0) -> 适度降低
+        # penalty_weight_acc: 1000.0     # (原 2000.0) -> 适度降低
+        # penalty_weight_att: 800.0      # (原 10.0) -> 提升 80 倍！
       static_esdf:
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
