@@ -118,7 +118,7 @@ void MincoFsm::callMainFsmOnce()
       if (has_odom) {
         static double last_replan_time = 0.0;
         const double current_time = planner_->nowSeconds();
-        if (current_time - last_replan_time > 0.2) {
+        if (current_time - last_replan_time > 0.8) {
           need_replan = true;
           last_replan_time = current_time;
         }

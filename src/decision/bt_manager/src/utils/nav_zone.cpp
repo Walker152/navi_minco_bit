@@ -22,12 +22,14 @@ namespace Sentry_BT
     //   {12.0, 8.6},
     //   {14.0, 12.0}
     // for test
-      {5.6, 6.0},
-      {4.5, 5.1},
-      {5.5, 3.5}
+      // {5.6, 6.0},
+      // {4.5, 5.1},
+      // {5.5, 3.5}
 
     // for rmul
-    
+      {7.0, 5.4},
+      {5.6, 4.4},
+      {7.0, 3.2}
   };
 
   std::vector<int> patrol_points_milliseconds = {
@@ -45,9 +47,14 @@ namespace Sentry_BT
     //   {11.5, -3.8}
 
     // for test
-    {5.6, 6.0},
-    {4.5, 5.1},
-    {5.5, 3.5}
+    // {5.6, 6.0},
+    // {4.5, 5.1},
+    // {5.5, 3.5}
+
+    // for rmul
+      {7.0, 5.4},
+      {5.6, 4.4},
+      {7.0, 3.2}
   };
 
   std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};
