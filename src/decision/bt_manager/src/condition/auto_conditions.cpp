@@ -100,7 +100,7 @@ namespace Sentry_BT
     // Sentry_BT::Area_Square own_outpost_area = {{8.5, -2.7}, {11.5, -4.2}};  //待修改
 
     //rmul
-    Sentry_BT::Area_Square attack_area = {{7.0, 7.0}, {0.0, 0.0}};
+    Sentry_BT::Area_Square attack_area = {{8.0, 7.5}, {0.0, 0.0}};
     
     if(!attack_area.contains({target_pose.position.x, target_pose.position.y}))
     {

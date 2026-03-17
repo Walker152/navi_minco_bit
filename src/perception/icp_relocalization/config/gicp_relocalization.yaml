@@ -3,8 +3,8 @@ gicp_relocalization_node:
     # General Configuration
     mode: "initial_guess" # Options: "multi_guess", "initial_guess"
     # target_pcd_file: "src/perception/icp_relocalization/maps/rmuc.pcd"
-    target_pcd_file: "src/perception/icp_relocalization/maps/111.pcd"
-    # target_pcd_file: "src/perception/icp_relocalization/maps/rmul.pcd"
+    # target_pcd_file: "src/perception/icp_relocalization/maps/111.pcd"
+    target_pcd_file: "src/perception/icp_relocalization/maps/rmul.pcd"
     map_frame: "map"
     visualization_en: true
     source_cloud_topic: "/livox/stdpc"
@@ -13,7 +13,10 @@ gicp_relocalization_node:
     tf_publish_frequency: 30.0
     # Convergence Criteria
     fitness_score_threshold: 100.0
-    converged_count_threshold: 1
+    converged_count_threshold: 2
+
+    timeout_seconds: 5.0  # 超时时间（秒）
+    default_pose_on_timeout: [2.0, 6.0, 0.0, 0.0, 0.0, 0.4]  # 超时后发布的默认位姿
     
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
     initial_pose: [2.0, 6.0, 0.0, 0.0, 0.0, 0.4]
