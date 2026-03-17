@@ -53,21 +53,60 @@ namespace Sentry_BT
     return {BT::InputPort<geometry_msgs::msg::Pose>("target_coordinate")};
   }
 
-  BT::NodeStatus SetTargetCoordinate::tick()
+  BBT::NodeStatus SetTargetCoordinate::tick()
   {
     std::cout << BLUE << "---------- SetTargetCoordinate ----------" << RESET << std::endl;
     auto blackboard = config().blackboard;
     auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
-    Sentry_BT::Point2D point;
-    point.x = target_pose.position.x;
-    point.y = target_pose.position.y;
+    Sentry_BT::Point2D point;//最终目标点
+    //获取当前位置
+    std::shared_ptr<ros_interface> ros_iface;
+    geometry_msgs::msg::Pose current_pose;
+    ros_iface = blackboard->get<std::shared_ptr<ros_interface>>("ros_interface");
+    if(!ros_iface){
+      return BT::NodeStatus::FAILURE;
+    }
+    current_pose = ros_iface->getCurrentPose();
+    // 提取坐标
+    double current_x = current_pose.position.x;
+    double current_y = current_pose.position.y;
+    double target_x = target_pose.position.x;
+    double target_y = target_pose.position.y;
+    std::cout<<"敌方位置"<<"("<<target_x<<","<<target_y<<")"<<std::endl;
+    //适当漂移，留出攻击距离
+    double dx = target_x - current_x;
+    double dy = target_y - current_y;
+    double distance = std::sqrt(dx*dx + dy*dy);
 
+    const double ATTACK_DISTANCE = 0.3; // 攻击距离
+
+    if (distance > ATTACK_DISTANCE) {
+    // 距离大于30cm，在线段上取离目标点ATTACK_DISTANCE的点
+    double scale = 1.0 - ATTACK_DISTANCE / distance;
+    point.x = current_x + dx * scale;
+    point.y = current_y + dy * scale;
+    std::cout << YELLOW << "距离(" << distance << "m)大于30cm,沿连线方向前进到距离目标点30cm位置" << RESET << std::endl;
+  } else {
+    // 距离小于等于30cm，沿着两点连线方向后退30cm
+    if (distance > 0.001) { // 避免除零
+      double ux = dx / distance;
+      double uy = dy / distance;
+      point.x = current_x - ux * ATTACK_DISTANCE;
+      point.y = current_y - uy * ATTACK_DISTANCE;
+      std::cout << YELLOW << "距离(" << distance << "m)小于等于30cm,沿连线方向后退30cm" << RESET << std::endl;
+    } else {
+      // 如果距离几乎为0（当前位置与目标点重合）
+      point.x = current_x;
+      point.y = current_y - ATTACK_DISTANCE;
+      std::cout << YELLOW << "当前位置与目标点重合,向y轴负方向后退30cm" << RESET << std::endl;
+    }
+  }
     // 将目标点设置到黑板
     blackboard->set("nav_goal", point);
     std::cout << WHITE << "Set target pose to: (" << point.x << ", " << point.y << ")" << RESET << std::endl;
     return BT::NodeStatus::SUCCESS;
   }
-
+  
   // ------------------- SelectPatrolPoint -------------------
   SelectPatrolPoint::SelectPatrolPoint(const std::string& name, const BT::NodeConfiguration& config)
     : BT::SyncActionNode(name, config)
