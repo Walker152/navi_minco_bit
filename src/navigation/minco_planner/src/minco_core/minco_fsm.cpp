@@ -16,11 +16,13 @@ namespace minco_planner {
 MincoFsm::MincoFsm(const PlannerPtr & planner)
 : planner_(planner)
 {
+  recovery_server_.configure(3, 2.0, 3.0);
 }
 
 void MincoFsm::cancelGoal()
 {
   has_goal_ = false;
+  recovery_server_.clearMissionGoal();
   changeState("CANCEL_GOAL", State::EMER_STOP);
 }
 
@@ -40,6 +42,7 @@ void MincoFsm::callMainFsmOnce()
     if (planner_->consumePendingGoal(new_goal)) {
       goal_ = new_goal;
       has_goal_ = true;
+      recovery_server_.setMissionGoal(new_goal);
       changeState("NewGoal", State::GENERATE_TRAJ);
     }
   }
@@ -101,12 +104,35 @@ void MincoFsm::callMainFsmOnce()
 
       // 容差限停检测：到达终点且速度足够低
       if (planner_->checkGoalReached(current_pose)) {
-        if (planner_->getCurrentSpeed() < 0.2) {
-          has_goal_ = false;
-          changeState("GOAL_REACHED", State::WAIT_GOAL);
+        if (recovery_server_.isRecoveryGoalActive()) {
+          geometry_msgs::msg::PoseStamped mission_goal;
+          const auto action = recovery_server_.onRecoveryGoalReached(
+            planner_->getCurrentSpeed(), 0.1, mission_goal);
+          if (action == RecoverServer::RecoveryGoalReachAction::RESUME_MISSION) {
+            goal_ = mission_goal;
+            has_goal_ = true;
+            changeState("RECOVERY_GOAL_DONE", State::GENERATE_TRAJ);
+          } else if (action == RecoverServer::RecoveryGoalReachAction::FINISH_NO_GOAL) {
+            has_goal_ = false;
+            changeState("RECOVERY_GOAL_DONE_NO_MISSION", State::WAIT_GOAL);
+          }
           return;
         }
+
+        if (!goal_stop_published_) {
+          planner_->publishEmergencyStop(current_pose);
+          goal_stop_published_ = true;
+        }
+
+        if (planner_->getCurrentSpeed() < 0.1) {
+          has_goal_ = false;
+          changeState("GOAL_REACHED", State::WAIT_GOAL);
+        }
+
+        return;
       }
+
+      goal_stop_published_ = false;
 
       const double now_s = planner_->nowSeconds();
 
@@ -129,9 +155,33 @@ void MincoFsm::callMainFsmOnce()
       }
 
       if (!planner_->ReplanLocal(current_pose)) {
+        geometry_msgs::msg::PoseStamped recovery_goal;
+        const auto decision = recovery_server_.handleReplanFailure(
+          planner_->nowSeconds(),
+          current_pose,
+          [this](const geometry_msgs::msg::PoseStamped & start,
+                 const geometry_msgs::msg::PoseStamped & goal) {
+            return planner_ && planner_->PlanGlobalPath(start, goal);
+          },
+          recovery_goal);
+
+        if (decision == RecoverServer::RecoveryDecision::USE_RECOVERY_GOAL) {
+          goal_ = recovery_goal;
+          has_goal_ = true;
+          changeState("FOLLOW_REPLAN_RECOVERY_GOAL", State::GENERATE_TRAJ);
+          return;
+        }
+
+        if (decision == RecoverServer::RecoveryDecision::ENTER_EMER_STOP) {
+          changeState("FOLLOW_REPLAN_RECOVERY", State::EMER_STOP);
+          return;
+        }
+
         changeState("FOLLOW_REPLAN", State::GENERATE_TRAJ);
         return;
       }
+
+      recovery_server_.onReplanSuccess();
 
       traveled_dist_ = 0.0;
       return;
@@ -155,12 +205,14 @@ void MincoFsm::callMainFsmOnce()
       if (std::isfinite(now_s) && std::isfinite(emer_stop_start_time_) &&
           (now_s - emer_stop_start_time_) > 5.0) {
         has_goal_ = false;
+        recovery_server_.clearMissionGoal();
         changeState("EMER_TIMEOUT", State::WAIT_GOAL);
         return;
       }
 
       // 3) Still try to find safe path to recover without fully stopping.
       if (planner_->ReplanLocal(current_pose)) {
+        recovery_server_.finishRecovery(true, now_s);
          changeState("EMER_RECOVER", State::FOLLOW_TRAJ);
          return;
       }
@@ -172,7 +224,9 @@ void MincoFsm::callMainFsmOnce()
       }
 
       // 5) Recovery: stopped, check safety before leaving EMER_STOP.
+      recovery_server_.finishRecovery(false, now_s);
       has_goal_ = false;
+      recovery_server_.clearMissionGoal();
       changeState("EMER_SAFE", State::WAIT_GOAL);
       return;
     }
@@ -222,6 +276,7 @@ void MincoFsm::changeState(const char * caller, State new_state)
   last_state_ = state_;
   state_ = new_state;
   stop_published_ = false;
+  goal_stop_published_ = false;
 }
 
 }  // namespace minco_planner
