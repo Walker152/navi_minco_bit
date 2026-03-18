@@ -101,7 +101,7 @@ void MincoFsm::callMainFsmOnce()
 
       // 容差限停检测：到达终点且速度足够低
       if (planner_->checkGoalReached(current_pose)) {
-        if (planner_->getCurrentSpeed() < 0.2) {
+        if (planner_->getCurrentSpeed().head<2>().norm() < 0.2) {
           has_goal_ = false;
           changeState("GOAL_REACHED", State::WAIT_GOAL);
           return;
@@ -166,8 +166,8 @@ void MincoFsm::callMainFsmOnce()
       }
 
       // 4) Blocking wait until fully stopped.
-      const double speed = planner_->getCurrentSpeed();
-      if (std::isfinite(speed) && speed > 0.1) {
+      const Eigen::Vector3d speed = planner_->getCurrentSpeed();
+      if (std::isfinite(speed.head<2>().norm()) && speed.head<2>().norm() > 0.1) {
         return;
       }
 
