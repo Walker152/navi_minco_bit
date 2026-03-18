@@ -107,7 +107,7 @@ void MincoFsm::callMainFsmOnce()
         if (recovery_server_.isRecoveryGoalActive()) {
           geometry_msgs::msg::PoseStamped mission_goal;
           const auto action = recovery_server_.onRecoveryGoalReached(
-            planner_->getCurrentSpeed(), 0.1, mission_goal);
+            planner_->getCurrentSpeed().head<2>().norm(), 0.1, mission_goal);
           if (action == RecoverServer::RecoveryGoalReachAction::RESUME_MISSION) {
             goal_ = mission_goal;
             has_goal_ = true;
@@ -124,7 +124,7 @@ void MincoFsm::callMainFsmOnce()
           goal_stop_published_ = true;
         }
 
-        if (planner_->getCurrentSpeed() < 0.1) {
+        if (planner_->getCurrentSpeed().head<2>().norm() < 0.1) {
           has_goal_ = false;
           changeState("GOAL_REACHED", State::WAIT_GOAL);
         }
