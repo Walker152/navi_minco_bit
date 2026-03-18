@@ -22,10 +22,8 @@ namespace Sentry_BT
   }
 
   BT::NodeStatus CheckRetreatCondition::tick()
-  { 
-    std::cout << BLUE << "---------- CheckRetreatCondition ----------" << RESET << std::endl;
+  {
     auto blackboard = config().blackboard;
-    // 从XML获取健康阈值和恢复阈值
     auto health_threshold_ = getInput<float>("health_threshold");
     auto recovery_threshold_ = getInput<float>("recovery_threshold");
     if(!health_threshold_ || !recovery_threshold_)
@@ -34,29 +32,40 @@ namespace Sentry_BT
     }
     float health_threshold = health_threshold_.value();
     float recovery_threshold = recovery_threshold_.value();
-    std::cout << WHITE << "health_threshold:" << health_threshold << "%" << RESET << std::endl;
     auto health = blackboard->get<float>("health");
     auto current_mode = blackboard->get<int>("current_mode");
-    std::cout << WHITE << "Current mode: " << mode_names[current_mode] << ", Health: " << health << "%" << RESET << std::endl;
-    // 如果已经在撤退模式，检查是否应该继续撤退
+
+    BT::NodeStatus result = BT::NodeStatus::FAILURE;
     if(current_mode == Sentry_BT::NavMode::RETREAT)
     {
-      // 只有当血量恢复到安全水平才退出撤退
       if(health >= recovery_threshold)
       {
         blackboard->set<int>("current_mode", Sentry_BT::NavMode::PATROL);
-        return BT::NodeStatus::FAILURE;  // 退出撤退
+        result = BT::NodeStatus::FAILURE;
       }
-      return BT::NodeStatus::SUCCESS;  // 继续撤退
+      else
+      {
+        result = BT::NodeStatus::SUCCESS;
+      }
     }
-    // 如果不在撤退模式，检查是否需要进入撤退
     else if(health < health_threshold)
     {
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::RETREAT);
-      return BT::NodeStatus::SUCCESS;  // 进入撤退
+      result = BT::NodeStatus::SUCCESS;
     }
 
-    return BT::NodeStatus::FAILURE;  // 不需要撤退
+    static BT::NodeStatus last_result = BT::NodeStatus::IDLE;
+    if(result != last_result)
+    {
+      std::cout << WHITE << "CheckRetreatCondition => "
+                << (result == BT::NodeStatus::SUCCESS ? "RETREAT_ACTIVE" : "RETREAT_INACTIVE")
+                << ", health=" << health
+                << ", threshold=" << health_threshold
+                << ", recovery=" << recovery_threshold << RESET << std::endl;
+      last_result = result;
+    }
+
+    return result;
   }
 
   // ------------------- CheckTargetLocked -------------------
@@ -74,23 +83,35 @@ namespace Sentry_BT
 
   BT::NodeStatus CheckTargetLocked::tick()
   {
-    std::cout << BLUE << "---------- CheckTargetLocked ----------" << RESET << std::endl;
     auto blackboard = config().blackboard;
+
+    static bool last_condition_met = false;
+    static int tick_count = 0;
+    static std::chrono::time_point<std::chrono::system_clock> last_seen_time =
+        std::chrono::system_clock::now();
 
     bool target_valid = false;
     try {
       target_valid = blackboard->get<bool>("target_valid");
     } catch(...) {
+      if(last_condition_met)
+      {
+        std::cout << YELLOW << "CheckTargetLocked => UNLOCKED (target_valid unavailable)" << RESET
+                  << std::endl;
+        last_condition_met = false;
+      }
       return BT::NodeStatus::FAILURE;
     }
 
-    std::cout << WHITE << "Target valid: " << (target_valid ? "true" : "false") << RESET << std::endl;
-
-
-    //检查目标是否处于可追击范围
     try {
       target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
     } catch(...) {
+      if(last_condition_met)
+      {
+        std::cout << YELLOW << "CheckTargetLocked => UNLOCKED (target_pose unavailable)" << RESET
+                  << std::endl;
+        last_condition_met = false;
+      }
       return BT::NodeStatus::FAILURE;
     }
 
@@ -102,38 +123,60 @@ namespace Sentry_BT
     //rmul
     Sentry_BT::Area_Square attack_area = {{8.0, 7.5}, {0.0, 0.0}};
     
-    if(!attack_area.contains({target_pose.position.x, target_pose.position.y}))
-    {
-      std::cout << "Target out of effective area: (" << target_pose.position.x << ", " << target_pose.position.y << ")"
-              << std::endl;
-      return BT::NodeStatus::FAILURE;
-    }
+    const bool in_attack_area = attack_area.contains({target_pose.position.x, target_pose.position.y});
+    bool condition_met = false;
 
-    
-    // 使用静态变量记录最后一次看到敌人的时间
-    static std::chrono::time_point<std::chrono::system_clock> last_seen_time = std::chrono::system_clock::now();
-
-    if(target_valid)
+    if(in_attack_area && target_valid)
     {
       last_seen_time = std::chrono::system_clock::now();
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::TRACING);
-      return BT::NodeStatus::SUCCESS;
+      condition_met = true;
+      tick_count = 0;
     }
-    else {
+    else if(in_attack_area)
+    {
       auto now = std::chrono::system_clock::now();
       double lost_duration = std::chrono::duration<double>(now - last_seen_time).count();
 
       // 容忍 1.0 秒内的视觉丢失
       if(lost_duration < 1.0)
       {
-        std::cout << YELLOW << "[Debounce] Target visually lost, but keeping lock for " 
-                  << (1.0 - lost_duration) << "s" << RESET << std::endl;
-        // 保持追击模式，返回假成功
+        tick_count++;
+        if(tick_count % 5 == 0)
+        {
+          std::cout << YELLOW << "[Debounce] Target visually lost, keeping lock for "
+                    << (1.0 - lost_duration) << "s" << RESET << std::endl;
+        }
         blackboard->set<int>("current_mode", Sentry_BT::NavMode::TRACING);
-        return BT::NodeStatus::SUCCESS; 
+        condition_met = true;
+      }
+      else
+      {
+        tick_count = 0;
       }
     }
-    return BT::NodeStatus::FAILURE;
+    else
+    {
+      tick_count = 0;
+    }
+
+    if(condition_met != last_condition_met)
+    {
+      if(condition_met)
+      {
+        std::cout << GREEN << "CheckTargetLocked => LOCKED"
+                  << ", target_xy=(" << target_pose.position.x << ", " << target_pose.position.y
+                  << ")" << RESET << std::endl;
+      }
+      else
+      {
+        std::cout << YELLOW << "CheckTargetLocked => UNLOCKED"
+                  << (in_attack_area ? "" : " (out of attack area)") << RESET << std::endl;
+      }
+      last_condition_met = condition_met;
+    }
+
+    return condition_met ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
   }
 
   // ------------------- CheckOutpostRemained -------------------
@@ -149,19 +192,25 @@ namespace Sentry_BT
 
   BT::NodeStatus CheckOutpostRemained::tick()
   {
-    std::cout << BLUE << "---------- CheckOutpostRemained ----------" << RESET << std::endl;
     auto blackboard = config().blackboard;
 
     auto enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
-    std::cout << WHITE << "Enemy outpost destroyed: " << (enemy_outpost_destroyed ? "true" : "false") << RESET << std::endl;
-    // 如果前哨站还在，切换到响应模式
-    if(!enemy_outpost_destroyed)
+    const bool condition_met = !enemy_outpost_destroyed;
+    if(condition_met)
     {
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::RESPONSE);
-      return BT::NodeStatus::SUCCESS;
     }
 
-    return BT::NodeStatus::FAILURE;
+    static bool last_condition_met = false;
+    if(condition_met != last_condition_met)
+    {
+      std::cout << WHITE << "CheckOutpostRemained => "
+                << (condition_met ? "OUTPOST_ACTIVE(RESPONSE)" : "OUTPOST_DESTROYED")
+                << RESET << std::endl;
+      last_condition_met = condition_met;
+    }
+
+    return condition_met ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
   }
 
   // --------------------- CheckInStairsZone ----------------------
@@ -178,10 +227,8 @@ BT::PortsList CheckInStairsZone::providedPorts()
 
 BT::NodeStatus CheckInStairsZone::tick()
 {
-  // 1. 获取黑板对象
   auto blackboard = config().blackboard;
-  std::cout << BLUE << "---------- CheckInStairsZone ----------" << RESET << std::endl;
-  // 2. 从黑板读取ros接口并获取当前位置
+
   std::shared_ptr<ros_interface> ros_iface;
   geometry_msgs::msg::Pose current_pose;
   ros_iface = blackboard->get<std::shared_ptr<ros_interface>>("ros_interface");
@@ -189,19 +236,21 @@ BT::NodeStatus CheckInStairsZone::tick()
     return BT::NodeStatus::FAILURE;
   }
   current_pose = ros_iface->getCurrentPose();
-  
-  // 3. 提取坐标
+
   double x = current_pose.position.x;
   double y = current_pose.position.y;
 
-  // 4. 定义台阶区域（根据实际场地调整）
-   bool in_stairs_zone = (x > 3.2 && x < 6.0 && y > -6.4 && y < -5.3);
-  std::cout<<"Current Position: ("<<x<<", "<<y<<")"<<std::endl;
-  // 5. 判断是否在台阶相关区域
-  if (in_stairs_zone) {
-    return BT::NodeStatus::SUCCESS; // 在台阶区域，可以执行撤离
+  bool in_stairs_zone = (x > 3.2 && x < 6.0 && y > -6.4 && y < -5.3);
+
+  static bool last_in_stairs_zone = false;
+  if(in_stairs_zone != last_in_stairs_zone)
+  {
+    std::cout << WHITE << "CheckInStairsZone => "
+              << (in_stairs_zone ? "IN_ZONE" : "OUT_OF_ZONE")
+              << ", pos=(" << x << ", " << y << ")" << RESET << std::endl;
+    last_in_stairs_zone = in_stairs_zone;
   }
-  
-  return BT::NodeStatus::FAILURE; // 不在台阶区域
+
+  return in_stairs_zone ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 }  // namespace Sentry_BT
