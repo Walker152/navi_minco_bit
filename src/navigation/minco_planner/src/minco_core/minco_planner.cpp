@@ -914,13 +914,20 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
 
   Eigen::Vector3d current_pos(start_pose.position.x, start_pose.position.y, 0.0);
   Eigen::Vector3d pred_pos = last_traj_.getPos(t_dur);
+  Eigen::Vector3d pred_vel = last_traj_.getVel(t_dur);
   double tracking_error = (current_pos - pred_pos).norm();
-  double current_speed = last_traj_.getVel(t_dur).norm();
-  double dynamic_error_threshold = 0.5 + 0.3 * current_speed;
-
+  Eigen::Vector3d current_speed = getCurrentSpeed();
+  double dynamic_error_threshold = 0.5 + 0.3 * current_speed.head<2>().norm();
+  double vel_error = (current_speed - pred_vel).norm();
   if (tracking_error > dynamic_error_threshold) {
     std::cout << YELLOW << "[MincoPlanner] Large tracking error (" << tracking_error
               << "m). Downgrading to COLD_START." << RESET << std::endl;
+    return PlanningState::COLD_START;
+  }
+
+  if (vel_error > 0.3) {
+    std::cout << YELLOW << "[MincoPlanner] Large velocity error (" << vel_error
+              << "m/s). Downgrading to COLD_START." << RESET << std::endl;
     return PlanningState::COLD_START;
   }
 
@@ -1292,13 +1299,13 @@ bool MincoPlanner::checkGoalReached(const geometry_msgs::msg::PoseStamped & curr
   return std::isfinite(dist) && dist <= traj_goal_tolerance_;
 }
 
-double MincoPlanner::getCurrentSpeed() const
+Eigen::Vector3d MincoPlanner::getCurrentSpeed() const
 {
   std::lock_guard<std::mutex> lk(odom_mutex_);
   if (has_latest_odom_) {
-    return std::hypot(latest_odom_.twist.twist.linear.x, latest_odom_.twist.twist.linear.y);
+    return Eigen::Vector3d(latest_odom_.twist.twist.linear.x, latest_odom_.twist.twist.linear.y, latest_odom_.twist.twist.linear.z);
   }
-  return 0.0;
+  return Eigen::Vector3d::Zero();
 }
 
 bool MincoPlanner::isTrajectoryTimeExpired(double now_s) const
