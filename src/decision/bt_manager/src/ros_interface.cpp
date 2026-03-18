@@ -68,6 +68,12 @@ namespace Sentry_BT
   geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
   {
     std::lock_guard<std::mutex> lock(current_pose_mutex_);
+    auto transforme_utils = std::make_shared<Sentry_BT::TransformUtils>();
+    geometry_msgs::msg::Pose transformed_pose;
+    if(transforme_utils->transformPoseToMap(current_pose_, transformed_pose, "camera_init"))
+    {      
+      return transformed_pose;
+    }
     return current_pose_;
   }
 
@@ -88,22 +94,39 @@ namespace Sentry_BT
     blackboard_->set<uint16_t>("num_shoot", msg->num_shoot);
 
     gimbal_yaw_pub->publish(std_msgs::msg::Float32().set__data(msg->gimbal_yaw));
-    // if(msg->position >= 1 && msg->position <= 3)
-    // {
-    //   blackboard_->set<Sentry_BT::SentryStance>("current_stance",
-    //                                             static_cast<Sentry_BT::SentryStance>(msg->position - 1));
-    // }
     // 更新目标位置
     if(msg->enemy_detected.is_detect)
     // if(false)
     {
       geometry_msgs::msg::Pose target_pose_in, target_pose;
+      static bool has_last_logged_pose = false;
+      static geometry_msgs::msg::Pose last_target_pose_in;
+      static geometry_msgs::msg::Pose last_target_pose;
+
       target_pose_in.position.x = (msg->enemy_detected.position.x) / 1000.0;  // 转换为米
       target_pose_in.position.y = (msg->enemy_detected.position.y) / 1000.0;
       target_pose_in.position.z = (msg->enemy_detected.position.z) / 1000.0;
       TransformPose(target_pose_in, target_pose);
-      std::cout << "Target pose: " << target_pose.position.x << ", " << target_pose.position.y << std::endl;
-      std::cout<<"target pose in: "<<target_pose_in.position.x<<","<<target_pose_in.position.y<<","<<target_pose_in.position.z<<std::endl;
+
+      // Quiet logging: only print when target input/output pose changes significantly.
+      const double input_diff = std::hypot(
+          target_pose_in.position.x - last_target_pose_in.position.x,
+          target_pose_in.position.y - last_target_pose_in.position.y);
+      const double output_diff = std::hypot(
+          target_pose.position.x - last_target_pose.position.x,
+          target_pose.position.y - last_target_pose.position.y);
+      const bool should_log = !has_last_logged_pose || input_diff > 0.5 || output_diff > 0.5;
+
+      if(should_log)
+      {
+        std::cout << "Target pose: " << target_pose.position.x << ", " << target_pose.position.y << std::endl;
+        std::cout << "target pose in: " << target_pose_in.position.x << "," << target_pose_in.position.y
+                  << "," << target_pose_in.position.z << std::endl;
+        last_target_pose_in = target_pose_in;
+        last_target_pose = target_pose;
+        has_last_logged_pose = true;
+      }
+
       target_pose.orientation.w = 1.0;  // 设置默认朝向
       blackboard_->set<int>("target_armor_id", (int)msg->enemy_detected.armor_id);
       blackboard_->set<geometry_msgs::msg::Pose>("target_pose", target_pose);
@@ -116,7 +139,7 @@ namespace Sentry_BT
     auto transform_utils = std::make_shared<Sentry_BT::TransformUtils>();
 
     // 执行坐标转换
-    bool success = transform_utils->transformPoseToBaseLink(input_pose, output_pose);
+    bool success = transform_utils->transformPoseToMap(input_pose, output_pose, "gimbal");
 
     return success;
   }

@@ -60,14 +60,15 @@ namespace Sentry_BT
     // RCLCPP_INFO(this->get_logger(), "Published dynamic transform from base_link to gimbal");
   }
 
-  bool TransformUtils::transformPoseToBaseLink(const geometry_msgs::msg::Pose& input_pose,
-                                               geometry_msgs::msg::Pose& output_pose)
+  bool TransformUtils::transformPoseToMap(const geometry_msgs::msg::Pose& input_pose,
+                                               geometry_msgs::msg::Pose& output_pose,
+                                               const std::string& child_frame)
   {
     try
     {
       // 查找从gimbal到map的变换
       geometry_msgs::msg::TransformStamped transform_stamped;
-      transform_stamped = tf_buffer_->lookupTransform("map", "gimbal", tf2::TimePointZero, tf2::durationFromSec(1.0));
+      transform_stamped = tf_buffer_->lookupTransform("map", child_frame, tf2::TimePointZero, tf2::durationFromSec(1.0));
 
       tf2::doTransform(input_pose, output_pose, transform_stamped);
 
