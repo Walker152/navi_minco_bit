@@ -307,8 +307,8 @@ planner_server:
         enable_yaw_opt: false
         safe_dist: 0.35
         lookahead_dist: 5.0  # 前视距离,用于minco部分优化
-        max_velocity: 3.0
-        max_acceleration: 4.0
+        max_velocity: 2.0
+        max_acceleration: 2.0
         max_yaw_dot: 2.0
         time_allocation_iters: 15
         smooth_eps: 0.01
@@ -322,9 +322,9 @@ planner_server:
         penalty_weight_att: 10.0
       static_esdf:
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
-        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/room_esdf.pcd"
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
         esdf_resolution: 0.05
 
 smoother_server:
