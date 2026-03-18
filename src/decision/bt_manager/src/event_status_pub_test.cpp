@@ -71,7 +71,7 @@ int main(int argc, char** argv)
       msg.enemy_detected.is_detect = true;
       msg.enemy_detected.position.x = 1700;
       msg.enemy_detected.position.y = 0.0;
-      msg.enemy_detected.position.z = 10700;
+      msg.enemy_detected.position.z = 3700;
       if(time_counter == 18)
       {
         msg.current_stance = 2;
