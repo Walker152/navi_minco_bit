@@ -20,10 +20,11 @@ public:
     // 发布动态TF变换（从base_link到gimbal）
     void publishDynamicTransform();
     
-    // 坐标转换函数（从gimbal系转换到base_link系）
-    bool transformPoseToBaseLink(const geometry_msgs::msg::Pose& input_pose, 
-                                geometry_msgs::msg::Pose& output_pose);
-    
+    // 坐标转换函数（从gimbal系转换到map系）
+    bool transformPoseToMap(const geometry_msgs::msg::Pose& input_pose, 
+                                  geometry_msgs::msg::Pose& output_pose,
+                                  const std::string& child_frame);
+
 private:
     void updateGimbalYaw(const std_msgs::msg::Float32::ConstSharedPtr &msg);
 
