@@ -85,6 +85,35 @@ namespace icp_relocalization
       gicp_options_.search_areas.push_back(area);
     }
 
+    // 超时参数
+    timeout_seconds_ = this->declare_parameter<double>("timeout_seconds", 30.0);
+    reloc_start_time_ = std::chrono::steady_clock::now();  // 记录开始时间
+
+    // 默认位姿参数 [x, y, z, roll, pitch, yaw]
+    default_pose_on_timeout_ = this->declare_parameter<std::vector<double>>(
+      "default_pose_on_timeout", 
+      std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
+    
+    if (default_pose_on_timeout_.size() != 6) {
+      RCLCPP_WARN(this->get_logger(), 
+                  "默认位姿参数数量错误 (%zu)，使用默认值 [0,0,0,0,0,0]", 
+                  default_pose_on_timeout_.size());
+      default_pose_on_timeout_ = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    }
+    
+    reloc_start_time_ = std::chrono::steady_clock::now();  // 记录开始时间
+    //调试打印
+    std::cout << "超时设置: " 
+          << std::fixed << std::setprecision(1) << timeout_seconds_ 
+          << "秒后发布默认位姿 ["
+          << std::setprecision(2) << default_pose_on_timeout_[0] << ", "
+          << default_pose_on_timeout_[1] << ", "
+          << default_pose_on_timeout_[2] << ", "
+          << default_pose_on_timeout_[3] << ", "
+          << default_pose_on_timeout_[4] << ", "
+          << default_pose_on_timeout_[5] << "]" 
+          << std::endl;
+
     std::cout << BOLDCYAN << " ========== GICP Relocalization ==========" << RESET << std::endl;
     LOG_DEBUG_BLOCK(std::string(CYAN) + "[RELOCALIZATION] ",
                     NV(mode_str),
@@ -322,6 +351,9 @@ namespace icp_relocalization
     gicp_initialized_ = false;
     last_cloud_stamp_ = rclcpp::Time(0, 0, this->get_clock()->get_clock_type());
 
+    //超时计时器重置
+    reloc_start_time_ = std::chrono::steady_clock::now();
+
     // 2. Reactivate Lidar Subscription if needed
     if(!lidar_sub_)
     {
@@ -355,6 +387,30 @@ namespace icp_relocalization
       rclcpp::shutdown();
     }
   }
+
+  void GicpRosInterface::publishDefaultPose()
+{
+  RCLCPP_INFO(this->get_logger(), 
+              "发布默认位姿: [%.2f, %.2f, %.2f, %.2f, %.2f, %.2f]",
+              default_pose_on_timeout_[0], default_pose_on_timeout_[1], default_pose_on_timeout_[2],
+              default_pose_on_timeout_[3], default_pose_on_timeout_[4], default_pose_on_timeout_[5]);
+ 
+  Eigen::Matrix4f default_transform = Eigen::Matrix4f::Identity();
+
+  default_transform(0, 3) = default_pose_on_timeout_[0];  // x
+  default_transform(1, 3) = default_pose_on_timeout_[1];  // y
+  default_transform(2, 3) = default_pose_on_timeout_[2];  // z
+  
+  tf2::Quaternion q;
+  q.setRPY(default_pose_on_timeout_[3],  // roll
+           default_pose_on_timeout_[4],  // pitch
+           default_pose_on_timeout_[5]); // yaw
+  Eigen::Quaternionf eigen_q(q.w(), q.x(), q.y(), q.z());
+  default_transform.block<3, 3>(0, 0) = eigen_q.toRotationMatrix();
+  map_to_camera_init_ = default_transform;
+  publishCurrentTransform(this->now());
+  RCLCPP_INFO(this->get_logger(), "默认位姿发布完成");
+}
 
   void GicpRosInterface::lidarCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
   {
@@ -448,6 +504,42 @@ namespace icp_relocalization
 
   void GicpRosInterface::runFSM()
   {
+     // 检查当前状态是否正在进行重定位
+  if (state_ == State::INITIALIZING || state_ == State::CONVERGING) 
+  {
+    auto now = std::chrono::steady_clock::now();  // 获取当前时间
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+        now - reloc_start_time_).count();  // 计算时间差（秒）
+    
+    // 如果超过设定的超时时间
+    if (elapsed > timeout_seconds_) 
+    {
+      RCLCPP_WARN(this->get_logger(), 
+                  "重定位超时！已等待 %ld 秒（阈值: %.1f 秒），发布默认位姿",
+                  elapsed, timeout_seconds_);
+      
+      publishDefaultPose();
+      
+      // 进入定位完成状态
+      state_ = State::LOCALIZED;
+      gicp_initialized_ = true;
+      
+      // 停止计算以节省资源
+      if (fsm_timer_) {
+        fsm_timer_->cancel();
+      }
+      if (lidar_sub_) {
+        lidar_sub_.reset();
+      }
+      
+      // 清空累积的点云
+      accumulated_cloud_->clear();
+      current_accumulated_frames_ = 0;
+      
+      return;  // 直接返回，不再执行后续的重定位逻辑
+    }
+  }
+
     // 检查是否有足够的点云帧进行累积
     if(current_accumulated_frames_ < accumulate_frames_)
     {
