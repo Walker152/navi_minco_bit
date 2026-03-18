@@ -91,7 +91,7 @@ void MincoPlanner::configure(
   node->get_parameter(prefix + "minco_optimizer.lookahead_dist", lookahead_dist_);
 
   nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "minco_optimizer.traj_goal_tolerance", rclcpp::ParameterValue(0.5));
+    node, prefix + "minco_optimizer.traj_goal_tolerance", rclcpp::ParameterValue(0.3));
   node->get_parameter(prefix + "minco_optimizer.traj_goal_tolerance", traj_goal_tolerance_);
 
   // --- Optimizer config ------------------------------------------------------
