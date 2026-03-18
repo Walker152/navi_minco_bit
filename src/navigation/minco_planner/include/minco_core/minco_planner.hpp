@@ -92,7 +92,7 @@ public:
 
   // Goal handoff: createPlan() only sets this flag, FSM consumes it.
   // Get current robot planar speed magnitude from odometry.
-  double getCurrentSpeed() const;
+  Eigen::Vector3d getCurrentSpeed() const;
   bool checkGoalReached(const geometry_msgs::msg::PoseStamped & current_pose);
   bool consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out);
   void cancelGoal();
