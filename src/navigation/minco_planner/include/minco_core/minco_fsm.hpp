@@ -5,6 +5,7 @@
 #include <string>
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#include "minco_core/recovery_behaivor.hpp"
 
 namespace minco_planner
 {
@@ -47,7 +48,9 @@ private:
   double traveled_dist_{0.0};
 
   bool stop_published_{false};
+  bool goal_stop_published_{false};
   double emer_stop_start_time_{0.0};
+  RecoverServer recovery_server_;
 };
 
 }  // namespace minco_planner
