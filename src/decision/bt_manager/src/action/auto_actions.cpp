@@ -58,7 +58,7 @@ namespace Sentry_BT
     return {BT::InputPort<geometry_msgs::msg::Pose>("target_coordinate")};
   }
 
-  BT::NodeStatus SetTargetCoordinate::tick()
+  BBT::NodeStatus SetTargetCoordinate::tick()
   {
     auto blackboard = config().blackboard;
     auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
