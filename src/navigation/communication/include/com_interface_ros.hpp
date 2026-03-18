@@ -146,8 +146,6 @@ namespace ns_com
         vy_mps = cmd_vel_.linear.y;
         vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
         vw_rpm = 40.0f;
-        // desire_stance = ros_interfaces::msg::Behavior::STANCE_MOVE; // TODO: 这里暂时写死，后续根据实际情况修改
-        // desire_lifter_pos = LifterPos::BOTTOM; // TODO: 这里暂时写死，后续根据实际情况修改
         desire_stance = behavior_.desired_stance; // 之前写死了，现作修改
         desire_lifter_pos = behavior_.desire_lifter_pos; // 之前写死了，现作修改
         outpost_msg = outpost_msg_.data;
