@@ -4,8 +4,8 @@ gicp_relocalization_node:
     mode: "initial_guess" # Options: "multi_guess", "initial_guess"
     # target_pcd_file: "src/perception/icp_relocalization/maps/rmuc.pcd"
     # target_pcd_file: "src/perception/icp_relocalization/maps/111.pcd"
-    target_pcd_file: "src/perception/icp_relocalization/maps/hotel.pcd"
-    # target_pcd_file: "src/perception/icp_relocalization/maps/rmul.pcd"
+    # target_pcd_file: "src/perception/icp_relocalization/maps/hotel.pcd"
+    target_pcd_file: "src/perception/icp_relocalization/maps/rmul.pcd"
     map_frame: "map"
     visualization_en: true
     source_cloud_topic: "/livox/stdpc"
