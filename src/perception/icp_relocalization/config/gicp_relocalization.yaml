@@ -16,10 +16,10 @@ gicp_relocalization_node:
     converged_count_threshold: 2
 
     timeout_seconds: 5.0  # 超时时间（秒）
-    default_pose_on_timeout: [2.0, 6.0, 0.0, 0.0, 0.0, 0.4]  # 超时后发布的默认位姿
+    default_pose_on_timeout: [1.18, 6.4, 0.0, 0.0, 0.0, 0.0]  # 超时后发布的默认位姿
     
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
-    initial_pose: [2.0, 6.0, 0.0, 0.0, 0.0, 0.4]
+    initial_pose: [1.18, 6.4, 0.0, 0.0, 0.0, 0.0]
     # initial_pose: [5.0, 7.0, 0.0, 0.0, 0.0, 0.4]
     # Multi-Guess Parameters
     multi_guess:
