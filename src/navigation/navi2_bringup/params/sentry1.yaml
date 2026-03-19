@@ -103,7 +103,7 @@ controller_server:
       lookahead_time : 0.5
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.05
+      control_delay_compensation: 0.03
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [10.0, 10.0, 8.0]
@@ -161,7 +161,7 @@ local_costmap:
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
-        voxel_decay: 1.0
+        voxel_decay: 0.6
         decay_model: 0
         voxel_size: 0.05
         track_unknown_space: true
@@ -182,7 +182,7 @@ local_costmap:
           clearing: true
           obstacle_range: 8.0
           min_obstacle_height: -0.1
-          max_obstacle_height: 3.0
+          max_obstacle_height: 1.0
           expected_update_rate: 0.0
           observation_persistence: 0.0
           inf_is_valid: false
@@ -193,7 +193,7 @@ local_costmap:
           # 视锥模型参数，用于根据传感器的视锥体来更新STVL层的代价地图
           max_z: 10.0 # 清除距离
           min_z: 0.1
-          vertical_fov_angle: 1.8151   # default 0.7, radians. For 3D lidars it's the symmetric FOV about the planar axis.
+          vertical_fov_angle: 1.03   # default 0.7, radians. For 3D lidars it's the symmetric FOV about the planar axis.
           vertical_fov_offset: 0.3927  # default 0, radians. 3D Lidar only. Offset from planar axis. f.e. MID360 has a vFOV of -7deg to 52deg => offset +22.5deg (0.3927 rad)
           vertical_fov_padding: 0.05   # 3D Lidar only. Default 0, in meters 
           horizontal_fov_angle: 6.29   # 3D lidar scanners like the VLP16 have 360 deg horizontal FOV.
@@ -220,7 +220,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.6
+        inflation_radius: 0.50
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
@@ -298,9 +298,9 @@ planner_server:
 
       smac_2d:
         use_esdf_cost: true
-        esdf_weight: 3.0
-        esdf_decay: 0.7
-        esdf_max_cost: 10.0
+        esdf_weight: 1.0
+        esdf_decay: 0.5
+        esdf_max_cost: 1.0
 
       minco_optimizer:
         opt_freq: 20.0
@@ -317,7 +317,7 @@ planner_server:
         opt_accuracy: 0.0001
         print_optimizer_log: false
         penalty_weight_time: 20.0
-        penalty_weight_pos: 1000000.0
+        penalty_weight_pos: 100000.0
         penalty_weight_vel: 2000.0
         penalty_weight_acc: 2000.0
         penalty_weight_att: 500.0
