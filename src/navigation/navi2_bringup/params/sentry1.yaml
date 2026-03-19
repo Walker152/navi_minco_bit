@@ -210,7 +210,7 @@ global_costmap:
       robot_base_frame: base_link
       use_sim_time: False
       # robot_radius: 0.22
-      robot_radius: 0.20
+      robot_radius: 0.25
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "stvl_layer", "inflation_layer"]
@@ -220,7 +220,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.20
+        inflation_radius: 0.6
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
@@ -244,8 +244,8 @@ global_costmap:
           marking: true
           clearing: true
           obstacle_range: 8.0
-          min_obstacle_height: 0.1
-          max_obstacle_height: 1.0
+          min_obstacle_height: 0.2
+          max_obstacle_height: 0.5
           expected_update_rate: 0.0
           observation_persistence: 0.0
           inf_is_valid: false
@@ -256,7 +256,7 @@ global_costmap:
           # 视锥模型参数，用于根据传感器的视锥体来更新STVL层的代价地图
           max_z: 10.0 # 清除距离
           min_z: 0.1
-          vertical_fov_angle: 1.8151   # default 0.7, radians. For 3D lidars it's the symmetric FOV about the planar axis.
+          vertical_fov_angle: 1.03   # default 0.7, radians. For 3D lidars it's the symmetric FOV about the planar axis.
           vertical_fov_offset: 0.3927  # default 0, radians. 3D Lidar only. Offset from planar axis. f.e. MID360 has a vFOV of -7deg to 52deg => offset +22.5deg (0.3927 rad)
           vertical_fov_padding: 0.05   # 3D Lidar only. Default 0, in meters 
           horizontal_fov_angle: 6.29   # 3D lidar scanners like the VLP16 have 360 deg horizontal FOV.
@@ -288,7 +288,7 @@ planner_server:
     MincoPlanner:
       plugin: "minco_planner/MincoPlanner"
       tolerance: 0.3  
-      use_smac: true
+      use_smac: false
       allow_unknown: false
       odom_topic: /aft_mapped_to_init
 
@@ -320,12 +320,13 @@ planner_server:
         penalty_weight_pos: 1000000.0
         penalty_weight_vel: 2000.0
         penalty_weight_acc: 2000.0
-        penalty_weight_att: 5.0
+        penalty_weight_att: 500.0
       static_esdf:
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/room_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/hotel_esdf.pcd"
         esdf_resolution: 0.05
 
 smoother_server:
