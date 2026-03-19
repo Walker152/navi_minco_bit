@@ -315,9 +315,9 @@ planner_server:
         smooth_eps: 0.01
         integral_res: 16
         opt_accuracy: 0.0001
-        print_optimizer_log: false
+        print_optimizer_log: true
         penalty_weight_time: 20.0
-        penalty_weight_pos: 1000000.0
+        penalty_weight_pos: 100000.0
         penalty_weight_vel: 2000.0
         penalty_weight_acc: 2000.0
         penalty_weight_att: 500.0
