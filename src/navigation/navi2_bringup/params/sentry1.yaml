@@ -193,7 +193,7 @@ local_costmap:
           # 视锥模型参数，用于根据传感器的视锥体来更新STVL层的代价地图
           max_z: 10.0 # 清除距离
           min_z: 0.1
-          vertical_fov_angle: 1.8151   # default 0.7, radians. For 3D lidars it's the symmetric FOV about the planar axis.
+          vertical_fov_angle: 1.03   # default 0.7, radians. For 3D lidars it's the symmetric FOV about the planar axis.
           vertical_fov_offset: 0.3927  # default 0, radians. 3D Lidar only. Offset from planar axis. f.e. MID360 has a vFOV of -7deg to 52deg => offset +22.5deg (0.3927 rad)
           vertical_fov_padding: 0.05   # 3D Lidar only. Default 0, in meters 
           horizontal_fov_angle: 6.29   # 3D lidar scanners like the VLP16 have 360 deg horizontal FOV.
@@ -226,7 +226,7 @@ global_costmap:
         enabled: true
         voxel_decay: 0.6
         decay_model: 0
-        voxel_size: 0.05
+        voxel_size: 0.1
         track_unknown_space: true
         unknown_threshold: 5
         mark_threshold: 0
@@ -240,7 +240,7 @@ global_costmap:
         observation_sources: mid360
         mid360:
           data_type: PointCloud2
-          topic: /cloud_registered
+          topic: /cloud_registered_body
           marking: true
           clearing: true
           obstacle_range: 8.0
@@ -256,7 +256,7 @@ global_costmap:
           # 视锥模型参数，用于根据传感器的视锥体来更新STVL层的代价地图
           max_z: 10.0 # 清除距离
           min_z: 0.1
-          vertical_fov_angle: 1.8151   # default 0.7, radians. For 3D lidars it's the symmetric FOV about the planar axis.
+          vertical_fov_angle: 1.03   # default 0.7, radians. For 3D lidars it's the symmetric FOV about the planar axis.
           vertical_fov_offset: 0.3927  # default 0, radians. 3D Lidar only. Offset from planar axis. f.e. MID360 has a vFOV of -7deg to 52deg => offset +22.5deg (0.3927 rad)
           vertical_fov_padding: 0.05   # 3D Lidar only. Default 0, in meters 
           horizontal_fov_angle: 6.29   # 3D lidar scanners like the VLP16 have 360 deg horizontal FOV.
