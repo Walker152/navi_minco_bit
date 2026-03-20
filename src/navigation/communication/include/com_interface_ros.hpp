@@ -157,9 +157,13 @@ namespace ns_com
       }
       
       uint8_t _is_use_mid360 = 0;
-      if(odom_x >  2.5)
+      if(odom_x > 4.0)
       {
-        // vw_rpm = 30.0;
+        vw_rpm = 40.0f;
+      }
+      if(std::hypot(vx_mps, vy_mps) < 0.2 && odom_x > 4.0)
+      {
+        vw_rpm = 80.0f;
       }
       tf2::Quaternion q;
       tf2::fromMsg(odom_q, q);
