@@ -128,6 +128,8 @@ struct __attribute__((packed, aligned(1))) _Event_Status
   // 0:未开始比赛 1:准备阶段 2:15s裁判系统自检 3:5s倒计时 4:比赛中 5:比赛结算中
   float gimbal_yaw;            // 云台当前yaw 逆时针为正
   uint8_t lifter_pos_now;      // 云台当前升降状态
+  uint16_t hero_health;        // 英雄角色健康值
+  uint16_t infantry3_health;       // 矿工角色健康值
 
 
 
