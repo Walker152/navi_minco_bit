@@ -157,7 +157,7 @@ namespace ns_com
       }
       
       uint8_t _is_use_mid360 = 0;
-      if(odom_x > 4.0)
+      if(odom_x > 3.5)
       {
         vw_rpm = 40.0f;
       }

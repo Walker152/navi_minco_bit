@@ -119,9 +119,9 @@ namespace Sentry_BT
 
       if(should_log)
       {
-        std::cout << "Target pose: " << target_pose.position.x << ", " << target_pose.position.y << std::endl;
-        std::cout << "target pose in: " << target_pose_in.position.x << "," << target_pose_in.position.y
-                  << "," << target_pose_in.position.z << std::endl;
+        // std::cout << "Target pose: " << target_pose.position.x << ", " << target_pose.position.y << std::endl;
+        // std::cout << "target pose in: " << target_pose_in.position.x << "," << target_pose_in.position.y
+        //           << "," << target_pose_in.position.z << std::endl;
         last_target_pose_in = target_pose_in;
         last_target_pose = target_pose;
         has_last_logged_pose = true;

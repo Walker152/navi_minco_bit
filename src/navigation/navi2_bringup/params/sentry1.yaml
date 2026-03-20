@@ -93,7 +93,7 @@ controller_server:
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.15
+      xy_goal_tolerance: 0.3
       yaw_goal_tolerance: 6.28
     
     FollowPath:
@@ -245,7 +245,7 @@ global_costmap:
           clearing: true
           obstacle_range: 8.0
           min_obstacle_height: 0.2
-          max_obstacle_height: 0.5
+          max_obstacle_height: 1.0
           expected_update_rate: 0.0
           observation_persistence: 0.0
           inf_is_valid: false
