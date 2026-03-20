@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <chrono>
+#include <cstdint>
 #include <string>
 
 namespace Sentry_BT
@@ -92,6 +93,8 @@ namespace Sentry_BT
     blackboard_->set<int>("lifter_pos_now", static_cast<int>(msg->lifter_pos_now));
     blackboard_->set<float>("gimbal_yaw", msg->gimbal_yaw);
     blackboard_->set<uint16_t>("num_shoot", msg->num_shoot);
+    blackboard_->set<uint16_t>("hero_health", msg->hero_health);
+    blackboard_->set<uint16_t>("infantry3_health", msg->infantry3_health);
 
     gimbal_yaw_pub->publish(std_msgs::msg::Float32().set__data(msg->gimbal_yaw));
     // 更新目标位置
