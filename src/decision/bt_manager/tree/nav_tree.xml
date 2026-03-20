@@ -41,14 +41,14 @@
           <NavigateToPoseAction name="PublishRetreatGoal" />
         </ReactiveSequence>
 
-        <!-- <ReactiveSequence name="OutpostResponse">
+        <ReactiveSequence name="OutpostResponse">
           <CheckOutpostRemained name="CheckOutpostRemained" />
           <SetCoordinate name="SetResponseCoordinate" goal="2" />
           <NavigateToPoseAction name="PublishResponseGoal" />
-        </ReactiveSequence> -->
+        </ReactiveSequence>
 
-        <!-- <ReactiveFallback name="OffensiveStrategies">
-          <ReactiveSequence name="TargetPursuit">
+        <ReactiveFallback name="OffensiveStrategies">
+          <!-- <ReactiveSequence name="TargetPursuit">
             <CheckTargetLocked name="CheckTargetLocked" />
             <SetTargetCoordinate name="SetTargetCoordinate" />
             <NavigateToPoseAction name="PublishPursuitGoal" />

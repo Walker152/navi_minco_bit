@@ -37,7 +37,8 @@ namespace Sentry_BT
       blackboard_->set("patrol_wait_time", 1000);                           // 巡逻等待时间（毫秒）
       blackboard_->set<SentryStance>("current_stance", SentryStance::MOVE);
       blackboard_->set<SentryStance>("desired_stance", SentryStance::MOVE);
-      
+      blackboard_->set<uint16_t>("hero_health", 350);                                // 英雄角色健康值
+      blackboard_->set<uint16_t>("infantry3_health", 350);                             //
       blackboard_->set("outpost_msg", false);                               // 抬头
     }
 
