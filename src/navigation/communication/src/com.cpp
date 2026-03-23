@@ -181,7 +181,10 @@ namespace ns_com
                             NV(static_cast<int>(event_status->current_stance)),
                             NV(event_status->game_status),
                             NV(event_status->gimbal_yaw),
-                            NV(static_cast<int>(event_status->lifter_pos_now)));
+                            NV(static_cast<int>(event_status->lifter_pos_now)),
+                            NV(event_status->hero_health),
+                            NV(event_status->infantry3_health)
+                          );
           }
           auto ros_ptr = ros_if_;
           if(ros_ptr)
