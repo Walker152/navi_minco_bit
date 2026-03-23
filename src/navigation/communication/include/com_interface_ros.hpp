@@ -76,6 +76,8 @@ namespace ns_com
       msg.game_status = in.game_status;
       msg.gimbal_yaw = in.gimbal_yaw;
       msg.lifter_pos_now = in.lifter_pos_now;
+      msg.hero_health = in.hero_health;
+      msg.infantry3_health = in.infantry3_health;
       msg.header.stamp = now();
       event_status_pub_->publish(msg);
     }
@@ -157,11 +159,11 @@ namespace ns_com
       }
       
       uint8_t _is_use_mid360 = 0;
-      if(odom_x > 4.0)
+      if(odom_x > 3.5)
       {
         vw_rpm = 40.0f;
       }
-      if(std::hypot(vx_mps, vy_mps) < 0.2 && odom_x > 4.0)
+      if(std::hypot(vx_mps, vy_mps) < 0.35 && odom_x > 3.5)
       {
         vw_rpm = 80.0f;
       }
