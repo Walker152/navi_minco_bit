@@ -20,7 +20,7 @@
         </Fallback>
       </ForceSuccess> -->
       <ReactiveFallback name="NavigationStrategies">
-        <Sequence name="StairsEvacuation">
+        <!-- <Sequence name="StairsEvacuation">
           <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
           <CheckInStairsZone name="CheckInStairsZone"/>
           <SetStairsPosition name="SetStairsPosition"/>
@@ -34,7 +34,7 @@
                                 angular_z="0.0"
                                 duration="0.5"/>
         </Sequence>
-        
+         -->
         <ReactiveSequence name="EmergencyRetreat">
           <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
           <SetCoordinate name="SetHomeCoordinate" goal="0" />
@@ -48,11 +48,11 @@
         </ReactiveSequence> -->
 
         <ReactiveFallback name="OffensiveStrategies">
-          <ReactiveSequence name="TargetPursuit">
+          <!-- <ReactiveSequence name="TargetPursuit">
             <CheckTargetLocked name="CheckTargetLocked" />
             <SetTargetCoordinate name="SetTargetCoordinate" />
             <NavigateToPoseAction name="PublishPursuitGoal" />
-          </ReactiveSequence>
+          </ReactiveSequence> -->
 
           <Sequence name="RegularPatrol">
             <SelectPatrolPoint name="SelectPatrolPoint" />

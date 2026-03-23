@@ -1,5 +1,6 @@
 #include "bt_manager/condition/auto_conditions.hpp"
 #include "bt_manager/blackboard.hpp"
+#include "bt_manager/ros_interface.hpp"
 #include <iostream>
 #include <string>
 #include <cmath>
@@ -121,7 +122,7 @@ namespace Sentry_BT
     // Sentry_BT::Area_Square own_outpost_area = {{8.5, -2.7}, {11.5, -4.2}};  //待修改
 
     //rmul
-    Sentry_BT::Area_Square attack_area = {{7.8, 7.4}, {0.0, 0.0}};
+    Sentry_BT::Area_Square attack_area = {{7.8, 7.4}, {4.5, 2.0}};
     
     const bool in_attack_area = attack_area.contains({target_pose.position.x, target_pose.position.y});
     bool condition_met = false;
@@ -193,23 +194,41 @@ namespace Sentry_BT
   BT::NodeStatus CheckOutpostRemained::tick()
   {
     auto blackboard = config().blackboard;
+    auto enemy_outpost_destroyed = blackboard->get<int>("lifter_pos_now");
 
-    auto enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
-    const bool condition_met = !enemy_outpost_destroyed;
-    if(condition_met)
-    {
+    // const bool condition_met = enemy_outpost_destroyed == 1;  // 1表示增益点被己方占领
+
+    // static bool has_success_history = false;
+    // static std::chrono::time_point<std::chrono::system_clock> last_success_time;
+    // const auto now = std::chrono::system_clock::now();
+    // const bool timeout_exceeded =
+    //     has_success_history && (std::chrono::duration<double>(now - last_success_time).count() > 7.0);
+
+    // const bool final_success = condition_met && !timeout_exceeded;
+    // if(final_success)
+    // {
+    //   blackboard->set<int>("current_mode", Sentry_BT::NavMode::RESPONSE);
+    //   last_success_time = now;
+    //   has_success_history = true;
+    // }
+
+    // static bool last_condition_met = false;
+    // if(final_success != last_condition_met)
+    // {
+    //   std::cout << WHITE << "CheckOutpostRemained => "
+    //             << (final_success ? "OUTPOST_ACTIVE(RESPONSE)" : "OUTPOST_DESTROYED_OR_TIMEOUT")
+    //             << RESET << std::endl;
+    //   last_condition_met = final_success;
+    // }
+    // return final_success ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+    auto hero_health = blackboard->get<uint16_t>("hero_health");
+    auto infantry3_health = blackboard->get<uint16_t>("infantry3_health");
+    const bool condition_met = (hero_health > 150) || (infantry3_health > 150);
+    if(condition_met)    {
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::RESPONSE);
     }
-
-    static bool last_condition_met = false;
-    if(condition_met != last_condition_met)
-    {
-      std::cout << WHITE << "CheckOutpostRemained => "
-                << (condition_met ? "OUTPOST_ACTIVE(RESPONSE)" : "OUTPOST_DESTROYED")
-                << RESET << std::endl;
-      last_condition_met = condition_met;
-    }
-
+    // std::cout << "hero_health:" << hero_health << ", infantry3_health:" << infantry3_health
+    //           << " => CheckOutpostRemained => " << (condition_met ? "OUTPOST_ACTIVE(RESPONSE)" : "OUTPOST_DESTROYED") << std::endl;
     return condition_met ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
   }
 
