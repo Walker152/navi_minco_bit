@@ -163,7 +163,7 @@ namespace ns_com
       {
         vw_rpm = 40.0f;
       }
-      if(std::hypot(vx_mps, vy_mps) < 0.2 && odom_x > 4.0)
+      if(std::hypot(vx_mps, vy_mps) < 0.35 && odom_x > 3.5)
       {
         vw_rpm = 80.0f;
       }
