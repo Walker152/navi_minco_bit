@@ -643,8 +643,8 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     return cmd;
   }
   // 4) 直接下发全局坐标系速度
-  double vx = u_global.vx;
-  double vy = u_global.vy;
+  double vx_mpc = u_global.vx;
+  double vy_mpc = u_global.vy;
   double wz = fixed_wz_;
 
   // 小陀螺模式：当启用时，始终输出固定的旋转速度，而不使用 MPC 输出的角速度。
@@ -652,6 +652,12 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     wz = std::min(mpc_config_.omega_max, std::max(mpc_config_.omega_min, u_global.omega));
   }
   
+  double output_delay = 0.025;
+  double phase_delay  = curr.omega * output_delay;
+  double cos_phase = std::cos(phase_delay);
+  double sin_phase = std::sin(phase_delay);
+  double vx = cos_phase * vx_mpc + sin_phase * vy_mpc;
+  double vy = -sin_phase * vx_mpc + cos_phase * vy_mpc;
   // 5) 处理 Nav2 setSpeedLimit
   if (speed_limit_ > 1e-6) {
     const double v_norm = std::hypot(vx, vy);

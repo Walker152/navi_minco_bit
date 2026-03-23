@@ -103,7 +103,7 @@ controller_server:
       lookahead_time : 0.5
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.05
+      control_delay_compensation: 0.03
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [10.0, 10.0, 8.0]
@@ -115,7 +115,7 @@ controller_server:
       vy_min: -2.5
       vy_max: 2.5
       fixed_wz: 4.18 # rad/s, used if use_small_gyro_mode is true
-      omega_min: -2.5
+      omega_min: -2.5 
       omega_max: 2.5
 
       # Optional acceleration constraints
@@ -129,7 +129,7 @@ controller_server:
 
       # Lidar extrinsic parameters
       lidar_offset_x: 0.0
-      lidar_offset_y: 0.21
+      lidar_offset_y: -0.186
       
       # Frame settings
       odom_frame: "camera_init"
@@ -161,7 +161,7 @@ local_costmap:
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
-        voxel_decay: 1.0
+        voxel_decay: 0.6
         decay_model: 0
         voxel_size: 0.05
         track_unknown_space: true
@@ -182,7 +182,7 @@ local_costmap:
           clearing: true
           obstacle_range: 8.0
           min_obstacle_height: -0.1
-          max_obstacle_height: 3.0
+          max_obstacle_height: 1.0
           expected_update_rate: 0.0
           observation_persistence: 0.0
           inf_is_valid: false
@@ -210,7 +210,7 @@ global_costmap:
       robot_base_frame: base_link
       use_sim_time: False
       # robot_radius: 0.22
-      robot_radius: 0.20
+      robot_radius: 0.25
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "stvl_layer", "inflation_layer"]
@@ -220,11 +220,11 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.25
+        inflation_radius: 0.20
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
-        voxel_decay: 0.6
+        voxel_decay: 1.0
         decay_model: 0
         voxel_size: 0.1
         track_unknown_space: true
@@ -244,8 +244,8 @@ global_costmap:
           marking: true
           clearing: true
           obstacle_range: 8.0
-          min_obstacle_height: 0.1
-          max_obstacle_height: 1.0
+          min_obstacle_height: 0.2
+          max_obstacle_height: 0.5
           expected_update_rate: 0.0
           observation_persistence: 0.0
           inf_is_valid: false
@@ -298,9 +298,9 @@ planner_server:
 
       smac_2d:
         use_esdf_cost: true
-        esdf_weight: 3.0
-        esdf_decay: 0.7
-        esdf_max_cost: 10.0
+        esdf_weight: 1.0
+        esdf_decay: 0.5
+        esdf_max_cost: 1.0
 
       minco_optimizer:
         opt_freq: 20.0
@@ -309,28 +309,24 @@ planner_server:
         safe_dist: 0.35
         lookahead_dist: 5.0  # 前视距离,用于minco部分优化
         max_velocity: 2.0
-        max_acceleration: 2.0
+        max_acceleration: 2.5
         max_yaw_dot: 2.0
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
         opt_accuracy: 0.0001
         print_optimizer_log: false
-        penalty_weight_time: 20.0
-        penalty_weight_pos: 1000000.0
+        penalty_weight_time: 25.0
+        penalty_weight_pos: 100000.0
         penalty_weight_vel: 2000.0
         penalty_weight_acc: 2000.0
-        penalty_weight_att: 10.0
-        # penalty_weight_time: 5.0       # (原 25.0) -> 大幅降低
-        # penalty_weight_pos: 20000.0    # (原 1000000.0) -> 降低两个数量级
-        # penalty_weight_vel: 1000.0     # (原 2000.0) -> 适度降低
-        # penalty_weight_acc: 1000.0     # (原 2000.0) -> 适度降低
-        # penalty_weight_att: 800.0      # (原 10.0) -> 提升 80 倍！
+        penalty_weight_att: 5.0
       static_esdf:
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
         esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/room_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/hotel_esdf.pcd"
         esdf_resolution: 0.05
 
 smoother_server:
