@@ -520,8 +520,8 @@ bool MincoMpcController::buildReferenceFromOptPath(const State & curr, std::vect
 
 geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   const geometry_msgs::msg::PoseStamped & pose,
-  const geometry_msgs::msg::Twist & /*velocity*/,
-  nav2_core::GoalChecker * /*goal_checker*/)
+  const geometry_msgs::msg::Twist & velocity,
+  nav2_core::GoalChecker * goal_checker)
 {
   auto node = node_.lock();
 
@@ -565,6 +565,33 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     curr.omega = 0.0;
   }
 
+  geometry_msgs::msg::TwistStamped cmd;
+  cmd.header.stamp = now;
+  cmd.header.frame_id = global_frame_;
+
+  // Sync Nav2 success semantics: if GoalChecker says reached, output zero command immediately.
+  if (goal_checker != nullptr) {
+    geometry_msgs::msg::PoseStamped goal_pose;
+    bool has_goal_pose = false;
+    {
+      std::lock_guard<std::mutex> lk(plan_mtx_);
+      if (!global_plan_.poses.empty()) {
+        goal_pose = global_plan_.poses.back();
+        has_goal_pose = true;
+      }
+    }
+
+    if (has_goal_pose && goal_checker->isGoalReached(pose.pose, goal_pose.pose, velocity)) {
+      std::lock_guard<std::mutex> lk(data_mtx_);
+      has_tracked_ref_ = false;
+      latest_opt_path_.reset();
+      cmd.twist.linear.x = 0.0;
+      cmd.twist.linear.y = 0.0;
+      cmd.twist.angular.z = 0.0;
+      return cmd;
+    }
+  }
+
   if (control_delay_compensation_ > 1e-3) {
       curr.x += curr.vx * control_delay_compensation_;
       curr.y += curr.vy * control_delay_compensation_;
@@ -575,10 +602,6 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   // 2) 构造参考序列：优先 /opt_path
   std::vector<ReferencePoint> ref;
   bool ok_ref = buildReferenceFromOptPath(curr, ref);
-
-  geometry_msgs::msg::TwistStamped cmd;
-  cmd.header.stamp = now;
-  cmd.header.frame_id = global_frame_;
 
   if (!ok_ref || !solver_) {
     // 无参考则输出 0
