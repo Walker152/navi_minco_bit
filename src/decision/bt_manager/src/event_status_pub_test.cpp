@@ -88,8 +88,8 @@ int main(int argc, char** argv)
       }
       msg.enemy_detected.is_detect = true;
       // Very far target in gimbal frame (10m ahead)
-      msg.enemy_detected.position.z = 10000.0;
-      msg.enemy_detected.position.x = 0.0;
+      msg.enemy_detected.position.z = 6000.0;
+      msg.enemy_detected.position.x = -500.0;
       msg.enemy_detected.position.y = 0.0;
       msg.enemy_outpost_destroyed = true;
       msg.current_stance = 1;
