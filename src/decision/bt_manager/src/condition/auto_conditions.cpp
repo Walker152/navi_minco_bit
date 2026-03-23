@@ -194,7 +194,7 @@ namespace Sentry_BT
   BT::NodeStatus CheckOutpostRemained::tick()
   {
     auto blackboard = config().blackboard;
-    // auto enemy_outpost_destroyed = blackboard->get<int>("lifter_pos_now");
+    auto enemy_outpost_destroyed = blackboard->get<int>("lifter_pos_now");
 
     // const bool condition_met = enemy_outpost_destroyed == 1;  // 1表示增益点被己方占领
 
@@ -227,8 +227,8 @@ namespace Sentry_BT
     if(condition_met)    {
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::RESPONSE);
     }
-    std::cout << "hero_health:" << hero_health << ", infantry3_health:" << infantry3_health
-              << " => CheckOutpostRemained => " << (condition_met ? "OUTPOST_ACTIVE(RESPONSE)" : "OUTPOST_DESTROYED") << std::endl;
+    // std::cout << "hero_health:" << hero_health << ", infantry3_health:" << infantry3_health
+    //           << " => CheckOutpostRemained => " << (condition_met ? "OUTPOST_ACTIVE(RESPONSE)" : "OUTPOST_DESTROYED") << std::endl;
     return condition_met ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
   }
 

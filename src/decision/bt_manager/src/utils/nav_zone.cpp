@@ -15,7 +15,7 @@ namespace Sentry_BT
     // for rmul
       {1.2, 7.2},  //HOME
       {6.4, 4.4},  // BONUS
-      {7.5, 6.7}  // OUTPOST
+      {7.5, 6.8}  // OUTPOST
   };
 
   std::vector<Sentry_BT::Point2D> patrol_points_normal = {
@@ -32,13 +32,15 @@ namespace Sentry_BT
       // {5.5, 3.5}
 
     // for rmul
-      {7.2, 5.4},
-      {5.6, 5.4},
+     // {7.2, 5.3},
+      {6.4, 4.4},
+      // {5.5, 5.3}
+      // {7.3, 4.5}
   };
 
   std::vector<int> patrol_points_milliseconds = {
       10000,
-      5000
+      // 5000
     //   6000,
     //   2000,
     //   2000,
@@ -55,8 +57,10 @@ namespace Sentry_BT
     // {5.5, 3.5}
 
     // for rmul
-      {7.2, 5.4},
-      {5.6, 5.4},
+      // {7.2, 5.3},
+      {6.4, 4.4}, 
+      // {5.5, 5.3}
+      // {7.3, 4.5}
   };
 
   std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};
