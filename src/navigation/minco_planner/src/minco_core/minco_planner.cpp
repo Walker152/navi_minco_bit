@@ -928,7 +928,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
   if (vel_error > 0.3) {
     std::cout << YELLOW << "[MincoPlanner] Large velocity error (" << vel_error
               << "m/s). Downgrading to COLD_START." << RESET << std::endl;
-    return PlanningState::COLD_START;
+    // return PlanningState::COLD_START;
   }
 
   if (new_path.size() >= 2) {
