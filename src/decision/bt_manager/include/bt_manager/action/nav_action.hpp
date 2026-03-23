@@ -133,7 +133,7 @@ public:
     {
       const auto now = std::chrono::steady_clock::now();
       const double elapsed_sec = std::chrono::duration<double>(now - nav_start_time_).count();
-      if(elapsed_sec > 8.0)
+      if(elapsed_sec > 15.0)
       {
         Sentry_BT::Point2D timeout_goal;
         if(selectNextPatrolGoalFromBlackboard(timeout_goal))
@@ -145,7 +145,7 @@ public:
           nav_start_time_ = now;
 
           std::cout << YELLOW << "[NavigateToPoseAction:" << name()
-                    << "] patrol timeout(>8s), force next patrol goal=(" << timeout_goal.x << ", "
+                    << "] patrol timeout(>15                                                                                            s), force next patrol goal=(" << timeout_goal.x << ", "
                     << timeout_goal.y << ")" << RESET << std::endl;
           return;
         }
