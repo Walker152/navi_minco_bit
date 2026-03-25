@@ -272,4 +272,42 @@ BT::NodeStatus CheckInStairsZone::tick()
 
   return in_stairs_zone ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
+
+// --------------------- CheckWillThroughTunnel ----------------------
+CheckWillThroughTunnel::CheckWillThroughTunnel(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::ConditionNode(name, config)
+{
+  // 构造函数：初始化节点，不需要复杂操作 
+}
+
+BT::PortsList CheckWillThroughTunnel::providedPorts()
+{
+  return {}; // 不需要输入端口，直接从黑板读取信息
+}
+
+BT::NodeStatus CheckWillThroughTunnel::tick()
+{
+  auto blackboard = config().blackboard;
+  bool will_through_tunnel = false;
+  auto lifter_pos_now = blackboard->get<int>("lifter_pos_now");
+  try {
+    will_through_tunnel = blackboard->get<bool>("through_tunnel");
+  } catch(...) {
+    return BT::NodeStatus::FAILURE; // 如果没有这个信息，默认认为不会过隧道
+  }
+  std::cout << WHITE << "CheckWillThroughTunnel => "
+            << (will_through_tunnel ? "WILL_THROUGH_TUNNEL" : "WILL_NOT_THROUGH_TUNNEL")
+            << RESET << std::endl;
+  if (will_through_tunnel) {
+    if (lifter_pos_now == 0) {
+      blackboard->set<int>("desired_lifter_pos", 2); // 设置目标升降位置为 2(bottom)，准备过隧道
+    }
+  }
+  else {
+    if (lifter_pos_now != 0) {
+      blackboard->set<int>("desired_lifter_pos", 0); // 设置目标升降位置为 0(top)，准备不通过隧道
+    }
+  }
+  return will_through_tunnel ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE; 
+}
 }  // namespace Sentry_BT
