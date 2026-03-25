@@ -199,7 +199,6 @@ bool RecoverServer::calculateEscapeVelocity(
 	}
 	// std::cout << "Max ESDF in search area: " << max_esdf << std::endl;
 	// std::cout << "Best escape direction: " << best_dir.transpose() << std::endl;
-	// 如果所有采样点都在障碍物极深处（例如 ESDF < -10.0），说明定位漂移或陷入死局
 	if (max_esdf < -10.0) {
 		return false;
 	}
