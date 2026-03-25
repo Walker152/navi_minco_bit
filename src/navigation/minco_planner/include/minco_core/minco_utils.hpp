@@ -13,6 +13,8 @@
 
 // ROS2
 #include "rclcpp/rclcpp.hpp"
+#include "nav2_costmap_2d/costmap_2d.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
 
 // Project
 #include "ros_interfaces/msg/mpc_position_command.hpp"
@@ -67,11 +69,43 @@ void publishBackupTrajectory(
   int steps,
   double t_step);
 
+void publishEscapeCommand(
+  const geometry_msgs::msg::PoseStamped & current_pose,
+  const Eigen::Vector2d & escape_vel,
+  const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
+  uint32_t & trajectory_id_counter,
+  const std_msgs::msg::Header & header);
+
 std::vector<Eigen::Vector3d> getSparseWaypoints(
   const std::vector<Eigen::Vector3d> & path,
   double max_vel,
   double max_acc,
   const std::function<bool(const Eigen::Vector3d &, const Eigen::Vector3d &)> & is_line_free);
+
+bool isLineFree(
+  nav2_costmap_2d::Costmap2D * costmap,
+  const Eigen::Vector3d & p1,
+  const Eigen::Vector3d & p2);
+
+bool worldToMap(
+  nav2_costmap_2d::Costmap2D * costmap,
+  const rclcpp::Logger & logger,
+  double wx,
+  double wy,
+  unsigned int & mx,
+  unsigned int & my);
+
+void mapToWorld(
+  nav2_costmap_2d::Costmap2D * costmap,
+  double mx,
+  double my,
+  double & wx,
+  double & wy);
+
+void clearRobotCell(
+  nav2_costmap_2d::Costmap2D * costmap,
+  unsigned int mx,
+  unsigned int my);
 
 }  // namespace minco_planner::utils
 
