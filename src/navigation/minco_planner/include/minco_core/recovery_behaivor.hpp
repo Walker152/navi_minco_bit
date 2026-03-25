@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 
 #include <Eigen/Core>
 
@@ -14,24 +15,34 @@ namespace minco_planner
 class RecoverServer
 {
 public:
+  struct Config
+  {
+    int32_t fail_threshold{3};
+    double cooldown_sec{2.0};
+    double recovery_window_sec{1.5};
+    double search_min_dist{0.2};
+    double search_max_dist{0.5};
+    double search_step{0.05};
+    double escape_speed{0.4};
+  };
+
   enum class RecoveryDecision {
     NONE,
     DO_ESCAPE,
     ENTER_EMER_STOP
   };
 
+  using Ptr = std::shared_ptr<RecoverServer>;
   using EsdfQueryFunc = std::function<double(const Eigen::Vector3d &)>;
-
   RecoverServer();
   ~RecoverServer();
 
   // Configure recovery trigger and timing parameters.
-  void configure(int32_t fail_threshold, double cooldown_sec, double recovery_window_sec);
+  void configure(const Config & config);
 
   // Clear all runtime state.
   void reset();
 
-  // Register replan result.
   // Returns true when this failure causes recovery mode to start.
   bool onReplanFailure(double now_s);
   void onReplanSuccess();
@@ -63,9 +74,7 @@ private:
     const EsdfQueryFunc & esdf_func,
     Eigen::Vector2d & escape_vel_out) const;
 
-  int32_t fail_threshold_{3};
-  double cooldown_sec_{2.0};
-  double recovery_window_sec_{1.5};
+  Config config_{};
 
   int32_t consecutive_failures_{0};
   double last_failure_time_{-1.0};

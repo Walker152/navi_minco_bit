@@ -228,7 +228,10 @@ bool BackupTrajOpt::optimize(Trajectory & out_traj) const
 
   // Compute geometric free distance inside the safe box
   double L_geo = std::numeric_limits<double>::infinity();
-  const Eigen::Vector3d dir = v0 / v_mag;
+  Eigen::Vector3d dir = Eigen::Vector3d::Zero();
+  if (v_mag > 1e-6) {
+    dir = v0 / v_mag;
+  }
   if (has_bounds && v_mag > 1e-4) {
     const Eigen::Vector3d box_min(bounds.xmin, bounds.ymin, bounds.zmin);
     const Eigen::Vector3d box_max(bounds.xmax, bounds.ymax, bounds.zmax);
