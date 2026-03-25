@@ -110,6 +110,13 @@ void StaticLayer::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Ve
   const double d01 = dist_m_[idx01];
   const double d11 = dist_m_[idx11];
 
+  // 避免 0 * (-inf) 在双线性插值中产生 NaN，导致障碍附近被误判为远距离。
+  if (!std::isfinite(d00) || !std::isfinite(d10) || !std::isfinite(d01) || !std::isfinite(d11)) {
+    dist = -std::numeric_limits<double>::infinity();
+    grad.setZero();
+    return;
+  }
+
   const double lerp_y0 = (1.0 - fx) * d00 + fx * d10;
   const double lerp_y1 = (1.0 - fx) * d01 + fx * d11;
   dist = (1.0 - fy) * lerp_y0 + fy * lerp_y1;
