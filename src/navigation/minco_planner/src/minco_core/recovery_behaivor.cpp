@@ -1,8 +1,6 @@
 #include "minco_core/recovery_behaivor.hpp"
 
-#include <array>
 #include <cmath>
-#include <utility>
 
 namespace minco_planner
 {
@@ -66,50 +64,22 @@ void RecoverServer::clearMissionGoal()
 	reset();
 }
 
-bool RecoverServer::isRecoveryGoalActive() const
-{
-	return recovery_goal_active_;
-}
-
 RecoverServer::RecoveryDecision RecoverServer::handleReplanFailure(
 	double now_s,
 	const geometry_msgs::msg::PoseStamped & current_pose,
-	const PathFeasibilityChecker & checker,
-	geometry_msgs::msg::PoseStamped & recovery_goal_out)
+	const EsdfQueryFunc & esdf_func,
+	Eigen::Vector2d & escape_vel_out)
 {
 	if (!onReplanFailure(now_s)) {
 		return RecoveryDecision::NONE;
 	}
 
-	if (tryBuildRecoveryGoal(current_pose, checker, recovery_goal_out)) {
+	if (calculateEscapeVelocity(current_pose, esdf_func, escape_vel_out)) {
 		recovery_goal_active_ = true;
-		return RecoveryDecision::USE_RECOVERY_GOAL;
+		return RecoveryDecision::DO_ESCAPE;
 	}
 
 	return RecoveryDecision::ENTER_EMER_STOP;
-}
-
-RecoverServer::RecoveryGoalReachAction RecoverServer::onRecoveryGoalReached(
-	double current_speed,
-	double stop_speed_threshold,
-	geometry_msgs::msg::PoseStamped & mission_goal_out)
-{
-	if (!recovery_goal_active_) {
-		return RecoveryGoalReachAction::NONE;
-	}
-
-	if (!std::isfinite(current_speed) || current_speed >= stop_speed_threshold) {
-		return RecoveryGoalReachAction::NONE;
-	}
-
-	recovery_goal_active_ = false;
-
-	if (has_mission_goal_) {
-		mission_goal_out = mission_goal_;
-		return RecoveryGoalReachAction::RESUME_MISSION;
-	}
-
-	return RecoveryGoalReachAction::FINISH_NO_GOAL;
 }
 
 void RecoverServer::startRecovery(double now_s)
@@ -174,55 +144,50 @@ bool RecoverServer::isTimeValid(double now_s) const
 	return std::isfinite(now_s) && now_s >= 0.0;
 }
 
-bool RecoverServer::tryBuildRecoveryGoal(
+bool RecoverServer::calculateEscapeVelocity(
 	const geometry_msgs::msg::PoseStamped & current_pose,
-	const PathFeasibilityChecker & checker,
-	geometry_msgs::msg::PoseStamped & recovery_goal_out) const
+	const EsdfQueryFunc & esdf_func,
+	Eigen::Vector2d & escape_vel_out) const
 {
-	if (!checker || !has_mission_goal_) {
+	if (!esdf_func) {
 		return false;
 	}
 
 	const double cx = current_pose.pose.position.x;
 	const double cy = current_pose.pose.position.y;
-	const double gx = mission_goal_.pose.position.x;
-	const double gy = mission_goal_.pose.position.y;
 
-	double dir_x = gx - cx;
-	double dir_y = gy - cy;
-	double norm = std::hypot(dir_x, dir_y);
-	if (!std::isfinite(norm) || norm < 1e-3) {
-		dir_x = 1.0;
-		dir_y = 0.0;
-		norm = 1.0;
-	}
-	dir_x /= norm;
-	dir_y /= norm;
+	double max_esdf = -1e9;
+	Eigen::Vector2d best_dir(0.0, 0.0);
 
-	const double lat_x = -dir_y;
-	const double lat_y = dir_x;
-	const double d = 0.8;
-	const std::array<std::pair<double, double>, 4> offsets = {
-		std::make_pair(-d, 0.0),
-		std::make_pair(-0.7 * d, 0.8 * d),
-		std::make_pair(-0.7 * d, -0.8 * d),
-		std::make_pair(-1.2 * d, 0.0)};
+	// 从 0.2m 到 0.5m，步长 0.05m 进行多圈遍历搜索
+	for (double r = 0.2; r <= 0.5 + 1e-5; r += 0.05) {
+		// 每圈探测 8 个方向 (45度间隔)
+		for (int i = 0; i < 8; ++i) {
+			double angle = i * (M_PI / 4.0);
+			Eigen::Vector2d dir(std::cos(angle), std::sin(angle));
+			// 计算当前采样点的世界坐标
+			Eigen::Vector3d sample_pt(cx + dir.x() * r, cy + dir.y() * r, 0.0);
 
-	for (const auto & off : offsets) {
-		geometry_msgs::msg::PoseStamped candidate = current_pose;
-		candidate.header.stamp = current_pose.header.stamp;
-		candidate.pose.position.x = cx + off.first * dir_x + off.second * lat_x;
-		candidate.pose.position.y = cy + off.first * dir_y + off.second * lat_y;
-		candidate.pose.position.z = 0.0;
-		candidate.pose.orientation.w = 1.0;
+			// 查询该点的 ESDF 距离
+			double dist = esdf_func(sample_pt);
 
-		if (checker(current_pose, candidate)) {
-			recovery_goal_out = candidate;
-			return true;
+			// 记录拥有最大 ESDF 距离（最空旷/最安全）的方向
+			if (dist > max_esdf) {
+				max_esdf = dist;
+				best_dir = dir; // 锁存最优逃逸方向
+			}
 		}
 	}
 
-	return false;
+	// 如果所有采样点都在障碍物极深处（例如 ESDF < -10.0），说明定位漂移或陷入死局
+	if (max_esdf < -10.0) {
+		return false;
+	}
+
+	const double escape_speed = 0.4;
+	escape_vel_out = best_dir * escape_speed;
+
+	return true;
 }
 
 }  // namespace minco_planner
