@@ -14,3 +14,6 @@ ros_interfaces/Detector enemy_detected   # 敌方检测信息
 uint8 game_status
 uint8 current_stance
 uint8 lifter_pos_now
+
+uint16 hero_health
+uint16 infantry3_health
