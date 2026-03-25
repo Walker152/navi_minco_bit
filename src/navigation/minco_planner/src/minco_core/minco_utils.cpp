@@ -232,35 +232,46 @@ void publishEscapeCommand(
   uint32_t & trajectory_id_counter,
   const std_msgs::msg::Header & header)
 {
-  // 1. 构造空间伪轨迹 (恒定速度)
+  const double escape_duration = 0.5;  // seconds
+  // 1. 构造空间伪轨迹 (平滑匀加速脱困曲线)
+  // 多项式定义: p(t) = c0*t^5 + c1*t^4 + c2*t^3 + c3*t^2 + c4*t + c5
   traj_opt::Trajectory escape_traj;
   Eigen::MatrixXd cMat(3, 6);
   cMat.setZero();
-  cMat(0, 0) = current_pose.pose.position.x;
-  cMat(1, 0) = current_pose.pose.position.y;
-  cMat(2, 0) = 0.0;
-  cMat(0, 1) = escape_vel.x();
-  cMat(1, 1) = escape_vel.y();
-  cMat(2, 1) = 0.0;
+  std::cout << "Escape velocity: " << escape_vel.transpose() << std::endl;
+  std::cout << "Current position: " << current_pose.pose.position.x << ", " << current_pose.pose.position.y
+            << std::endl;
+  // 第 5 列 (c5) -> 常数项 (t^0): 设定起点为机器人的当前位置
+  cMat(0, 5) = current_pose.pose.position.x + escape_vel.x() * escape_duration;
+  cMat(1, 5) = current_pose.pose.position.y + escape_vel.y() * escape_duration;
+  cMat(2, 5) = 0.0;
 
-  escape_traj.emplace_back(0.5, cMat);  // 持续 0.5s 的指令
+  // 第 4 列 (c4) -> 一次项 (t^1): 初始速度强制为 0，防止 QP 求解器因无限加速度崩溃 (Error 36)
+  cMat(0, 4) = escape_vel.x();
+  cMat(1, 4) = escape_vel.y();
+  cMat(2, 4) = 0.0;
+
+  escape_traj.emplace_back(0.5, cMat);  // 持续 0.5s
   escape_traj.start_WT =
     static_cast<double>(header.stamp.sec) + static_cast<double>(header.stamp.nanosec) * 1e-9;
 
-  // 2. 构造姿态伪轨迹 (锁定当前 Yaw 角防打转)
+  // 2. 构造姿态伪轨迹
   traj_opt::Trajectory yaw_traj;
   Eigen::MatrixXd yMat(3, 6);
   yMat.setZero();
+
   const auto & q = current_pose.pose.orientation;
   double yaw = std::atan2(
     2.0 * (q.w * q.z + q.x * q.y),
     1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+
+  // 第 5 列 (c5) -> 常数项 (t^0): 锁定当前偏航角
   yMat(0, 5) = yaw;
 
   yaw_traj.emplace_back(0.5, yMat);
   yaw_traj.start_WT = escape_traj.start_WT;
 
-  // 3. 直接调用同文件内的函数下发，步数10，步长0.05
+  // 3. 下发
   publishOptimizedTrajectory(
     escape_traj, yaw_traj, pub, trajectory_id_counter, header, 10, 0.05);
 }
