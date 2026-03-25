@@ -42,6 +42,11 @@ public:
     double opt_time_seconds,
     const nav_msgs::msg::Path & astar_path);
 
+  void publishRecoveryDebug(
+    const geometry_msgs::msg::PoseStamped & current_pose,
+    const Eigen::Vector2d & escape_vel,
+    double preview_sec = 0.5);
+
 private:
   void visualTimerCallback();
   nav_msgs::msg::Path convertTrajectoryToPath(
@@ -64,6 +69,8 @@ private:
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr backup_path_vis_pub_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr opt_path_vis_pub_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr astar_path_vis_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr recover_path_vis_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr recover_goal_vis_pub_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr control_points_vis_pub_;
 
   rclcpp::TimerBase::SharedPtr visual_timer_;
