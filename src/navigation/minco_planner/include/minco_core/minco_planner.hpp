@@ -2,6 +2,7 @@
 #define MINCO_PLANNER__MINCO_PLANNER_HPP_
 
 #include <string>
+#include <cstdint>
 #include <memory>
 #include <vector>
 #include <functional>
@@ -30,6 +31,7 @@
 #include "ros_interfaces/msg/mpc_position_command.hpp"
 
 #include "minco_core/astar.hpp"
+#include "minco_core/recovery_behaivor.hpp"
 #include "smac_search/smac_planner_2d_simple.hpp"
 #include "small_rog_map/hybrid_esdf_map.hpp"
 #include "minco_core/corridor_generator.hpp"
@@ -154,17 +156,16 @@ private:
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   nav2_costmap_2d::Costmap2D * costmap_;
   std::string global_frame_, name_;
+
   // A* Planner
   std::unique_ptr<Astar> astar_planner_;
   
-  // SMAC 2D Planner (new)
+  // SMAC 2D Planner
   std::unique_ptr<minco_planner::smac::SmacPlanner2DSimple> smac_planner_;
   bool use_smac_;  // Toggle between A* and SMAC
   
   // Minco Optimizer
   std::unique_ptr<MincoOptimizer> minco_optimizer_;
-
-  // Backup Trajectory Optimizer
   std::unique_ptr<traj_opt::BackupTrajOpt> backup_opt_;
   std::unique_ptr<traj_opt::YawTrajOpt> yaw_opt_;
   
@@ -173,6 +174,7 @@ private:
   SimpleCorridorGenerator::Ptr corridor_gen_;
   std::string esdf_pcd_path_;
   double esdf_resolution_;
+
   // Parameters
   double tolerance_;
   bool allow_unknown_;
@@ -182,13 +184,15 @@ private:
   double traj_goal_tolerance_{0.5};
 
   MincoOptimizer::Config minco_config;
-  
+  RecoverServer::Config recovery_server_config_{};
+
   // 20Hz FSM main loop.
   rclcpp::TimerBase::SharedPtr fsm_timer_;
   // 20Hz safety monitor.
   rclcpp::TimerBase::SharedPtr safety_timer_;
 
   std::unique_ptr<MincoFsm> fsm_;
+  RecoverServer::Ptr recovery_server_;
   Ptr planner_handle_;
   
   std::vector<geometry_msgs::msg::PoseStamped> latest_global_path_;
@@ -211,8 +215,8 @@ private:
   bool has_pending_goal_{false};
   geometry_msgs::msg::PoseStamped pending_goal_;
 
-  // Visualization helper (includes vis publishers + timers + ESDF timer)
-    std::unique_ptr<Visualizer> visualizer_;
+  // Visualization helper
+  std::unique_ptr<Visualizer> visualizer_;
   
   rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
   mutable std::mutex mutex_;

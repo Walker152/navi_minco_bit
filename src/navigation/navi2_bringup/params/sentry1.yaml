@@ -321,9 +321,17 @@ planner_server:
         penalty_weight_vel: 2000.0
         penalty_weight_acc: 2000.0
         penalty_weight_att: 300.0
+      recovery_server:
+        fail_threshold: 3
+        cooldown_sec: 2.0
+        recovery_window_sec: 3.0
+        search_min_dist: 0.2
+        search_max_dist: 0.5
+        search_step: 0.05
+        escape_speed: 0.4
       static_esdf:
-        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/room_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/hotel_esdf.pcd"
