@@ -25,8 +25,11 @@ public:
   };
 
   using PlannerPtr = std::shared_ptr<MincoPlanner>;
+  using RecoveryPtr = std::shared_ptr<RecoverServer>;
 
-  explicit MincoFsm(const PlannerPtr & planner);
+  MincoFsm(
+    const PlannerPtr & planner,
+    const RecoveryPtr & recovery_server);
 
   void callMainFsmOnce();
   void cancelGoal();
@@ -37,6 +40,7 @@ private:
   void changeState(const char * caller, State new_state);
 
   PlannerPtr planner_;
+  RecoveryPtr recovery_server_;
   State state_{State::INIT};
   State last_state_{State::INIT};
 
@@ -51,7 +55,6 @@ private:
   bool stop_published_{false};
   bool goal_stop_published_{false};
   double emer_stop_start_time_{0.0};
-  RecoverServer recovery_server_;
   Eigen::Vector2d current_escape_vel_{0.0, 0.0};
 };
 

@@ -196,6 +196,38 @@ void MincoPlanner::configure(
     node, prefix + "corridor.extra_margin", rclcpp::ParameterValue(corridor_extra_margin));
   node->get_parameter(prefix + "corridor.extra_margin", corridor_extra_margin);
 
+  // --- Recovery server config -----------------------------------------------
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "recovery_server.fail_threshold", rclcpp::ParameterValue(3));
+  node->get_parameter(
+    prefix + "recovery_server.fail_threshold",
+    recovery_server_config_.fail_threshold);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "recovery_server.cooldown_sec", rclcpp::ParameterValue(2.0));
+  node->get_parameter(prefix + "recovery_server.cooldown_sec", recovery_server_config_.cooldown_sec);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "recovery_server.recovery_window_sec", rclcpp::ParameterValue(3.0));
+  node->get_parameter(prefix + "recovery_server.recovery_window_sec", recovery_server_config_.recovery_window_sec);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "recovery_server.search_min_dist", rclcpp::ParameterValue(0.2));
+  node->get_parameter(prefix + "recovery_server.search_min_dist", recovery_server_config_.search_min_dist);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "recovery_server.search_max_dist", rclcpp::ParameterValue(0.5));
+  node->get_parameter(prefix + "recovery_server.search_max_dist", recovery_server_config_.search_max_dist);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "recovery_server.search_step", rclcpp::ParameterValue(0.05));
+  node->get_parameter(prefix + "recovery_server.search_step", recovery_server_config_.search_step);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "recovery_server.escape_speed", rclcpp::ParameterValue(0.4));
+  node->get_parameter(prefix + "recovery_server.escape_speed", recovery_server_config_.escape_speed);
+
   // --- Components / publishers / timers -------------------------------------
 
   astar_planner_ = std::make_unique<Astar>(
@@ -205,7 +237,6 @@ void MincoPlanner::configure(
     smac_planner_ = std::make_unique<minco_planner::smac::SmacPlanner2DSimple>();
     smac_planner_->configure(node, costmap_ros_, prefix);
     smac_planner_->setParameters(allow_unknown_, 1000000, tolerance_);
-    RCLCPP_INFO(logger_, "SMAC 2D Planner initialized and will be used for path planning");
   }
 
   opt_path_pub_ = node->create_publisher<ros_interfaces::msg::MpcPositionCommand>(
@@ -256,11 +287,14 @@ void MincoPlanner::configure(
   backup_opt_ = std::make_unique<traj_opt::BackupTrajOpt>();
   yaw_opt_ = std::make_unique<traj_opt::YawTrajOpt>(max_yaw_dot);
 
+  recovery_server_ = std::make_shared<RecoverServer>();
+  recovery_server_->configure(recovery_server_config_);
+
   // Planner handle for FSM (non-owning; lifetime managed by pluginlib).
   planner_handle_ = MincoPlanner::Ptr(this, [](MincoPlanner *) {});
 
   // High-level FSM @ 20Hz.
-  fsm_ = std::make_unique<MincoFsm>(planner_handle_);
+  fsm_ = std::make_unique<MincoFsm>(planner_handle_, recovery_server_);
   fsm_timer_ = node->create_wall_timer(
     std::chrono::duration<double>(1.0 / 20.0),
     [this]() {
@@ -289,6 +323,7 @@ void MincoPlanner::cleanup()
   safety_timer_.reset();
 
   fsm_.reset();
+  recovery_server_.reset();
   planner_handle_.reset();
 
   if (visualizer_) {
@@ -633,9 +668,9 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   auto opt_end_time = rclcpp::Clock().now().seconds();
   double opt_duration = opt_end_time - opt_start_time;
-  std::cout << GREEN << "[MincoPlanner] Minco optimization time: "
-            << opt_duration << " seconds, "
-            << "cost: " << final_cost << RESET << std::endl;
+  // std::cout << GREEN << "[MincoPlanner] Minco optimization time: "
+  //           << opt_duration << " seconds, "
+  //           << "cost: " << final_cost << RESET << std::endl;
 
   // 8.5 Quality gating (hard validation) before publishing.
   if (!validateTrajectory(opt_traj, end_state.col(0))) {
@@ -750,7 +785,7 @@ bool MincoPlanner::makePlan(
   unsigned int ny = costmap_->getSizeInCellsY();
 
   if (use_smac_ && smac_planner_) {
-    auto time = rclcpp::Clock().now().seconds();
+    // auto time = rclcpp::Clock().now().seconds();
 
     minco_planner::smac::SmacPlanner2DSimple::CoordinateVector smac_path;
     bool smac_success = smac_planner_->createPath(
@@ -761,15 +796,15 @@ bool MincoPlanner::makePlan(
       smac_path,
       cancel_checker);
 
-    auto time_end = rclcpp::Clock().now().seconds();
+    // auto time_end = rclcpp::Clock().now().seconds();
 
     if (!smac_success || smac_path.size() < 2) {
       RCLCPP_ERROR(logger_, "SMAC 2D: Failed to find path");
       return false;
     }
 
-    std::cout << GREEN << "[MincoPlanner] SMAC 2D planning time: " << (time_end - time)
-              << " seconds, path length: " << smac_path.size() << RESET << std::endl;
+    // std::cout << GREEN << "[MincoPlanner] SMAC 2D planning time: " << (time_end - time)
+    //           << " seconds, path length: " << smac_path.size() << RESET << std::endl;
 
     // Convert SMAC path to nav_msgs::Path.
     std::lock_guard<std::mutex> path_lock(path_mutex_);
@@ -802,7 +837,7 @@ bool MincoPlanner::makePlan(
 
     int max_total_cycles = static_cast<int>(nx * ny) * 9999;
     int cycles_per_step = std::max(static_cast<int>(nx * ny / 20), static_cast<int>(nx + ny));
-    auto time = rclcpp::Clock().now().seconds();
+    // auto time = rclcpp::Clock().now().seconds();
     while (max_total_cycles > 0) {
       if (cancel_checker && cancel_checker()) {
         return false;
@@ -812,9 +847,9 @@ bool MincoPlanner::makePlan(
       }
       max_total_cycles -= cycles_per_step;
     }
-    auto time_end = rclcpp::Clock().now().seconds();
-    std::cout << GREEN << "[MincoPlanner] A* planning time: " << (time_end - time) << " seconds"
-              << RESET << std::endl;
+    // auto time_end = rclcpp::Clock().now().seconds();
+    // std::cout << GREEN << "[MincoPlanner] A* planning time: " << (time_end - time) << " seconds"
+    //           << RESET << std::endl;
 
     if (!astar_planner_->calcPath(nx * ny / 2) || astar_planner_->getPathLen() < 2) {
       return false;
@@ -1206,12 +1241,13 @@ traj_opt::Trajectory MincoPlanner::generateBackupTraj(const Eigen::Matrix3d & st
     traj_opt::Trajectory stop_traj;
     const Eigen::Vector3d p = start_state.col(0);
 
-    Eigen::MatrixXd cMat(3, 1);
-    cMat.col(0) = p;
+    Eigen::MatrixXd cMat(3, 6);
+    cMat.setZero();
+    cMat.col(5) = p;
 
     // Two very short constant pieces ("2 points" semantics).
-    stop_traj.emplace_back(0.02, cMat);
-    stop_traj.emplace_back(0.02, cMat);
+    stop_traj.emplace_back(0.2, cMat);
+    stop_traj.emplace_back(0.2, cMat);
     return stop_traj;
   };
 
@@ -1333,6 +1369,10 @@ void MincoPlanner::publishEscapeCommand(
   const geometry_msgs::msg::PoseStamped & current_pose,
   const Eigen::Vector2d & escape_vel)
 {
+  if (visualizer_) {
+    visualizer_->publishRecoveryDebug(current_pose, escape_vel, 0.5);
+  }
+
   std_msgs::msg::Header header_msg;
   header_msg.frame_id = global_frame_;
   header_msg.stamp = rclcpp::Clock().now();
