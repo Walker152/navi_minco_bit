@@ -47,4 +47,13 @@ public:
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
 };
+
+// 检查是否将要过隧道
+class CheckWillThroughTunnel : public BT::ConditionNode
+{
+public: 
+  CheckWillThroughTunnel(const std::string& name, const BT::NodeConfiguration& config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
 }  // namespace Sentry_BT
