@@ -18,6 +18,7 @@
 // Custom Messages
 #include "ros_interfaces/msg/event_status.hpp"
 #include "ros_interfaces/msg/behavior.hpp"
+#include "ros_interfaces/msg/mpc_position_command.hpp"
 
 // Project Headers
 #include "bt_manager/blackboard.hpp"
@@ -32,6 +33,8 @@ namespace Sentry_BT
     rclcpp::Publisher<ros_interfaces::msg::Behavior>::SharedPtr behavior_pub;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub;
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr gimbal_yaw_pub;
+    rclcpp::Subscription<ros_interfaces::msg::MpcPositionCommand>::SharedPtr mpc_cmd_sub;
+    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub;
 
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub;
 
@@ -47,8 +50,11 @@ namespace Sentry_BT
     ~ros_interface() override = default;
 
     void publishCmdVel(double linear_y, double angular_z);
+    void publishCmdVel(const geometry_msgs::msg::Twist& cmd_vel);
     geometry_msgs::msg::Pose getCurrentPose() const;
 
     bool TransformPose(const geometry_msgs::msg::Pose& input_pose, geometry_msgs::msg::Pose& output_pose);
+    bool isTroughZone(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square& zone);
+    bool isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Point2D& tunnel_entry, const Point2D& tunnel_exit);
   };
 }  // namespace Sentry_BT
