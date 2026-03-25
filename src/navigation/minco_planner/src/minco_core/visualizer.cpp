@@ -42,6 +42,12 @@ void Visualizer::configure(
   astar_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
     "/astar_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
 
+  // Recovery debug
+  recover_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
+    "/recover_path", rclcpp::QoS(rclcpp::KeepLast(1)));
+  recover_goal_vis_pub_ = node->create_publisher<visualization_msgs::msg::Marker>(
+    "/recover_goal", rclcpp::QoS(rclcpp::KeepLast(1)));
+
   // Markers
   control_points_vis_pub_ = node->create_publisher<visualization_msgs::msg::Marker>(
     "/minco_control_points_vis", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
@@ -82,6 +88,8 @@ void Visualizer::cleanup()
   backup_path_vis_pub_.reset();
   opt_path_vis_pub_.reset();
   astar_path_vis_pub_.reset();
+  recover_path_vis_pub_.reset();
+  recover_goal_vis_pub_.reset();
   control_points_vis_pub_.reset();
   esdf_cloud_pub_.reset();
 
@@ -93,6 +101,61 @@ void Visualizer::cleanup()
   vis_opt_time_ = -1.0;
   has_vis_opt_traj_ = false;
   has_vis_backup_traj_ = false;
+}
+
+void Visualizer::publishRecoveryDebug(
+  const geometry_msgs::msg::PoseStamped & current_pose,
+  const Eigen::Vector2d & escape_vel,
+  double preview_sec)
+{
+  auto node = node_.lock();
+  if (!node) {
+    return;
+  }
+  if (!recover_goal_vis_pub_ || !recover_path_vis_pub_) {
+    return;
+  }
+  if (!(std::isfinite(current_pose.pose.position.x) && std::isfinite(current_pose.pose.position.y) &&
+    escape_vel.allFinite()))
+  {
+    return;
+  }
+
+  const double dt = (std::isfinite(preview_sec) && preview_sec > 0.0) ? preview_sec : 0.5;
+  const double goal_x = current_pose.pose.position.x + escape_vel.x() * dt;
+  const double goal_y = current_pose.pose.position.y + escape_vel.y() * dt;
+
+  visualization_msgs::msg::Marker goal_mk;
+  goal_mk.header.stamp = node->now();
+  goal_mk.header.frame_id = global_frame_;
+  goal_mk.ns = "recover_goal";
+  goal_mk.id = 0;
+  goal_mk.type = visualization_msgs::msg::Marker::SPHERE;
+  goal_mk.action = visualization_msgs::msg::Marker::ADD;
+  goal_mk.pose.position.x = goal_x;
+  goal_mk.pose.position.y = goal_y;
+  goal_mk.pose.position.z = 0.05;
+  goal_mk.pose.orientation.w = 1.0;
+  goal_mk.scale.x = 0.20;
+  goal_mk.scale.y = 0.20;
+  goal_mk.scale.z = 0.20;
+  goal_mk.color.r = 1.0f;
+  goal_mk.color.g = 0.2f;
+  goal_mk.color.b = 0.2f;
+  goal_mk.color.a = 1.0f;
+  recover_goal_vis_pub_->publish(goal_mk);
+
+  nav_msgs::msg::Path path_msg;
+  path_msg.header = goal_mk.header;
+  path_msg.poses.resize(2);
+  path_msg.poses[0] = current_pose;
+  path_msg.poses[0].header = path_msg.header;
+  path_msg.poses[1].header = path_msg.header;
+  path_msg.poses[1].pose.position.x = goal_x;
+  path_msg.poses[1].pose.position.y = goal_y;
+  path_msg.poses[1].pose.position.z = 0.0;
+  path_msg.poses[1].pose.orientation.w = 1.0;
+  recover_path_vis_pub_->publish(path_msg);
 }
 
 void Visualizer::update(
