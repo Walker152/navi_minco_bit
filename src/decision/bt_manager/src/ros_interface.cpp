@@ -1,6 +1,7 @@
 #include "bt_manager/ros_interface.hpp"
 #include <cmath>
 #include <chrono>
+#include <cstdint>
 #include <string>
 
 namespace Sentry_BT
@@ -107,6 +108,8 @@ namespace Sentry_BT
     blackboard_->set<int>("lifter_pos_now", static_cast<int>(msg->lifter_pos_now));
     blackboard_->set<float>("gimbal_yaw", msg->gimbal_yaw);
     blackboard_->set<uint16_t>("num_shoot", msg->num_shoot);
+    blackboard_->set<uint16_t>("hero_health", msg->hero_health);
+    blackboard_->set<uint16_t>("infantry3_health", msg->infantry3_health);
 
     gimbal_yaw_pub->publish(std_msgs::msg::Float32().set__data(msg->gimbal_yaw));
     // 更新目标位置
@@ -134,9 +137,9 @@ namespace Sentry_BT
 
       if(should_log)
       {
-        std::cout << "Target pose: " << target_pose.position.x << ", " << target_pose.position.y << std::endl;
-        std::cout << "target pose in: " << target_pose_in.position.x << "," << target_pose_in.position.y
-                  << "," << target_pose_in.position.z << std::endl;
+        // std::cout << "Target pose: " << target_pose.position.x << ", " << target_pose.position.y << std::endl;
+        // std::cout << "target pose in: " << target_pose_in.position.x << "," << target_pose_in.position.y
+        //           << "," << target_pose_in.position.z << std::endl;
         last_target_pose_in = target_pose_in;
         last_target_pose = target_pose;
         has_last_logged_pose = true;

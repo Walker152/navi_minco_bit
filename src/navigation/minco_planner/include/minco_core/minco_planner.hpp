@@ -97,6 +97,13 @@ public:
   bool consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out);
   void cancelGoal();
 
+  // 获取指定位置的 ESDF 距离
+  double getEsdfDistance(const Eigen::Vector3d & pos) const;
+
+  void publishEscapeCommand(
+    const geometry_msgs::msg::PoseStamped & current_pose,
+    const Eigen::Vector2d & escape_vel);
+
   void publishEmergencyStop(const geometry_msgs::msg::PoseStamped & current_pose);
   
   bool makePlan(
@@ -107,11 +114,6 @@ public:
     nav_msgs::msg::Path & plan);
 
   traj_opt::Trajectory generateBackupTraj(const Eigen::Matrix3d& start_state);
-  
-  bool isLineFree(const Eigen::Vector3d& start, const Eigen::Vector3d& end);
-  bool worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my);
-  void mapToWorld(double mx, double my, double & wx, double & wy);
-  void clearRobotCell(unsigned int wx, unsigned int wy);
 
   void safetyTimerCallback();
   std::vector<Eigen::Vector3d> extractLocalPath(const Eigen::Vector3d& cur_pos);
