@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "data_structure/base/trajectory.h"
+#include "nav2_costmap_2d/cost_values.hpp"
 
 namespace minco_planner::utils {
 
@@ -224,6 +225,46 @@ void publishBackupTrajectory(
   pub->publish(traj_msg);
 }
 
+void publishEscapeCommand(
+  const geometry_msgs::msg::PoseStamped & current_pose,
+  const Eigen::Vector2d & escape_vel,
+  const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
+  uint32_t & trajectory_id_counter,
+  const std_msgs::msg::Header & header)
+{
+  // 1. 构造空间伪轨迹 (恒定速度)
+  traj_opt::Trajectory escape_traj;
+  Eigen::MatrixXd cMat(3, 6);
+  cMat.setZero();
+  cMat(0, 0) = current_pose.pose.position.x;
+  cMat(1, 0) = current_pose.pose.position.y;
+  cMat(2, 0) = 0.0;
+  cMat(0, 1) = escape_vel.x();
+  cMat(1, 1) = escape_vel.y();
+  cMat(2, 1) = 0.0;
+
+  escape_traj.emplace_back(0.5, cMat);  // 持续 0.5s 的指令
+  escape_traj.start_WT =
+    static_cast<double>(header.stamp.sec) + static_cast<double>(header.stamp.nanosec) * 1e-9;
+
+  // 2. 构造姿态伪轨迹 (锁定当前 Yaw 角防打转)
+  traj_opt::Trajectory yaw_traj;
+  Eigen::MatrixXd yMat(3, 6);
+  yMat.setZero();
+  const auto & q = current_pose.pose.orientation;
+  double yaw = std::atan2(
+    2.0 * (q.w * q.z + q.x * q.y),
+    1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+  yMat(0, 5) = yaw;
+
+  yaw_traj.emplace_back(0.5, yMat);
+  yaw_traj.start_WT = escape_traj.start_WT;
+
+  // 3. 直接调用同文件内的函数下发，步数10，步长0.05
+  publishOptimizedTrajectory(
+    escape_traj, yaw_traj, pub, trajectory_id_counter, header, 10, 0.05);
+}
+
 std::vector<Eigen::Vector3d> getSparseWaypoints(
   const std::vector<Eigen::Vector3d> & path,
   double max_vel,
@@ -428,6 +469,97 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(
   }
 
   return sparse;
+}
+
+bool isLineFree(nav2_costmap_2d::Costmap2D * costmap, const Eigen::Vector3d & p1, const Eigen::Vector3d & p2)
+{
+  if (!costmap) {
+    return true;
+  }
+
+  unsigned int mx, my;
+  double dist = (p2 - p1).norm();
+  int steps = static_cast<int>(std::ceil(dist / costmap->getResolution()));
+  if (steps <= 0) {
+    return true;
+  }
+
+  for (int i = 0; i <= steps; ++i) {
+    double t = static_cast<double>(i) / static_cast<double>(steps);
+    Eigen::Vector3d p = p1 + (p2 - p1) * t;
+    if (costmap->worldToMap(p.x(), p.y(), mx, my)) {
+      if (costmap->getCost(mx, my) >= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool worldToMap(nav2_costmap_2d::Costmap2D * costmap, const rclcpp::Logger & logger, double wx, double wy, unsigned int & mx, unsigned int & my)
+{
+  if (!costmap) {
+    RCLCPP_DEBUG(logger, "worldToMap: costmap is null");
+    return false;
+  }
+
+  if (wx < costmap->getOriginX() || wy < costmap->getOriginY()) {
+    RCLCPP_DEBUG(
+      logger,
+      "worldToMap: Position (%.2f, %.2f) is before origin (%.2f, %.2f)",
+      wx,
+      wy,
+      costmap->getOriginX(),
+      costmap->getOriginY());
+    return false;
+  }
+
+  double dx = (wx - costmap->getOriginX()) / costmap->getResolution();
+  double dy = (wy - costmap->getOriginY()) / costmap->getResolution();
+
+  if (dx < 0.0 || dy < 0.0) {
+    RCLCPP_DEBUG(
+      logger, "worldToMap: Computed cell coordinates (%.2f, %.2f) are negative", dx, dy);
+    return false;
+  }
+
+  int mx_int = static_cast<int>(std::round(dx));
+  int my_int = static_cast<int>(std::round(dy));
+
+  if (mx_int < 0 || my_int < 0 || mx_int >= static_cast<int>(costmap->getSizeInCellsX()) ||
+      my_int >= static_cast<int>(costmap->getSizeInCellsY())) {
+    RCLCPP_DEBUG(
+      logger,
+      "worldToMap: Cell coordinates (%d, %d) are out of bounds [0, %u) x [0, %u)",
+      mx_int,
+      my_int,
+      costmap->getSizeInCellsX(),
+      costmap->getSizeInCellsY());
+    return false;
+  }
+
+  mx = static_cast<unsigned int>(mx_int);
+  my = static_cast<unsigned int>(my_int);
+  return true;
+}
+
+void mapToWorld(nav2_costmap_2d::Costmap2D * costmap, double mx, double my, double & wx, double & wy)
+{
+  if (!costmap) {
+    wx = 0.0;
+    wy = 0.0;
+    return;
+  }
+  wx = costmap->getOriginX() + mx * costmap->getResolution();
+  wy = costmap->getOriginY() + my * costmap->getResolution();
+}
+
+void clearRobotCell(nav2_costmap_2d::Costmap2D * costmap, unsigned int mx, unsigned int my)
+{
+  if (!costmap) {
+    return;
+  }
+  costmap->setCost(mx, my, nav2_costmap_2d::FREE_SPACE);
 }
 
 }  // namespace minco_planner::utils

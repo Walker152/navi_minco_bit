@@ -104,21 +104,6 @@ void MincoFsm::callMainFsmOnce()
 
       // 容差限停检测：到达终点且速度足够低
       if (planner_->checkGoalReached(current_pose)) {
-        if (recovery_server_.isRecoveryGoalActive()) {
-          geometry_msgs::msg::PoseStamped mission_goal;
-          const auto action = recovery_server_.onRecoveryGoalReached(
-            planner_->getCurrentSpeed().head<2>().norm(), 0.1, mission_goal);
-          if (action == RecoverServer::RecoveryGoalReachAction::RESUME_MISSION) {
-            goal_ = mission_goal;
-            has_goal_ = true;
-            changeState("RECOVERY_GOAL_DONE", State::GENERATE_TRAJ);
-          } else if (action == RecoverServer::RecoveryGoalReachAction::FINISH_NO_GOAL) {
-            has_goal_ = false;
-            changeState("RECOVERY_GOAL_DONE_NO_MISSION", State::WAIT_GOAL);
-          }
-          return;
-        }
-
         if (!goal_stop_published_) {
           planner_->publishEmergencyStop(current_pose);
           goal_stop_published_ = true;
@@ -155,20 +140,16 @@ void MincoFsm::callMainFsmOnce()
       }
 
       if (!planner_->ReplanLocal(current_pose)) {
-        geometry_msgs::msg::PoseStamped recovery_goal;
+        Eigen::Vector2d escape_vel;
         const auto decision = recovery_server_.handleReplanFailure(
           planner_->nowSeconds(),
           current_pose,
-          [this](const geometry_msgs::msg::PoseStamped & start,
-                 const geometry_msgs::msg::PoseStamped & goal) {
-            return planner_ && planner_->PlanGlobalPath(start, goal);
-          },
-          recovery_goal);
+          [this](const Eigen::Vector3d & p) { return planner_->getEsdfDistance(p); },
+          escape_vel);
 
-        if (decision == RecoverServer::RecoveryDecision::USE_RECOVERY_GOAL) {
-          goal_ = recovery_goal;
-          has_goal_ = true;
-          changeState("FOLLOW_REPLAN_RECOVERY_GOAL", State::GENERATE_TRAJ);
+        if (decision == RecoverServer::RecoveryDecision::DO_ESCAPE) {
+          current_escape_vel_ = escape_vel;
+          changeState("STUCK_TRIGGER_RECOVERING", State::RECOVERING);
           return;
         }
 
@@ -184,6 +165,35 @@ void MincoFsm::callMainFsmOnce()
       recovery_server_.onReplanSuccess();
 
       traveled_dist_ = 0.0;
+      return;
+    }
+
+    case State::RECOVERING: {
+      if (!has_odom) {
+        return;
+      }
+
+      const double now_s = planner_->nowSeconds();
+      Eigen::Vector3d cur_p(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
+      double dist = planner_->getEsdfDistance(cur_p);
+
+      // 条件1: 成功挤出泥坑 (ESDF 距离恢复安全)
+      if (dist > 0.30) {
+        recovery_server_.finishRecovery(true, now_s);
+        changeState("ESCAPE_SUCCESS", State::GENERATE_TRAJ);
+        return;
+      }
+
+      // 条件2: 挣扎超时保护
+      if (!recovery_server_.inRecovery(now_s)) {
+        recovery_server_.finishRecovery(false, now_s);
+        has_goal_ = false;
+        changeState("ESCAPE_TIMEOUT", State::EMER_STOP);
+        return;
+      }
+
+      // 条件3: 持续高频下发伪指令覆盖 MPC
+      planner_->publishEscapeCommand(current_pose, current_escape_vel_);
       return;
     }
 
@@ -253,6 +263,8 @@ const char * StateToString(MincoFsm::State s)
       return "GENERATE_TRAJ";
     case MincoFsm::State::FOLLOW_TRAJ:
       return "FOLLOW_TRAJ";
+    case MincoFsm::State::RECOVERING:
+      return "RECOVERING";
     case MincoFsm::State::EMER_STOP:
       return "EMER_STOP";
     default:
