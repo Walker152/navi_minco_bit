@@ -20,6 +20,7 @@ public:
     WAIT_GOAL,
     GENERATE_TRAJ,
     FOLLOW_TRAJ,
+    RECOVERING,
     EMER_STOP
   };
 
@@ -51,6 +52,7 @@ private:
   bool goal_stop_published_{false};
   double emer_stop_start_time_{0.0};
   RecoverServer recovery_server_;
+  Eigen::Vector2d current_escape_vel_{0.0, 0.0};
 };
 
 }  // namespace minco_planner
