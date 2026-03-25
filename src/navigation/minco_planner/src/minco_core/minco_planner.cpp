@@ -382,7 +382,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     minco_config.max_vel,
     minco_config.max_acc,
     [this](const Eigen::Vector3d & a, const Eigen::Vector3d & b) {
-      return this->isLineFree(a, b);
+      return utils::isLineFree(this->costmap_, a, b);
     });
 
   std_msgs::msg::Header header_msg;
@@ -724,7 +724,7 @@ bool MincoPlanner::makePlan(
   double wx = start.position.x;
   double wy = start.position.y;
   unsigned int mx_start, my_start;
-  if (!worldToMap(wx, wy, mx_start, my_start)) {
+  if (!utils::worldToMap(costmap_, logger_, wx, wy, mx_start, my_start)) {
     RCLCPP_ERROR(
       logger_,
       "Failed to convert start world coordinates (%.2f, %.2f) to map coordinates",
@@ -732,12 +732,12 @@ bool MincoPlanner::makePlan(
       wy);
     return false;
   }
-  clearRobotCell(mx_start, my_start);
+  utils::clearRobotCell(costmap_, mx_start, my_start);
 
   wx = goal.position.x;
   wy = goal.position.y;
   unsigned int mx_goal, my_goal;
-  if (!worldToMap(wx, wy, mx_goal, my_goal)) {
+  if (!utils::worldToMap(costmap_, logger_, wx, wy, mx_goal, my_goal)) {
     RCLCPP_ERROR(
       logger_,
       "Failed to convert goal world coordinates (%.2f, %.2f) to map coordinates",
@@ -783,7 +783,7 @@ bool MincoPlanner::makePlan(
       pose.header = plan.header;
 
       double wx, wy;
-      costmap_->mapToWorld(it->x, it->y, wx, wy);
+      utils::mapToWorld(costmap_, it->x, it->y, wx, wy);
 
       pose.pose.position.x = wx;
       pose.pose.position.y = wy;
@@ -834,7 +834,7 @@ bool MincoPlanner::makePlan(
       pose.header = plan.header;
 
       double wx, wy;
-      costmap_->mapToWorld(path_x[i], path_y[i], wx, wy);
+      utils::mapToWorld(costmap_, path_x[i], path_y[i], wx, wy);
 
       pose.pose.position.x = wx;
       pose.pose.position.y = wy;
@@ -928,7 +928,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
   if (vel_error > 0.3) {
     std::cout << YELLOW << "[MincoPlanner] Large velocity error (" << vel_error
               << "m/s). Downgrading to COLD_START." << RESET << std::endl;
-    return PlanningState::COLD_START;
+    // return PlanningState::COLD_START;
   }
 
   if (new_path.size() >= 2) {
@@ -1120,7 +1120,7 @@ bool MincoPlanner::checkCollision()
   for (double t = 0.0; t <= dur; t += dt) {
     const Eigen::Vector3d pos = traj_snapshot.getPos(t);
     unsigned int mx, my;
-    if (!costmap_->worldToMap(pos.x(), pos.y(), mx, my)) {
+    if (!utils::worldToMap(costmap_, logger_, pos.x(), pos.y(), mx, my)) {
       return false;
     }
     const unsigned char cost = costmap_->getCost(mx, my);
@@ -1150,7 +1150,7 @@ bool MincoPlanner::checkCollision(const traj_opt::Trajectory & traj)
   for (double t = 0.0; t <= dur; t += dt) {
     const Eigen::Vector3d pos = traj.getPos(t);
     unsigned int mx, my;
-    if (!costmap_->worldToMap(pos.x(), pos.y(), mx, my)) {
+    if (!utils::worldToMap(costmap_, logger_, pos.x(), pos.y(), mx, my)) {
       return false;
     }
     const unsigned char cost = costmap_->getCost(mx, my);
@@ -1318,82 +1318,30 @@ bool MincoPlanner::isTrajectoryTimeExpired(double now_s) const
   return now_s > end_s;
 }
 
-bool MincoPlanner::isLineFree(const Eigen::Vector3d & p1, const Eigen::Vector3d & p2)
+double MincoPlanner::getEsdfDistance(const Eigen::Vector3d & pos) const
 {
-  if (!costmap_) {
-    return true;
+  if (!esdf_map_) {
+    return 0.0;
   }
-
-  unsigned int mx, my;
-  double dist = (p2 - p1).norm();
-  int steps = static_cast<int>(std::ceil(dist / costmap_->getResolution()));
-  if (steps <= 0) {
-    return true;
-  }
-
-  for (int i = 0; i <= steps; ++i) {
-    double t = static_cast<double>(i) / static_cast<double>(steps);
-    Eigen::Vector3d p = p1 + (p2 - p1) * t;
-    if (costmap_->worldToMap(p.x(), p.y(), mx, my)) {
-      if (costmap_->getCost(mx, my) >= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
-        return false;
-      }
-    }
-  }
-  return true;
+  double dist = 0.0;
+  Eigen::Vector3d grad = Eigen::Vector3d::Zero();
+  esdf_map_->evaluate(pos, dist, grad);
+  return dist;
 }
 
-bool MincoPlanner::worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my)
+void MincoPlanner::publishEscapeCommand(
+  const geometry_msgs::msg::PoseStamped & current_pose,
+  const Eigen::Vector2d & escape_vel)
 {
-  if (wx < costmap_->getOriginX() || wy < costmap_->getOriginY()) {
-    RCLCPP_DEBUG(
-      logger_,
-      "worldToMap: Position (%.2f, %.2f) is before origin (%.2f, %.2f)",
-      wx,
-      wy,
-      costmap_->getOriginX(),
-      costmap_->getOriginY());
-    return false;
-  }
-
-  double dx = (wx - costmap_->getOriginX()) / costmap_->getResolution();
-  double dy = (wy - costmap_->getOriginY()) / costmap_->getResolution();
-
-  if (dx < 0.0 || dy < 0.0) {
-    RCLCPP_DEBUG(
-      logger_, "worldToMap: Computed cell coordinates (%.2f, %.2f) are negative", dx, dy);
-    return false;
-  }
-
-  int mx_int = static_cast<int>(std::round(dx));
-  int my_int = static_cast<int>(std::round(dy));
-
-  if (mx_int < 0 || my_int < 0 || mx_int >= static_cast<int>(costmap_->getSizeInCellsX()) ||
-      my_int >= static_cast<int>(costmap_->getSizeInCellsY())) {
-    RCLCPP_DEBUG(
-      logger_,
-      "worldToMap: Cell coordinates (%d, %d) are out of bounds [0, %u) x [0, %u)",
-      mx_int,
-      my_int,
-      costmap_->getSizeInCellsX(),
-      costmap_->getSizeInCellsY());
-    return false;
-  }
-
-  mx = static_cast<unsigned int>(mx_int);
-  my = static_cast<unsigned int>(my_int);
-  return true;
-}
-
-void MincoPlanner::mapToWorld(double mx, double my, double & wx, double & wy)
-{
-  wx = costmap_->getOriginX() + mx * costmap_->getResolution();
-  wy = costmap_->getOriginY() + my * costmap_->getResolution();
-}
-
-void MincoPlanner::clearRobotCell(unsigned int mx, unsigned int my)
-{
-  costmap_->setCost(mx, my, nav2_costmap_2d::FREE_SPACE);
+  std_msgs::msg::Header header_msg;
+  header_msg.frame_id = global_frame_;
+  header_msg.stamp = rclcpp::Clock().now();
+  utils::publishEscapeCommand(
+    current_pose,
+    escape_vel,
+    opt_path_pub_,
+    opt_trajectory_id_,
+    header_msg);
 }
 
 }  // namespace minco_planner
