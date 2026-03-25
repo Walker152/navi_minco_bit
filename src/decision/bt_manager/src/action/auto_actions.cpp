@@ -386,5 +386,175 @@ BT::NodeStatus SetStairsPosition::tick()
   
   return BT::NodeStatus::SUCCESS;
 }
+// ------------------- ControlThroughTunnel -------------------
+ControlThroughTunnel::ControlThroughTunnel(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::StatefulActionNode(name, config)
+{}
 
+BT::PortsList ControlThroughTunnel::providedPorts()
+{
+  return {};
+}
+
+BT::NodeStatus ControlThroughTunnel::onStart()
+{
+  auto blackboard = config().blackboard;
+  auto ros_iface = blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
+  is_through_tunnel_ = blackboard->get<bool>("through_tunnel");
+  parameters_client_ = std::make_shared<rclcpp::AsyncParametersClient>(ros_iface, "/controller_server");
+  if (!wait_param_service()) {
+    return BT::NodeStatus::FAILURE;
+  }
+  if (!wait_param_available()) {
+    return BT::NodeStatus::FAILURE;
+  }
+  auto get_params_future = parameters_client_->get_parameters(required_params_);
+  if (get_params_future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
+    std::cerr << "Failed to get parameters within timeout." << std::endl;
+    return BT::NodeStatus::FAILURE;
+  }
+  auto params = get_params_future.get();
+  for (const auto& param : params) {
+    if (param.get_name() == "FollowPath.use_small_gyro_mode") {
+      initial_small_gyoro_ = param.as_bool();
+    } else if (param.get_name() == "FollowPath.fixed_wz") {
+      initial_wz_ = param.as_double();
+    }
+  }
+  auto current_orientation = ros_iface->getCurrentPose().orientation;
+  // 将四元数转换为欧拉角
+  tf2::Quaternion quat(current_orientation.x, current_orientation.y, current_orientation.z, current_orientation.w);
+  double roll, pitch, yaw;
+  tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
+  initial_yaw_ = yaw;
+  auto set_param_future = parameters_client_->set_parameters({
+    rclcpp::Parameter("FollowPath.use_small_gyro_mode", true), 
+    rclcpp::Parameter("FollowPath.fixed_wz", fixed_wz_)});
+  if (set_param_future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
+    std::cerr << "Failed to set parameters within timeout." << std::endl;
+    return BT::NodeStatus::FAILURE;
+  }
+  last_pub_time_ = ros_iface->now();
+  return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus ControlThroughTunnel::onRunning()
+{
+  auto blackboard = config().blackboard;
+  auto ros_iface = blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
+  if(!ros_iface){
+    return BT::NodeStatus::FAILURE;
+  }
+  is_through_tunnel_ = blackboard->get<bool>("through_tunnel");
+  if(!is_through_tunnel_)
+  {
+    auto set_param_future = parameters_client_->set_parameters({
+      rclcpp::Parameter("FollowPath.use_small_gyro_mode", initial_small_gyoro_), 
+      rclcpp::Parameter("FollowPath.fixed_wz", initial_wz_)});
+    if (set_param_future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
+      std::cerr << "Failed to reset parameters within timeout." << std::endl;
+      return BT::NodeStatus::FAILURE;
+    }
+    return BT::NodeStatus::SUCCESS;
+  }
+  auto current_orientation = ros_iface->getCurrentPose().orientation;
+  // 将四元数转换为欧拉角
+  tf2::Quaternion quat(current_orientation.x, current_orientation.y, current_orientation.z, current_orientation.w);
+  double roll, pitch, yaw;
+  tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
+  current_yaw_ = yaw;
+  double yaw_diff = current_yaw_ - target_yaw_;
+  if (yaw_diff > M_PI) {
+    yaw_diff -= 2 * M_PI;
+  } else if (yaw_diff < -M_PI) {
+    yaw_diff += 2 * M_PI;
+  }
+  if (std::abs(yaw_diff) < 0.1) {
+    if (!yaw_ready_) {
+      yaw_ready_ = true;
+      std::cout << GREEN << "Yaw is ready." << RESET << std::endl;
+      parameters_client_->set_parameters({rclcpp::Parameter("FollowPath.fixed_wz", 0.0)});
+    }
+  }
+  else {
+    if (yaw_ready_) {
+      geometry_msgs::msg::Twist vel;
+      geometry_msgs::msg::Twist current_cmd_vel = blackboard->get<geometry_msgs::msg::Twist>("cmd_vel");
+      vel.linear = current_cmd_vel.linear;
+      double wz = yaw_diff * 4.0; // 简单的比例控制
+      wz = std::clamp(wz, -fixed_wz_, fixed_wz_);
+      vel.angular.z = wz;
+      rclcpp::Time now = ros_iface->now();
+      if ((now - last_pub_time_).seconds() >= 0.05) { // 20Hz发布频率
+        ros_iface->publishCmdVel(vel);
+        last_pub_time_ = now;
+      }
+    }
+  }
+  int lifter_pose = blackboard->get<int>("lifter_pos_now");
+  if (lifter_pose == 1 && !lifter_ready_)
+  {
+    std::cout << GREEN << "Lifter is ready." << RESET << std::endl;
+    lifter_ready_ = true;
+  }
+  return BT::NodeStatus::RUNNING;   
+}
+
+bool ControlThroughTunnel::wait_param_service()
+{
+  int time_count = 0;
+  while (!parameters_client_->wait_for_service(std::chrono::seconds(1))) {
+    if (!rclcpp::ok()) {
+      std::cerr << "Interrupted while waiting for the service. Exiting." << std::endl;
+      return false;
+    }
+    std::cout << "Service not available, waiting again..." << std::endl;
+    time_count++;
+    if(time_count > 2) {
+      std::cerr << "Service not available after waiting for 5 seconds. Exiting." << std::endl;
+      return false;
+    }
+  }
+  return true;
+}
+
+bool ControlThroughTunnel::wait_param_available()
+{
+  auto start_time = std::chrono::steady_clock::now();
+  while (!has_params(required_params_)) {
+    if (!rclcpp::ok()) {
+      std::cerr << "Interrupted while waiting for parameters. Exiting." << std::endl;
+      return false;
+    }
+    std::cout << "Parameters not available, waiting again..." << std::endl;
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time);
+    if(elapsed > std::chrono::milliseconds(200)) {
+      std::cerr << "Parameters not available after waiting. Exiting." << std::endl;
+      return false;
+    }
+  }
+  return true;
+}
+
+bool ControlThroughTunnel::has_params(std::vector<std::string> param_names)
+{
+  auto list_future = parameters_client_->get_parameters(param_names);
+  if (list_future.wait_for(std::chrono::milliseconds(30)) != std::future_status::ready) {
+    std::cerr << "Failed to get parameters within timeout." << std::endl;
+    return false;
+  }
+  auto parameters = list_future.get();
+  for (const auto& param : parameters) {
+    if (param.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET) {
+      std::cerr << "Parameter " << param.get_name() << " is not set." << std::endl;
+      return false;
+    }
+  }
+  return true; // 所有参数都可用
+}
+
+void ControlThroughTunnel::onHalted()
+{
+  return;
+}
 }  // namespace Sentry_BT

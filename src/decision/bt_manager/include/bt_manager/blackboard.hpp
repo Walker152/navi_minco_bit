@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/pose.hpp>
+#include <geometry_msgs/msg/twist.hpp>
 
 namespace Sentry_BT
 {
@@ -29,6 +30,7 @@ namespace Sentry_BT
       blackboard_->set("bonus_active", false);                              // 增益区是否激活
       blackboard_->set("game_status", 0);                                   // 比赛状态
       blackboard_->set("lifter_pos_now", 0);                                // 升降机构当前位置
+      blackboard_->set("desired_lifter_pos", 0);                         // 目标升降位置
       blackboard_->set("gimbal_yaw", 0.0f);                                 // 云台偏航角
       blackboard_->set<uint16_t>("num_shoot", 0);                           // 已发射数量
       blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));  // 当前模式
@@ -40,6 +42,8 @@ namespace Sentry_BT
       blackboard_->set<uint16_t>("hero_health", 350);                                // 英雄角色健康值
       blackboard_->set<uint16_t>("infantry3_health", 350);                             //
       blackboard_->set("outpost_msg", false);                               // 抬头
+      blackboard_->set("through_tunnel", false);                            // 是否通过隧道
+      blackboard_->set("cmd_vel", geometry_msgs::msg::Twist());             // 速度指令
     }
 
     template <typename T> void set(const std::string& key, const T& value)
