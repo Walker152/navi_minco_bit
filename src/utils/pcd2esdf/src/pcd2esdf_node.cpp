@@ -13,6 +13,7 @@
 #include <limits>
 #include <cstdint>
 #include <filesystem>
+#include <unordered_set>
 
 /**
  * @brief 从 Nav2 PGM 地图生成 ESDF
@@ -34,6 +35,7 @@ private:
     double occupied_thresh_;
     double free_thresh_;
     bool treat_unknown_as_obstacle_;
+    std::unordered_set<int> unknown_gray_values_;
 
     // YAML 中的数据
     std::string image_name_;
@@ -50,7 +52,8 @@ public:
         // Nav2 map_server 语义：占据/空闲阈值为概率(0~1)，并受 negate 影响。
         this->declare_parameter("occupied_thresh", 0.65);
         this->declare_parameter("free_thresh", 0.25);
-        this->declare_parameter("treat_unknown_as_obstacle", false);
+        this->declare_parameter("treat_unknown_as_obstacle", true);
+        this->declare_parameter("unknown_gray_values", std::vector<int64_t>{205});
 
         map_yaml_path_ = this->get_parameter("map_yaml").as_string();
         output_pcd_path_ = this->get_parameter("output_pcd").as_string();
@@ -58,6 +61,16 @@ public:
         occupied_thresh_ = this->get_parameter("occupied_thresh").as_double();
         free_thresh_ = this->get_parameter("free_thresh").as_double();
         treat_unknown_as_obstacle_ = this->get_parameter("treat_unknown_as_obstacle").as_bool();
+        const auto unknown_vals = this->get_parameter("unknown_gray_values").as_integer_array();
+        for (const auto v : unknown_vals) {
+            if (v >= 0 && v <= 255) {
+                unknown_gray_values_.insert(static_cast<int>(v));
+            }
+        }
+        if (unknown_gray_values_.empty()) {
+            unknown_gray_values_.insert(205);
+            RCLCPP_WARN(this->get_logger(), "unknown_gray_values is empty, fallback to [205]");
+        }
 
         esdf_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("esdf_result", rclcpp::QoS(1).transient_local());
 
@@ -146,6 +159,8 @@ public:
         std::vector<double> dist_buffer(width_ * height_, 1e10);
         std::vector<uint8_t> occupied_mask(width_ * height_, 0);
         size_t occupied_cnt = 0;
+        size_t unknown_cnt = 0;
+        size_t free_cnt = 0;
         for (int r = 0; r < height_; ++r) {
             for (int c = 0; c < width_; ++c) {
                 // Nav2 PGM: 0 是障碍物，254 是空地，255 是未知
@@ -153,8 +168,16 @@ public:
                 // negate==0: 0(黑)表示占据概率高；negate==1: 255(白)表示占据概率高
                 const double occ_prob = (negate_ == 0) ? (255.0 - (double)pix) / 255.0 : (double)pix / 255.0;
 
+                // 显式识别 unknown 像素，默认仅 205，避免将白色自由区(255)误判为unknown。
+                const bool is_unknown_pixel =
+                    (unknown_gray_values_.find(static_cast<int>(pix)) != unknown_gray_values_.end());
+
                 bool is_occupied = (occ_prob >= occupied_thresh_);
-                const bool is_unknown = (!is_occupied && occ_prob > free_thresh_);
+                bool is_unknown = is_unknown_pixel;
+                if (!is_unknown_pixel) {
+                    is_unknown = (!is_occupied && occ_prob > free_thresh_);
+                }
+
                 if (!is_occupied && treat_unknown_as_obstacle_ && is_unknown) {
                     is_occupied = true;
                 }
@@ -163,6 +186,12 @@ public:
                     dist_buffer[r * width_ + c] = 0;
                     occupied_mask[r * width_ + c] = 1;
                     occupied_cnt++;
+                } else {
+                    if (is_unknown) {
+                        unknown_cnt++;
+                    } else {
+                        free_cnt++;
+                    }
                 }
             }
         }
@@ -170,6 +199,11 @@ public:
         const double occupied_ratio = (double)occupied_cnt / (double)(width_ * height_);
         RCLCPP_INFO(this->get_logger(), "Occupied cells: %lu / %d (%.2f%%)",
                     (unsigned long)occupied_cnt, width_ * height_, occupied_ratio * 100.0);
+        RCLCPP_INFO(this->get_logger(),
+                    "Free cells: %lu, Unknown cells: %lu (unknown treated as obstacle: %s)",
+                    (unsigned long)free_cnt,
+                    (unsigned long)unknown_cnt,
+                    (treat_unknown_as_obstacle_ ? "true" : "false"));
 
         // 4. Meijster 算法计算 ESDF
         std::vector<double> tmp_buffer(width_ * height_, 1e10);
