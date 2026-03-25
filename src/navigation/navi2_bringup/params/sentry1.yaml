@@ -327,8 +327,8 @@ planner_server:
         # penalty_weight_acc: 1000.0     # (原 2000.0) -> 适度降低
         # penalty_weight_att: 800.0      # (原 10.0) -> 提升 80 倍！
       static_esdf:
-        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/room_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
         esdf_resolution: 0.05
