@@ -15,11 +15,7 @@ namespace Sentry_BT
     // for rmul
       {1.2, 7.2},  //HOME
       {6.4, 4.4},  // BONUS
-<<<<<<< HEAD
-      {7.0, 1.7}  // OUTPOST
-=======
       {7.5, 6.8}  // OUTPOST
->>>>>>> origin/master
   };
 
   std::vector<Sentry_BT::Point2D> patrol_points_normal = {
@@ -66,4 +62,7 @@ namespace Sentry_BT
       // {5.5, 5.3}
       // {7.3, 4.5}
   };
-
+  std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};
+  std::vector<std::string> mode_names = {"PATROL", "TRACING", "RETREAT", "RESPONSE"};
+  std::vector<std::string> stance_names = {"MOVE", "ATTACK", "DEFEND"}; 
+}
