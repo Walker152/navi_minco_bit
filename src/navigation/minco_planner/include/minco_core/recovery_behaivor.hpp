@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <functional>
 
+#include <Eigen/Core>
+
 #include "geometry_msgs/msg/pose_stamped.hpp"
 
 namespace minco_planner
@@ -14,18 +16,11 @@ class RecoverServer
 public:
   enum class RecoveryDecision {
     NONE,
-    USE_RECOVERY_GOAL,
+    DO_ESCAPE,
     ENTER_EMER_STOP
   };
 
-  enum class RecoveryGoalReachAction {
-    NONE,
-    RESUME_MISSION,
-    FINISH_NO_GOAL
-  };
-
-  using PathFeasibilityChecker = std::function<bool(
-      const geometry_msgs::msg::PoseStamped &, const geometry_msgs::msg::PoseStamped &)>;
+  using EsdfQueryFunc = std::function<double(const Eigen::Vector3d &)>;
 
   RecoverServer();
   ~RecoverServer();
@@ -44,20 +39,13 @@ public:
   // Mission goal and recovery-goal lifecycle.
   void setMissionGoal(const geometry_msgs::msg::PoseStamped & mission_goal);
   void clearMissionGoal();
-  bool isRecoveryGoalActive() const;
 
-  // Unified replan-failure handling with escape-goal generation.
+  // Unified replan-failure handling with escape velocity generation.
   RecoveryDecision handleReplanFailure(
     double now_s,
     const geometry_msgs::msg::PoseStamped & current_pose,
-    const PathFeasibilityChecker & checker,
-    geometry_msgs::msg::PoseStamped & recovery_goal_out);
-
-  // Process arrival at recovery goal and decide next action.
-  RecoveryGoalReachAction onRecoveryGoalReached(
-    double current_speed,
-    double stop_speed_threshold,
-    geometry_msgs::msg::PoseStamped & mission_goal_out);
+    const EsdfQueryFunc & esdf_func,
+    Eigen::Vector2d & escape_vel_out);
 
   // Manual control hooks.
   void startRecovery(double now_s);
@@ -70,10 +58,10 @@ public:
 
 private:
   bool isTimeValid(double now_s) const;
-  bool tryBuildRecoveryGoal(
+  bool calculateEscapeVelocity(
     const geometry_msgs::msg::PoseStamped & current_pose,
-    const PathFeasibilityChecker & checker,
-    geometry_msgs::msg::PoseStamped & recovery_goal_out) const;
+    const EsdfQueryFunc & esdf_func,
+    Eigen::Vector2d & escape_vel_out) const;
 
   int32_t fail_threshold_{3};
   double cooldown_sec_{2.0};
