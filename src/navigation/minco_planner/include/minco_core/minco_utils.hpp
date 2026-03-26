@@ -30,14 +30,15 @@ using Trajectory = geometry_utils::Trajectory;
 
 namespace minco_planner::utils {
 
+// === Generic Utilities ===
 template <typename T>
 inline T clampValue(T v, T lo, T hi)
 {
   return std::min(std::max(v, lo), hi);
 }
 
-// Convert time along a (symmetric) trapezoid/triangle velocity profile to traveled distance.
-// Returns s in [0, total_length].
+// === Path Geometry Utilities ===
+// --- Velocity Profile Mapping ---
 double getDistFromTrapezoid(
   double t,
   double total_length,
@@ -46,11 +47,20 @@ double getDistFromTrapezoid(
   double t_acc,
   double t_flat);
 
-// Interpolate a path by arc-length mapping.
+// --- Arc-Length Interpolation ---
 Eigen::Vector3d interpolateByArcLength(
   const std::vector<Eigen::Vector3d> & path,
   const std::vector<double> & accumulated_dist,
   double s);
+
+std::vector<Eigen::Vector3d> getSparseWaypoints(
+  const std::vector<Eigen::Vector3d> & path,
+  double max_vel,
+  double max_acc,
+  const std::function<bool(const Eigen::Vector3d &, const Eigen::Vector3d &)> & is_line_free);
+
+// === Trajectory Command Publishing ===
+// --- Optimized Trajectory Publishing ---
 
 void publishOptimizedTrajectory(
   const traj_opt::Trajectory & opt_traj,
@@ -61,6 +71,7 @@ void publishOptimizedTrajectory(
   int steps,
   double t_step);
 
+// --- Backup Trajectory Publishing ---
 void publishBackupTrajectory(
   const traj_opt::Trajectory & backup_traj,
   const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
@@ -70,6 +81,7 @@ void publishBackupTrajectory(
   double t_step,
   double fallback_yaw);
 
+// --- Escape Command Publishing ---
 void publishEscapeCommand(
   const geometry_msgs::msg::PoseStamped & current_pose,
   const Eigen::Vector2d & escape_vel,
@@ -77,17 +89,15 @@ void publishEscapeCommand(
   uint32_t & trajectory_id_counter,
   const std_msgs::msg::Header & header);
 
-std::vector<Eigen::Vector3d> getSparseWaypoints(
-  const std::vector<Eigen::Vector3d> & path,
-  double max_vel,
-  double max_acc,
-  const std::function<bool(const Eigen::Vector3d &, const Eigen::Vector3d &)> & is_line_free);
+// === Costmap Utilities ===
+// --- Collision / Visibility Checks ---
 
 bool isLineFree(
   nav2_costmap_2d::Costmap2D * costmap,
   const Eigen::Vector3d & p1,
   const Eigen::Vector3d & p2);
 
+// --- Coordinate Conversion ---
 bool worldToMap(
   nav2_costmap_2d::Costmap2D * costmap,
   const rclcpp::Logger & logger,
@@ -103,6 +113,7 @@ void mapToWorld(
   double & wx,
   double & wy);
 
+// --- Costmap Cell Editing ---
 void clearRobotCell(
   nav2_costmap_2d::Costmap2D * costmap,
   unsigned int mx,
