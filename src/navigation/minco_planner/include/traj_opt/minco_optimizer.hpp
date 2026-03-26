@@ -26,6 +26,8 @@ using namespace color_text;
 
 class MincoOptimizer {
 public:
+    // === Internal Types ===
+    // --- Optimizer Configuration ---
     struct Config {
         double safe_dist{0.3};
         double max_vel{5.0};               
@@ -42,6 +44,7 @@ public:
         bool print_optimizer_log{true};
     } cfg_;
 
+    // === Constructor & Lifecycle ===
     MincoOptimizer(const Config& cfg) : cfg_(cfg) {
         opt_vars_.minco_solver_ = std::make_shared<traj_opt::MINCO_S3NU>();
         opt_vars_.magnitudeBounds.resize(cfg_.magnitudeBounds.size());
@@ -52,7 +55,9 @@ public:
         opt_vars_.smooth_eps = cfg_.smooth_eps;
         opt_vars_.integral_res = cfg_.integral_res;
     }
-    
+
+    // === Core Planning Interfaces ===
+    // --- Configuration and Initialization ---
     void setConfig(const Config& cfg) { cfg_ = cfg; }
 
     void setInitPsAndTs(const vec_Vec3f& init_ps, const VecDf& init_ts);
@@ -61,12 +66,15 @@ public:
         opt_vars_.hybrid_esdf_map = esdf_map;
     }
 
+    // --- Trajectory Optimization ---
     double optimize(const std::vector<Eigen::Vector3d>& waypoints,
                  const Eigen::Matrix3d& start_state,
                  const Eigen::Matrix3d& end_state,
                  geometry_utils::Trajectory& out_traj);
 
 private:
+    // === Internal Types ===
+    // --- Optimization Runtime Variables ---
     struct OptVars {
         int piece_num;
         int dim_t; 
@@ -77,7 +85,7 @@ private:
         double integral_res;
         bool default_init{true};
 
-        // 环境地图指针
+        // Environment map pointer.
         small_rog_map::HybridESDFMap::Ptr hybrid_esdf_map;
 
         VecDf magnitudeBounds;
@@ -87,28 +95,30 @@ private:
         Eigen::Matrix3d tailPVA;
         Mat3Df waypoint_attractor;
 
-        // 优化变量缓存（热启动初始猜测，存储上一次优化结果）
+        // Optimization cache for warm-start initialization from previous solution.
         VecDf init_ts; 
         vec_Vec3f init_ps;        
 
-        // 优化变量
+        // Optimization variables.
         VecDf times;
         Mat3Df points;
         VecDf x; 
 
-        // 梯度缓存
+        // Gradient cache.
         Mat3Df gradByPoints;        
         VecDf gradByTimes;          
         MatD3f partialGradByCoeffs; 
         VecDf partialGradByTimes;   
 
-        // 结果缓存
+        // Result cache.
         VecDf penalty_log;
 
-        // MINCO 求解器
+        // MINCO solver instance.
         std::shared_ptr<traj_opt::MINCO_S3NU> minco_solver_;
-    } opt_vars_;
+    };
 
+    // === Utility & Helper Functions ===
+    // --- Problem Setup ---
 
     bool setupProblemAndCheck(const std::vector<Eigen::Vector3d>& waypoints,
                               const Eigen::Matrix3d& start_state,
@@ -118,6 +128,7 @@ private:
 
     static double costFunctional(void* ptr, const VecDf& x, VecDf& g);
 
+    // --- Constraint and Barrier Functions ---
     static void constraintsFunctional(const VecDf& T, 
                                const MatD3f& coeffs,
                                const Mat3Df& waypoint_attractor,
@@ -137,8 +148,12 @@ private:
                                    double& cost,
                                    VecDf& gradByTimes);
 
+    // --- Time Reparameterization ---
     static void forwardT(const VecDf& tau, VecDf& T) { T = tau.array().exp(); }
     static void backwardT(const VecDf& T, VecDf& tau) { tau = T.array().log(); }
+
+    // === State Variables & Caches ===
+    OptVars opt_vars_;
 };
 
 } // namespace minco_planner
