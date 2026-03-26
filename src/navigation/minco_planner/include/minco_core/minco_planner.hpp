@@ -51,6 +51,7 @@ class MincoPlanner : public nav2_core::GlobalPlanner
 public:
   using Ptr = std::shared_ptr<MincoPlanner>;
 
+  // === Constructor & Lifecycle ===
   MincoPlanner();
   ~MincoPlanner();
 
@@ -58,30 +59,32 @@ public:
     const nav2_util::LifecycleNode::WeakPtr & parent,
     std::string name, std::shared_ptr<tf2_ros::Buffer> tf,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
-
+  void activate() override;
+  void deactivate() override;
   void cleanup() override;
 
-  void activate() override;
-
-  void deactivate() override;
-
+  // === Core Planning Interfaces ===
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal) override;
 
-  // ===== Public API for MincoFSM =====
   bool PlanGlobalPath(
     const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal);
 
   bool ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose);
+  bool makePlan(
+    const geometry_msgs::msg::Pose & start,
+    const geometry_msgs::msg::Pose & goal,
+    double tolerance,
+    std::function<bool()> cancel_checker,
+    nav_msgs::msg::Path & plan);
 
-  // Synchronous collision check for the currently committed trajectory.
-  // Returns true if trajectory is safe.
+  // === Callbacks ===
+  void safetyTimerCallback();
+
+  // === Utility & Helper Functions ===
   bool checkCollision();
-
-  // Dense collision check for a candidate trajectory (e.g., post-optimization).
-  // Returns true if trajectory is safe.
   bool checkCollision(const geometry_utils::Trajectory & traj);
 
   // Accessors for FSM
@@ -91,15 +94,12 @@ public:
   bool isTrajectoryTimeExpired(double now_s) const;
   double getLookaheadDist() const {return lookahead_dist_;}
   bool getRobotPose(geometry_msgs::msg::PoseStamped & pose) const;
-
-  // Goal handoff: createPlan() only sets this flag, FSM consumes it.
-  // Get current robot planar speed magnitude from odometry.
-  Eigen::Vector3d getCurrentSpeed() const;
   bool checkGoalReached(const geometry_msgs::msg::PoseStamped & current_pose);
   bool consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out);
   void cancelGoal();
-
-  // 获取指定位置的 ESDF 距离
+  Eigen::Vector3d getCurrentSpeed() const;
+  
+  // Query ESDF distance at the given position.
   double getEsdfDistance(const Eigen::Vector3d & pos) const;
 
   void publishEscapeCommand(
@@ -107,27 +107,19 @@ public:
     const Eigen::Vector2d & escape_vel);
 
   void publishEmergencyStop(const geometry_msgs::msg::PoseStamped & current_pose);
-  
-  bool makePlan(
-    const geometry_msgs::msg::Pose & start,
-    const geometry_msgs::msg::Pose & goal,
-    double tolerance,
-    std::function<bool()> cancel_checker,
-    nav_msgs::msg::Path & plan);
 
-  traj_opt::Trajectory generateBackupTraj(const Eigen::Matrix3d& start_state);
-
-  void safetyTimerCallback();
-  std::vector<Eigen::Vector3d> extractLocalPath(const Eigen::Vector3d& cur_pos);
+  traj_opt::Trajectory generateBackupTraj(const Eigen::Matrix3d & start_state);
+  std::vector<Eigen::Vector3d> extractLocalPath(const Eigen::Vector3d & cur_pos);
 
 private:
+  // === Internal Types ===
   enum class PlanningState {
-    COLD_START,     // 完全重规划 (Zero V/A)
-    HOT_START,      // 继承重规划 (Inherit V/A)
-    EMERGENCY_STOP  // 立即触发备份刹停（安全优先）
+    COLD_START,     // Full replanning with zero initial velocity/acceleration.
+    HOT_START,      // Replanning with inherited velocity/acceleration.
+    EMERGENCY_STOP  // Immediate backup braking with safety priority.
   };
 
-  // State Machine Logic
+  // === Utility & Helper Functions ===
   PlanningState determinePlanningState(
     const geometry_msgs::msg::Pose & start_pose,
     const std::vector<Eigen::Vector3d> & new_path);
@@ -152,80 +144,67 @@ private:
     PlanningState state,
     const geometry_msgs::msg::Pose & current_pose);
 
+  // === ROS 2 Interfaces (Publishers, Subscribers, Timers) ===
+  rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_pub_;
+  rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr backup_path_pub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  rclcpp::TimerBase::SharedPtr fsm_timer_;
+  rclcpp::TimerBase::SharedPtr safety_timer_;
+
+  // === TF & Costmap & Frames ===
   std::shared_ptr<tf2_ros::Buffer> tf_;
   nav2_util::LifecycleNode::WeakPtr node_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   nav2_costmap_2d::Costmap2D * costmap_;
   std::string global_frame_, name_;
 
-  // A* Planner
-  std::unique_ptr<Astar> astar_planner_;
-  
-  // SMAC 2D Planner
-  std::unique_ptr<minco_planner::smac::SmacPlanner2DSimple> smac_planner_;
-  bool use_smac_;  // Toggle between A* and SMAC
-  
-  // Minco Optimizer
-  std::unique_ptr<MincoOptimizer> minco_optimizer_;
-  std::unique_ptr<traj_opt::BackupTrajOpt> backup_opt_;
-  std::unique_ptr<traj_opt::YawTrajOpt> yaw_opt_;
-  
-  // Static ESDF Map
-  small_rog_map::HybridESDFMap::Ptr esdf_map_;
-  SimpleCorridorGenerator::Ptr corridor_gen_;
-  std::string esdf_pcd_path_;
-  double esdf_resolution_;
-
-  // Parameters
+  // === Configurations & Parameters ===
   double tolerance_;
   bool allow_unknown_;
+  bool use_smac_;
   bool use_yaw_opt_{true};
   double opt_freq_;
   double lookahead_dist_;
   double traj_goal_tolerance_{0.5};
-
+  std::string esdf_pcd_path_;
+  double esdf_resolution_;
   MincoOptimizer::Config minco_config;
   RecoverServer::Config recovery_server_config_{};
 
-  // 20Hz FSM main loop.
-  rclcpp::TimerBase::SharedPtr fsm_timer_;
-  // 20Hz safety monitor.
-  rclcpp::TimerBase::SharedPtr safety_timer_;
-
+  // === Core Modules (Pointers to FSM, Optimizers, etc.) ===
+  std::unique_ptr<Astar> astar_planner_;
+  std::unique_ptr<minco_planner::smac::SmacPlanner2DSimple> smac_planner_;
+  std::unique_ptr<MincoOptimizer> minco_optimizer_;
+  std::unique_ptr<traj_opt::BackupTrajOpt> backup_opt_;
+  std::unique_ptr<traj_opt::YawTrajOpt> yaw_opt_;
   std::unique_ptr<MincoFsm> fsm_;
+  small_rog_map::HybridESDFMap::Ptr esdf_map_;
+  SimpleCorridorGenerator::Ptr corridor_gen_;
   RecoverServer::Ptr recovery_server_;
   Ptr planner_handle_;
-  
-  std::vector<geometry_msgs::msg::PoseStamped> latest_global_path_;
-  std::mutex path_mutex_;
 
-  // Command Publishers
-  rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_pub_;
-  rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr backup_path_pub_;
+  // === State Variables & Caches ===
   uint32_t opt_trajectory_id_{0};
   uint32_t backup_trajectory_id_{0};
-
   geometry_utils::Trajectory last_traj_;
-  bool has_last_traj_ = false;
   geometry_utils::Trajectory last_yaw_traj_;
-  bool has_last_yaw_traj_ = false;
-
-  std::atomic_bool is_traj_safe_{true};
-
-  std::mutex goal_mutex_;
-  bool has_pending_goal_{false};
+  std::vector<geometry_msgs::msg::PoseStamped> latest_global_path_;
+  nav_msgs::msg::Odometry latest_odom_;
   geometry_msgs::msg::PoseStamped pending_goal_;
 
-  // Visualization helper
-  std::unique_ptr<Visualizer> visualizer_;
-  
-  rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
+  bool has_last_traj_ = false;
+  bool has_last_yaw_traj_ = false;
+  bool has_pending_goal_{false};
+  bool has_latest_odom_{false};
+  std::atomic_bool is_traj_safe_{true};
+
+  std::mutex path_mutex_;
+  std::mutex goal_mutex_;
+  mutable std::mutex odom_mutex_;
   mutable std::mutex mutex_;
 
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-  mutable std::mutex odom_mutex_;
-  nav_msgs::msg::Odometry latest_odom_;
-  bool has_latest_odom_{false};
+  std::unique_ptr<Visualizer> visualizer_;
+  rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
 };
 
 }  // namespace minco_planner

@@ -29,6 +29,7 @@ namespace minco_controller
 class MincoMpcController : public nav2_core::Controller
 {
 public:
+  // === Constructor & Lifecycle ===
   MincoMpcController() = default;
   ~MincoMpcController() override = default;
 
@@ -42,6 +43,7 @@ public:
   void activate() override;
   void deactivate() override;
 
+  // === Core Planning Interfaces ===
   geometry_msgs::msg::TwistStamped computeVelocityCommands(
     const geometry_msgs::msg::PoseStamped & pose,
     const geometry_msgs::msg::Twist & velocity,
@@ -52,10 +54,13 @@ public:
   void setSpeedLimit(const double & speed_limit, const bool & percentage) override;
 
 private:
+  // === Callbacks ===
   void onOptPath(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg);
   void onOdom(const nav_msgs::msg::Odometry::SharedPtr msg);
 
-  // 从缓存轨迹里找最近点并提取 horizon 参考序列
+  // === Utility & Helper Functions ===
+  // --- Reference and Path Processing ---
+  // Find the nearest point on cached trajectory and build horizon reference sequence.
   bool buildReferenceFromOptPath(
     const State & curr,
     std::vector<ReferencePoint> & out_ref) const;
@@ -64,6 +69,7 @@ private:
     const ros_interfaces::msg::MpcPositionCommand::SharedPtr & opt,
     std::vector<ros_interfaces::msg::PositionCommand> & out_cmds) const;
 
+  // --- Motion and Frame Utilities ---
   void compensateLeverArm(
     double v_lidar_x,
     double v_lidar_y,
@@ -80,6 +86,7 @@ private:
     double & omega_global,
     double & yaw_global) const;
 
+  // --- Interpolation Utilities ---
   static double normalizeYaw(double yaw);
   inline static double interpolateYaw(double yaw1, double yaw2, double alpha) {
     double diff = std::atan2(std::sin(yaw2 - yaw1), std::cos(yaw2 - yaw1));
@@ -98,7 +105,16 @@ private:
     return v1 + (v2 - v1) * alpha;
   }
 
-private:
+  // --- Visualization ---
+  void publishVisualization(const std::vector<State> & pred_path, const State & curr_state);
+
+  // === ROS 2 Interfaces (Publishers, Subscribers, Timers) ===
+  rclcpp::Subscription<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mpc_predict_path_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mpc_real_path_pub_;
+
+  // === TF & Costmap & Frames ===
   rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
   rclcpp::Logger logger_{rclcpp::get_logger("MincoMpcController")};
   std::string name_;
@@ -111,45 +127,37 @@ private:
   std::string odom_frame_;
   std::string map_frame_;
 
-  // 订阅：Minco 优化轨迹 / 里程计
-  rclcpp::Subscription<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_sub_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-
-  // 发布：可视化路径
-  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mpc_predict_path_pub_;
-  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mpc_real_path_pub_;
-
-  // 记录实际行走路径
+  // === State Variables & Caches ===
+  // --- Visualization Cache ---
   std::vector<geometry_msgs::msg::PoseStamped> real_path_history_;
   rclcpp::Time last_real_path_pub_time_;
-  
-  // 用于可视化发布封装
-  void publishVisualization(const std::vector<State> & pred_path, const State & curr_state);
 
-  // 缓存：最新轨迹/里程计
+  // --- Runtime Data Cache ---
   mutable std::mutex data_mtx_;
   ros_interfaces::msg::MpcPositionCommand::SharedPtr latest_opt_path_;
   nav_msgs::msg::Odometry::SharedPtr latest_odom_;
 
-  // 轨迹参考索引跟踪（用于轨迹未更新时按时间前推，避免回追起点）
+  // --- Reference Tracking State ---
+  // Track reference index over time when trajectory is not updated to avoid jumping back to start.
   mutable double tracked_ref_idx_{0.0};
   mutable rclcpp::Time tracked_ref_time_;
   mutable uint32_t tracked_opt_traj_id_{0};
   mutable bool has_tracked_ref_{false};
 
-  // Nav2 setPlan 缓存
+  // --- Nav2 Plan Cache ---
   nav_msgs::msg::Path global_plan_;
   mutable std::mutex plan_mtx_;
 
-  // MPC
+  // === Core Modules (Pointers to FSM, Optimizers, etc.) ===
   MPCConfig mpc_config_;
   std::unique_ptr<MpcSolver> solver_;
 
-  // 动态限速（Nav2 setSpeedLimit）
+  // === Configurations & Parameters ===
+  // Dynamic speed limit from Nav2 setSpeedLimit().
   double speed_limit_{0.0};
   bool speed_limit_percentage_{false};
 
-  // 其他参数
+  // Other controller parameters.
   double fixed_wz_{0.0};
   double deadzone_speed_threshold_{0.02};
   double control_delay_compensation_{0.25};
