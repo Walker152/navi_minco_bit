@@ -158,7 +158,8 @@ void publishBackupTrajectory(
   uint32_t & trajectory_id_counter,
   const std_msgs::msg::Header & header,
   int steps,
-  double t_step)
+  double t_step,
+  double fallback_yaw)
 {
   if (!pub || steps <= 0) {
     return;
@@ -187,12 +188,10 @@ void publishBackupTrajectory(
     acc.z() = 0.0;
     jer.z() = 0.0;
 
-    double yaw = 0.0;
+    double yaw = fallback_yaw;
     Eigen::Vector3d initial_vel = backup_traj.getVel(0.0);
     if (initial_vel.head<2>().norm() > 1e-4) {
       yaw = std::atan2(initial_vel(1), initial_vel(0));
-    } else if (i > 0) {
-      yaw = traj_msg.cmds[i - 1].yaw;
     }
 
     auto & cmd = traj_msg.cmds[i];

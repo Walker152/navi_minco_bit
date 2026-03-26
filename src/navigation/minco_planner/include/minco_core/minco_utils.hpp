@@ -67,7 +67,8 @@ void publishBackupTrajectory(
   uint32_t & trajectory_id_counter,
   const std_msgs::msg::Header & header,
   int steps,
-  double t_step);
+  double t_step,
+  double fallback_yaw);
 
 void publishEscapeCommand(
   const geometry_msgs::msg::PoseStamped & current_pose,

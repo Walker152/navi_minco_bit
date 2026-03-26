@@ -149,7 +149,8 @@ private:
     const Eigen::Matrix3d & start_state,
     const traj_opt::Trajectory & pos_traj,
     traj_opt::Trajectory & out_yaw_traj,
-    PlanningState state);
+    PlanningState state,
+    const geometry_msgs::msg::Pose & current_pose);
 
   std::shared_ptr<tf2_ros::Buffer> tf_;
   nav2_util::LifecycleNode::WeakPtr node_;

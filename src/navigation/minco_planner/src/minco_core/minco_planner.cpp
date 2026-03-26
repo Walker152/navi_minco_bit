@@ -679,15 +679,24 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     return false;
   }
 
+  double fallback_yaw = 0.0;
+  if (start_state.col(1).head<2>().norm() > 1e-3) {
+    fallback_yaw = std::atan2(start_state.col(1).y(), start_state.col(1).x());
+  } else {
+    const auto & q = current_pose.pose.orientation;
+    fallback_yaw = std::atan2(
+      2.0 * (q.w * q.z + q.x * q.y),
+      1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+  }
+
   traj_opt::Trajectory yaw_traj;
   if (use_yaw_opt_) {
-    const bool yaw_success = optimizeYaw(start_state, opt_traj, yaw_traj, state);
+    const bool yaw_success = optimizeYaw(start_state, opt_traj, yaw_traj, state, current_pose.pose);
     if (!yaw_success) {
       std::cout << YELLOW
                 << "[MincoPlanner] Yaw optimization failed. Falling back to constant yaw trajectory."
                 << RESET << std::endl;
 
-      const double fallback_yaw = 0.0;
       Eigen::MatrixXd cMat(3, 6);
       cMat.setZero();
       cMat(0, 5) = std::isfinite(fallback_yaw) ? fallback_yaw : 0.0;
@@ -697,7 +706,6 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
       yaw_traj.start_WT = opt_traj.start_WT;
     }
   } else {
-    const double fallback_yaw = 0.0;
     Eigen::MatrixXd cMat(3, 6);
     cMat.setZero();
     cMat(0, 5) = std::isfinite(fallback_yaw) ? fallback_yaw : 0.0;
@@ -1014,7 +1022,8 @@ bool MincoPlanner::optimizeYaw(
   const Eigen::Matrix3d & start_state,
   const traj_opt::Trajectory & pos_traj,
   traj_opt::Trajectory & out_yaw_traj,
-  PlanningState state)
+  PlanningState state,
+  const geometry_msgs::msg::Pose & current_pose)
 {
   if (!yaw_opt_) {
     return false;
@@ -1044,7 +1053,14 @@ bool MincoPlanner::optimizeYaw(
   }
 
   if (!use_hot_seed) {
-    init_yaw_state(0) = std::atan2(start_state.col(1).y(), start_state.col(1).x());
+    if (start_state.col(1).head<2>().norm() > 1e-3) {
+      init_yaw_state(0) = std::atan2(start_state.col(1).y(), start_state.col(1).x());
+    } else {
+      const auto & q = current_pose.orientation;
+      init_yaw_state(0) = std::atan2(
+        2.0 * (q.w * q.z + q.x * q.y),
+        1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+    }
     init_yaw_state(1) = 0.0;
   }
 
@@ -1230,9 +1246,13 @@ void MincoPlanner::publishEmergencyStop(const geometry_msgs::msg::PoseStamped & 
     }
   }
 
+  const auto & q = current_pose.pose.orientation;
+  double current_yaw = std::atan2(
+    2.0 * (q.w * q.z + q.x * q.y),
+    1.0 - 2.0 * (q.y * q.y + q.z * q.z));
   traj_opt::Trajectory backup_traj = generateBackupTraj(start_state);
   utils::publishBackupTrajectory(
-    backup_traj, opt_path_pub_, opt_trajectory_id_, header_msg, 20, 0.1);
+    backup_traj, opt_path_pub_, opt_trajectory_id_, header_msg, 20, 0.1, current_yaw);
 }
 
 traj_opt::Trajectory MincoPlanner::generateBackupTraj(const Eigen::Matrix3d & start_state)
