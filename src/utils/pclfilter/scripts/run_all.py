@@ -26,18 +26,14 @@ def main():
     print("pclfilter 综合启动系统")
     print("=" * 60)
     
-    # 1. 启动点云发布节点
-    cmd1 = f"{source_cmd} && python3 scripts/test_pointcloud_publisher.py"
-    run_command(cmd1, "点云发布节点 (test_pointcloud_publisher)", background=True)
-    
-    # 2. 启动过滤节点
-    cmd2 = f"{source_cmd} && ./install/pclfilter/lib/pclfilter/clear_node"
-    run_command(cmd2, "点云过滤节点 (clear_node)", background=True)
-    
-    # 3. 启动RViz2
+    # 1. 启动过滤节点（保留运行核心功能）
+    cmd1 = f"{source_cmd} && ./install/pclfilter/lib/pclfilter/clear_node"
+    run_command(cmd1, "点云过滤节点 (clear_node)", background=True)
+
+    # 2. 启动RViz2
     time.sleep(2)
-    cmd3 = f"source /opt/ros/humble/setup.bash && rviz2"
-    run_command(cmd3, "RViz2可视化工具", background=False)
+    cmd2 = f"source /opt/ros/humble/setup.bash && rviz2"
+    run_command(cmd2, "RViz2可视化工具", background=False)
 
 if __name__ == '__main__':
     try:
