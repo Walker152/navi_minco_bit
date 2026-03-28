@@ -3,7 +3,7 @@
 ## 当前运行状态
 
 ✅ **已启动的节点：**
-1. `test_pointcloud_publisher` - 发布测试点云到 `/cloud_registered`
+1. `publish_pcd.py` - 发布点云到 `/cloud_registered`
 2. `clear_node` - 过滤点云并发布到 `/cloud_filter_baselink`
 3. `rviz2` - 可视化工具
 
