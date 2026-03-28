@@ -13,7 +13,7 @@ ros2 node list
 # 应该看到:
 # /clear_node
 # /rviz
-# /test_pointcloud_publisher
+# /publish_pcd (或其他点云发布脚本)
 
 # 2. 检查话题是否发布
 ros2 topic list | grep cloud
@@ -88,7 +88,7 @@ rviz2
 
 ```bash
 # 确认发布器正在运行
-ps aux | grep test_pointcloud_publisher
+ps aux | grep publish_pcd
 
 # 查看点云详细信息
 ros2 topic info /cloud_registered
@@ -133,7 +133,7 @@ cd /home/rm/sentinel-up-gimbal/src/pclfilter
 
 # 1. 杀死所有相关进程
 pkill -f clear_node
-pkill -f test_pointcloud_publisher  
+pkill -f publish_pcd
 pkill -f rviz2
 
 # 等待2秒
@@ -145,7 +145,7 @@ source install/local_setup.bash
 
 # 3. 在3个不同的终端运行：
 # 终端1:
-python3 scripts/test_pointcloud_publisher.py
+python3 scripts/publish_pcd.py
 
 # 终端2:  
 ./install/pclfilter/lib/pclfilter/clear_node

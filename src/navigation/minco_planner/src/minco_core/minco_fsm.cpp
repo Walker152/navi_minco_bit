@@ -334,8 +334,8 @@ void MincoFsm::changeState(const char * caller, State new_state)
 
   (void)caller;
   
-  std::cout << "[MincoFSM] [" << (caller ? caller : "?") << "] change state from ["
-            << StateToString(state_) << "] to [" << StateToString(new_state) << "]" << std::endl;
+  // std::cout << "[MincoFSM] [" << (caller ? caller : "?") << "] change state from ["
+  //           << StateToString(state_) << "] to [" << StateToString(new_state) << "]" << std::endl;
 
   last_state_ = state_;
   state_ = new_state;
