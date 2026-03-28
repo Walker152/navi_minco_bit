@@ -67,6 +67,7 @@ target_link_libraries(depth_cluster_node
   depth_cluster
   ${PCL_LIBRARIES}
   Eigen3::Eigen
+  ${YAML_CPP_LIBRARIES}
 )
 
 # clear_node executable

@@ -3,26 +3,40 @@
 #include <queue>
 #include <ctime>
 #include <set>
+#include <deque>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/filter.h>
 #include <pcl/common/centroid.h>
 #include <pcl/visualization/cloud_viewer.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/segmentation/extract_clusters.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <Eigen/Eigen>
+
 using namespace std;
 using namespace pcl;
-// 实现点云的地面提取与基于深度的快速聚类
 
 namespace pclfilter
 {
-    // 点云索引与深度信息
     struct PointInfo
     {
-    public:
-        int index_;
+        vector<int> indices;
         float depth_;
-        PointInfo(int index, float depth) : index_(index), depth_(depth) {};
+        
+        PointInfo() : depth_(-1) {}
+        PointInfo(int index, float depth) 
+        { 
+            indices.push_back(index); 
+            depth_ = depth; 
+        }
+    };
+
+    struct FrameData
+    {
+        vector<int> ground_indices;
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
+        double timestamp;
     };
 
     class DepthCluster
@@ -31,94 +45,91 @@ namespace pclfilter
         DepthCluster(float vertcal_resolution,
                      float horizontal_resolution,
                      int lidar_lines,
-                     int cluster_size);
-        void setGroundDistanceThreshold(float thresh);
-        void setGroundHeightThreshold(float thresh);
-        void setGroundMaxSlopeAngle(float angle_deg);
+                     int min_cluster_size,
+                     float ground_max_slope_angle,
+                     int normal_k,
+                     float depth_threshold,
+                     bool use_euclidean,
+                     float euclidean_tolerance,
+                     int euclidean_min_size,
+                     int euclidean_max_size,
+                     float normal_curvature_threshold,
+                     bool auto_estimate_reference_normal,
+                     float sensor_tilt_angle_x,
+                     float sensor_tilt_angle_y,
+                     bool use_adaptive_radius,
+                     bool use_temporal_filter,
+                     int temporal_window_size);
+
         void initParams();
-        // 点云输入
-        void setInputCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &msg);
+        void setInputCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr &msg);
 
-        // 输入点云指针，返回拟合平面的参数
-        Eigen::Vector4f estimatePlaneParams(const pcl::PointCloud<pcl::PointXYZ>::Ptr &initial_ground_points);
-        /**
-         * 地面点提取主函数
-         * @param msg 输入点云
-         * @param label_image 标签图像（输出地面标记）
-         * @return 地面点索引集合
-         */
-        vector<int> exactGroundPoints(pcl::PointCloud<pcl::PointXYZ>::Ptr &msg,
-                                      vector<vector<int>> &label_image);
+        vector<int> exactGroundCloudIndicesByLocalNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr &msg,
+                                                          vector<vector<int>> &label_image,
+                                                          const vector<vector<PointInfo>> &depth_image);
 
-        /**
-         * 根据平面参数标记地面点
-         * @param msg 输入点云
-         * @param label_image 标签图像
-         * @param ground_params 平面方程参数
-         * @return 地面点索引集合
-         */
-        vector<int> exactGroundCloudIndices(pcl::PointCloud<pcl::PointXYZ>::Ptr &msg,
-                                            vector<vector<int>> &label_image,
-                                            Eigen::Vector4f &ground_params);
+        vector<pcl::PointIndices> euclideanClustering(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud,
+                                                       const vector<int> &indices_to_cluster);
 
-        /**
-         * 提取初始地面点（低高度点）
-         * @param cloud 输入点云（已排序）
-         * @param initial_ground_points 输出初始地面点
-         */
-        void extractInitialGroundPoint(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud,
-                                       pcl::PointCloud<pcl::PointXYZ>::Ptr &initial_ground_points);
-
-        /**
-         * 区域增长聚类核心算法 ？？？？？？？？？？
-         * @param depth_image 深度图像
-         * @param label_image 标签图像（输入地面标记，输出聚类标记）
-         * @param cloud_msg 原始点云（用于索引映射）
-         */
+        vector<vector<PointInfo>> generateDepthImage(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_fused_ptr);
         void labelComponents(const vector<vector<PointInfo>> &depth_image,
                              vector<vector<int>> &label_image,
                              const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_msg);
-
-        // 传入深度点云，返回索引与对应深度
-        vector<vector<PointInfo>> generateDepthImage(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_fused_ptr);
-
-        // 根据索引和深度信息判断，是否是同一聚类
         bool judgmentCondition(const vector<vector<PointInfo>> &depth_image,
                                const pair<int, int> &target_point,
                                const pair<int, int> &neigh_point);
-
-        // 3D点转极坐标索引
-        bool calculateCoordinate(const pcl::PointXYZ &point,
-                                 int &row,
-                                 int &col);
-
-        // 列索引环状修正
+        bool calculateCoordinate(const pcl::PointXYZ &point, int &row, int &col);
         bool warpPoint(pair<int, int> &pt);
-        // 结果获取接口
-        vector<vector<int>> getClustersIndex(); // 获取各簇索引集合
-        vector<int> getMergedClustersIndex();   // 获取合并后的所有簇索引
-        vector<int> getGroundCloudIndices();    // 获取地面点索引
-        void paramsReset();                     // 清空参数
+
+        vector<vector<int>> getClustersIndex();
+        vector<int> getMergedClustersIndex();
+        vector<int> getGroundCloudIndices();
+        void paramsReset();
+
+        void setMaxSlopeAngle(float angle_degrees) { max_slope_angle_rad_ = angle_degrees * M_PI / 180.0f; }
+        void setNormalEstimationK(int k) { normal_estimation_k_ = k; }
+        void setAutoEstimateReferenceNormal(bool enable) { auto_estimate_reference_normal_ = enable; }
+        void setSensorTilt(float angle_x, float angle_y);
 
     private:
-        // 地面提取相关
-        pcl::PointCloud<pcl::PointXYZ>::Ptr sorted_Pointcloud_; // 排序后的点云？？？？？？？？？？/
-        vector<int> ground_points_indices_;                      // indices释义:索引
+        pcl::PointCloud<pcl::PointXYZ>::Ptr sorted_Pointcloud_;
+        vector<int> ground_points_indices_;
         float sensor_height_;
-        float ground_distance_threshold_;
-        float ground_height_threshold_;
-        float ground_max_slope_angle_;
-        // 聚类参数
+        float max_slope_angle_rad_;
+        int normal_estimation_k_;
+        float normal_curvature_threshold_;
+        bool auto_estimate_reference_normal_;
+        Eigen::Vector3f reference_normal_;
+
         float vertcal_resolution_;
         float horizontal_resolution_;
         int lidar_lines_;
-        int cluster_size_;
-        // 图像参数
+        int min_cluster_size_;
+        float depth_threshold_;
+        bool use_euclidean_;
+        float euclidean_tolerance_;
+        int euclidean_min_cluster_size_;
+        int euclidean_max_cluster_size_;
+
+        bool use_adaptive_radius_;
+        bool use_temporal_filter_;
+        int temporal_window_size_;
+        deque<FrameData> frame_history_;
+
         int image_rows_;
         int image_cols_;
         int vertical_angle_min_;
         int vertical_angle_max_;
-        // 聚类结果存储
-        vector<vector<int>> clusters_indices_vec_; // 各簇索引集合
+        vector<vector<int>> clusters_indices_vec_;
+
+        bool computeLocalNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud,
+                                const std::vector<int> &indices,
+                                Eigen::Vector3f &normal,
+                                float &curvature);
+        void estimateReferenceNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud);
+        float computeAdaptiveTolerance(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud);
+        vector<int> temporalFilterGround(const vector<int> &current_ground,
+                                         const pcl::PointCloud<pcl::PointXYZ>::Ptr &current_cloud,
+                                         double current_time);
     };
 }
