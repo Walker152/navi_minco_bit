@@ -9,7 +9,7 @@ source /opt/ros/humble/setup.bash
 
 echo "【1】检查ROS2节点状态..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-ros2 node list | grep -E "clear_node|test_pointcloud|rviz"
+ros2 node list | grep -E "clear_node|rviz"
 echo ""
 
 echo "【2】检查点云话题..."
