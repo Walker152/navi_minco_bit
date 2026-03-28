@@ -34,10 +34,7 @@
 - `rviz` 改为 `rviz2`
 - 自动使用新的 RViz2配置文件 `simple_rviz2.rviz`
 
-#### 5. **launch/test.launch** → **launch/test.launch.py** ✅
-- 从XML格式改为Python launch文件
-- 参数使用 `parameters` 列表而非 `<param>` 标签
-- 使用完整路径替代 `$(find pclfilter)` 宏
+<!-- 测试相关的 launch 文件已移除 -->
 
 ### 🔄 主要API变更
 
@@ -67,10 +64,7 @@ source install/setup.bash
 ros2 launch pclfilter depth_cluster.launch.py
 ```
 
-#### 运行测试节点
-```bash
-ros2 launch pclfilter test.launch.py
-```
+<!-- 测试 launch 文件已移除 -->
 
 ### ⚠️ 需要注意的事项
 

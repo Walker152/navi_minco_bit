@@ -4,7 +4,6 @@ import os
 import yaml
 from ament_index_python.packages import get_package_share_directory
 
-
 def generate_launch_description():
     try:
         pclfilter_dir = get_package_share_directory('pclfilter')
@@ -13,7 +12,6 @@ def generate_launch_description():
 
     config_path = os.path.join(pclfilter_dir, 'config', 'depth_cluster.yaml')
 
-    # Load YAML config and extract ros__parameters mapping (if present)
     params = {}
     try:
         with open(config_path, 'r') as f:
@@ -25,7 +23,6 @@ def generate_launch_description():
     except Exception:
         params = {}
 
-    # Flatten nested dict to dotted parameter names
     def flatten_dict(d, prefix=''):
         items = {}
         for k, v in d.items():
@@ -38,7 +35,6 @@ def generate_launch_description():
 
     flat_params = flatten_dict(params)
 
-    # Defaults matching the node's declared parameter names
     defaults = {
         'topics.input_cloud_topic': '/gicp_map',
         'topics.output_obstacles_topic': '/obstacle_clusters_map',
@@ -46,15 +42,18 @@ def generate_launch_description():
         'clustering.vertical_resolution': 1.0,
         'clustering.horizontal_resolution': 0.2,
         'clustering.lidar_lines': 32,
-        'clustering.min_cluster_size': 20,
-        # optional fallbacks mapped into reasonable namespaces
-        'filtering.normal_estimation_radius': 0.5,
-        'performance.max_slope_angle': 30.0,
+        'clustering.depth_threshold': 0.5,
+        'clustering.angle_slack': 5.0,
+        'clustering.ground.height_threshold': 2.5,
+        'clustering.ground.max_slope_angle': 35.0,
+        'clustering.normal_estimation_radius': 0.6,
+        'clustering.euclidean.cluster_tolerance': 0.3,
+        'clustering.euclidean.min_cluster_size': 5,
+        'clustering.euclidean.max_cluster_size': 25000,
         'frames.input_frame': 'map',
         'frames.output_frame': 'map',
     }
 
-    # Merge loaded params over defaults
     merged = defaults.copy()
     merged.update(flat_params)
 
