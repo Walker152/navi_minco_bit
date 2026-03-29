@@ -32,6 +32,9 @@ namespace Sentry_BT
     factory_.registerNodeType<DirectVelocityControl>("DirectVelocityControl");
     factory_.registerNodeType<SetStairsPosition>("SetStairsPosition");
     factory_.registerNodeType<CheckInStairsZone>("CheckInStairsZone");
+
+    factory_.registerNodeType<CheckWillThroughTunnel>("CheckWillThroughTunnel");
+    factory_.registerNodeType<ControlThroughTunnel>("ControlThroughTunnel");
     // 创建行为树
     try
     {
