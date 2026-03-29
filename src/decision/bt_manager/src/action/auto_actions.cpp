@@ -417,24 +417,18 @@ BT::NodeStatus ControlThroughTunnel::onStart()
   for (const auto& param : params) {
     if (param.get_name() == "FollowPath.use_small_gyro_mode") {
       initial_small_gyoro_ = param.as_bool();
-    } else if (param.get_name() == "FollowPath.fixed_wz") {
-      initial_wz_ = param.as_double();
+    } else if (param.get_name() == "FollowPath.enable_yaw_opt") {
+      initial_yaw_opt_ = param.as_bool();
     }
   }
-  auto current_orientation = ros_iface->getCurrentPose().orientation;
-  // 将四元数转换为欧拉角
-  tf2::Quaternion quat(current_orientation.x, current_orientation.y, current_orientation.z, current_orientation.w);
-  double roll, pitch, yaw;
-  tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
-  initial_yaw_ = yaw;
   auto set_param_future = parameters_client_->set_parameters({
-    rclcpp::Parameter("FollowPath.use_small_gyro_mode", true), 
-    rclcpp::Parameter("FollowPath.fixed_wz", fixed_wz_)});
+    rclcpp::Parameter("FollowPath.use_small_gyro_mode", false),
+    rclcpp::Parameter("FollowPath.enable_yaw_opt", true)});
   if (set_param_future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
     std::cerr << "Failed to set parameters within timeout." << std::endl;
     return BT::NodeStatus::FAILURE;
   }
-  last_pub_time_ = ros_iface->now();
+  //last_pub_time_ = ros_iface->now();
   return BT::NodeStatus::RUNNING;
 }
 
@@ -446,11 +440,12 @@ BT::NodeStatus ControlThroughTunnel::onRunning()
     return BT::NodeStatus::FAILURE;
   }
   is_through_tunnel_ = blackboard->get<bool>("through_tunnel");
+  RCLCPP_INFO(ros_iface->get_logger(), "is_through_tunnel: %s", is_through_tunnel_ ? "true" : "false");
   if(!is_through_tunnel_)
   {
     auto set_param_future = parameters_client_->set_parameters({
-      rclcpp::Parameter("FollowPath.use_small_gyro_mode", initial_small_gyoro_), 
-      rclcpp::Parameter("FollowPath.fixed_wz", initial_wz_)});
+      rclcpp::Parameter("FollowPath.use_small_gyro_mode", initial_small_gyoro_),
+      rclcpp::Parameter("FollowPath.enable_yaw_opt", initial_yaw_opt_)});
     if (set_param_future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
       std::cerr << "Failed to reset parameters within timeout." << std::endl;
       return BT::NodeStatus::FAILURE;
@@ -473,24 +468,23 @@ BT::NodeStatus ControlThroughTunnel::onRunning()
     if (!yaw_ready_) {
       yaw_ready_ = true;
       std::cout << GREEN << "Yaw is ready." << RESET << std::endl;
-      parameters_client_->set_parameters({rclcpp::Parameter("FollowPath.fixed_wz", 0.0)});
     }
   }
-  else {
-    if (yaw_ready_) {
-      geometry_msgs::msg::Twist vel;
-      geometry_msgs::msg::Twist current_cmd_vel = blackboard->get<geometry_msgs::msg::Twist>("cmd_vel");
-      vel.linear = current_cmd_vel.linear;
-      double wz = yaw_diff * 4.0; // 简单的比例控制
-      wz = std::clamp(wz, -fixed_wz_, fixed_wz_);
-      vel.angular.z = wz;
-      rclcpp::Time now = ros_iface->now();
-      if ((now - last_pub_time_).seconds() >= 0.05) { // 20Hz发布频率
-        ros_iface->publishCmdVel(vel);
-        last_pub_time_ = now;
-      }
-    }
-  }
+  // else {
+  //   if (yaw_ready_) {
+  //     geometry_msgs::msg::Twist vel;
+  //     geometry_msgs::msg::Twist current_cmd_vel = blackboard->get<geometry_msgs::msg::Twist>("cmd_vel");
+  //     vel.linear = current_cmd_vel.linear;
+  //     double wz = yaw_diff * 4.0; // 简单的比例控制
+  //     wz = std::clamp(wz, -fixed_wz_, fixed_wz_);
+  //     vel.angular.z = wz;
+  //     rclcpp::Time now = ros_iface->now();
+  //     if ((now - last_pub_time_).seconds() >= 0.05) { // 20Hz发布频率
+  //       ros_iface->publishCmdVel(vel);
+  //       last_pub_time_ = now;
+  //     }
+  //   }
+  // }
   int lifter_pose = blackboard->get<int>("lifter_pos_now");
   if (lifter_pose == 1 && !lifter_ready_)
   {
