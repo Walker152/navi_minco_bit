@@ -191,10 +191,10 @@ namespace Sentry_BT
     bool flag3 = inflated_zone.contains(point_of_robot);
     if (flag1)
     {
-      std::cout << "MPC trajectory is close to tunnel zone." << std::endl;
+      // std::cout << "MPC trajectory is close to tunnel zone." << std::endl;
       if (flag2)
       {
-        std::cout << "MPC trajectory is through the tunnel." << std::endl;
+        // std::cout << "MPC trajectory is through the tunnel." << std::endl;
         return true;
       }
       else if (flag3)
