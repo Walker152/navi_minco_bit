@@ -38,6 +38,9 @@
         <ReactiveSequence name="EmergencyRetreat">
           <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
           <SetCoordinate name="SetHomeCoordinate" goal="0" />
+          <!-- <ForceSuccess>
+            <CheckWillThroughTunnel name="CheckWillThroughTunnel" />
+          </ForceSuccess> -->
           <NavigateToPoseAction name="PublishRetreatGoal" />
         </ReactiveSequence>
 
@@ -56,6 +59,12 @@
 
           <Sequence name="RegularPatrol">
             <SelectPatrolPoint name="SelectPatrolPoint" />
+              <!-- <ReactiveSequence name="NavigationAndTunnelCheck">
+                <ForceSuccess>
+                  <CheckWillThroughTunnel name="CheckWillThroughTunnel" />
+                </ForceSuccess> 
+                <NavigateToPoseAction name="PublishPatrolGoal" />
+              </ReactiveSequence> -->
             <NavigateToPoseAction name="PublishPatrolGoal" />
             <Wait name="PostNavigationWait" />
           </Sequence>
