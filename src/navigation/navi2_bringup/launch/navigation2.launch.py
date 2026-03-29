@@ -35,6 +35,7 @@ def generate_launch_description():
             # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
             # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
             arguments=['6.8', '3.67', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['10.0', '2.0', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
         # # 静态TF: camera_init -> body
