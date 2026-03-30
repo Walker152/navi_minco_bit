@@ -34,7 +34,8 @@ def generate_launch_description():
             name='static_tf_map_to_camera_init',
             # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
             # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
-            arguments=['6.8', '3.67', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['6.8', '3.67', '0', '0', '0', '0', 'map', 'camera_init'],
+            arguments=['12', '4.5', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
         # # 静态TF: camera_init -> body

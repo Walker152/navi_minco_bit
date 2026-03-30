@@ -94,10 +94,19 @@ install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
 )
 
-# Install Python preprocessing script
-install(PROGRAMS
-  scripts/preprocess_node.py
-  DESTINATION lib/${PROJECT_NAME}
+ament_package()
+
+find_package(octomap REQUIRED)
+find_package(octomap_msgs REQUIRED)
+
+add_executable(voxel_integrator src/voxel_integrator.cpp)
+ament_target_dependencies(voxel_integrator
+  rclcpp
+  sensor_msgs
+  pcl_conversions
+  octomap
+  octomap_msgs
 )
 
-ament_package()
+install(TARGETS voxel_integrator
+  DESTINATION lib/${PROJECT_NAME})
