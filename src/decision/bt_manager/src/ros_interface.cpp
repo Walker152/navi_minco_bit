@@ -12,6 +12,9 @@ namespace Sentry_BT
            rclcpp::NodeOptions().use_global_arguments(false))
     , blackboard_(blackboard_ptr)
   {
+    auto node_ptr = rclcpp::Node::SharedPtr(this, [](rclcpp::Node *) {});
+    param_manager_ = std::make_shared<ParamManager>(node_ptr);
+
     // 订阅事件状态话题
     event_sub = this->create_subscription<ros_interfaces::msg::EventStatus>(
         "/sentry/event_status",
@@ -191,10 +194,10 @@ namespace Sentry_BT
     bool flag3 = inflated_zone.contains(point_of_robot);
     if (flag1)
     {
-      std::cout << "MPC trajectory is close to tunnel zone." << std::endl;
+      // std::cout << "MPC trajectory is close to tunnel zone." << std::endl;
       if (flag2)
       {
-        std::cout << "MPC trajectory is through the tunnel." << std::endl;
+        // std::cout << "MPC trajectory is through the tunnel." << std::endl;
         return true;
       }
       else if (flag3)
