@@ -22,6 +22,7 @@ namespace Sentry_BT
     factory_.registerNodeType<SelectPatrolPoint>("SelectPatrolPoint");
     factory_.registerNodeType<SetTargetCoordinate>("SetTargetCoordinate");
     factory_.registerNodeType<SetCoordinate>("SetCoordinate");
+    factory_.registerNodeType<ChangeMapAction>("ChangeMapAction");
     factory_.registerNodeType<Wait>("Wait");
 
     factory_.registerNodeType<CheckMPCondition>("CheckMPCondition");
@@ -32,6 +33,9 @@ namespace Sentry_BT
     factory_.registerNodeType<DirectVelocityControl>("DirectVelocityControl");
     factory_.registerNodeType<SetStairsPosition>("SetStairsPosition");
     factory_.registerNodeType<CheckInStairsZone>("CheckInStairsZone");
+
+    factory_.registerNodeType<CheckWillThroughTunnel>("CheckWillThroughTunnel");
+    factory_.registerNodeType<ControlThroughTunnel>("ControlThroughTunnel");
     // 创建行为树
     try
     {
