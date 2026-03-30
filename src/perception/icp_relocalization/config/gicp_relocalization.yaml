@@ -10,11 +10,15 @@ gicp_relocalization_node:
     visualization_en: true
     source_cloud_topic: "/livox/stdpc"
     alignment_frequency: 5.0
-    accumulate_frames: 5
+    accumulate_frames: 1
     tf_publish_frequency: 30.0
     # Convergence Criteria
-    fitness_score_threshold: 100.0
+    overlap_threshold: 0.65
     converged_count_threshold: 2
+
+    # Continuous low-frequency relocalization
+    enable_continuous_relocalization: true
+    max_tracking_lost_count: 3
 
     timeout_seconds: 5.0  # 超时时间（秒）
     default_pose_on_timeout: [6.0, 3.4, 0.0, 0.0, 0.0, 0.0]  # 超时后发布的默认位姿
