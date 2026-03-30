@@ -16,7 +16,7 @@ sleep 1
 
 ## ICP
 # gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
-sleep 1
+# sleep 1
 
 ## Decision
 # gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
