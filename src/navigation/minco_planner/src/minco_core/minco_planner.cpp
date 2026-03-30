@@ -307,6 +307,9 @@ void MincoPlanner::configure(
   safety_timer_ = node->create_wall_timer(
     std::chrono::duration<double>(1.0 / 20.0),
     std::bind(&MincoPlanner::safetyTimerCallback, this));
+
+  on_set_parameters_callback_handle_ = node->add_on_set_parameters_callback(
+    std::bind(&MincoPlanner::onSetParameters, this, std::placeholders::_1));
 }
 
 void MincoPlanner::activate()
@@ -319,6 +322,8 @@ void MincoPlanner::deactivate()
 
 void MincoPlanner::cleanup()
 {
+  on_set_parameters_callback_handle_.reset();
+
   fsm_timer_.reset();
   safety_timer_.reset();
 
@@ -337,6 +342,51 @@ void MincoPlanner::cleanup()
   yaw_opt_.reset();
   opt_path_pub_.reset();
   backup_path_pub_.reset();
+}
+
+rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
+  const std::vector<rclcpp::Parameter> & parameters)
+{
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+
+  const std::string target_param = name_ + ".static_esdf.esdf_pcd_path";
+  for (const auto & param : parameters) {
+    if (param.get_name() != target_param) {
+      continue;
+    }
+
+    if (param.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
+      result.successful = false;
+      result.reason = "Parameter must be a string: " + target_param;
+      RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+      return result;
+    }
+
+    esdf_pcd_path_ = param.as_string();
+    if (!esdf_map_) {
+      result.successful = false;
+      result.reason = "ESDF map is not initialized";
+      RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+      return result;
+    }
+
+    const bool reloaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
+    if (reloaded) {
+      RCLCPP_INFO(
+        logger_,
+        "[MincoPlanner] Reloaded static ESDF map from PCD: %s",
+        esdf_pcd_path_.c_str());
+    } else {
+      result.successful = false;
+      result.reason = "Failed to reload static ESDF map from PCD: " + esdf_pcd_path_;
+      RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+    }
+
+    return result;
+  }
+
+  return result;
 }
 
 // -----------------------------------------------------------------------------
