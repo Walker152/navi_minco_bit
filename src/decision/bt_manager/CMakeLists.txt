@@ -33,6 +33,7 @@ include_directories(
 add_executable(bt_manager_node 
   src/bt_manager.cpp 
   src/ros_interface.cpp 
+  src/param_manager.cpp
   src/action/auto_actions.cpp 
   src/condition/auto_conditions.cpp
   src/action/change_stance_action.cpp
