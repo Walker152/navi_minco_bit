@@ -9,8 +9,8 @@ gicp_relocalization_node:
     map_frame: "map"
     visualization_en: true
     source_cloud_topic: "/livox/stdpc"
-    alignment_frequency: 5.0
-    accumulate_frames: 1
+    alignment_frequency: 1.0
+    accumulate_frames: 3
     tf_publish_frequency: 30.0
     # Convergence Criteria
     overlap_threshold: 0.65
