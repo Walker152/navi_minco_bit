@@ -22,6 +22,7 @@
 
 // Project Headers
 #include "bt_manager/blackboard.hpp"
+#include "bt_manager/param_manager.hpp"
 #include "bt_manager/utils/tf_utils.hpp"
 #include "bt_manager/utils/nav_zone.hpp"
 namespace Sentry_BT
@@ -40,6 +41,7 @@ namespace Sentry_BT
 
     rclcpp::TimerBase::SharedPtr timer_;
     std::shared_ptr<Blackboard> blackboard_;
+    std::shared_ptr<ParamManager> param_manager_;
 
     geometry_msgs::msg::Pose current_pose_;
     mutable std::mutex current_pose_mutex_;
@@ -52,6 +54,7 @@ namespace Sentry_BT
     void publishCmdVel(double linear_y, double angular_z);
     void publishCmdVel(const geometry_msgs::msg::Twist& cmd_vel);
     geometry_msgs::msg::Pose getCurrentPose() const;
+    std::shared_ptr<ParamManager> getParamManager() const { return param_manager_; }
 
     bool TransformPose(const geometry_msgs::msg::Pose& input_pose, geometry_msgs::msg::Pose& output_pose);
     bool isTroughZone(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square& zone);
