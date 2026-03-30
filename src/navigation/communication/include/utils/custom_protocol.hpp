@@ -80,13 +80,8 @@ struct _ChassisTarget
   bool is_aim_outpost;// 是否抬头击打前哨站
   uint8_t desire_stance;     // 哨兵姿态
   uint8_t desire_lifter_pos; // 云台升降状态
-
-  // float vx_mps{}, vy_mps{}, vw_rpm{};
-  // float current_x{}, current_y{}, current_yaw{}, radar_yaw{};
-  // bool is_aim_outpost{};      // 发1则强制哨兵抬头巡检，寻找前哨站
-  // int32_t sentry_state{};    // 哨兵姿态，遵循Sentry_StateEnum
-  // minipc_to_stm32() = default;
-
+  // bool buy_bullet;    // 是否购买子弹
+  // bool buy_revive;        // 是否立即复活
   _ChassisTarget(float _vx_mps,
                  float _vy_mps,
                  float _vw_rpm,
@@ -111,74 +106,117 @@ struct _ChassisTarget
 };
 using ChassisTarget = struct _ChassisTarget;
 
-struct __attribute__((packed, aligned(1))) _Event_Status
-{
-  uint16_t self_health;        // 自身健康值，范围0-400
-  uint16_t num_shoot;          // 当前子弹量
-  uint16_t own_outpost_health; // 我方前哨站血量
-  bool enemy_outpost_destroyed;// 敌方前哨站是否被摧毁标志
-  bool buff_active;            // buff是否激活标志
-  bool is_get;                 // 是否检测到敌人
-  float x;                     // 敌人位置x坐标（相机系）
-  float y;                     // 敌人位置y坐标
-  float z;                     // 敌人位置z坐标
-  uint8_t armor_id;            // 敌人装甲板ID
-  uint8_t current_stance;      // 当前哨兵姿态
-  uint8_t game_status;         // 比赛状态 
-  // 0:未开始比赛 1:准备阶段 2:15s裁判系统自检 3:5s倒计时 4:比赛中 5:比赛结算中
-  float gimbal_yaw;            // 云台当前yaw 逆时针为正
-  uint8_t lifter_pos_now;      // 云台当前升降状态
-  uint16_t hero_health;        // 英雄角色健康值
-  uint16_t infantry3_health;       // 矿工角色健康值
-
-
-
-// uint16_t self_health{};
-//     uint16_t bullets_remaining{};
-//     bool own_outpost_destroyed;
-//     uint16_t enemy_outpost_health{};
-//     bool buff_active;
-//     bool is_get;
-//     float armor_pos[3];
-//     uint8_t armor_num;      // 进行处理，红方蓝方发送的装甲板数字相同
-//     int32_t sentry_current_state;
-//     float team_pos[5][2];
-//     uint8_t game_status;    // 0:未开始比赛 1:准备阶段 2:15s裁判系统自检 3:5s倒计时 4:比赛中 5:比赛结算中
-//     float yaw_imu;      // imu的yaw轴角度 时针逆为正
-//     inf_stm32_to_minipc() = default;
-
-
-  _Event_Status(uint16_t _self_health,
-                uint16_t _num_shoot,
-                uint16_t _own_outpost_health,
-                bool _enemy_outpost_destroyed,
-                bool _buff_active,
-                bool _is_get,
-                float _x,
-                float _y,
-                float _z,
-                uint8_t _armor_id,
-                uint8_t _current_stance,
-                uint8_t _game_status,
-                float _gimbal_yaw,
-                uint8_t _lifter_pos_now )
-    : self_health(_self_health)
-    , num_shoot(_num_shoot)
-    , enemy_outpost_destroyed(_enemy_outpost_destroyed)
-    , own_outpost_health(_own_outpost_health)
-    , buff_active(_buff_active)
-    , is_get(_is_get)
-    , x(_x)
-    , y(_y)
-    , z(_z)
-    , armor_id(_armor_id)
-    , current_stance(_current_stance)
-    , game_status(_game_status)
-    , gimbal_yaw(_gimbal_yaw)
-    , lifter_pos_now(_lifter_pos_now)
-  {
-  }
+struct __attribute__((packed)) AllyRobotStatus {
+    uint8_t robot_id{};      // 机器人ID，蓝方=红方+100
+    uint16_t robot_hp{};     // 机器人血量
+    float robot_pos_x{};  // 机器人位置x坐标，单位m
+    float robot_pos_y{};     // 机器人位置y坐标，单位m
 };
 
-using EventStatus = struct _Event_Status;
+struct __attribute__((packed)) _TeamInfo {
+    AllyRobotStatus ally_status[4]{};   // 4个友方机器人状态
+    uint16_t outpost_hp{};  // 前哨站血量
+    uint16_t base_hp{};     // 基地血量
+    _TeamInfo(const AllyRobotStatus _ally_status[4], 
+                    uint16_t _outpost_hp, 
+                    uint16_t _base_hp)
+    {
+        for (int i = 0; i < 4; ++i) {
+            ally_status[i] = _ally_status[i];
+        }
+        outpost_hp = _outpost_hp;
+        base_hp = _base_hp;
+    }
+};
+using TeamInfo = struct _TeamInfo;
+
+struct __attribute__((packed)) _GameInfo
+{
+  uint16_t game_time_remaining{};  // 比赛剩余时间，单位s
+  uint16_t coin_remaining{};       // 己方剩余金币数量
+  uint32_t event_code{};           // 场地事件代码，未解码，需接收后根据协议解码
+  uint8_t game_status{};           // 0:未开始比赛 1:准备阶段 2:15s裁判系统自检 3:5s倒计时 4:比赛中 5:比赛结算中
+
+  _GameInfo(uint16_t _game_time_remaining,
+            uint16_t _coin_remaining,
+            uint32_t _event_code,
+            uint8_t _game_status)
+  {
+    game_time_remaining = _game_time_remaining;
+    coin_remaining = _coin_remaining;
+    event_code = _event_code;
+    game_status = _game_status;
+  }
+};
+using GameInfo = struct _GameInfo;
+
+struct __attribute__((packed)) _SentryInfoOnline {
+    // 数据：己方&敌方前哨站，哨兵血量，场地事件
+    uint16_t self_health{};        // 机器人血量
+    uint16_t bullets_remaining{};  // 剩余发弹量
+    uint16_t cooling_value{};      // 机器人每秒冷却值
+    uint16_t heat_limit{};         // 机器人热量上限
+    uint16_t current_heat{};       // 机器人当前热量
+    float sentry_pos_x{};          // 哨兵位置x坐标，单位m
+    float sentry_pos_y{};          // 哨兵位置y坐标，单位m
+    float speed_monitor_angle{};   // 测速模块朝向，单位为度，正北为0度
+    uint32_t sentry_info_1{};      // 哨兵信息1，未解码，需接收后根据协议解码
+    uint16_t sentry_info_2{};      // 哨兵信息2，未解码，需接收后根据协议解码
+
+    _SentryInfoOnline(uint16_t _self_health,
+                      uint16_t _bullets_remaining,
+                      uint16_t _cooling_value,
+                      uint16_t _heat_limit,
+                      uint16_t _current_heat,
+                      float _sentry_pos_x,
+                      float _sentry_pos_y,
+                      float _speed_monitor_angle,
+                      uint32_t _sentry_info_1,
+                      uint16_t _sentry_info_2)
+    {
+        self_health = _self_health;
+        bullets_remaining = _bullets_remaining;
+        cooling_value = _cooling_value;
+        heat_limit = _heat_limit;
+        current_heat = _current_heat;
+        sentry_pos_x = _sentry_pos_x;
+        sentry_pos_y = _sentry_pos_y;
+        speed_monitor_angle = _speed_monitor_angle;
+        sentry_info_1 = _sentry_info_1;
+        sentry_info_2 = _sentry_info_2;
+    }
+  };
+using SentryInfoOnline = struct _SentryInfoOnline;
+
+struct __attribute__((packed)) _SentryInfoOffline {
+    // 数据：己方&敌方前哨站，哨兵血量，场地事件
+    bool is_get{};                 // 视觉是否瞄准到敌人
+    float armor_pos[3]{};          // 瞄准到的装甲板位置，具体坐标系询问视觉
+    uint8_t armor_num{};           // 不做红蓝方区分
+    float yaw_imu{};               // imu的yaw轴角度 逆时针为正
+    uint8_t lifter_current_pos{};  // 0 -- kTop 1 -- kBottom 2 -- kMiddle
+    bool is_transformable{};       // 是否能够进行变形（不止变形中不能变形，升降卡住后也无法进行变形）
+    float transform_state{};       // 变形状态，0-1，0%为未变形，100%为完全变形，过渡状态根据实际情况变化
+
+    _SentryInfoOffline(bool _is_get,
+                       float _armor_pos[3],
+                       uint8_t _armor_num,
+                       float _yaw_imu,
+                       uint8_t _lifter_current_pos,
+                       bool _is_transformable,
+                       float _transform_state)
+    {
+        is_get = _is_get;
+        for (int i = 0; i < 3; ++i) {
+            armor_pos[i] = _armor_pos[i];
+        }
+        armor_num = _armor_num;
+        yaw_imu = _yaw_imu;
+        lifter_current_pos = _lifter_current_pos;
+        is_transformable = _is_transformable;
+        transform_state = _transform_state;
+    }
+  };
+using SentryInfoOffline = struct _SentryInfoOffline;
+
 #pragma pack(pop)
