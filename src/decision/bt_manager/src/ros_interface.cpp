@@ -12,6 +12,9 @@ namespace Sentry_BT
            rclcpp::NodeOptions().use_global_arguments(false))
     , blackboard_(blackboard_ptr)
   {
+    auto node_ptr = rclcpp::Node::SharedPtr(this, [](rclcpp::Node *) {});
+    param_manager_ = std::make_shared<ParamManager>(node_ptr);
+
     // 订阅事件状态话题
     event_sub = this->create_subscription<ros_interfaces::msg::EventStatus>(
         "/sentry/event_status",

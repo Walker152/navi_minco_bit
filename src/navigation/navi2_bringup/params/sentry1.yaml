@@ -300,7 +300,7 @@ planner_server:
         use_esdf_cost: true
         esdf_weight: 0.3
         esdf_decay: 0.5
-        esdf_max_cost: 0.1
+        esdf_max_cost: 0.3
 
       minco_optimizer:
         opt_freq: 20.0
@@ -325,15 +325,15 @@ planner_server:
         fail_threshold: 3
         cooldown_sec: 2.0
         recovery_window_sec: 3.0
-        search_min_dist: 0.2
-        search_max_dist: 0.5
+        search_min_dist: 0.3
+        search_max_dist: 0.6
         search_step: 0.05
         escape_speed: 0.4
       static_esdf:
-        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/room_esdf.pcd"
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_back_esdf.pcd"
         esdf_resolution: 0.05
 

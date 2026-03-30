@@ -83,6 +83,15 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class ChangeMapAction : public BT::SyncActionNode
+{
+public:
+  ChangeMapAction(const std::string& name, const BT::NodeConfiguration& config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 // 控制过隧道
 class ControlThroughTunnel : public BT::StatefulActionNode
 {
