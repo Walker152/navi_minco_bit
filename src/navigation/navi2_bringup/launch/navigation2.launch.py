@@ -20,7 +20,7 @@ def generate_launch_description():
     map_yaml_path = launch.substitutions.LaunchConfiguration(
         # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmuc2026.yaml'))
         # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmul2026.yaml'))
-        # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/hotel.yaml'))
+        # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmuc2026_back.yaml'))
         #  'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/room.yaml'))
         'map', default=os.path.join(DreamChaser_dir, 'maps', 'first_floor/first_floor.yaml'))
     nav2_param_path = launch.substitutions.LaunchConfiguration(
@@ -35,7 +35,7 @@ def generate_launch_description():
             # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
             # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
             arguments=['6.8', '3.67', '0', '0', '0', '0', 'map', 'camera_init'],
-            # arguments=['10.0', '2.0', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['10.0', '1.0', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
         # # 静态TF: camera_init -> body
