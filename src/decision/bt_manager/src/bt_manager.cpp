@@ -22,6 +22,7 @@ namespace Sentry_BT
     factory_.registerNodeType<SelectPatrolPoint>("SelectPatrolPoint");
     factory_.registerNodeType<SetTargetCoordinate>("SetTargetCoordinate");
     factory_.registerNodeType<SetCoordinate>("SetCoordinate");
+    factory_.registerNodeType<ChangeMapAction>("ChangeMapAction");
     factory_.registerNodeType<Wait>("Wait");
 
     factory_.registerNodeType<CheckMPCondition>("CheckMPCondition");
