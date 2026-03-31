@@ -184,6 +184,11 @@ void MincoPlanner::configure(
     node, prefix + "static_esdf.esdf_resolution", rclcpp::ParameterValue(0.1));
   node->get_parameter(prefix + "static_esdf.esdf_resolution", esdf_resolution_);
 
+  double dynamic_esdf_size = 10.0;
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "static_esdf.dynamic_esdf_size", rclcpp::ParameterValue(10.0));
+  node->get_parameter(prefix + "static_esdf.dynamic_esdf_size", dynamic_esdf_size);
+
   // --- Corridor config -------------------------------------------------------
 
   double corridor_robot_radius = 0.4;
@@ -255,11 +260,16 @@ void MincoPlanner::configure(
       std::lock_guard<std::mutex> lk(odom_mutex_);
       latest_odom_ = *msg;
       has_latest_odom_ = true;
+      const double x = msg->pose.pose.position.x;
+      const double y = msg->pose.pose.position.y;
+      if (esdf_map_) {
+        esdf_map_->setRobotPosition(x, y);
+      }
     });
 
   // Load Static ESDF map.
   esdf_map_ = std::make_shared<small_rog_map::HybridESDFMap>();
-  esdf_map_->initRos(parent, "/global_costmap/voxel_grid");
+  esdf_map_->initRos(parent, "/global_costmap/voxel_grid", esdf_resolution_, dynamic_esdf_size);
 
   const bool esdf_loaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
   if (!esdf_loaded) {
