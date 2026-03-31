@@ -337,6 +337,7 @@ planner_server:
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_back_esdf.pcd"
         esdf_resolution: 0.05
         dynamic_esdf_size: 6.0
+        dynamic_dilation_radius: 0.05
 
 smoother_server:
   ros__parameters:
