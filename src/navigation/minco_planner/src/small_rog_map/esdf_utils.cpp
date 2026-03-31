@@ -144,14 +144,18 @@ void ESDFUtils::computeEDT2D(
   // First pass: rows
   std::vector<double> tmp(expected, kInf);
 
+#ifdef _OPENMP
   #pragma omp parallel
+#endif
   {
     std::vector<double> f_row(static_cast<size_t>(width));
     std::vector<double> d_row(static_cast<size_t>(width));
     std::vector<int> v_row(static_cast<size_t>(width));
     std::vector<double> z_row(static_cast<size_t>(width) + 1);
 
+#ifdef _OPENMP
     #pragma omp for
+#endif
     for (int y = 0; y < height; ++y) {
       const size_t row_base = static_cast<size_t>(y) * static_cast<size_t>(width);
       for (int x = 0; x < width; ++x) {
@@ -168,14 +172,18 @@ void ESDFUtils::computeEDT2D(
   // Second pass: cols
   dist_sq_out.assign(expected, kInf);
 
+#ifdef _OPENMP
   #pragma omp parallel
+#endif
   {
     std::vector<double> f_col(static_cast<size_t>(height));
     std::vector<double> d_col(static_cast<size_t>(height));
     std::vector<int> v_col(static_cast<size_t>(height));
     std::vector<double> z_col(static_cast<size_t>(height) + 1);
 
+#ifdef _OPENMP
     #pragma omp for
+#endif
     for (int x = 0; x < width; ++x) {
       for (int y = 0; y < height; ++y) {
         f_col[static_cast<size_t>(y)] = tmp[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)];
