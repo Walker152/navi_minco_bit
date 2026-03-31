@@ -34,13 +34,15 @@ void DynamicLayer::configure(
   const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
   const std::string & topic,
   double resolution,
-  double local_size_m)
+  double local_size_m,
+  double dilation_radius_m)
 {
   node_ = node;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     resolution_ = resolution;
     local_size_m_ = local_size_m;
+    dilation_radius_m_ = dilation_radius_m;
   }
 
   auto node_ptr = node_.lock();
@@ -84,11 +86,13 @@ void DynamicLayer::cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr 
 
   double res = 0.0;
   double local_size_m = 0.0;
+  double dilation_radius_m = 0.0;
   Eigen::Vector2d robot_pos(0.0, 0.0);
   {
     std::lock_guard<std::mutex> lock(mutex_);
     res = resolution_;
     local_size_m = local_size_m_;
+    dilation_radius_m = dilation_radius_m_;
     robot_pos = robot_pos_;
   }
 
@@ -104,8 +108,7 @@ void DynamicLayer::cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr 
   const Eigen::Vector2d origin = robot_pos - Eigen::Vector2d(local_size_m / 2.0, local_size_m / 2.0);
 
   // Update the ESDF from the point cloud in a robot-centered local sliding window.
-  constexpr double kDilationRadiusM = 0.1;
-  updateFromPointCloud(*msg, w, w, res, origin, kDilationRadiusM);
+  updateFromPointCloud(*msg, w, w, res, origin, dilation_radius_m);
 }
 
 bool DynamicLayer::isValid() const
