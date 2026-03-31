@@ -39,7 +39,7 @@ void DynamicLayer::configure(
 {
   node_ = node;
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(rw_mutex_);
     resolution_ = resolution;
     local_size_m_ = local_size_m;
     dilation_radius_m_ = dilation_radius_m;
@@ -59,7 +59,7 @@ void DynamicLayer::configure(
 
 void DynamicLayer::setRobotPosition(double x, double y)
 {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(pose_mutex_);
   robot_pos_ = Eigen::Vector2d(x, y);
 }
 
@@ -70,7 +70,7 @@ void DynamicLayer::setGeometry(int w, int h, double res, const Eigen::Vector2d &
   }
 
   const size_t expected = static_cast<size_t>(w) * static_cast<size_t>(h);
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::unique_lock<std::shared_mutex> lock(rw_mutex_);
   width_ = w;
   height_ = h;
   resolution_ = res;
@@ -89,10 +89,13 @@ void DynamicLayer::cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr 
   double dilation_radius_m = 0.0;
   Eigen::Vector2d robot_pos(0.0, 0.0);
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> r_lock(rw_mutex_);
     res = resolution_;
     local_size_m = local_size_m_;
     dilation_radius_m = dilation_radius_m_;
+  }
+  {
+    std::lock_guard<std::mutex> p_lock(pose_mutex_);
     robot_pos = robot_pos_;
   }
 
@@ -113,37 +116,37 @@ void DynamicLayer::cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr 
 
 bool DynamicLayer::isValid() const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(rw_mutex_);
   return width_ > 1 && height_ > 1 && resolution_ > 0.0 && !dist_m_.empty();
 }
 
 int DynamicLayer::width() const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(rw_mutex_);
   return width_;
 }
 
 int DynamicLayer::height() const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(rw_mutex_);
   return height_;
 }
 
 double DynamicLayer::resolution() const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(rw_mutex_);
   return resolution_;
 }
 
 Eigen::Vector2d DynamicLayer::origin() const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(rw_mutex_);
   return origin_;
 }
 
 bool DynamicLayer::isInside(const Eigen::Vector2d & pos_xy) const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(rw_mutex_);
   if (width_ <= 1 || height_ <= 1 || resolution_ <= 0.0) {
     return false;
   }
@@ -296,7 +299,7 @@ void DynamicLayer::updateFromPointCloud(
 
   // 4. Commit the new distance field
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(rw_mutex_);
     width_ = width;
     height_ = height;
     resolution_ = resolution;
@@ -307,7 +310,7 @@ void DynamicLayer::updateFromPointCloud(
 
 void DynamicLayer::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(rw_mutex_);
 
   // 1. Check validity
   if (width_ <= 1 || height_ <= 1 || resolution_ <= 0.0 || dist_m_.empty()) {
