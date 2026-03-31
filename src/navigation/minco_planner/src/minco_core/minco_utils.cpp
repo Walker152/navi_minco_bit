@@ -237,9 +237,6 @@ void publishEscapeCommand(
   traj_opt::Trajectory escape_traj;
   Eigen::MatrixXd cMat(3, 6);
   cMat.setZero();
-  std::cout << "Escape velocity: " << escape_vel.transpose() << std::endl;
-  std::cout << "Current position: " << current_pose.pose.position.x << ", " << current_pose.pose.position.y
-            << std::endl;
   // 第 5 列 (c5) -> 常数项 (t^0): 设定起点为机器人的当前位置
   cMat(0, 5) = current_pose.pose.position.x + escape_vel.x() * escape_duration;
   cMat(1, 5) = current_pose.pose.position.y + escape_vel.y() * escape_duration;
