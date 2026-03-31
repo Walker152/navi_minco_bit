@@ -22,6 +22,7 @@
 #include "nav2_costmap_2d/cost_values.hpp"
 #include "nav2_util/node_utils.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "tf2/exceptions.h"
 
 // Project
 #include "minco_core/minco_fsm.hpp"
@@ -189,6 +190,12 @@ void MincoPlanner::configure(
     node, prefix + "static_esdf.dynamic_esdf_size", rclcpp::ParameterValue(10.0));
   node->get_parameter(prefix + "static_esdf.dynamic_esdf_size", dynamic_esdf_size);
 
+  double dynamic_dilation_radius = 0.0;
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "static_esdf.dynamic_dilation_radius", rclcpp::ParameterValue(0.0));
+  node->get_parameter(prefix + "static_esdf.dynamic_dilation_radius", dynamic_dilation_radius);
+
+
   // --- Corridor config -------------------------------------------------------
 
   double corridor_robot_radius = 0.4;
@@ -257,19 +264,52 @@ void MincoPlanner::configure(
       if (!msg) {
         return;
       }
-      std::lock_guard<std::mutex> lk(odom_mutex_);
-      latest_odom_ = *msg;
-      has_latest_odom_ = true;
-      const double x = msg->pose.pose.position.x;
-      const double y = msg->pose.pose.position.y;
-      if (esdf_map_) {
-        esdf_map_->setRobotPosition(x, y);
+
+      {
+        std::lock_guard<std::mutex> lk(odom_mutex_);
+        latest_odom_ = *msg;
+        has_latest_odom_ = true;
+      }
+
+      geometry_msgs::msg::PoseStamped odom_pose;
+      odom_pose.header = msg->header;
+      odom_pose.pose = msg->pose.pose;
+
+      try {
+        if (tf_) {
+          auto map_pose = tf_->transform(odom_pose, global_frame_);
+          const double x = map_pose.pose.position.x;
+          const double y = map_pose.pose.position.y;
+          if (esdf_map_) {
+            esdf_map_->setRobotPosition(x, y);
+            std::cout << CYAN << "[MincoPlanner] "
+                      << "Updated robot position in ESDF map: (" << std::fixed << std::setprecision(2)
+                      << x << ", " << y << ")" << RESET << std::endl;
+          }
+        }
+      } catch (const tf2::TransformException &) {
       }
     });
 
   // Load Static ESDF map.
   esdf_map_ = std::make_shared<small_rog_map::HybridESDFMap>();
-  esdf_map_->initRos(parent, "/global_costmap/voxel_grid", esdf_resolution_, dynamic_esdf_size);
+  esdf_map_->initRos(
+    parent,
+    "/global_costmap/voxel_grid",
+    esdf_resolution_,
+    dynamic_esdf_size,
+    dynamic_dilation_radius);
+
+  // Initialize ESDF window center once at startup so static validation works without odom.
+  geometry_msgs::msg::PoseStamped init_pose;
+  if (costmap_ros_ && costmap_ros_->getRobotPose(init_pose)) {
+    esdf_map_->setRobotPosition(init_pose.pose.position.x, init_pose.pose.position.y);
+  } else {
+    esdf_map_->setRobotPosition(0.0, 0.0);
+    RCLCPP_WARN(
+      logger_,
+      "[MincoPlanner] Failed to get initial robot pose from costmap, fallback ESDF center to (0, 0).");
+  }
 
   const bool esdf_loaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
   if (!esdf_loaded) {
