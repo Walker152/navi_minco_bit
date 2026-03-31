@@ -13,12 +13,21 @@ HybridESDFMap::HybridESDFMap()
 {
 }
 
-void HybridESDFMap::initRos(const rclcpp_lifecycle::LifecycleNode::WeakPtr & node, const std::string & topic)
+void HybridESDFMap::initRos(
+  const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
+  const std::string & topic,
+  double resolution,
+  double dynamic_size_m)
 {
   if (!dynamic_layer_) {
     dynamic_layer_ = std::make_shared<DynamicLayer>();
   }
-  dynamic_layer_->configure(node, topic);
+  dynamic_layer_->configure(node, topic, resolution, dynamic_size_m);
+}
+
+void HybridESDFMap::setRobotPosition(double x, double y)
+{
+  dynamic_layer_->setRobotPosition(x, y);
 }
 
 bool HybridESDFMap::loadStaticMap(const std::string & pcd_path, double resolution)
@@ -34,14 +43,6 @@ bool HybridESDFMap::loadStaticMap(const std::string & pcd_path, double resolutio
 
   if (!dynamic_layer_) {
     dynamic_layer_ = std::make_shared<DynamicLayer>();
-  }
-  if (static_layer_->isValid()) {
-    // 2. Align dynamic grid geometry with the static layer
-    dynamic_layer_->setGeometry(
-      static_layer_->width(),
-      static_layer_->height(),
-      static_layer_->resolution(),
-      static_layer_->origin());
   }
 
   return true;
