@@ -24,7 +24,8 @@ public:
     const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
     const std::string & topic,
     double resolution,
-    double local_size_m);
+    double local_size_m,
+    double dilation_radius_m);
   void setGeometry(int w, int h, double res, const Eigen::Vector2d & origin);
   void setRobotPosition(double x, double y);
 
@@ -65,6 +66,7 @@ private:
   double resolution_{0.0};
   Eigen::Vector2d origin_{0.0, 0.0};
   double local_size_m_{10.0};
+  double dilation_radius_m_{0.0};
   Eigen::Vector2d robot_pos_{0.0, 0.0};
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
