@@ -262,7 +262,9 @@ void DynamicLayer::updateFromPointCloud(
   ESDFUtils::computeEDT2D(width, height, occ01, dist_sq_cells);
 
   std::vector<double> dist_m(expected, kFarDistance);
+#ifdef _OPENMP
   #pragma omp parallel for
+#endif
   for (size_t i = 0; i < expected; ++i) {
     if (occ01[i] == 0U) {
       dist_m[i] = kESDFStrength;
