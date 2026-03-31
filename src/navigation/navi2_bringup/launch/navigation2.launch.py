@@ -33,26 +33,27 @@ def generate_launch_description():
             executable='static_transform_publisher',
             name='static_tf_map_to_camera_init',
             # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
-            # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
+            arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['6.8', '3.67', '0', '0', '0', '0', 'map', 'camera_init'],
-            arguments=['12', '4.5', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['12', '4.5', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['9', '6.0', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
         # 静态TF: camera_init -> body
-        launch_ros.actions.Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_tf_camera_init_to_body',
-            arguments=['0', '0', '0', '0', '0', '0', 'camera_init', 'body'],
-            output='screen'),
+        # launch_ros.actions.Node(
+        #     package='tf2_ros',
+        #     executable='static_transform_publisher',
+        #     name='static_tf_camera_init_to_body',
+        #     arguments=['0', '0', '0', '0', '0', '0', 'camera_init', 'body'],
+        #     output='screen'),
 
-        # 静态TF: body -> base_link
-        launch_ros.actions.Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_tf_body_to_base_link',
-            arguments=['0', '0.15', '0', '0', '0', '0', 'body', 'base_link'],
-            output='screen'),
+        # # 静态TF: body -> base_link
+        # launch_ros.actions.Node(
+        #     package='tf2_ros',
+        #     executable='static_transform_publisher',
+        #     name='static_tf_body_to_base_link',
+        #     arguments=['0', '0.15', '0', '0', '0', '0', 'body', 'base_link'],
+        #     output='screen'),
         # 声明新的 Launch 参数
         launch.actions.DeclareLaunchArgument('use_sim_time', default_value=use_sim_time,
                                              description='Use simulation (Gazebo) clock if true'),
@@ -68,7 +69,8 @@ def generate_launch_description():
             launch_arguments={
                 'map': map_yaml_path,
                 'use_sim_time': use_sim_time,
-                'params_file': nav2_param_path}.items(),
+                'params_file': nav2_param_path,
+                'log_level': 'warn'}.items(),
         ),           
         launch_ros.actions.Node(
             package='rviz2',
