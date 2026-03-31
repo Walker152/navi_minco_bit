@@ -17,12 +17,13 @@ void HybridESDFMap::initRos(
   const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
   const std::string & topic,
   double resolution,
-  double dynamic_size_m)
+  double dynamic_size_m,
+  double dynamic_dilation_radius_m)
 {
   if (!dynamic_layer_) {
     dynamic_layer_ = std::make_shared<DynamicLayer>();
   }
-  dynamic_layer_->configure(node, topic, resolution, dynamic_size_m);
+  dynamic_layer_->configure(node, topic, resolution, dynamic_size_m, dynamic_dilation_radius_m);
 }
 
 void HybridESDFMap::setRobotPosition(double x, double y)
