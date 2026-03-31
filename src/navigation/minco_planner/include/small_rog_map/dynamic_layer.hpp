@@ -7,6 +7,7 @@
 
 #include <limits>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <vector>
 
@@ -58,7 +59,8 @@ private:
 
   void buildDilationOffsets(int radius_cells, std::vector<Eigen::Vector2i> & offsets) const;
 
-  mutable std::mutex mutex_;
+  mutable std::shared_mutex rw_mutex_;
+  mutable std::mutex pose_mutex_;
 
   std::vector<double> dist_m_;
   int width_{0};
