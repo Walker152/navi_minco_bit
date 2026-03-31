@@ -282,9 +282,6 @@ void MincoPlanner::configure(
           const double y = map_pose.pose.position.y;
           if (esdf_map_) {
             esdf_map_->setRobotPosition(x, y);
-            std::cout << CYAN << "[MincoPlanner] "
-                      << "Updated robot position in ESDF map: (" << std::fixed << std::setprecision(2)
-                      << x << ", " << y << ")" << RESET << std::endl;
           }
         }
       } catch (const tf2::TransformException &) {
