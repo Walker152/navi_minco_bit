@@ -4,7 +4,7 @@
 # 输入/输出话题
 topics:
   input_cloud_topic: "/cloud_registered"
-  output_ground_topic: "/ground_points_map"
+  output_ground_topic: "/ground_points_map1"
   output_obstacles_topic: "/obstacle_clusters_map"
 
 # 深度聚类算法参数
@@ -12,11 +12,11 @@ clustering:
   vertical_resolution: 1.0
   horizontal_resolution: 0.2
   lidar_lines: 32
-  min_cluster_size: 3                     # 最小聚类点数（欧几里得聚类）
+  min_cluster_size: 2                     # 最小聚类点数（欧几里得聚类）
   ground:
-    max_slope_angle: 0.0                 # 地面最大允许角度（度）
-  normal_estimation_k: 15                 # 法线估计K近邻点数
-  depth_threshold: 0.8                    # 深度聚类阈值（米）
+    max_slope_angle: 30.0                 # 地面最大允许角度（度）
+  normal_estimation_k: 10                 # 法线估计K近邻点数
+  depth_threshold: 1.0                    # 深度聚类阈值（米）
   use_euclidean: true                     # 使用欧几里得聚类
   euclidean:
     cluster_tolerance: 1.0                # 基础聚类半径（米），若启用自适应则作为初始参考
