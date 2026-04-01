@@ -32,6 +32,10 @@ RosInterface::RosInterface()
     this->declare_parameter<int>("tracker.max_missed_frames", 3);
   tracker_config_.dynamic_speed_threshold =
     this->declare_parameter<double>("tracker.dynamic_speed_threshold", 0.2);
+  tracker_config_.alpha_size =
+    this->declare_parameter<double>("tracker.alpha_size", 0.2);
+  tracker_config_.alpha_orientation =
+    this->declare_parameter<double>("tracker.alpha_orientation", 0.2);
   tracker_config_.class_confirm_frames =
     this->declare_parameter<int>("tracker.class_confirm_frames", 3);
   tracker_config_.dt_default =

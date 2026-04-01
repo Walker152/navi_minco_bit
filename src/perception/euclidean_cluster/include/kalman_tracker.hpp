@@ -14,6 +14,8 @@ struct TrackerConfig
   float match_distance_threshold = 0.5f;
   int max_missed_frames = 3;
   float dynamic_speed_threshold = 0.2f;
+  float alpha_size = 0.2f;
+  float alpha_orientation = 0.2f;
   int class_confirm_frames = 3;
   float dt_default = 0.1f;
   float q_pos_x = 0.01f;
@@ -40,6 +42,8 @@ private:
     Eigen::Matrix<float, 4, 1> state = Eigen::Matrix<float, 4, 1>::Zero();
     Eigen::Matrix4f covariance = Eigen::Matrix4f::Identity();
     int missed_frames = 0;
+    Eigen::Vector3f size = Eigen::Vector3f::Zero();
+    Eigen::Quaternionf orientation = Eigen::Quaternionf::Identity();
     int dynamic_match_frames = 0;
     bool dynamic_confirmed = false;
   };
