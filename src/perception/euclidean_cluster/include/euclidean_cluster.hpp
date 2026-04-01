@@ -12,14 +12,13 @@ namespace EuclideanCluster
 
 struct ClusterConfig
 {
-  float z_min = 0.15f;
+  float z_min = 0.150;
   float z_max = 0.6f;
+  float max_detection_range = 10.0f;
   float leaf_size = 0.05f;
+  float cluster_tolerance = 0.2f;
   int min_cluster_size = 15;
-  int max_cluster_size = 1000;
-
-  std::vector<float> seg_distances{5.0f, 10.0f, 15.0f, 20.0f};
-  std::vector<float> cluster_distances{0.15f, 0.20f, 0.25f, 0.30f};
+  int max_cluster_size = 500;
 };
 
 class EuclideanClusterAlg
