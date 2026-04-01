@@ -14,14 +14,16 @@ euclidean_cluster_node:
       max_cluster_size: 500
 
     tracker:
-      match_distance_threshold: 0.4
-      max_missed_frames: 3
+      match_distance_threshold: 0.5
+      max_missed_frames: 5
       dynamic_speed_threshold: 0.2
+      alpha_size: 0.2
+      alpha_orientation: 0.2
       class_confirm_frames: 5
       dt_default: 0.05
       q_pos_x: 0.01
       q_pos_y: 0.01
-      q_vel_x: 0.25
-      q_vel_y: 0.25
-      r_pos_x: 0.04
-      r_pos_y: 0.04
+      q_vel_x: 0.05
+      q_vel_y: 0.05
+      r_pos_x: 0.05
+      r_pos_y: 0.05
