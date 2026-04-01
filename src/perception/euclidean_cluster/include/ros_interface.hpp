@@ -2,6 +2,8 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <ros_interfaces/msg/dynamic_obstacle.hpp>
+#include <ros_interfaces/msg/dynamic_obstacle_array.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
 #include "euclidean_cluster.hpp"
@@ -25,6 +27,7 @@ private:
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_point_cloud_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_markers_;
+  rclcpp::Publisher<ros_interfaces::msg::DynamicObstacleArray>::SharedPtr pub_obstacles_;
 
   rclcpp::Time last_stamp_{0, 0, RCL_ROS_TIME};
   bool has_last_stamp_ = false;
