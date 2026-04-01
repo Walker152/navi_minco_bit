@@ -35,10 +35,11 @@ def generate_launch_description():
             # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
             arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['6.8', '3.67', '0', '0', '0', '0', 'map', 'camera_init'],
-            # arguments=['10.0', '1.0', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['12', '4.5', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['9', '6.0', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
-        # # 静态TF: camera_init -> body
+        # 静态TF: camera_init -> body
         # launch_ros.actions.Node(
         #     package='tf2_ros',
         #     executable='static_transform_publisher',
@@ -68,7 +69,8 @@ def generate_launch_description():
             launch_arguments={
                 'map': map_yaml_path,
                 'use_sim_time': use_sim_time,
-                'params_file': nav2_param_path}.items(),
+                'params_file': nav2_param_path,
+                'log_level': 'warn'}.items(),
         ),           
         launch_ros.actions.Node(
             package='rviz2',
