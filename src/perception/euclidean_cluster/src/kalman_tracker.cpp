@@ -14,9 +14,18 @@ void KalmanTracker::configure(const TrackerConfig & config)
 
 void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt)
 {
+  const float dt_default = std::max(1e-3f, config_.dt_default);
+  const float q_pos_x = std::max(1e-6f, config_.q_pos_x);
+  const float q_pos_y = std::max(1e-6f, config_.q_pos_y);
+  const float q_vel_x = std::max(1e-6f, config_.q_vel_x);
+  const float q_vel_y = std::max(1e-6f, config_.q_vel_y);
+  const float r_pos_x = std::max(1e-6f, config_.r_pos_x);
+  const float r_pos_y = std::max(1e-6f, config_.r_pos_y);
+
   if (!(std::isfinite(dt) && dt > 1e-3f)) {
-    dt = 0.1f;
+    dt = dt_default;
   }
+  const int confirm_frames = std::max(1, config_.class_confirm_frames);
 
   Eigen::Matrix4f F = Eigen::Matrix4f::Identity();
   F(0, 2) = dt;
@@ -28,12 +37,14 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
   H(1, 1) = 1.0f;
 
   Eigen::Matrix4f Q = Eigen::Matrix4f::Identity();
-  Q(0, 0) = 0.01f;
-  Q(1, 1) = 0.01f;
-  Q(2, 2) = 0.25f;
-  Q(3, 3) = 0.25f;
+  Q(0, 0) = q_pos_x;
+  Q(1, 1) = q_pos_y;
+  Q(2, 2) = q_vel_x;
+  Q(3, 3) = q_vel_y;
 
-  Eigen::Matrix2f R = Eigen::Matrix2f::Identity() * 0.04f;
+  Eigen::Matrix2f R = Eigen::Matrix2f::Zero();
+  R(0, 0) = r_pos_x;
+  R(1, 1) = r_pos_y;
 
   const size_t prev_track_count = tracked_objects_.size();
   for (size_t i = 0; i < prev_track_count; ++i) {
@@ -87,6 +98,18 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
     obj.vy = track.state(3);
     obj.speed = std::sqrt(obj.vx * obj.vx + obj.vy * obj.vy);
 
+    if (obj.speed > config_.dynamic_speed_threshold) {
+      track.dynamic_match_frames++;
+    } else {
+      track.dynamic_match_frames = 0;
+      track.dynamic_confirmed = false;
+    }
+
+    if (track.dynamic_match_frames > confirm_frames) {
+      track.dynamic_confirmed = true;
+    }
+    obj.dynamic_confirmed = track.dynamic_confirmed;
+
     object_assigned[static_cast<size_t>(obj_idx)] = true;
     track_assigned[static_cast<size_t>(trk_idx)] = true;
   }
@@ -104,12 +127,15 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
     new_track.covariance(2, 2) = 4.0f;
     new_track.covariance(3, 3) = 4.0f;
     new_track.missed_frames = 0;
+    new_track.dynamic_match_frames = 0;
+    new_track.dynamic_confirmed = false;
     tracked_objects_.push_back(new_track);
 
     current_objects[obj_idx].track_id = new_track.id;
     current_objects[obj_idx].vx = 0.0f;
     current_objects[obj_idx].vy = 0.0f;
     current_objects[obj_idx].speed = 0.0f;
+    current_objects[obj_idx].dynamic_confirmed = false;
   }
 
   for (size_t trk_idx = 0; trk_idx < prev_track_count; ++trk_idx) {
