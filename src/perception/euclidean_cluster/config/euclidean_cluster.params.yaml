@@ -9,7 +9,7 @@ euclidean_cluster_node:
       z_max: 0.6
       max_detection_range: 10.0
       leaf_size: 0.05
-      cluster_tolerance: 0.2
+      cluster_tolerance: 0.1
       min_cluster_size: 15
       max_cluster_size: 500
 
