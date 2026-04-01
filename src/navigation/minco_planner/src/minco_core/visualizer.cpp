@@ -66,7 +66,7 @@ void Visualizer::configure(
   // 1Hz ESDF timer (only if enabled)
   if (enable_esdf_timer) {
     esdf_timer_ = node->create_wall_timer(
-      std::chrono::milliseconds(1000),
+      std::chrono::milliseconds(50),
       [this]() {
         auto node_ptr = node_.lock();
         if (!node_ptr) {
