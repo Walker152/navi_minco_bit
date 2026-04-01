@@ -56,6 +56,7 @@ private:
     double t_step) const;
 
   void publishEsdfCloud(const std_msgs::msg::Header & header);
+  void publishGlobalEsdfCloud(const std_msgs::msg::Header & header);
 
   nav2_util::LifecycleNode::WeakPtr node_;
   std::string global_frame_;
@@ -63,6 +64,7 @@ private:
   // ESDF
   small_rog_map::HybridESDFMap::Ptr esdf_map_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr esdf_cloud_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr global_esdf_cloud_pub_;
   rclcpp::TimerBase::SharedPtr esdf_timer_;
 
   // Visualization publishers
