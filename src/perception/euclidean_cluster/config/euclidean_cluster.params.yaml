@@ -7,23 +7,23 @@ euclidean_cluster_node:
     cluster:
       z_min: 0.05
       z_max: 0.8
-      max_detection_range: 10.0
+      max_detection_range: 20.0
       leaf_size: 0.05
       cluster_tolerance: 0.15
-      min_cluster_size: 40
-      max_cluster_size: 500
+      min_cluster_size: 30
+      max_cluster_size: 200
 
     tracker:
-      match_distance_threshold: 0.5
+      match_distance_threshold: 0.6
       max_missed_frames: 5
-      dynamic_speed_threshold: 0.2
-      alpha_size: 0.2
+      dynamic_speed_threshold: 0.15
+      alpha_size: 0.02
       alpha_orientation: 0.2
-      class_confirm_frames: 5
-      dt_default: 0.05
-      q_pos_x: 0.01
-      q_pos_y: 0.01
-      q_vel_x: 0.05
-      q_vel_y: 0.05
-      r_pos_x: 0.05
-      r_pos_y: 0.05
+      class_confirm_frames: 4
+      dt_default: 0.1
+      q_pos_x: 0.05
+      q_pos_y: 0.05
+      q_vel_x: 0.15
+      q_vel_y: 0.15
+      r_pos_x: 0.1
+      r_pos_y: 0.1
