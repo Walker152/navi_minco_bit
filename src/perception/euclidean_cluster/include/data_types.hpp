@@ -16,6 +16,7 @@ struct Detected_Obj
   float vx = 0.0f;
   float vy = 0.0f;
   float speed = 0.0f;
+  bool dynamic_confirmed = false;
 };
 
 }  // namespace EuclideanCluster
