@@ -21,6 +21,8 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
   const float q_vel_y = std::max(1e-6f, config_.q_vel_y);
   const float r_pos_x = std::max(1e-6f, config_.r_pos_x);
   const float r_pos_y = std::max(1e-6f, config_.r_pos_y);
+  const float alpha_size = std::clamp(config_.alpha_size, 0.0f, 1.0f);
+  const float alpha_orientation = std::clamp(config_.alpha_orientation, 0.0f, 1.0f);
 
   if (!(std::isfinite(dt) && dt > 1e-3f)) {
     dt = dt_default;
@@ -98,16 +100,34 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
     obj.vy = track.state(3);
     obj.speed = std::sqrt(obj.vx * obj.vx + obj.vy * obj.vy);
 
+    if (track.size.squaredNorm() < 1e-6f) {
+      track.size = obj.size;
+    } else {
+      track.size = (1.0f - alpha_size) * track.size + alpha_size * obj.size;
+    }
+
+    if (track.orientation.norm() < 1e-6f) {
+      track.orientation = obj.orientation;
+    } else {
+      if (track.orientation.dot(obj.orientation) < 0.0f) {
+        obj.orientation.coeffs() *= -1.0f;
+      }
+      track.orientation = track.orientation.slerp(alpha_orientation, obj.orientation).normalized();
+    }
+
     if (obj.speed > config_.dynamic_speed_threshold) {
       track.dynamic_match_frames++;
-    } else {
+    } else if (obj.speed < config_.dynamic_speed_threshold * 0.4f) {
       track.dynamic_match_frames = 0;
       track.dynamic_confirmed = false;
     }
 
-    if (track.dynamic_match_frames > confirm_frames) {
+    if (track.dynamic_match_frames >= confirm_frames) {
       track.dynamic_confirmed = true;
     }
+
+    obj.size = track.size;
+    obj.orientation = track.orientation;
     obj.dynamic_confirmed = track.dynamic_confirmed;
 
     object_assigned[static_cast<size_t>(obj_idx)] = true;
@@ -127,6 +147,8 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
     new_track.covariance(2, 2) = 4.0f;
     new_track.covariance(3, 3) = 4.0f;
     new_track.missed_frames = 0;
+    new_track.size = current_objects[obj_idx].size;
+    new_track.orientation = current_objects[obj_idx].orientation;
     new_track.dynamic_match_frames = 0;
     new_track.dynamic_confirmed = false;
     tracked_objects_.push_back(new_track);
@@ -142,6 +164,27 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
     if (!track_assigned[trk_idx]) {
       tracked_objects_[trk_idx].missed_frames++;
     }
+  }
+
+  for (size_t trk_idx = 0; trk_idx < prev_track_count; ++trk_idx) {
+    if (track_assigned[trk_idx]) {
+      continue;
+    }
+    const auto & track = tracked_objects_[trk_idx];
+    if (track.missed_frames > config_.max_missed_frames) {
+      continue;
+    }
+
+    Detected_Obj predicted_obj;
+    predicted_obj.track_id = track.id;
+    predicted_obj.centroid = Eigen::Vector3f(track.state(0), track.state(1), 0.2f);
+    predicted_obj.size = track.size;
+    predicted_obj.orientation = track.orientation;
+    predicted_obj.vx = track.state(2);
+    predicted_obj.vy = track.state(3);
+    predicted_obj.speed = std::sqrt(predicted_obj.vx * predicted_obj.vx + predicted_obj.vy * predicted_obj.vy);
+    predicted_obj.dynamic_confirmed = track.dynamic_confirmed;
+    current_objects.push_back(predicted_obj);
   }
 
   tracked_objects_.erase(

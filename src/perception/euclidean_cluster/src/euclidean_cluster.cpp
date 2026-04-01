@@ -3,6 +3,8 @@
 #include <cmath>
 #include <limits>
 
+#include <Eigen/Eigenvalues>
+
 #include <pcl/common/centroid.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/voxel_grid.h>
@@ -112,29 +114,80 @@ void EuclideanClusterAlg::clusterSegment(
       continue;
     }
 
-    Eigen::Vector3f min_pt(
-      std::numeric_limits<float>::max(),
-      std::numeric_limits<float>::max(),
-      std::numeric_limits<float>::max());
-    Eigen::Vector3f max_pt(
-      -std::numeric_limits<float>::max(),
-      -std::numeric_limits<float>::max(),
-      -std::numeric_limits<float>::max());
+    float min_z = std::numeric_limits<float>::max();
+    float max_z = -std::numeric_limits<float>::max();
 
+    Eigen::Vector2f mean_xy = Eigen::Vector2f::Zero();
     for (const auto & p : cluster->points) {
-      const Eigen::Vector3f pt(p.x, p.y, p.z);
-      min_pt = min_pt.cwiseMin(pt);
-      max_pt = max_pt.cwiseMax(pt);
+      mean_xy.x() += p.x;
+      mean_xy.y() += p.y;
+      min_z = std::min(min_z, p.z);
+      max_z = std::max(max_z, p.z);
+    }
+    mean_xy /= static_cast<float>(cluster->size());
+
+    Eigen::Matrix2f covariance = Eigen::Matrix2f::Zero();
+    for (const auto & p : cluster->points) {
+      const Eigen::Vector2f d(p.x - mean_xy.x(), p.y - mean_xy.y());
+      covariance += d * d.transpose();
+    }
+    covariance /= static_cast<float>(cluster->size());
+
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix2f> eig_solver(covariance, Eigen::ComputeEigenvectors);
+    if (eig_solver.info() != Eigen::Success) {
+      continue;
     }
 
+    Eigen::Vector2f primary = eig_solver.eigenvectors().col(1).normalized();
+    Eigen::Vector2f secondary(-primary.y(), primary.x());
+
+    float min_p = std::numeric_limits<float>::max();
+    float max_p = -std::numeric_limits<float>::max();
+    float min_s = std::numeric_limits<float>::max();
+    float max_s = -std::numeric_limits<float>::max();
+    for (const auto & p : cluster->points) {
+      const Eigen::Vector2f d(p.x - mean_xy.x(), p.y - mean_xy.y());
+      const float proj_p = d.dot(primary);
+      const float proj_s = d.dot(secondary);
+      min_p = std::min(min_p, proj_p);
+      max_p = std::max(max_p, proj_p);
+      min_s = std::min(min_s, proj_s);
+      max_s = std::max(max_s, proj_s);
+    }
+
+    float length = max_p - min_p;
+    float width = max_s - min_s;
+    if (width > length) {
+      std::swap(length, width);
+      std::swap(primary, secondary);
+      if (primary.x() * secondary.y() - primary.y() * secondary.x() < 0.0f) {
+        secondary = -secondary;
+      }
+      // Keep projection center consistent after axis swap.
+      std::swap(min_p, min_s);
+      std::swap(max_p, max_s);
+    }
+
+    const float c_p = 0.5f * (min_p + max_p);
+    const float c_s = 0.5f * (min_s + max_s);
+    const Eigen::Vector2f center_xy = mean_xy + primary * c_p + secondary * c_s;
+
+    Eigen::Matrix3f basis = Eigen::Matrix3f::Identity();
+    basis.col(0) = Eigen::Vector3f(primary.x(), primary.y(), 0.0f);
+    basis.col(1) = Eigen::Vector3f(secondary.x(), secondary.y(), 0.0f);
+    basis.col(2) = Eigen::Vector3f(0.0f, 0.0f, 1.0f);
+
+    const float height = std::max(0.01f, max_z - min_z);
+
     Detected_Obj obj;
-    obj.centroid = 0.5f * (min_pt + max_pt);
-    obj.size = (max_pt - min_pt).cwiseAbs().cwiseMax(Eigen::Vector3f(0.01f, 0.01f, 0.01f));
-    obj.orientation = Eigen::Quaternionf::Identity();
+    obj.centroid = Eigen::Vector3f(center_xy.x(), center_xy.y(), 0.5f * (min_z + max_z));
+    obj.size = Eigen::Vector3f(std::max(0.01f, length), std::max(0.01f, width), height);
+    obj.orientation = Eigen::Quaternionf(basis);
     obj.track_id = -1;
     obj.vx = 0.0f;
     obj.vy = 0.0f;
     obj.speed = 0.0f;
+    obj.dynamic_confirmed = false;
 
     obj_list.push_back(obj);
   }
