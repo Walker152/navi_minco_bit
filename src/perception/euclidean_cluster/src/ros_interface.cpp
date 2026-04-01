@@ -32,6 +32,22 @@ RosInterface::RosInterface()
     this->declare_parameter<int>("tracker.max_missed_frames", 3);
   tracker_config_.dynamic_speed_threshold =
     this->declare_parameter<double>("tracker.dynamic_speed_threshold", 0.2);
+  tracker_config_.class_confirm_frames =
+    this->declare_parameter<int>("tracker.class_confirm_frames", 3);
+  tracker_config_.dt_default =
+    this->declare_parameter<double>("tracker.dt_default", 0.1);
+  tracker_config_.q_pos_x =
+    this->declare_parameter<double>("tracker.q_pos_x", 0.01);
+  tracker_config_.q_pos_y =
+    this->declare_parameter<double>("tracker.q_pos_y", 0.01);
+  tracker_config_.q_vel_x =
+    this->declare_parameter<double>("tracker.q_vel_x", 0.25);
+  tracker_config_.q_vel_y =
+    this->declare_parameter<double>("tracker.q_vel_y", 0.25);
+  tracker_config_.r_pos_x =
+    this->declare_parameter<double>("tracker.r_pos_x", 0.04);
+  tracker_config_.r_pos_y =
+    this->declare_parameter<double>("tracker.r_pos_y", 0.04);
 
   cluster_alg_.configure(cluster_config_);
   tracker_alg_.configure(tracker_config_);
@@ -54,7 +70,7 @@ void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::Const
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
   pcl::fromROSMsg(*msg, *cloud);
 
-  float dt = 0.1f;
+  float dt = std::max(1e-3f, tracker_config_.dt_default);
   rclcpp::Time current_stamp(msg->header.stamp);
   if (current_stamp.nanoseconds() == 0) {
     current_stamp = this->now();
@@ -124,7 +140,7 @@ void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::Const
     mk.scale.y = objects[i].size.y();
     mk.scale.z = objects[i].size.z();
 
-    if (objects[i].speed > tracker_config_.dynamic_speed_threshold) {
+    if (objects[i].dynamic_confirmed) {
       mk.color.r = 1.0f;
       mk.color.g = 0.2f;
       mk.color.b = 0.2f;

@@ -3,8 +3,6 @@
 #include <cmath>
 #include <limits>
 
-#include <Eigen/Eigenvalues>
-
 #include <pcl/common/centroid.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/voxel_grid.h>
@@ -114,46 +112,25 @@ void EuclideanClusterAlg::clusterSegment(
       continue;
     }
 
-    Eigen::Vector4f centroid4f;
-    pcl::compute3DCentroid(*cluster, centroid4f);
-    const Eigen::Vector3f centroid = centroid4f.head<3>();
-
-    Eigen::Matrix3f covariance;
-    pcl::computeCovarianceMatrixNormalized(*cluster, centroid4f, covariance);
-
-    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> solver(covariance, Eigen::ComputeEigenvectors);
-    if (solver.info() != Eigen::Success) {
-      continue;
-    }
-
-    Eigen::Matrix3f basis;
-    basis.col(0) = solver.eigenvectors().col(2).normalized();
-    basis.col(1) = solver.eigenvectors().col(1).normalized();
-    basis.col(2) = basis.col(0).cross(basis.col(1)).normalized();
-    basis.col(1) = basis.col(2).cross(basis.col(0)).normalized();
-
-    Eigen::Vector3f proj_min(
+    Eigen::Vector3f min_pt(
       std::numeric_limits<float>::max(),
       std::numeric_limits<float>::max(),
       std::numeric_limits<float>::max());
-    Eigen::Vector3f proj_max(
+    Eigen::Vector3f max_pt(
       -std::numeric_limits<float>::max(),
       -std::numeric_limits<float>::max(),
       -std::numeric_limits<float>::max());
 
     for (const auto & p : cluster->points) {
       const Eigen::Vector3f pt(p.x, p.y, p.z);
-      const Eigen::Vector3f local = basis.transpose() * (pt - centroid);
-      proj_min = proj_min.cwiseMin(local);
-      proj_max = proj_max.cwiseMax(local);
+      min_pt = min_pt.cwiseMin(pt);
+      max_pt = max_pt.cwiseMax(pt);
     }
 
-    const Eigen::Vector3f local_center = 0.5f * (proj_min + proj_max);
-
     Detected_Obj obj;
-    obj.centroid = centroid + basis * local_center;
-    obj.size = (proj_max - proj_min).cwiseAbs().cwiseMax(Eigen::Vector3f(0.01f, 0.01f, 0.01f));
-    obj.orientation = Eigen::Quaternionf(basis);
+    obj.centroid = 0.5f * (min_pt + max_pt);
+    obj.size = (max_pt - min_pt).cwiseAbs().cwiseMax(Eigen::Vector3f(0.01f, 0.01f, 0.01f));
+    obj.orientation = Eigen::Quaternionf::Identity();
     obj.track_id = -1;
     obj.vx = 0.0f;
     obj.vy = 0.0f;
