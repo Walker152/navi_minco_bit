@@ -1,7 +1,9 @@
 #include "small_rog_map/hybrid_esdf_map.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <iostream>
 #include <limits>
 
 namespace small_rog_map
