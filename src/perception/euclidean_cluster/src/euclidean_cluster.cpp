@@ -56,37 +56,25 @@ void EuclideanClusterAlg::clusterByDistance(
   const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud,
   std::vector<Detected_Obj> & obj_list) const
 {
-  const size_t seg_count = config_.seg_distances.size() + 1;
-  std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> segments(seg_count);
-  for (size_t i = 0; i < seg_count; ++i) {
-    segments[i].reset(new pcl::PointCloud<pcl::PointXYZ>);
+  if (!in_cloud || in_cloud->empty()) {
+    return;
   }
+
+  pcl::PointCloud<pcl::PointXYZ>::Ptr near_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  near_cloud->reserve(in_cloud->size());
 
   for (const auto & p : in_cloud->points) {
     const float dist = std::sqrt(p.x * p.x + p.y * p.y);
-    if (dist >= 120.0f) {
-      continue;
+    if (dist <= config_.max_detection_range) {
+      near_cloud->points.push_back(p);
     }
-
-    size_t idx = config_.seg_distances.size();
-    for (size_t i = 0; i < config_.seg_distances.size(); ++i) {
-      if (dist < config_.seg_distances[i]) {
-        idx = i;
-        break;
-      }
-    }
-    segments[idx]->points.push_back(p);
   }
 
-  const float fallback_cluster_dist = 0.3f;
-  for (size_t i = 0; i < segments.size(); ++i) {
-    float cluster_dist = fallback_cluster_dist;
-    if (!config_.cluster_distances.empty()) {
-      const size_t d_idx = std::min(i, config_.cluster_distances.size() - 1);
-      cluster_dist = config_.cluster_distances[d_idx];
-    }
-    clusterSegment(segments[i], cluster_dist, obj_list);
+  if (near_cloud->empty()) {
+    return;
   }
+
+  clusterSegment(near_cloud, config_.cluster_tolerance, obj_list);
 }
 
 void EuclideanClusterAlg::clusterSegment(

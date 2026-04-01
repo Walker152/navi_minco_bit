@@ -14,21 +14,17 @@ RosInterface::RosInterface()
   const std::string input_topic = this->declare_parameter<std::string>(
     "topics.input", "/filtered_points_no_ground");
   const std::string output_topic = this->declare_parameter<std::string>(
-    "topics.output", "/detected_bounding_boxs");
+    "topics.output", "/clustered_obstacles");
 
   cluster_config_.z_min = this->declare_parameter<double>("cluster.z_min", 0.15);
   cluster_config_.z_max = this->declare_parameter<double>("cluster.z_max", 0.6);
+  cluster_config_.max_detection_range =
+    this->declare_parameter<double>("cluster.max_detection_range", 10.0);
   cluster_config_.leaf_size = this->declare_parameter<double>("cluster.leaf_size", 0.05);
+  cluster_config_.cluster_tolerance =
+    this->declare_parameter<double>("cluster.cluster_tolerance", 0.2);
   cluster_config_.min_cluster_size = this->declare_parameter<int>("cluster.min_cluster_size", 15);
   cluster_config_.max_cluster_size = this->declare_parameter<int>("cluster.max_cluster_size", 1000);
-
-  const auto seg_d = this->declare_parameter<std::vector<double>>(
-    "cluster.seg_distances", {5.0, 10.0, 15.0, 20.0});
-  cluster_config_.seg_distances.assign(seg_d.begin(), seg_d.end());
-
-  const auto clu_d = this->declare_parameter<std::vector<double>>(
-    "cluster.cluster_distances", {0.15, 0.20, 0.25, 0.30});
-  cluster_config_.cluster_distances.assign(clu_d.begin(), clu_d.end());
 
   tracker_config_.match_distance_threshold =
     this->declare_parameter<double>("tracker.match_distance_threshold", 0.5);
@@ -46,8 +42,11 @@ RosInterface::RosInterface()
     std::bind(&RosInterface::pointCloudCallback, this, std::placeholders::_1));
 
   pub_markers_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
-    output_topic,
+    "/clustered_obstacles_vis",
     rclcpp::QoS(rclcpp::KeepLast(5)));
+  pub_obstacles_ = this->create_publisher<ros_interfaces::msg::DynamicObstacleArray>(
+    output_topic,
+    rclcpp::QoS(rclcpp::KeepLast(10)));
 };
 
 void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg)
@@ -73,6 +72,9 @@ void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::Const
   cluster_alg_.processCloud(cloud, objects);
   tracker_alg_.update(objects, dt);
 
+  ros_interfaces::msg::DynamicObstacleArray obstacle_array_msg;
+  obstacle_array_msg.header = msg->header;
+
   visualization_msgs::msg::MarkerArray marker_array;
   visualization_msgs::msg::Marker clear_marker;
   clear_marker.header = msg->header;
@@ -80,6 +82,28 @@ void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::Const
   marker_array.markers.push_back(clear_marker);
 
   for (size_t i = 0; i < objects.size(); ++i) {
+    ros_interfaces::msg::DynamicObstacle obstacle_msg;
+    obstacle_msg.id = (objects[i].track_id >= 0) ? objects[i].track_id : static_cast<int>(i);
+    obstacle_msg.centroid.x = objects[i].centroid.x();
+    obstacle_msg.centroid.y = objects[i].centroid.y();
+    obstacle_msg.centroid.z = objects[i].centroid.z();
+
+    obstacle_msg.size.x = objects[i].size.x();
+    obstacle_msg.size.y = objects[i].size.y();
+    obstacle_msg.size.z = objects[i].size.z();
+
+    obstacle_msg.orientation.x = objects[i].orientation.x();
+    obstacle_msg.orientation.y = objects[i].orientation.y();
+    obstacle_msg.orientation.z = objects[i].orientation.z();
+    obstacle_msg.orientation.w = objects[i].orientation.w();
+
+    obstacle_msg.velocity.x = objects[i].vx;
+    obstacle_msg.velocity.y = objects[i].vy;
+    obstacle_msg.velocity.z = 0.0;
+    obstacle_msg.speed = objects[i].speed;
+
+    obstacle_array_msg.obstacles.push_back(obstacle_msg);
+
     visualization_msgs::msg::Marker mk;
     mk.header = msg->header;
     mk.ns = "euclidean_cluster";
@@ -126,6 +150,7 @@ void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::Const
   }
 
   pub_markers_->publish(marker_array);
+  pub_obstacles_->publish(obstacle_array_msg);
 }
 
 }  // namespace EuclideanCluster
