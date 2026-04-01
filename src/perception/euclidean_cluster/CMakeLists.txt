@@ -11,6 +11,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
+find_package(ros_interfaces REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common filters segmentation search)
 
 include_directories(
@@ -33,6 +34,7 @@ ament_target_dependencies(${PROJECT_NAME}_node
   std_msgs
   visualization_msgs
   pcl_conversions
+  ros_interfaces
 )
 
 target_link_libraries(${PROJECT_NAME}_node

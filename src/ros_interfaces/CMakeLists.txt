@@ -26,6 +26,8 @@ set(msg_files
   "msg/MultiDetect.msg"
   "msg/EventStatus.msg"
   "msg/Nav.msg"
+  "msg/cluster/DynamicObstacle.msg"
+  "msg/cluster/DynamicObstacleArray.msg"
   "msg/minco_traj/PositionCommand.msg"
   "msg/minco_traj/MpcPositionCommand.msg"
   "msg/Behavior.msg"
