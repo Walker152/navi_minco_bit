@@ -1,17 +1,17 @@
 euclidean_cluster_node:
   ros__parameters:
     topics:
-      input: /filtered_points_no_ground
-      output: /detected_bounding_boxs
+      input: /cloud_registered_dense
+      output: /clustered_obstacles
 
     cluster:
-      z_min: 0.15
+      z_min: 0.05
       z_max: 0.6
+      max_detection_range: 10.0
       leaf_size: 0.05
+      cluster_tolerance: 0.2
       min_cluster_size: 15
-      max_cluster_size: 1000
-      seg_distances: [5.0, 10.0, 15.0, 20.0]
-      cluster_distances: [0.15, 0.20, 0.25, 0.30]
+      max_cluster_size: 500
 
     tracker:
       match_distance_threshold: 0.5
