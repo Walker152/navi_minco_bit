@@ -14,6 +14,14 @@ struct TrackerConfig
   float match_distance_threshold = 0.5f;
   int max_missed_frames = 3;
   float dynamic_speed_threshold = 0.2f;
+  int class_confirm_frames = 3;
+  float dt_default = 0.1f;
+  float q_pos_x = 0.01f;
+  float q_pos_y = 0.01f;
+  float q_vel_x = 0.25f;
+  float q_vel_y = 0.25f;
+  float r_pos_x = 0.04f;
+  float r_pos_y = 0.04f;
 };
 
 class KalmanTracker
@@ -32,6 +40,8 @@ private:
     Eigen::Matrix<float, 4, 1> state = Eigen::Matrix<float, 4, 1>::Zero();
     Eigen::Matrix4f covariance = Eigen::Matrix4f::Identity();
     int missed_frames = 0;
+    int dynamic_match_frames = 0;
+    bool dynamic_confirmed = false;
   };
 
   TrackerConfig config_;
