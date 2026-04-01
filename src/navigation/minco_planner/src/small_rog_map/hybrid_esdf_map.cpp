@@ -110,7 +110,11 @@ void HybridESDFMap::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::
   if (dynamic_layer_ && dynamic_layer_->isValid()) {
     dynamic_valid = dynamic_layer_->isInside(Eigen::Vector2d(pos.x(), pos.y()));
     if (dynamic_valid) {
+      auto time_start = std::chrono::steady_clock::now();
       dynamic_layer_->evaluate(pos, d_dynamic, g_dynamic);
+      auto time_end = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed = time_end - time_start;
+      std::cout << "[HybridESDFMap] Dynamic layer evaluation time: " << elapsed.count() * 1000.0 << " ms" << std::endl;
       clamp(d_dynamic, g_dynamic);
     }
   }
