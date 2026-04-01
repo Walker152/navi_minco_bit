@@ -4,6 +4,8 @@
 #include <cmath>
 #include <tuple>
 
+#include <Eigen/Geometry>
+
 namespace EuclideanCluster
 {
 
@@ -100,6 +102,21 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
     obj.vy = track.state(3);
     obj.speed = std::sqrt(obj.vx * obj.vx + obj.vy * obj.vy);
 
+    // --- 1. PCA 边长 90度 防翻转对齐 ---
+    if (track.size.squaredNorm() > 1e-6f) {
+      float diff_no_swap = std::abs(obj.size.x() - track.size.x()) + std::abs(obj.size.y() - track.size.y());
+      float diff_swap = std::abs(obj.size.x() - track.size.y()) + std::abs(obj.size.y() - track.size.x());
+
+      // 如果交换长宽后与历史尺寸更匹配，说明 PCA 发生了 90 度主轴跳变
+      if (diff_swap < diff_no_swap) {
+        std::swap(obj.size.x(), obj.size.y());
+        // 补偿 90 度旋转，以对齐历史坐标系
+        Eigen::Quaternionf rot90(Eigen::AngleAxisf(static_cast<float>(M_PI) / 2.0f, Eigen::Vector3f::UnitZ()));
+        obj.orientation = obj.orientation * rot90;
+      }
+    }
+
+    // --- 2. 尺寸与角度的低通平滑 ---
     if (track.size.squaredNorm() < 1e-6f) {
       track.size = obj.size;
     } else {
@@ -115,15 +132,22 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
       track.orientation = track.orientation.slerp(alpha_orientation, obj.orientation).normalized();
     }
 
+    // --- 3. 漏桶算法 (Leaky Bucket)：防闪烁与防滞后 ---
     if (obj.speed > config_.dynamic_speed_threshold) {
-      track.dynamic_match_frames++;
-    } else if (obj.speed < config_.dynamic_speed_threshold * 0.4f) {
-      track.dynamic_match_frames = 0;
-      track.dynamic_confirmed = false;
+      track.dynamic_match_frames += 2; // 移动时：+2 快速增加信任 (彻底解决滞后)
+    } else if (obj.speed < config_.dynamic_speed_threshold * 0.5f) {
+      track.dynamic_match_frames -= 1; // 停止/跳变时：-1 缓慢扣除信任 (彻底解决单帧跳变引起的闪烁)
     }
 
+    // 将计数器限制在 0 到 confirm_frames * 3 之间（设置上限防止溢出）
+    int max_frames = confirm_frames * 3;
+    track.dynamic_match_frames = std::clamp(track.dynamic_match_frames, 0, max_frames);
+
+    // 状态确认逻辑
     if (track.dynamic_match_frames >= confirm_frames) {
       track.dynamic_confirmed = true;
+    } else if (track.dynamic_match_frames == 0) {
+      track.dynamic_confirmed = false;
     }
 
     obj.size = track.size;
