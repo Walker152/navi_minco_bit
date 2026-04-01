@@ -6,14 +6,11 @@
 ## 目录结构
 
 ### 顶层目录
-- src/decision: 决策相关包
-- src/navigation: 导航与控制相关包
-- src/perception: 感知与地图相关包
-- src/ros_interfaces: 消息与接口定义
-- src/utils: 工具类包
-- build/: colcon 构建产物
-- install/: colcon 安装产物
-- log/: 运行与构建日志
+- decision: 决策相关包
+- navigation: 导航与控制相关包
+- perception: 感知与地图相关包
+- ros_interfaces: 消息与接口定义
+- utils: 工具类包
 
 ### 包结构清单
 
@@ -63,6 +60,7 @@
 - lidar_merger: 多源点云融合。
 - msg_convert: 感知链路消息格式转换。
 - rog_map: 地图与距离场相关能力。
+- pclfilter: ROS2 版本 Depth Cluster（地面分割与障碍物聚类）。
 
 ### 接口与工具层
 - ros_interfaces: 自定义消息、服务、动作接口。
