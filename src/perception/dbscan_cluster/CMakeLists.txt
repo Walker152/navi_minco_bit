@@ -1,5 +1,13 @@
 cmake_minimum_required(VERSION 3.8)
-project(euclidean_cluster)
+project(dbscan_cluster)
+
+if(POLICY CMP0074)
+  cmake_policy(SET CMP0074 NEW)
+endif()
+
+if(DEFINED PYTHON_EXECUTABLE)
+  message(STATUS "PYTHON_EXECUTABLE provided by caller: ${PYTHON_EXECUTABLE}")
+endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -22,9 +30,9 @@ link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
 add_executable(${PROJECT_NAME}_node
-  src/euclidean_cluster_node.cpp
+  src/dbscan_cluster_node.cpp
   src/ros_interface.cpp
-  src/euclidean_cluster.cpp
+  src/dbscan_cluster.cpp
   src/kalman_tracker.cpp
 )
 

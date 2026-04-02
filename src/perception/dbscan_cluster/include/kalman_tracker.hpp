@@ -6,7 +6,7 @@
 
 #include "data_types.hpp"
 
-namespace EuclideanCluster
+namespace DBSCANCluster
 {
 
 struct TrackerConfig
@@ -22,8 +22,13 @@ struct TrackerConfig
   float q_pos_y = 0.01f;
   float q_vel_x = 0.25f;
   float q_vel_y = 0.25f;
+  float q_acc_x = 0.5f;
+  float q_acc_y = 0.5f;
   float r_pos_x = 0.04f;
   float r_pos_y = 0.04f;
+  float association_spatial_weight = 0.7f;
+  float association_shape_weight = 0.3f;
+  float association_gate_scale = 1.5f;
 };
 
 class KalmanTracker
@@ -39,8 +44,8 @@ private:
   {
     int id = -1;
     Eigen::Vector2f position = Eigen::Vector2f::Zero();
-    Eigen::Matrix<float, 4, 1> state = Eigen::Matrix<float, 4, 1>::Zero();
-    Eigen::Matrix4f covariance = Eigen::Matrix4f::Identity();
+    Eigen::Matrix<float, 6, 1> state = Eigen::Matrix<float, 6, 1>::Zero();
+    Eigen::Matrix<float, 6, 6> covariance = Eigen::Matrix<float, 6, 6>::Identity();
     int missed_frames = 0;
     Eigen::Vector3f size = Eigen::Vector3f::Zero();
     Eigen::Quaternionf orientation = Eigen::Quaternionf::Identity();
@@ -53,4 +58,4 @@ private:
   int next_track_id_ = 0;
 };
 
-}  // namespace EuclideanCluster
+}  // namespace DBSCANCluster
