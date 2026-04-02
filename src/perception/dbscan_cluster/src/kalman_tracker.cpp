@@ -37,6 +37,7 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
   if (!(std::isfinite(dt) && dt > 1e-3f)) {
     dt = dt_default;
   }
+  dt = std::clamp(dt, 1e-3f, dt_default * 1.5f);
   const int confirm_frames = std::max(1, config_.class_confirm_frames);
 
   const float dt2_half = 0.5f * dt * dt;
@@ -154,6 +155,8 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
     track.missed_frames = 0;
 
     auto & obj = current_objects[static_cast<size_t>(obj_idx)];
+    obj.centroid.x() = track.position.x();
+    obj.centroid.y() = track.position.y();
     obj.track_id = track.id;
     obj.vx = track.state(2);
     obj.vy = track.state(3);
@@ -249,6 +252,11 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
   for (size_t trk_idx = 0; trk_idx < prev_track_count; ++trk_idx) {
     if (!track_assigned[trk_idx]) {
       tracked_objects_[trk_idx].missed_frames++;
+      // Dampen kinematics during temporary miss to avoid over-leading predictions.
+      tracked_objects_[trk_idx].state(2) *= 0.7f;
+      tracked_objects_[trk_idx].state(3) *= 0.7f;
+      tracked_objects_[trk_idx].state(4) *= 0.5f;
+      tracked_objects_[trk_idx].state(5) *= 0.5f;
     }
   }
 
