@@ -1,33 +1,24 @@
 #pragma once
 // 数据包类型
 #include <cstdint>
-// enum PacketTypeEnum
-// {
-//   ENUM_PACKET_HEART_BEAT = 0,                   // 心跳包
-//   ENUM_PACKET_SENTRY_ACCEPT_STATUS_DATA = 1,    // 哨兵接受状态数据
-//   ENUM_PACKET_ARMOR_DATA = 2,                   // 装甲板数据
-//   ENUM_PACKET_SENTRY_SEND_CONTROL_DATA = 3,     // 哨兵发送控制数据
-//   ENUM_PACKET_GIMBAL_RESET = 4,                 // 云台复位命令
-//   ENUM_PACKET_RADAR_SMALL_MAP = 5,              // 雷达小地图数据
-//   ENUM_PACKET_OBSTACLE_DATE = 6,                // 障碍物信息包
-//   ENUM_PACKET_UNDEFINED = 7,                    // 未定义包
-//   ENUM_PACKET_INFANTRY_ACCEPT_STATUS_DATA = 8,  // 步兵状态数据
-//   ENUM_PACKET_BUFF_DATA = 9,                    // buff数据包
-//   ENUM_PACKET_LOCATION = 10,                    // 位置相关包
-//   ENUM_PACKET_CMDCONTROL = 11,                  // 控制命令包
-//   ENUM_PACKET_DETECTOR_DATA = 12,               // 探测器数据
-//   ENUM_PACKET_GAMESTATUS_DATA = 13,             // 游戏状态数据
-//   ENUM_PACKET_NAV_DATA = 14                     // 导航数据
-// };
-enum PacketTypeEnum {
-    ENUM_PACKET_NAV_DATA,
-    ENUM_PACKET_ALLY_STATUS,  // 己方机器人状态
-    ENUM_PACKET_GAMESTATUS_DATA,
-    ENUM_PACKET_SENTRY_SERVER_DATA,  // 哨兵姿态等信息
-    ENUM_PACKET_SENTRY_SELF_DATA,    // 机器人自身状态等信息
-    ENUM_PACKET_RADAR                // 雷达发送的消息
+enum PacketTypeEnum
+{
+  ENUM_PACKET_HEART_BEAT = 0,                   // 心跳包
+  ENUM_PACKET_SENTRY_ACCEPT_STATUS_DATA = 1,    // 哨兵接受状态数据
+  ENUM_PACKET_ARMOR_DATA = 2,                   // 装甲板数据
+  ENUM_PACKET_SENTRY_SEND_CONTROL_DATA = 3,     // 哨兵发送控制数据
+  ENUM_PACKET_GIMBAL_RESET = 4,                 // 云台复位命令
+  ENUM_PACKET_RADAR_SMALL_MAP = 5,              // 雷达小地图数据
+  ENUM_PACKET_OBSTACLE_DATE = 6,                // 障碍物信息包
+  ENUM_PACKET_UNDEFINED = 7,                    // 未定义包
+  ENUM_PACKET_INFANTRY_ACCEPT_STATUS_DATA = 8,  // 步兵状态数据
+  ENUM_PACKET_BUFF_DATA = 9,                    // buff数据包
+  ENUM_PACKET_LOCATION = 10,                    // 位置相关包
+  ENUM_PACKET_CMDCONTROL = 11,                  // 控制命令包
+  ENUM_PACKET_DETECTOR_DATA = 12,               // 探测器数据
+  ENUM_PACKET_GAMESTATUS_DATA = 13,             // 游戏状态数据
+  ENUM_PACKET_NAV_DATA = 14                     // 导航数据
 };
-
 // from to 类型
 enum _ArmEnum
 {
@@ -120,14 +111,6 @@ struct __attribute__((packed)) AllyRobotStatus {
     uint16_t robot_hp{};     // 机器人血量
     float robot_pos_x{};  // 机器人位置x坐标，单位m
     float robot_pos_y{};     // 机器人位置y坐标，单位m
-};
-
-struct __attribute__((packed)) EnemyRobotStatus {
-    uint8_t robot_id{};      // 机器人ID，蓝方=红方+100
-    uint16_t robot_hp{};     // 机器人血量
-    uint16_t allowed_projectile{};  // 允许发射的弹丸数量，单位发
-    uint16_t robot_pos_x{};  // 机器人位置x坐标，单位cm
-    uint16_t robot_pos_y{};     // 机器人位置y坐标，单位cm
 };
 
 struct __attribute__((packed)) _TeamInfo {
@@ -235,26 +218,5 @@ struct __attribute__((packed)) _SentryInfoOffline {
     }
   };
 using SentryInfoOffline = struct _SentryInfoOffline;
-
-struct __attribute__((packed)) _RadarInfo {
-    EnemyRobotStatus enemy_status[6]{};  // 英雄 工程 步兵3 步兵4 无人机 哨兵
-    uint16_t enemy_coin_left{};          // 敌方剩余金币数量
-    uint16_t enemy_coin_accumulated{};   // 敌方累计获得金币数量
-    bool is_enemy_outpost_sensed{};      // 敌方前哨站是否被雷达识别到
-    _RadarInfo(const EnemyRobotStatus _enemy_status[6],
-              uint16_t _enemy_coin_left,
-              uint16_t _enemy_coin_accumulated,
-              bool _is_enemy_outpost_sensed
-    )
-    {
-        for (int i = 0; i < 6; ++i) {
-            enemy_status[i] = _enemy_status[i];
-        }
-        enemy_coin_left = _enemy_coin_left;
-        enemy_coin_accumulated = _enemy_coin_accumulated;
-        is_enemy_outpost_sensed = _is_enemy_outpost_sensed;
-    }
-};
-using RadarInfo = struct _RadarInfo;
 
 #pragma pack(pop)
