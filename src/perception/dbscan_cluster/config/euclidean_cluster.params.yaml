@@ -1,0 +1,41 @@
+euclidean_cluster_node:
+  ros__parameters:
+    topics:
+      input: /cloud_registered_dense  
+      output: /clustered_obstacles  
+
+    cluster:
+      z_min: 0.05  
+      z_max: 0.8  
+      max_detection_range: 20.0  # 感知半径
+      leaf_size: 0.05  
+      cluster_tolerance: 0.15  # 聚类阈值，判断点云点是否属于同一簇的距离
+      dbscan_min_points: 8  # 噪声点过滤参数，DBSCAN算法中一个点被认为是核心点所需的最小邻居数
+      min_cluster_size: 30  # 最小接受的聚类点数
+      max_cluster_size: 200  # 最大接受的聚类点数
+      min_valid_size: 0.05  # 尺寸过滤，指定最小边长
+      max_valid_size: 5.0  # 尺寸过滤，指定最大边长
+
+    tracker:
+      match_distance_threshold: 0.6  # 判断动态物体为同一物体的阈值
+      max_missed_frames: 5  # 最大丢失帧数，超过这个数则认为物体消失
+      dynamic_speed_threshold: 0.15  # 动态物体速度阈值，单位m/s，低于这个速度的物体被认为是静止的
+      alpha_size: 0.02  # 尺寸低通滤波因子 [0,1]; 增大以更快响应尺寸变化，减小以减少尺寸抖动。
+      alpha_orientation: 0.2  # 方向低通滤波因子 [0,1]; 增大以更快响应方向变化，减小以减少方向抖动。
+      class_confirm_frames: 4  # 分类确认帧数，连续多少帧同一类别才能确认分类结果
+      dt_default: 0.1  # 预测步长
+      # 过程噪声方差，越大表示对模型预测的信任度越低，越小表示对模型预测的信任度越高。
+      q_pos_x: 0.05  # 位置噪声方差
+      q_pos_y: 0.05 
+      q_vel_x: 0.15  # 速度噪声方差
+      q_vel_y: 0.15  
+      q_acc_x: 0.5  #  加速度噪声方差
+      q_acc_y: 0.5  
+      # 观测值方差，越小表示对测量值的信任度越高，越大表示对测量值的信任度越低。
+      r_pos_x: 0.2  # 位置测量噪声方差
+      r_pos_y: 0.2  
+
+      # 关联参数，用于判断当前帧的聚类是否与之前的跟踪对象匹配
+      association_spatial_weight: 0.7  # 空间匹配权重
+      association_shape_weight: 0.3  # 形状匹配权重
+      association_gate_scale: 1.0  # 门限缩放因子
