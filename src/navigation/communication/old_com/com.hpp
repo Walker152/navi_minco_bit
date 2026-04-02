@@ -69,7 +69,7 @@ namespace ns_com
     // 发送底盘目标数据包到STM32
     template <typename T> static int send2stm32(const T& data_packet)
     {
-      PacketHeader header(ENUM_PACKET_NAV_DATA, sizeof(PacketHeader) + sizeof(T));
+      PacketHeader header(ENUM_PACKET_ARMOR_DATA, sizeof(PacketHeader) + sizeof(T));
       header.packet_type = static_cast<uint8_t>(PacketTraits<T>::packet_type);
       header.start1 = 0xa5;
       header.start2 = 0x5a;
