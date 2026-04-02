@@ -5,11 +5,11 @@
 
 #include <pcl_conversions/pcl_conversions.h>
 
-namespace EuclideanCluster
+namespace DBSCANCluster
 {
 
 RosInterface::RosInterface()
-: Node("euclidean_cluster")
+: Node("dbscan_cluster")
 {
   const std::string input_topic = this->declare_parameter<std::string>(
     "topics.input", "/filtered_points_no_ground");
@@ -23,8 +23,12 @@ RosInterface::RosInterface()
   cluster_config_.leaf_size = this->declare_parameter<double>("cluster.leaf_size", 0.05);
   cluster_config_.cluster_tolerance =
     this->declare_parameter<double>("cluster.cluster_tolerance", 0.2);
+  cluster_config_.dbscan_min_points =
+    this->declare_parameter<int>("cluster.dbscan_min_points", 8);
   cluster_config_.min_cluster_size = this->declare_parameter<int>("cluster.min_cluster_size", 15);
   cluster_config_.max_cluster_size = this->declare_parameter<int>("cluster.max_cluster_size", 1000);
+  cluster_config_.min_valid_size = this->declare_parameter<double>("cluster.min_valid_size", 0.05);
+  cluster_config_.max_valid_size = this->declare_parameter<double>("cluster.max_valid_size", 5.0);
 
   tracker_config_.match_distance_threshold =
     this->declare_parameter<double>("tracker.match_distance_threshold", 0.5);
@@ -48,10 +52,20 @@ RosInterface::RosInterface()
     this->declare_parameter<double>("tracker.q_vel_x", 0.25);
   tracker_config_.q_vel_y =
     this->declare_parameter<double>("tracker.q_vel_y", 0.25);
+  tracker_config_.q_acc_x =
+    this->declare_parameter<double>("tracker.q_acc_x", 0.5);
+  tracker_config_.q_acc_y =
+    this->declare_parameter<double>("tracker.q_acc_y", 0.5);
   tracker_config_.r_pos_x =
     this->declare_parameter<double>("tracker.r_pos_x", 0.04);
   tracker_config_.r_pos_y =
     this->declare_parameter<double>("tracker.r_pos_y", 0.04);
+  tracker_config_.association_spatial_weight =
+    this->declare_parameter<double>("tracker.association_spatial_weight", 0.7);
+  tracker_config_.association_shape_weight =
+    this->declare_parameter<double>("tracker.association_shape_weight", 0.3);
+  tracker_config_.association_gate_scale =
+    this->declare_parameter<double>("tracker.association_gate_scale", 1.5);
 
   cluster_alg_.configure(cluster_config_);
   tracker_alg_.configure(tracker_config_);
@@ -126,7 +140,7 @@ void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::Const
 
     visualization_msgs::msg::Marker mk;
     mk.header = msg->header;
-    mk.ns = "euclidean_cluster";
+    mk.ns = "dbscan";
     mk.id = (objects[i].track_id >= 0) ? objects[i].track_id : static_cast<int>(i);
     mk.type = visualization_msgs::msg::Marker::CUBE;
     mk.action = visualization_msgs::msg::Marker::ADD;
@@ -173,4 +187,4 @@ void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::Const
   pub_obstacles_->publish(obstacle_array_msg);
 }
 
-}  // namespace EuclideanCluster
+}  // namespace DBSCANCluster
