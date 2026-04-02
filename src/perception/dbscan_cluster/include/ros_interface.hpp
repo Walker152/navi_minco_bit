@@ -6,10 +6,10 @@
 #include <ros_interfaces/msg/dynamic_obstacle_array.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
-#include "euclidean_cluster.hpp"
+#include "dbscan_cluster.hpp"
 #include "kalman_tracker.hpp"
 
-namespace EuclideanCluster
+namespace DBSCANCluster
 {
 
 class RosInterface : public rclcpp::Node
@@ -20,7 +20,7 @@ public:
 private:
   void pointCloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
 
-  EuclideanClusterAlg cluster_alg_;
+  DBSCANClusterAlg cluster_alg_;
   KalmanTracker tracker_alg_;
   ClusterConfig cluster_config_;
   TrackerConfig tracker_config_;
@@ -33,4 +33,4 @@ private:
   bool has_last_stamp_ = false;
 };
 
-}  // namespace EuclideanCluster
+}  // namespace DBSCANCluster
