@@ -7,7 +7,7 @@
 
 #include "data_types.hpp"
 
-namespace EuclideanCluster
+namespace DBSCANCluster
 {
 
 struct ClusterConfig
@@ -17,14 +17,17 @@ struct ClusterConfig
   float max_detection_range = 10.0f;
   float leaf_size = 0.05f;
   float cluster_tolerance = 0.2f;
+  int dbscan_min_points = 8;
   int min_cluster_size = 15;
   int max_cluster_size = 500;
+  float min_valid_size = 0.05f;
+  float max_valid_size = 5.0f;
 };
 
-class EuclideanClusterAlg
+class DBSCANClusterAlg
 {
 public:
-  EuclideanClusterAlg() = default;
+  DBSCANClusterAlg() = default;
 
   void configure(const ClusterConfig & config);
   void processCloud(
@@ -44,4 +47,4 @@ private:
   ClusterConfig config_;
 };
 
-}  // namespace EuclideanCluster
+}  // namespace DBSCANCluster

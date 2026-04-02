@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>euclidean_cluster</name>
+  <name>dbscan_cluster</name>
   <version>0.0.1</version>
-  <description>Euclidean clustering node for ROS 2.</description>
+  <description>dbscan clustering node for ROS 2.</description>
 
   <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
   <license>TODO</license>
