@@ -3,7 +3,7 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
-namespace EuclideanCluster
+namespace DBSCANCluster
 {
 
 struct Detected_Obj
@@ -19,4 +19,4 @@ struct Detected_Obj
   bool dynamic_confirmed = false;
 };
 
-}  // namespace EuclideanCluster
+}  // namespace DBSCANCluster
