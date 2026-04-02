@@ -490,6 +490,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   // Snapshot the global goal for end-state logic.
   Eigen::Vector3d global_goal(0.0, 0.0, 0.0);
+  double goal_yaw = 0.0;
   {
     std::lock_guard<std::mutex> lock(path_mutex_);
     if (latest_global_path_.empty()) {
@@ -498,6 +499,13 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     global_goal.x() = latest_global_path_.back().pose.position.x;
     global_goal.y() = latest_global_path_.back().pose.position.y;
     global_goal.z() = 0.0;
+    const auto & q = latest_global_path_.back().pose.orientation;
+    goal_yaw = std::atan2(
+      2.0 * (q.w * q.z + q.x * q.y),
+      1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+    if (!std::isfinite(goal_yaw)) {
+      goal_yaw = 0.0;
+    }
   }
 
   Eigen::Vector3d cur_pos(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
@@ -788,7 +796,13 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   traj_opt::Trajectory yaw_traj;
   if (use_yaw_opt_) {
-    const bool yaw_success = optimizeYaw(start_state, opt_traj, yaw_traj, state, current_pose.pose);
+    const bool yaw_success = optimizeYaw(
+      start_state,
+      opt_traj,
+      yaw_traj,
+      state,
+      current_pose.pose,
+      goal_yaw);
     if (!yaw_success) {
       std::cout << YELLOW
                 << "[MincoPlanner] Yaw optimization failed. Falling back to constant yaw trajectory."
@@ -932,6 +946,10 @@ bool MincoPlanner::makePlan(
       latest_global_path_.push_back(pose);
       plan.poses.push_back(pose);
     }
+    if (!plan.poses.empty()) {
+      plan.poses.back().pose.orientation = goal.orientation;
+      latest_global_path_.back().pose.orientation = goal.orientation;
+    }
   } else {
     // Use original A* algorithm.
     astar_planner_->setSize(nx, ny);
@@ -982,6 +1000,10 @@ bool MincoPlanner::makePlan(
       pose.pose.orientation.w = 1.0;
       latest_global_path_.push_back(pose);
       plan.poses.push_back(pose);
+    }
+    if (!plan.poses.empty()) {
+      plan.poses.back().pose.orientation = goal.orientation;
+      latest_global_path_.back().pose.orientation = goal.orientation;
     }
   }
 
@@ -1120,7 +1142,8 @@ bool MincoPlanner::optimizeYaw(
   const traj_opt::Trajectory & pos_traj,
   traj_opt::Trajectory & out_yaw_traj,
   PlanningState state,
-  const geometry_msgs::msg::Pose & current_pose)
+  const geometry_msgs::msg::Pose & current_pose,
+  double goal_yaw)
 {
   if (!yaw_opt_) {
     return false;
@@ -1160,6 +1183,15 @@ bool MincoPlanner::optimizeYaw(
     }
     init_yaw_state(1) = 0.0;
   }
+
+  if (!std::isfinite(goal_yaw)) {
+    goal_yaw = init_yaw_state(0);
+  }
+  const double yaw_err = std::atan2(
+    std::sin(goal_yaw - init_yaw_state(0)),
+    std::cos(goal_yaw - init_yaw_state(0)));
+  goal_yaw_state(0) = init_yaw_state(0) + yaw_err;
+  goal_yaw_state(1) = 0.0;
 
   return yaw_opt_->optimize(
     init_yaw_state,
