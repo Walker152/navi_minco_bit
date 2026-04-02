@@ -8,14 +8,14 @@ def generate_launch_description():
     config_file = os.path.join(
         get_package_share_directory('euclidean_cluster'),
         'config',
-        'euclidean_cluster.params.yaml'
+        'dbscan_cluster.params.yaml'
     )
 
     return LaunchDescription([
         Node(
-            package='euclidean_cluster',
-            executable='euclidean_cluster_node',
-            name='euclidean_cluster_node',
+            package='dbscan_cluster',
+            executable='dbscan_cluster_node',
+            name='dbscan_cluster_node',
             output='screen',
             parameters=[config_file]
         )
