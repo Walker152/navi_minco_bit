@@ -9,7 +9,7 @@ namespace DBSCANCluster
 {
 
 RosInterface::RosInterface()
-: Node("dbscan_cluster")
+: Node("dbscan_cluster_node")
 {
   const std::string input_topic = this->declare_parameter<std::string>(
     "topics.input", "/filtered_points_no_ground");
@@ -104,6 +104,9 @@ void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::Const
 
   std::vector<Detected_Obj> objects;
   cluster_alg_.processCloud(cloud, objects);
+  if (!objects.empty()) {
+    RCLCPP_INFO(this->get_logger(), "Current clustered object count: %zu", objects.size());
+  }
   tracker_alg_.update(objects, dt);
 
   ros_interfaces::msg::DynamicObstacleArray obstacle_array_msg;
