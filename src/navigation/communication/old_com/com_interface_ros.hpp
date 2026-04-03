@@ -20,13 +20,6 @@
 #include "ros_interfaces/msg/event_status.hpp"
 #include "ros_interfaces/msg/nav.hpp"
 #include "ros_interfaces/msg/behavior.hpp"
-#include "ros_interfaces/msg/radar_info.hpp"
-#include "ros_interfaces/msg/ally_robot_status.hpp"
-#include "ros_interfaces/msg/enemy_robot_status.hpp"
-#include "ros_interfaces/msg/game_info.hpp"
-#include "ros_interfaces/msg/sentry_info_offline.hpp"
-#include "ros_interfaces/msg/sentry_info_online.hpp"
-#include "ros_interfaces/msg/team_information.hpp"
 
 #include "com.hpp"
 #include "utils/custom_protocol.hpp"
@@ -39,6 +32,7 @@ namespace ns_com
   {
   public:
     using Ptr = std::shared_ptr<ComInterfaceRos>;
+
     explicit ComInterfaceRos(const std::string& name)
       : rclcpp::Node(name)
     {
@@ -63,118 +57,31 @@ namespace ns_com
       nav_pub_->publish(msg);
     }
 
-    // void publishEventStatus(const EventStatus& in)
-    // {
-    //   if(!event_status_pub_)
-    //     return;
-    //   ros_interfaces::msg::EventStatus msg;
-    //   msg.self_health = in.self_health;
-    //   msg.num_shoot = in.num_shoot;
-    //   msg.own_outpost_health = in.own_outpost_health;
-    //   msg.buff_active = in.buff_active;
-    //   msg.enemy_outpost_destroyed = in.enemy_outpost_destroyed;
-    //   msg.enemy_detected.is_detect = in.is_get;
-    //   msg.enemy_detected.position.x = in.x;
-    //   msg.enemy_detected.position.y = in.y;
-    //   msg.enemy_detected.position.z = in.z;
-    //   msg.enemy_detected.armor_id = in.armor_id;
-    //   msg.current_stance = in.current_stance;
-    //   msg.game_status = in.game_status;
-    //   msg.gimbal_yaw = in.gimbal_yaw;
-    //   msg.lifter_pos_now = in.lifter_pos_now;
-    //   msg.hero_health = in.hero_health;
-    //   msg.infantry3_health = in.infantry3_health;
-    //   msg.header.stamp = now();
-    //   event_status_pub_->publish(msg);
-    // }
-
-    void publishTeamInfo(const TeamInfo& in)
+    void publishEventStatus(const EventStatus& in)
     {
-      if(!team_info_pub_)
+      if(!event_status_pub_)
         return;
-      ros_interfaces::msg::TeamInformation msg;
-      for (int i = 0; i < 4; i++)
-      {
-        msg.allies[i].armor_id = in.ally_status[i].robot_id;
-        msg.allies[i].remain_hp = in.ally_status[i].robot_hp;
-        msg.allies[i].position.x = static_cast<double>(in.ally_status[i].robot_pos_x);
-        msg.allies[i].position.y = static_cast<double>(in.ally_status[i].robot_pos_y);
-      }
-      msg.base_hp = in.base_hp;
-      msg.outpost_hp = in.outpost_hp;
-      msg.header.stamp = now();
-      team_info_pub_->publish(msg);
-    }
-
-    void publishGameInfo(const GameInfo& in)
-    {
-      if(!game_info_pub_)
-        return;
-      ros_interfaces::msg::GameInfo msg;
-      msg.game_time_remaining = in.game_time_remaining;
-      msg.coin_remaining = in.coin_remaining;
-      msg.event_code = in.event_code;
-      msg.game_status = in.game_status;
-      msg.header.stamp = now();
-      game_info_pub_->publish(msg);
-    }
-
-    void publishSentryInfoOnline(const SentryInfoOnline& in)
-    {
-      if(!online_info_pub_)
-        return;
-      ros_interfaces::msg::SentryInfoOnline msg;
+      ros_interfaces::msg::EventStatus msg;
       msg.self_health = in.self_health;
-      msg.bullets_remaining = in.bullets_remaining;
-      msg.cooling_value = in.cooling_value;
-      msg.heat_limit = in.heat_limit;
-      msg.current_heat = in.current_heat;
-      msg.sentry_pos.x = static_cast<double>(in.sentry_pos_x);
-      msg.sentry_pos.y = static_cast<double>(in.sentry_pos_y);
-      msg.speed_monitor_angle = in.speed_monitor_angle;
-      msg.sentry_info_1 = in.sentry_info_1;
-      msg.sentry_info_2 = in.sentry_info_2;
+      msg.num_shoot = in.num_shoot;
+      msg.own_outpost_health = in.own_outpost_health;
+      msg.buff_active = in.buff_active;
+      msg.enemy_outpost_destroyed = in.enemy_outpost_destroyed;
+      msg.enemy_detected.is_detect = in.is_get;
+      msg.enemy_detected.position.x = in.x;
+      msg.enemy_detected.position.y = in.y;
+      msg.enemy_detected.position.z = in.z;
+      msg.enemy_detected.armor_id = in.armor_id;
+      msg.current_stance = in.current_stance;
+      msg.game_status = in.game_status;
+      msg.gimbal_yaw = in.gimbal_yaw;
+      msg.lifter_pos_now = in.lifter_pos_now;
+      msg.hero_health = in.hero_health;
+      msg.infantry3_health = in.infantry3_health;
       msg.header.stamp = now();
-      online_info_pub_->publish(msg);
+      event_status_pub_->publish(msg);
     }
 
-    void publishSentryInfoOffline(const SentryInfoOffline& in)
-    {
-      if(!offline_info_pub_)
-        return;
-      ros_interfaces::msg::SentryInfoOffline msg;
-      msg.is_get = in.is_get;
-      msg.armor_pos.x = static_cast<double>(in.armor_pos[0]);
-      msg.armor_pos.y = static_cast<double>(in.armor_pos[1]);
-      msg.armor_pos.z = static_cast<double>(in.armor_pos[2]);
-      msg.armor_num = in.armor_num;
-      msg.yaw_imu = in.yaw_imu;
-      msg.lifter_current_pos = in.lifter_current_pos;
-      msg.is_transformable = in.is_transformable;
-      msg.transform_state = in.transform_state;
-      msg.header.stamp = now();
-      offline_info_pub_->publish(msg);
-    }
-
-    void publishRadarInfo(const RadarInfo& in)
-    {
-      if(!radar_info_pub_)
-        return;
-      ros_interfaces::msg::RadarInfo msg;
-      for(int i = 0; i < 6; ++i)
-      {
-        msg.detectors[i].robot_id = in.enemy_status[i].robot_id;
-        msg.detectors[i].robot_hp = in.enemy_status[i].robot_hp;
-        msg.detectors[i].allowed_projectile = in.enemy_status[i].allowed_projectile;
-        msg.detectors[i].position.x = static_cast<double>(in.enemy_status[i].robot_pos_x) / 100.0; // 协议里是cm，转换成m
-        msg.detectors[i].position.y = static_cast<double>(in.enemy_status[i].robot_pos_y) / 100.0; // 协议里是cm，转换成m
-      }
-      msg.enemy_coin_left = in.enemy_coin_left;
-      msg.enemy_coin_accumulated = in.enemy_coin_accumulated;
-      msg.is_enemy_outpost_sensed = in.is_enemy_outpost_sensed;
-      msg.header.stamp = now();
-      radar_info_pub_->publish(msg);
-    }
   private:
     std_msgs::msg::Bool outpost_msg_;
     ros_interfaces::msg::Behavior behavior_;
@@ -213,11 +120,6 @@ namespace ns_com
           sub_opt);
       nav_pub_ = create_publisher<ros_interfaces::msg::Nav>("/NavRequest", 10);
       event_status_pub_ = create_publisher<ros_interfaces::msg::EventStatus>("/sentry/event_status", 10);
-      game_info_pub_ = create_publisher<ros_interfaces::msg::GameInfo>("/sentry/game_info", 10);
-      offline_info_pub_ = create_publisher<ros_interfaces::msg::SentryInfoOffline>("/sentry/offline_info", 10);
-      online_info_pub_ = create_publisher<ros_interfaces::msg::SentryInfoOnline>("/sentry/online_info", 10);
-      team_info_pub_ = create_publisher<ros_interfaces::msg::TeamInformation>("/sentry/team_info", 10);
-      radar_info_pub_ = create_publisher<ros_interfaces::msg::RadarInfo>("/sentry/radar_info", 10);
       
       com_timer_ = this->create_wall_timer(
         std::chrono::milliseconds(1),
@@ -324,11 +226,6 @@ namespace ns_com
     // Publishers
     rclcpp::Publisher<ros_interfaces::msg::Nav>::SharedPtr nav_pub_;
     rclcpp::Publisher<ros_interfaces::msg::EventStatus>::SharedPtr event_status_pub_;
-    rclcpp::Publisher<ros_interfaces::msg::GameInfo>::SharedPtr game_info_pub_;
-    rclcpp::Publisher<ros_interfaces::msg::SentryInfoOffline>::SharedPtr offline_info_pub_;
-    rclcpp::Publisher<ros_interfaces::msg::SentryInfoOnline>::SharedPtr online_info_pub_;
-    rclcpp::Publisher<ros_interfaces::msg::TeamInformation>::SharedPtr team_info_pub_;
-    rclcpp::Publisher<ros_interfaces::msg::RadarInfo>::SharedPtr radar_info_pub_;
 
     // Communication Timer
     rclcpp::TimerBase::SharedPtr com_timer_;
