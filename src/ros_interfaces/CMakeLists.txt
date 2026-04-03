@@ -31,6 +31,13 @@ set(msg_files
   "msg/minco_traj/PositionCommand.msg"
   "msg/minco_traj/MpcPositionCommand.msg"
   "msg/Behavior.msg"
+  "msg/AllyRobotStatus.msg"
+  "msg/EnemyRobotStatus.msg"
+  "msg/GameInfo.msg"
+  "msg/RadarInfo.msg"
+  "msg/SentryInfoOffline.msg"
+  "msg/SentryInfoOnline.msg"
+  "msg/TeamInformation.msg"
 )
 
 # set(srv_files
