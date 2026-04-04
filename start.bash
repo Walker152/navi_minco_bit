@@ -24,7 +24,7 @@ sleep 1
 # sleep 1
 
 ## Decision
-# gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
 # sleep 1
 
 # Communication

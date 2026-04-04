@@ -1,4 +1,5 @@
 #include "bt_manager/ros_interface.hpp"
+
 #include <cmath>
 #include <chrono>
 #include <cstdint>
@@ -12,14 +13,38 @@ namespace Sentry_BT
            rclcpp::NodeOptions().use_global_arguments(false))
     , blackboard_(blackboard_ptr)
   {
+    
     auto node_ptr = rclcpp::Node::SharedPtr(this, [](rclcpp::Node *) {});
     param_manager_ = std::make_shared<ParamManager>(node_ptr);
-
-    // 订阅事件状态话题
-    event_sub = this->create_subscription<ros_interfaces::msg::EventStatus>(
-        "/sentry/event_status",
+    // 订阅全局信息话题
+    team_info_sub = this->create_subscription<ros_interfaces::msg::TeamInformation>(
+        "/sentry/team_info",
         1,
-        [this](const ros_interfaces::msg::EventStatus::SharedPtr msg) { this->eventCallback(msg); });
+        [this](const ros_interfaces::msg::TeamInformation::SharedPtr msg) { this->teamInfoCallback(msg); });
+
+    // 订阅比赛信息话题
+    game_info_sub = this->create_subscription<ros_interfaces::msg::GameInfo>(
+        "/sentry/game_info",
+        1,
+        [this](const ros_interfaces::msg::GameInfo::SharedPtr msg) { this->gameInfoCallback(msg); });
+
+    // 订阅雷达信息话题
+    radar_info_sub = this->create_subscription<ros_interfaces::msg::RadarInfo>(
+        "/sentry/radar_info",
+        1,
+        [this](const ros_interfaces::msg::RadarInfo::SharedPtr msg) { this->radarInfoCallback(msg); });
+
+    // 订阅哨兵离线信息话题
+    sentry_offline_sub = this->create_subscription<ros_interfaces::msg::SentryInfoOffline>(
+        "/sentry/offline_info",
+        1,
+        [this](const ros_interfaces::msg::SentryInfoOffline::SharedPtr msg) { this->sentryOfflineCallback(msg); });
+
+    // 订阅哨兵在线信息话题
+    sentry_online_sub = this->create_subscription<ros_interfaces::msg::SentryInfoOnline>(
+        "/sentry/online_info",
+        1,
+        [this](const ros_interfaces::msg::SentryInfoOnline::SharedPtr msg) { this->sentryOnlineCallback(msg); });
 
     odom_sub = this->create_subscription<nav_msgs::msg::Odometry>("/aft_mapped_to_init",
                                                                   1,
@@ -28,8 +53,9 @@ namespace Sentry_BT
                                                                     // 更新当前位置
                                                                     std::lock_guard<std::mutex> lock(current_pose_mutex_);
                                                                     current_pose_ = msg->pose.pose;
-                                                                  });
-    // 订阅MPC轨迹指令
+                                                                  }); 
+            
+      // 订阅MPC轨迹指令
     mpc_cmd_sub = this->create_subscription<ros_interfaces::msg::MpcPositionCommand>(
         "/opt_path", 1, [this](const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg)
         {
@@ -71,19 +97,9 @@ namespace Sentry_BT
           behavior_msg.desire_lifter_pos = desired_lifter_pos;
           behavior_pub->publish(behavior_msg);
         });
+        // std::cout << "成功初始化" << std::endl;
   }
 
-  void ros_interface::publishCmdVel(double linear_y, double angular_z)
-  {
-    geometry_msgs::msg::Twist cmd_vel;
-    cmd_vel.linear.y = linear_y;
-    cmd_vel.angular.z = angular_z;
-    cmd_vel_pub->publish(cmd_vel);
-  }
-  void ros_interface::publishCmdVel(const geometry_msgs::msg::Twist& cmd_vel)
-  {
-    cmd_vel_pub->publish(cmd_vel);
-  }
   geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
   {
     std::lock_guard<std::mutex> lock(current_pose_mutex_);
@@ -96,27 +112,98 @@ namespace Sentry_BT
     return current_pose_;
   }
 
-  void ros_interface::eventCallback(const ros_interfaces::msg::EventStatus::SharedPtr msg)
+  // 新增：全局信息回调函数
+  void ros_interface::teamInfoCallback(const ros_interfaces::msg::TeamInformation::SharedPtr msg)
   {
-    // 更新黑板中的数据
-    blackboard_->set<float>("health", ((int)msg->self_health / 4));
-    blackboard_->set<int>("own_outpost_health", msg->own_outpost_health);
-    blackboard_->set<bool>("enemy_outpost_destroyed", msg->enemy_outpost_destroyed);
-    blackboard_->set<bool>("bonus_active", msg->buff_active);
-    blackboard_->set<bool>("target_valid", msg->enemy_detected.is_detect);
-    blackboard_->set<Sentry_BT::SentryStance>("current_stance", static_cast<Sentry_BT::SentryStance>(msg->current_stance));
+    // 保存完整的团队信息
+    blackboard_->set<ros_interfaces::msg::TeamInformation>("team_info", *msg);
+    
+    // 提取基地和前哨站血量
+    blackboard_->set<int>("home_health", static_cast<int>(msg->base_hp));
+    blackboard_->set<int>("own_outpost_health", static_cast<int>(msg->outpost_hp));
+  
+    // 处理队友信息
+    std::vector<AllyRobotInfo> allies_info;
+    allies_info.reserve(msg->allies.size());
 
-    // 3月9日新增数据，不知道有什么用，先放在黑板里
+    for (const auto& ally : msg->allies) {
+      AllyRobotInfo info;
+      info.robot_id = ally.armor_id;  // 将armor_id映射到robot_id
+      info.remain_hp = static_cast<int>(ally.remain_hp);
+      info.position = ally.position;
+      allies_info.push_back(info);
+    }
+    
+    blackboard_->set<std::vector<AllyRobotInfo>>("allies_info", allies_info);
+  }
+
+  // 新增：比赛信息回调函数
+  void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::SharedPtr msg)
+  {
+    // 存储比赛基本信息
+    blackboard_->set<int>("game_time_remaining", static_cast<int>(msg->game_time_remaining));
+    blackboard_->set<int>("coin_remaining", static_cast<int>(msg->coin_remaining));
     blackboard_->set<int>("game_status", static_cast<int>(msg->game_status));
-    blackboard_->set<int>("lifter_pos_now", static_cast<int>(msg->lifter_pos_now));
-    blackboard_->set<float>("gimbal_yaw", msg->gimbal_yaw);
-    blackboard_->set<uint16_t>("num_shoot", msg->num_shoot);
-    blackboard_->set<uint16_t>("hero_health", msg->hero_health);
-    blackboard_->set<uint16_t>("infantry3_health", msg->infantry3_health);
 
-    gimbal_yaw_pub->publish(std_msgs::msg::Float32().set__data(msg->gimbal_yaw));
-    // 更新目标位置
-    if(msg->enemy_detected.is_detect)
+    // 解码event_code字段
+    uint32_t event_code = msg->event_code;
+
+    // 提取bit 3-4：己方小能量机关的激活状态
+    uint8_t small_energy_status = (event_code >> 3) & 0x3;
+    blackboard_->set<int>("small_energy_status", static_cast<int>(small_energy_status));
+    
+    // 提取bit 5-6：己方大能量机关的激活状态
+    uint8_t big_energy_status = (event_code >> 5) & 0x3;
+    blackboard_->set<int>("big_energy_status", static_cast<int>(big_energy_status));
+
+    // 提取bit 25-26：己方堡垒增益点的占领状态
+    uint8_t fort_occupation_status = (event_code >> 25) & 0x3;
+    blackboard_->set<int>("fort_occupation_status", static_cast<int>(fort_occupation_status));
+
+    // 可以存储原始event_code以备后用
+    blackboard_->set<uint32_t>("event_code_raw", event_code);
+  }
+
+  // 新增：雷达信息回调函数
+  void ros_interface::radarInfoCallback(const ros_interfaces::msg::RadarInfo::SharedPtr msg)
+  {
+    // 存储敌方信息
+    blackboard_->set<int>("enemy_coin_left", static_cast<int>(msg->enemy_coin_left));
+    blackboard_->set<int>("enemy_coin_accumulated", static_cast<int>(msg->enemy_coin_accumulated));
+    blackboard_->set<bool>("enemy_outpost_destroyed", !(msg->is_enemy_outpost_sensed));
+    
+    // 存储所有敌方机器人状态
+    std::vector<EnemyRobotInfo> enemies_info;
+    enemies_info.reserve(msg->enemies.size());  
+    for (const auto& enemy : msg->enemies) { 
+      if (enemy.robot_id > 0) {  // 有效敌方
+        EnemyRobotInfo enemy_info;
+        enemy_info.robot_id = static_cast<int>(enemy.robot_id);
+        enemy_info.remain_hp = static_cast<int>(enemy.robot_hp);
+        enemy_info.allowed_projectile = static_cast<int>(enemy.allowed_projectile);
+        enemy_info.position = enemy.position;
+        
+        enemies_info.push_back(enemy_info);
+      }
+    }
+  
+    blackboard_->set<std::vector<EnemyRobotInfo>>("enemies_info", enemies_info);
+    // 可以存储完整的雷达信息
+    blackboard_->set<ros_interfaces::msg::RadarInfo>("radar_info", *msg);
+  }
+
+  // 新增：哨兵离线信息回调函数
+  void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoOffline::SharedPtr msg)
+  {
+    // 存储哨兵离线状态信息
+    blackboard_->set<bool>("target_valid", msg->is_get);
+    blackboard_->set<float>("gimbal_yaw", msg->yaw_imu);
+    blackboard_->set<int>("lifter_current_pos", static_cast<int>(msg->lifter_current_pos));
+    blackboard_->set<bool>("is_transformable", msg->is_transformable);
+    blackboard_->set<float>("transform_state", msg->transform_state);
+    
+    // 存储装甲板位置
+    if(msg->is_get)
     // if(false)
     {
       geometry_msgs::msg::Pose target_pose_in, target_pose;
@@ -124,9 +211,9 @@ namespace Sentry_BT
       static geometry_msgs::msg::Pose last_target_pose_in;
       static geometry_msgs::msg::Pose last_target_pose;
 
-      target_pose_in.position.x = (msg->enemy_detected.position.x) / 1000.0;  // 转换为米
-      target_pose_in.position.y = (msg->enemy_detected.position.y) / 1000.0;
-      target_pose_in.position.z = (msg->enemy_detected.position.z) / 1000.0;
+      target_pose_in.position.x = (msg->armor_pos.x) / 1000.0;  // 转换为米
+      target_pose_in.position.y = (msg->armor_pos.y) / 1000.0;
+      target_pose_in.position.z = (msg->armor_pos.z) / 1000.0;//?
       TransformPose(target_pose_in, target_pose);
 
       // Quiet logging: only print when target input/output pose changes significantly.
@@ -149,10 +236,78 @@ namespace Sentry_BT
       }
 
       target_pose.orientation.w = 1.0;  // 设置默认朝向
-      blackboard_->set<int>("target_armor_id", (int)msg->enemy_detected.armor_id);
+      blackboard_->set<int>("target_armor_id", (int)msg->armor_num);
       blackboard_->set<geometry_msgs::msg::Pose>("target_pose", target_pose);
     }
+  }
 
+  // 新增：哨兵在线信息回调函数
+  void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOnline::SharedPtr msg)
+  {
+    // 存储哨兵在线状态信息
+    blackboard_->set<float>("health", ((int)msg->self_health / 4));
+    blackboard_->set<int>("bullets_remaining", static_cast<int>(msg->bullets_remaining));
+    blackboard_->set<int>("cooling_value", static_cast<int>(msg->cooling_value));
+    blackboard_->set<int>("heat_limit", static_cast<int>(msg->heat_limit));
+    blackboard_->set<int>("current_heat", static_cast<int>(msg->current_heat));
+    blackboard_->set<float>("speed_monitor_angle", msg->speed_monitor_angle);
+    
+    // 存储哨兵位置
+    geometry_msgs::msg::Point sentry_position;
+    sentry_position.x = msg->sentry_pos.x;
+    sentry_position.y = msg->sentry_pos.y;
+    sentry_position.z = 0.0;
+    blackboard_->set<geometry_msgs::msg::Point>("sentry_position", sentry_position);
+    
+    // 存储原始信息
+    blackboard_->set<uint32_t>("sentry_info_1_raw", msg->sentry_info_1);
+    blackboard_->set<uint16_t>("sentry_info_2_raw", msg->sentry_info_2);
+    
+    // 解码sentry_info_2
+    uint16_t sentry_info_2 = msg->sentry_info_2;
+    
+    // 提取bit 0：脱战状态
+    bool is_disengaged = (sentry_info_2 & 0x0001) != 0;
+    blackboard_->set<bool>("is_disengaged", is_disengaged);
+    
+    // 提取bit 12-13：哨兵当前姿态
+    uint8_t current_stance = (sentry_info_2 >> 12) & 0x3;
+    blackboard_->set<Sentry_BT::SentryStance>("current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
+    
+    // 提取bit 14：己方能量机关是否能够进入正在激活状态
+    bool can_activate_energy = ((sentry_info_2 >> 14) & 0x1) != 0;
+    blackboard_->set<bool>("can_activate_energy", can_activate_energy);
+    
+    // 解码sentry_info_1的兑换信息
+    uint32_t sentry_info_1 = msg->sentry_info_1;
+    
+    // // bit 0-10：除远程兑换外，哨兵机器人成功兑换的允许发弹量
+    // uint16_t ammo_exchanged_local = (sentry_info_1 & 0x07FF);
+    // blackboard_->set<int>("ammo_exchanged_local", static_cast<int>(ammo_exchanged_local));
+    
+    // // bit 11-14：哨兵机器人成功远程兑换允许发弹量的次数
+    // uint8_t remote_ammo_exchange_count = (sentry_info_1 >> 11) & 0xF;
+    // blackboard_->set<int>("remote_ammo_exchange_count", static_cast<int>(remote_ammo_exchange_count));
+    
+    // // bit 15-18：哨兵机器人成功远程兑换血量的次数
+    // uint8_t remote_health_exchange_count = (sentry_info_1 >> 15) & 0xF;
+    // blackboard_->set<int>("remote_health_exchange_count", static_cast<int>(remote_health_exchange_count));
+    
+    // bit 19：哨兵机器人当前是否可以确认免费复活
+    bool can_free_resurrect = ((sentry_info_1 >> 19) & 0x1) != 0;
+    blackboard_->set<bool>("can_free_resurrect", can_free_resurrect);
+    
+    // bit 20：哨兵机器人当前是否可以兑换立即复活
+    bool can_instant_resurrect = ((sentry_info_1 >> 20) & 0x1) != 0;
+    blackboard_->set<bool>("can_instant_resurrect", can_instant_resurrect);
+    
+    // bit 21-30：哨兵机器人当前若兑换立即复活需要花费的金币数
+    uint16_t instant_resurrect_cost = (sentry_info_1 >> 21) & 0x3FF;
+    blackboard_->set<int>("instant_resurrect_cost", static_cast<int>(instant_resurrect_cost));
+    
+    // // bit 1-11：队伍17mm允许发弹量的剩余可兑换数
+    // uint16_t remaining_ammo_exchange = (sentry_info_2 >> 1) & 0x7FF;
+    // blackboard_->set<int>("remaining_ammo_exchange", static_cast<int>(remaining_ammo_exchange));
   }
 
   bool ros_interface::TransformPose(const geometry_msgs::msg::Pose& input_pose, geometry_msgs::msg::Pose& output_pose)
@@ -211,4 +366,16 @@ namespace Sentry_BT
     }
     return false;
   }
+    void ros_interface::publishCmdVel(double linear_y, double angular_z)
+  {
+    geometry_msgs::msg::Twist cmd_vel;
+    cmd_vel.linear.y = linear_y;
+    cmd_vel.angular.z = angular_z;
+    cmd_vel_pub->publish(cmd_vel);
+  }
+  void ros_interface::publishCmdVel(const geometry_msgs::msg::Twist& cmd_vel)
+  {
+    cmd_vel_pub->publish(cmd_vel);
+  }
+
 }  // namespace Sentry_BT
