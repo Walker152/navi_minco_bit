@@ -163,11 +163,11 @@ namespace ns_com
       ros_interfaces::msg::RadarInfo msg;
       for(int i = 0; i < 6; ++i)
       {
-        msg.detectors[i].robot_id = in.enemy_status[i].robot_id;
-        msg.detectors[i].robot_hp = in.enemy_status[i].robot_hp;
-        msg.detectors[i].allowed_projectile = in.enemy_status[i].allowed_projectile;
-        msg.detectors[i].position.x = static_cast<double>(in.enemy_status[i].robot_pos_x) / 100.0; // 协议里是cm，转换成m
-        msg.detectors[i].position.y = static_cast<double>(in.enemy_status[i].robot_pos_y) / 100.0; // 协议里是cm，转换成m
+        msg.enemies[i].robot_id = in.enemy_status[i].robot_id;
+        msg.enemies[i].robot_hp = in.enemy_status[i].robot_hp;
+        msg.enemies[i].allowed_projectile = in.enemy_status[i].allowed_projectile;
+        msg.enemies[i].position.x = static_cast<double>(in.enemy_status[i].robot_pos_x) / 100.0; // 协议里是cm，转换成m
+        msg.enemies[i].position.y = static_cast<double>(in.enemy_status[i].robot_pos_y) / 100.0; // 协议里是cm，转换成m
       }
       msg.enemy_coin_left = in.enemy_coin_left;
       msg.enemy_coin_accumulated = in.enemy_coin_accumulated;
@@ -212,7 +212,7 @@ namespace ns_com
           },
           sub_opt);
       nav_pub_ = create_publisher<ros_interfaces::msg::Nav>("/NavRequest", 10);
-      event_status_pub_ = create_publisher<ros_interfaces::msg::EventStatus>("/sentry/event_status", 10);
+      // event_status_pub_ = create_publisher<ros_interfaces::msg::EventStatus>("/sentry/event_status", 10);
       game_info_pub_ = create_publisher<ros_interfaces::msg::GameInfo>("/sentry/game_info", 10);
       offline_info_pub_ = create_publisher<ros_interfaces::msg::SentryInfoOffline>("/sentry/offline_info", 10);
       online_info_pub_ = create_publisher<ros_interfaces::msg::SentryInfoOnline>("/sentry/online_info", 10);
@@ -323,7 +323,7 @@ namespace ns_com
 
     // Publishers
     rclcpp::Publisher<ros_interfaces::msg::Nav>::SharedPtr nav_pub_;
-    rclcpp::Publisher<ros_interfaces::msg::EventStatus>::SharedPtr event_status_pub_;
+    // rclcpp::Publisher<ros_interfaces::msg::EventStatus>::SharedPtr event_status_pub_;
     rclcpp::Publisher<ros_interfaces::msg::GameInfo>::SharedPtr game_info_pub_;
     rclcpp::Publisher<ros_interfaces::msg::SentryInfoOffline>::SharedPtr offline_info_pub_;
     rclcpp::Publisher<ros_interfaces::msg::SentryInfoOnline>::SharedPtr online_info_pub_;
