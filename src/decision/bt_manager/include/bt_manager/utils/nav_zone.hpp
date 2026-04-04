@@ -78,4 +78,17 @@ namespace Sentry_BT
   extern std::vector<Point2D> patrol_points_normal;
   extern std::vector<int> patrol_points_milliseconds;
   extern std::vector<Point2D> patrol_points_attack;
+
+  struct AllyRobotInfo {
+  int robot_id;  // 机器人ID
+  int remain_hp;  // 剩余血量
+  geometry_msgs::msg::Point position;  // 位置
+};
+
+struct EnemyRobotInfo {
+  int robot_id;           // 机器人ID
+  int remain_hp;          // 剩余血量
+  int allowed_projectile; // 可打弹丸数
+  geometry_msgs::msg::Point position;  // 位置
+};
 }  // namespace Sentry_BT
