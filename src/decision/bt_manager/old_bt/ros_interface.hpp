@@ -18,11 +18,6 @@
 // Custom Messages
 #include "ros_interfaces/msg/event_status.hpp"
 #include "ros_interfaces/msg/behavior.hpp"
-#include "ros_interfaces/msg/team_information.hpp"
-#include "ros_interfaces/msg/game_info.hpp"
-#include "ros_interfaces/msg/radar_info.hpp"
-#include "ros_interfaces/msg/sentry_info_offline.hpp"
-#include "ros_interfaces/msg/sentry_info_online.hpp"
 #include "ros_interfaces/msg/mpc_position_command.hpp"
 
 // Project Headers
@@ -35,12 +30,7 @@ namespace Sentry_BT
   class ros_interface : public rclcpp::Node
   {
   private:
-    rclcpp::Subscription<ros_interfaces::msg::TeamInformation>::SharedPtr team_info_sub;
-    rclcpp::Subscription<ros_interfaces::msg::GameInfo>::SharedPtr game_info_sub;
-    rclcpp::Subscription<ros_interfaces::msg::RadarInfo>::SharedPtr radar_info_sub;
-    rclcpp::Subscription<ros_interfaces::msg::SentryInfoOffline>::SharedPtr sentry_offline_sub;
-    rclcpp::Subscription<ros_interfaces::msg::SentryInfoOnline>::SharedPtr sentry_online_sub;
-    
+    rclcpp::Subscription<ros_interfaces::msg::EventStatus>::SharedPtr event_sub;
     rclcpp::Publisher<ros_interfaces::msg::Behavior>::SharedPtr behavior_pub;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub;
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr gimbal_yaw_pub;
@@ -55,13 +45,7 @@ namespace Sentry_BT
 
     geometry_msgs::msg::Pose current_pose_;
     mutable std::mutex current_pose_mutex_;
-    
-    // 回调函数声明
-    void teamInfoCallback(const ros_interfaces::msg::TeamInformation::SharedPtr msg);
-    void gameInfoCallback(const ros_interfaces::msg::GameInfo::SharedPtr msg);
-    void radarInfoCallback(const ros_interfaces::msg::RadarInfo::SharedPtr msg);
-    void sentryOfflineCallback(const ros_interfaces::msg::SentryInfoOffline::SharedPtr msg);
-    void sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOnline::SharedPtr msg);
+    void eventCallback(const ros_interfaces::msg::EventStatus::SharedPtr msg);
 
   public:
     ros_interface(std::shared_ptr<Blackboard>& blackboard_ptr);
@@ -73,7 +57,6 @@ namespace Sentry_BT
     std::shared_ptr<ParamManager> getParamManager() const { return param_manager_; }
 
     bool TransformPose(const geometry_msgs::msg::Pose& input_pose, geometry_msgs::msg::Pose& output_pose);
-
     bool isTroughZone(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square& zone);
     bool isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Point2D& tunnel_entry, const Point2D& tunnel_exit);
   };
