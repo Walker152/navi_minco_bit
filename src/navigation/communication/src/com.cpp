@@ -1,5 +1,6 @@
 #include "com.hpp"
 #include "com_interface_ros.hpp"
+#include <chrono>
 #include <cstdint>
 
 // 日志输出落地函数（由头文件模板调用）
@@ -98,7 +99,7 @@ namespace ns_com
     bool allow_debug = false;
 #ifdef COM_DEBUG
     auto now_tp = Clock::now();
-    if(now_tp - last_debug_tp >= std::chrono::seconds(1))
+    if(now_tp - last_debug_tp >= std::chrono::milliseconds(300))
     {
       allow_debug = true;
       last_debug_tp = now_tp;
@@ -164,64 +165,33 @@ namespace ns_com
           break;
         }
 
-        // case ENUM_PACKET_GAMESTATUS_DATA:
-        // {
-        //   const EventStatus* event_status = (const EventStatus*)(buf + sizeof(PacketHeader));
-        //   if(allow_debug)
-        //   {
-        //     LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Evt] ",
-        //                     NV(event_status->self_health),
-        //                     NV(event_status->num_shoot),
-        //                     NV(event_status->own_outpost_health),
-        //                     NV(event_status->enemy_outpost_destroyed),
-        //                     NV(event_status->buff_active),
-        //                     NV(event_status->is_get),
-        //                     NV(event_status->x),
-        //                     NV(event_status->y),
-        //                     NV(event_status->z),
-        //                     NV(event_status->armor_id),
-        //                     NV(static_cast<int>(event_status->current_stance)),
-        //                     NV(event_status->game_status),
-        //                     NV(event_status->gimbal_yaw),
-        //                     NV(static_cast<int>(event_status->lifter_pos_now)),
-        //                     NV(event_status->hero_health),
-        //                     NV(event_status->infantry3_health)
-        //                   );
-        //   }
-        //   auto ros_ptr = ros_if_;
-        //   if(ros_ptr)
-        //     ros_ptr->publishEventStatus(*event_status);
-        //   break;
-        // }
-        
         case ENUM_PACKET_ALLY_STATUS:
         {
           const TeamInfo* team_data = (const TeamInfo*)(buf + sizeof(PacketHeader));
-          // TODO:还没写完调试日志输出，待写
-          // if (allow_debug)
-          // {
-          //   LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Team] ",
-          //                   NV(static_cast<int>(team_data->ally_status[0].robot_id)),
-          //                   NV(team_data->ally_status[0].robot_hp),
-          //                   NV(team_data->ally_status[0].robot_pos_x),
-          //                   NV(team_data->ally_status[0].robot_pos_y),
-          //                   NV(static_cast<int>(team_data->ally_status[1].robot_id)),
-          //                   NV(team_data->ally_status[1].robot_hp),
-          //                   NV(team_data->ally_status[1].robot_pos_x),
-          //                   NV(team_data->ally_status[1].robot_pos_y),
-          //                   NV(static_cast<int>(team_data->ally_status[2].robot_id)),
-          //                   NV(team_data->ally_status[2].robot_hp),
-          //                   NV(team_data->ally_status[2].robot_pos_x),
-          //                   NV(team_data->ally_status[2].robot_pos_y),
-          //                   NV(static_cast<int>(team_data->ally_status[3].robot_id)),
-          //                   NV(team_data->ally_status[3].robot_hp),
-          //                   NV(team_data->ally_status[3].robot_pos_x),
-          //                   NV(team_data->ally_status[3].robot_pos_y),
-          //                   NV(team_data->outpost_hp),
-          //                   NV(team_data->base_hp)
-                            
-          //                 );
-          // }
+          if (allow_debug)
+          {
+            LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Team] ",
+                            NV(static_cast<int>(team_data->ally_status[0].robot_id)),
+                            NV(team_data->ally_status[0].robot_hp),
+                            NV(team_data->ally_status[0].robot_pos_x),
+                            NV(team_data->ally_status[0].robot_pos_y),
+                            NV(static_cast<int>(team_data->ally_status[1].robot_id)),
+                            NV(team_data->ally_status[1].robot_hp),
+                            NV(team_data->ally_status[1].robot_pos_x),
+                            NV(team_data->ally_status[1].robot_pos_y),
+                            NV(static_cast<int>(team_data->ally_status[2].robot_id)),
+                            NV(team_data->ally_status[2].robot_hp),
+                            NV(team_data->ally_status[2].robot_pos_x),
+                            NV(team_data->ally_status[2].robot_pos_y),
+                            NV(static_cast<int>(team_data->ally_status[3].robot_id)),
+                            NV(team_data->ally_status[3].robot_hp),
+                            NV(team_data->ally_status[3].robot_pos_x),
+                            NV(team_data->ally_status[3].robot_pos_y),
+                            NV(team_data->outpost_hp),
+                            NV(team_data->base_hp)
+
+                          );
+          }
           auto ros_ptr = ros_if_;
           if(ros_ptr)
             ros_ptr->publishTeamInfo(*team_data);
@@ -233,15 +203,15 @@ namespace ns_com
           //std::cout << YELLOW << "[COM] Received GameInfo packet." << RESET << std::endl;
           const GameInfo* game_data = (const GameInfo*)(buf + sizeof(PacketHeader));
           
-          // if (allow_debug || 1)
-          // {
-          //   LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Game] ",
-          //                   NV(static_cast<int>(game_data->coin_remaining)),
-          //                   NV(static_cast<int>(game_data->event_code)),
-          //                   NV(static_cast<int>(game_data->game_status)),
-          //                   NV(static_cast<int>(game_data->game_time_remaining))
-          //                 );
-          // }
+          if (allow_debug)
+          {
+            LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Game] ",
+                            NV(static_cast<int>(game_data->coin_remaining)),
+                            NV(static_cast<int>(game_data->event_code)),
+                            NV(static_cast<int>(game_data->game_status)),
+                            NV(static_cast<int>(game_data->game_time_remaining))
+                          );
+          }
           auto ros_ptr = ros_if_;
           if(ros_ptr)
             ros_ptr->publishGameInfo(*game_data);
@@ -251,21 +221,21 @@ namespace ns_com
         case ENUM_PACKET_SENTRY_SERVER_DATA:
         {
           const SentryInfoOnline* sentry_server_data = (const SentryInfoOnline*)(buf + sizeof(PacketHeader));
-          // if (allow_debug || 1)
-          // {
-          //   LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Sol] ",
-          //                   NV(sentry_server_data->bullets_remaining),
-          //                   NV(sentry_server_data->cooling_value),
-          //                   NV(sentry_server_data->current_heat),
-          //                   NV(sentry_server_data->heat_limit),
-          //                   NV(sentry_server_data->self_health),
-          //                   NV(sentry_server_data->sentry_info_1),
-          //                   NV(sentry_server_data->sentry_info_2),
-          //                   NV(sentry_server_data->sentry_pos_x),
-          //                   NV(sentry_server_data->sentry_pos_y),
-          //                   NV(sentry_server_data->speed_monitor_angle)
-          //                 );
-          // }
+          if (allow_debug)
+          {
+            LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Sol] ",
+                            NV(sentry_server_data->bullets_remaining),
+                            NV(sentry_server_data->cooling_value),
+                            NV(sentry_server_data->current_heat),
+                            NV(sentry_server_data->heat_limit),
+                            NV(sentry_server_data->self_health),
+                            NV(sentry_server_data->sentry_info_1),
+                            NV(sentry_server_data->sentry_info_2),
+                            NV(sentry_server_data->sentry_pos_x),
+                            NV(sentry_server_data->sentry_pos_y),
+                            NV(sentry_server_data->speed_monitor_angle)
+                          );
+          }
           auto ros_ptr = ros_if_;
           if(ros_ptr)
             ros_ptr->publishSentryInfoOnline(*sentry_server_data);
@@ -275,20 +245,20 @@ namespace ns_com
         case ENUM_PACKET_SENTRY_SELF_DATA:
         {
           const SentryInfoOffline* sentry_self_data = (const SentryInfoOffline*)(buf + sizeof(PacketHeader));
-          // if (allow_debug || 1)
-          // {
-          //   LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Sof] ",
-          //                   NV(sentry_self_data->armor_num),
-          //                   NV(static_cast<int>(sentry_self_data->armor_pos[0])),
-          //                   NV(static_cast<int>(sentry_self_data->armor_pos[1])),
-          //                   NV(static_cast<int>(sentry_self_data->armor_pos[2])),
-          //                   NV(sentry_self_data->is_get),
-          //                   NV(sentry_self_data->is_transformable),
-          //                   NV(sentry_self_data->lifter_current_pos),
-          //                   NV(sentry_self_data->transform_state),
-          //                   NV(sentry_self_data->yaw_imu)
-          //                 );
-          // }
+          if (allow_debug)
+          {
+            LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Sof] ",
+                            NV(sentry_self_data->armor_num),
+                            NV(static_cast<int>(sentry_self_data->armor_pos[0])),
+                            NV(static_cast<int>(sentry_self_data->armor_pos[1])),
+                            NV(static_cast<int>(sentry_self_data->armor_pos[2])),
+                            NV(sentry_self_data->is_get),
+                            NV(sentry_self_data->is_transformable),
+                            NV(sentry_self_data->lifter_current_pos),
+                            NV(sentry_self_data->transform_state),
+                            NV(sentry_self_data->yaw_imu)
+                          );
+          }
           auto ros_ptr = ros_if_;
           if(ros_ptr)
             ros_ptr->publishSentryInfoOffline(*sentry_self_data);
@@ -299,7 +269,7 @@ namespace ns_com
         {
           const RadarInfo* radar_data = (const RadarInfo*)(buf + sizeof(PacketHeader));
           // TODO:还没写完调试日志输出，待写
-          if (allow_debug || 1)
+          if (allow_debug)
           {
             LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Rdr] ",
                             NV(static_cast<int>(radar_data->enemy_status[0].robot_id)),

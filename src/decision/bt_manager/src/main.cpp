@@ -33,7 +33,7 @@ int main(int argc, char const* argv[])
 
   // 创建单独线程处理执行器
   std::thread executor_thread([&executor]() { executor.spin(); });
-
+  std::cout << "成功" << std::endl;
   if(!bt_manager.initialize(xml_file_path, bt_blackboard))
   {
     RCLCPP_ERROR(ros_interface_node->get_logger(), "Failed to initialize BTManager with XML file: %s", xml_file_path.c_str());
