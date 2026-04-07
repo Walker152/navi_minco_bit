@@ -11,6 +11,6 @@ sleep 0.5s
 gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
 sleep 0.5s
 # commmunication
-# gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
 sleep 0.5s
 

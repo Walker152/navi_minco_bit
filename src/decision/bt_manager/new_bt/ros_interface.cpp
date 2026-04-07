@@ -13,9 +13,9 @@ namespace Sentry_BT
            rclcpp::NodeOptions().use_global_arguments(false))
     , blackboard_(blackboard_ptr)
   {
-    
     auto node_ptr = rclcpp::Node::SharedPtr(this, [](rclcpp::Node *) {});
     param_manager_ = std::make_shared<ParamManager>(node_ptr);
+
     // 订阅全局信息话题
     team_info_sub = this->create_subscription<ros_interfaces::msg::TeamInformation>(
         "/sentry/team_info",
@@ -97,7 +97,6 @@ namespace Sentry_BT
           behavior_msg.desire_lifter_pos = desired_lifter_pos;
           behavior_pub->publish(behavior_msg);
         });
-        // std::cout << "成功初始化" << std::endl;
   }
 
   geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
@@ -121,20 +120,34 @@ namespace Sentry_BT
     // 提取基地和前哨站血量
     blackboard_->set<int>("home_health", static_cast<int>(msg->base_hp));
     blackboard_->set<int>("own_outpost_health", static_cast<int>(msg->outpost_hp));
-  
-    // 处理队友信息
-    std::vector<AllyRobotInfo> allies_info;
-    allies_info.reserve(msg->allies.size());
-
-    for (const auto& ally : msg->allies) {
-      AllyRobotInfo info;
-      info.robot_id = ally.armor_id;  // 将armor_id映射到robot_id
-      info.remain_hp = static_cast<int>(ally.remain_hp);
-      info.position = ally.position;
-      allies_info.push_back(info);
-    }
     
-    blackboard_->set<std::vector<AllyRobotInfo>>("allies_info", allies_info);
+    // 处理队友信息
+    for (const auto& ally : msg->allies) {
+      switch (ally.armor_id) {
+        case ros_interfaces::msg::AllyRobotStatus::HERO:
+          blackboard_->set<int>("hero_hp", static_cast<int>(ally.remain_hp));
+          blackboard_->set<geometry_msgs::msg::Point>("hero_position", ally.position);
+          break;
+          
+        case ros_interfaces::msg::AllyRobotStatus::ENGINEER:
+          blackboard_->set<int>("engineer_hp", static_cast<int>(ally.remain_hp));
+          blackboard_->set<geometry_msgs::msg::Point>("engineer_position", ally.position);
+          break;
+          
+        case ros_interfaces::msg::AllyRobotStatus::INFANTRY_3:
+          blackboard_->set<int>("infantry3_hp", static_cast<int>(ally.remain_hp));
+          blackboard_->set<geometry_msgs::msg::Point>("infantry3_position", ally.position);
+          break;
+          
+        case ros_interfaces::msg::AllyRobotStatus::INFANTRY_4:
+          blackboard_->set<int>("infantry4_hp", static_cast<int>(ally.remain_hp));
+          blackboard_->set<geometry_msgs::msg::Point>("infantry4_position", ally.position);
+          break;
+          
+        default:
+          break;
+      }
+    }
   }
 
   // 新增：比赛信息回调函数
@@ -173,21 +186,18 @@ namespace Sentry_BT
     blackboard_->set<bool>("enemy_outpost_destroyed", !(msg->is_enemy_outpost_sensed));
     
     // 存储所有敌方机器人状态
-    std::vector<EnemyRobotInfo> enemies_info;
-    enemies_info.reserve(msg->enemies.size());  
-    for (const auto& enemy : msg->enemies) { 
+    for (size_t i = 0; i < msg->enemies.size(); ++i) {
+      const auto& enemy = msg->enemies[i];
       if (enemy.robot_id > 0) {  // 有效敌方
-        EnemyRobotInfo enemy_info;
-        enemy_info.robot_id = static_cast<int>(enemy.robot_id);
-        enemy_info.remain_hp = static_cast<int>(enemy.robot_hp);
-        enemy_info.allowed_projectile = static_cast<int>(enemy.allowed_projectile);
-        enemy_info.position = enemy.position;
+        std::string id_str = std::to_string(enemy.robot_id);
+        blackboard_->set<int>("enemy_hp_" + id_str, static_cast<int>(enemy.robot_hp));
+        blackboard_->set<int>("enemy_ammo_" + id_str, static_cast<int>(enemy.allowed_projectile));
         
-        enemies_info.push_back(enemy_info);
+      // 存储敌方位置
+      blackboard_->set<geometry_msgs::msg::Point>("enemy_position_" + id_str, enemy.position);
       }
     }
-  
-    blackboard_->set<std::vector<EnemyRobotInfo>>("enemies_info", enemies_info);
+    
     // 可以存储完整的雷达信息
     blackboard_->set<ros_interfaces::msg::RadarInfo>("radar_info", *msg);
   }

@@ -1,7 +1,7 @@
 import math
 
 # Set roll/pitch/yaw here (degrees)
-roll_deg = 20.0
+roll_deg = -20.0
 pitch_deg = 0.0
 yaw_deg = 0.0
 
