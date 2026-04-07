@@ -55,6 +55,8 @@ void Visualizer::configure(
   // ESDF cloud
   esdf_cloud_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>(
     "/esdf_cloud", 10);
+  global_esdf_cloud_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>(
+    "/global_esdf_cloud", 10);
 
   // 15Hz visualization timer
   visual_timer_ = node->create_wall_timer(
@@ -64,7 +66,7 @@ void Visualizer::configure(
   // 1Hz ESDF timer (only if enabled)
   if (enable_esdf_timer) {
     esdf_timer_ = node->create_wall_timer(
-      std::chrono::milliseconds(1000),
+      std::chrono::milliseconds(50),
       [this]() {
         auto node_ptr = node_.lock();
         if (!node_ptr) {
@@ -75,6 +77,12 @@ void Visualizer::configure(
           header.stamp = node_ptr->now();
           header.frame_id = global_frame_;
           publishEsdfCloud(header);
+        }
+        if (global_esdf_cloud_pub_ && global_esdf_cloud_pub_->get_subscription_count() > 0) {
+          std_msgs::msg::Header header;
+          header.stamp = node_ptr->now();
+          header.frame_id = global_frame_;
+          publishGlobalEsdfCloud(header);
         }
       });
   }
@@ -92,6 +100,7 @@ void Visualizer::cleanup()
   recover_goal_vis_pub_.reset();
   control_points_vis_pub_.reset();
   esdf_cloud_pub_.reset();
+  global_esdf_cloud_pub_.reset();
 
   esdf_map_.reset();
 
@@ -468,6 +477,86 @@ void Visualizer::publishEsdfCloud(const std_msgs::msg::Header & header)
   }
 
   esdf_cloud_pub_->publish(cloud);
+}
+
+void Visualizer::publishGlobalEsdfCloud(const std_msgs::msg::Header & header)
+{
+  if (!global_esdf_cloud_pub_ || !esdf_map_) {
+    return;
+  }
+
+  // Visualize global ESDF from static layer only.
+  const auto static_layer = esdf_map_->staticLayer();
+  if (!static_layer || !static_layer->isValid()) {
+    return;
+  }
+
+  const int width = static_layer->width();
+  const int height = static_layer->height();
+  const double res = static_layer->resolution();
+  const Eigen::Vector2d origin = static_layer->origin();
+  if (width <= 0 || height <= 0 || res <= 0.0) {
+    return;
+  }
+
+  sensor_msgs::msg::PointCloud2 cloud;
+  cloud.header = header;
+  cloud.height = 1;
+  cloud.width = static_cast<uint32_t>(static_cast<size_t>(width) * static_cast<size_t>(height));
+  cloud.is_bigendian = false;
+  cloud.is_dense = false;
+
+  cloud.fields.resize(4);
+  cloud.fields[0].name = "x";
+  cloud.fields[0].offset = 0;
+  cloud.fields[0].datatype = sensor_msgs::msg::PointField::FLOAT32;
+  cloud.fields[0].count = 1;
+
+  cloud.fields[1].name = "y";
+  cloud.fields[1].offset = 4;
+  cloud.fields[1].datatype = sensor_msgs::msg::PointField::FLOAT32;
+  cloud.fields[1].count = 1;
+
+  cloud.fields[2].name = "z";
+  cloud.fields[2].offset = 8;
+  cloud.fields[2].datatype = sensor_msgs::msg::PointField::FLOAT32;
+  cloud.fields[2].count = 1;
+
+  cloud.fields[3].name = "intensity";
+  cloud.fields[3].offset = 12;
+  cloud.fields[3].datatype = sensor_msgs::msg::PointField::FLOAT32;
+  cloud.fields[3].count = 1;
+
+  cloud.point_step = 16;
+  cloud.row_step = cloud.point_step * cloud.width;
+  cloud.data.resize(static_cast<size_t>(cloud.row_step) * cloud.height);
+
+  for (int iy = 0; iy < height; ++iy) {
+    for (int ix = 0; ix < width; ++ix) {
+      const float x = static_cast<float>(origin.x() + ix * res);
+      const float y = static_cast<float>(origin.y() + iy * res);
+      const float z = 0.0f;
+
+      double dist = 0.0;
+      Eigen::Vector3d grad;
+      static_layer->evaluate(
+        Eigen::Vector3d(static_cast<double>(x), static_cast<double>(y), 0.0), dist, grad);
+      if (!std::isfinite(dist)) {
+        dist = 0.0;
+      }
+      const float intensity = static_cast<float>(dist);
+
+      const size_t point_index =
+        static_cast<size_t>(iy) * static_cast<size_t>(width) + static_cast<size_t>(ix);
+      const size_t base = point_index * static_cast<size_t>(cloud.point_step);
+      std::memcpy(&cloud.data[base + 0], &x, sizeof(float));
+      std::memcpy(&cloud.data[base + 4], &y, sizeof(float));
+      std::memcpy(&cloud.data[base + 8], &z, sizeof(float));
+      std::memcpy(&cloud.data[base + 12], &intensity, sizeof(float));
+    }
+  }
+
+  global_esdf_cloud_pub_->publish(cloud);
 }
 
 }  // namespace minco_planner

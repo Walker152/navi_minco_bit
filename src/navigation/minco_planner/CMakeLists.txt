@@ -27,6 +27,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(ros_interfaces REQUIRED)
 find_package(PCL REQUIRED)
+find_package(OpenMP REQUIRED)
 
 nav2_package()
 
@@ -69,6 +70,7 @@ ament_target_dependencies(${library_name}
 )
 
 target_link_libraries(${library_name}
+  OpenMP::OpenMP_CXX
   ${PCL_LIBRARIES}
 )
 

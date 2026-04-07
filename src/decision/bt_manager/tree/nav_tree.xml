@@ -1,6 +1,9 @@
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <ReactiveSequence name="SentryMainLogic">
+      <!-- <ReactiveSequence name="BlackboardTest">
+        <BlackboardTestNode name="BlackboardTestNode" />
+      </ReactiveSequence> -->
       <!-- <ForceSuccess>
         <Fallback>
           <Sequence name="DefendStance">
@@ -37,29 +40,49 @@
          -->
         <ReactiveSequence name="EmergencyRetreat">
           <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
+          <!-- <ChangeMapAction name="ChangeMapToBack"
+                           map_dir="src/navigation/navi2_bringup/maps/2026"
+                           pcd_dir="src/utils/pcd2esdf/maps"
+                           map_name="rmuc2026_back" /> -->
           <SetCoordinate name="SetHomeCoordinate" goal="0" />
+          <ForceSuccess>
+            <CheckWillThroughTunnel name="CheckWillThroughTunnel" />
+          </ForceSuccess>
           <NavigateToPoseAction name="PublishRetreatGoal" />
         </ReactiveSequence>
 
-        <!-- <ReactiveSequence name="OutpostResponse">
+        <ReactiveSequence name="OutpostResponse">
           <CheckOutpostRemained name="CheckOutpostRemained" />
           <SetCoordinate name="SetResponseCoordinate" goal="2" />
           <NavigateToPoseAction name="PublishResponseGoal" />
-        </ReactiveSequence> -->
+        </ReactiveSequence>
 
-        <ReactiveFallback name="OffensiveStrategies">
-          <!-- <ReactiveSequence name="TargetPursuit">
-            <CheckTargetLocked name="CheckTargetLocked" />
-            <SetTargetCoordinate name="SetTargetCoordinate" />
-            <NavigateToPoseAction name="PublishPursuitGoal" />
-          </ReactiveSequence> -->
+        <ReactiveSequence name="OffensiveRoot">
+          <!-- <ChangeMapAction name="ChangeMapToMain"
+                           map_dir="src/navigation/navi2_bringup/maps/2026"
+                           pcd_dir="src/utils/pcd2esdf/maps"
+                           map_name="rmuc2026" /> -->
 
-          <Sequence name="RegularPatrol">
-            <SelectPatrolPoint name="SelectPatrolPoint" />
-            <NavigateToPoseAction name="PublishPatrolGoal" />
-            <Wait name="PostNavigationWait" />
-          </Sequence>
-        </ReactiveFallback>
+          <ReactiveFallback name="OffensiveStrategies">
+            <!-- <ReactiveSequence name="TargetPursuit">
+              <CheckTargetLocked name="CheckTargetLocked" />
+              <SetTargetCoordinate name="SetTargetCoordinate" />
+              <NavigateToPoseAction name="PublishPursuitGoal" />
+            </ReactiveSequence> -->
+
+            <Sequence name="RegularPatrol">
+              <SelectPatrolPoint name="SelectPatrolPoint" />
+                <ReactiveSequence name="NavigationAndTunnelCheck">
+                  <ForceSuccess>
+                    <CheckWillThroughTunnel name="CheckWillThroughTunnel" />
+                  </ForceSuccess> 
+                  <NavigateToPoseAction name="PublishPatrolGoal" />
+                </ReactiveSequence>
+              <!-- <NavigateToPoseAction name="PublishPatrolGoal" /> -->
+              <Wait name="PostNavigationWait" />
+            </Sequence>
+          </ReactiveFallback>
+        </ReactiveSequence>
       </ReactiveFallback>
     </ReactiveSequence>
   </BehaviorTree>
