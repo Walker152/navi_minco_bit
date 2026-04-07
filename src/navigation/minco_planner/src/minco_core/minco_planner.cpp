@@ -1533,6 +1533,13 @@ void MincoPlanner::publishEscapeCommand(
     header_msg);
 }
 
+void MincoPlanner::clearRecoveryDebugVisualization()
+{
+  if (visualizer_) {
+    visualizer_->clearRecoveryDebug();
+  }
+}
+
 }  // namespace minco_planner
 
 #include "pluginlib/class_list_macros.hpp"
