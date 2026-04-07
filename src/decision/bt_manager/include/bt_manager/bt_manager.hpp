@@ -19,7 +19,7 @@ public:
   ~BTManager() = default;
   
   // 初始化行为树
-  bool initialize(const std::string& xml_file_path, std::shared_ptr<BT::Blackboard> blackboard);
+  bool initialize(std::shared_ptr<BT::Blackboard> blackboard);
   
   // 执行行为树
   void execute();
@@ -27,9 +27,14 @@ public:
   // 获取行为树状态
   BT::NodeStatus getStatus() const;
   
+  // 获取功能包路径
+  void getPackagePath(const std::string& path);
 private:
   BT::BehaviorTreeFactory factory_;
-  BT::Tree tree_;
+  BT::Tree nav_tree_;
+  BT::Tree stance_tree_;
+  BT::Tree gimbal_tree_;
+  std::string tree_xml_path_;
 };
 
 }  // namespace Sentry_BT
