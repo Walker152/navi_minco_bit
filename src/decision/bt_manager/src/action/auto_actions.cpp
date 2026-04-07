@@ -184,10 +184,7 @@ namespace Sentry_BT
       blackboard->set("patrol_index", current_index);
     }
 
-    // 获取前哨站状态决定使用哪种巡逻路线
-    auto own_outpost_health = blackboard->get<int>("own_outpost_health");
-    std::vector<Sentry_BT::Point2D> patrol_points =
-      (own_outpost_health <= 0) ? Sentry_BT::patrol_points_attack : Sentry_BT::patrol_points_normal;
+    std::vector<Sentry_BT::PatrolPoint> patrol_points = Sentry_BT::patrol_points_normal;
 
     // 检查索引有效性
     if(current_index >= static_cast<int>(patrol_points.size()))
@@ -196,12 +193,11 @@ namespace Sentry_BT
       blackboard->set("patrol_index", current_index);
     }
 
-    Sentry_BT::Point2D selected_point = patrol_points[current_index];
+    Sentry_BT::Point2D selected_point = patrol_points[current_index].position;
 
     int next_index = (current_index + 1) % patrol_points.size();
     blackboard->set("patrol_index", next_index);
     blackboard->set("nav_goal", selected_point);
-    blackboard->set("patrol_wait_time", patrol_points_milliseconds[current_index]);
     blackboard->set<int>("current_mode", Sentry_BT::NavMode::PATROL);
 
     static int last_logged_index = -1;
@@ -231,8 +227,8 @@ namespace Sentry_BT
   BT::NodeStatus Wait::onStart()
   {
     auto blackboard = config().blackboard;
-    auto wait_time = blackboard->get<int>("patrol_wait_time");
-
+    auto patrol_index = blackboard->get<int>("patrol_index");
+    auto wait_time = patrol_points_normal[patrol_index].duration_ms;
     if(!wait_time)
     {
       auto time = getInput<int>("milliseconds");
