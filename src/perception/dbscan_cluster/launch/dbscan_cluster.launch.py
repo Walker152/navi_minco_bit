@@ -6,7 +6,7 @@ import os
 
 def generate_launch_description():
     config_file = os.path.join(
-        get_package_share_directory('euclidean_cluster'),
+        get_package_share_directory('dbscan_cluster'),
         'config',
         'dbscan_cluster.params.yaml'
     )
