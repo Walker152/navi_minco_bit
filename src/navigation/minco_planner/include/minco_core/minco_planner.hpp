@@ -107,6 +107,8 @@ public:
     const geometry_msgs::msg::PoseStamped & current_pose,
     const Eigen::Vector2d & escape_vel);
 
+  void clearRecoveryDebugVisualization();
+
   void publishEmergencyStop(const geometry_msgs::msg::PoseStamped & current_pose);
 
   traj_opt::Trajectory generateBackupTraj(const Eigen::Matrix3d & start_state);
