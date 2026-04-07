@@ -47,6 +47,8 @@ public:
     const Eigen::Vector2d & escape_vel,
     double preview_sec = 0.5);
 
+  void clearRecoveryDebug();
+
 private:
   void visualTimerCallback();
   nav_msgs::msg::Path convertTrajectoryToPath(
