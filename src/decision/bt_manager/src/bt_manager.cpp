@@ -8,7 +8,7 @@ namespace Sentry_BT
 {
   BTManager::BTManager() {}
 
-  bool BTManager::initialize(const std::string& xml_file_path, std::shared_ptr<BT::Blackboard> blackboard)
+  bool BTManager::initialize(std::shared_ptr<BT::Blackboard> blackboard)
   {
     // 注册自定义节点
     factory_.registerNodeType<CheckRetreatCondition>("CheckRetreatCondition");
@@ -41,7 +41,14 @@ namespace Sentry_BT
     // 创建行为树
     try
     {
-      tree_ = factory_.createTreeFromFile(xml_file_path, blackboard);
+      std::string nav_tree_xml = tree_xml_path_ + "/tree/nav_tree.xml";
+      nav_tree_ = factory_.createTreeFromFile(nav_tree_xml, blackboard);
+
+      std::string stance_tree_xml = tree_xml_path_ + "/tree/stance_tree.xml";
+      stance_tree_ = factory_.createTreeFromFile(stance_tree_xml, blackboard);
+
+      // std::string gimbal_tree_xml = tree_xml_path_ + "/tree/gimbal_tree.xml";
+      // gimbal_tree_ = factory_.createTreeFromFile(gimbal_tree_xml, blackboard);
     }
     catch(const std::exception& e)
     {
@@ -54,11 +61,18 @@ namespace Sentry_BT
 
   void BTManager::execute()
   {
-    tree_.tickRoot();
+    nav_tree_.tickRoot();
+    stance_tree_.tickRoot();
+    // gimbal_tree_.tickRoot();
   }
 
   BT::NodeStatus BTManager::getStatus() const
   {
-    return tree_.rootNode()->status();
+    return nav_tree_.rootNode()->status();
+  }
+
+  void BTManager::getPackagePath(const std::string& path)
+  {
+    tree_xml_path_ = path;
   }
 }  // namespace Sentry_BT

@@ -4,24 +4,8 @@
       <!-- <ReactiveSequence name="BlackboardTest">
         <BlackboardTestNode name="BlackboardTestNode" />
       </ReactiveSequence> -->
-      <!-- <ForceSuccess>
-        <Fallback>
-          <Sequence name="DefendStance">
-            <CheckDPCondition name="CheckDPCondition" />            
-            <ChangeStance name="ChangeStanceDefend" />
-          </Sequence>
 
-          <Sequence name="AttackStance">
-            <CheckAPCondition name="CheckAPCondition" />   
-            <ChangeStance name="ChangeStanceAttack" />
-          </Sequence>
- 
-          <Sequence name="MoveStance">
-            <CheckMPCondition name="CheckMPCondition" />
-            <ChangeStance name="ChangeStanceMove" />
-          </Sequence>
-        </Fallback>
-      </ForceSuccess> -->
+      <!-- 导航策略 -->
       <ReactiveFallback name="NavigationStrategies">
         <!-- <Sequence name="StairsEvacuation">
           <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
@@ -38,12 +22,14 @@
                                 duration="0.5"/>
         </Sequence>
          -->
+
+        <!-- 紧急撤退,优先级最高 -->
         <ReactiveSequence name="EmergencyRetreat">
           <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
-          <!-- <ChangeMapAction name="ChangeMapToBack"
+          <ChangeMapAction name="ChangeMapToBack"
                            map_dir="src/navigation/navi2_bringup/maps/2026"
                            pcd_dir="src/utils/pcd2esdf/maps"
-                           map_name="rmuc2026_back" /> -->
+                           map_name="rmuc2026_back" />
           <SetCoordinate name="SetHomeCoordinate" goal="0" />
           <ForceSuccess>
             <CheckWillThroughTunnel name="CheckWillThroughTunnel" />
@@ -51,25 +37,31 @@
           <NavigateToPoseAction name="PublishRetreatGoal" />
         </ReactiveSequence>
 
-        <ReactiveSequence name="OutpostResponse">
-          <CheckOutpostRemained name="CheckOutpostRemained" />
-          <SetCoordinate name="SetResponseCoordinate" goal="2" />
-          <NavigateToPoseAction name="PublishResponseGoal" />
-        </ReactiveSequence>
+        <!-- 特殊事件响应节点 -->
+        <ReactiveFallback name="SpecialEventResponse">
+          <ReactiveSequence name="OutpostResponse">
+            <CheckOutpostRemained name="CheckOutpostRemained" />
+            <SetCoordinate name="SetResponseCoordinate" goal="2" />
+            <NavigateToPoseAction name="PublishResponseGoal" />
+          </ReactiveSequence>
+        </ReactiveFallback>
 
+        <!-- 进攻根节点 -->
         <ReactiveSequence name="OffensiveRoot">
-          <!-- <ChangeMapAction name="ChangeMapToMain"
+          <ChangeMapAction name="ChangeMapToMain"
                            map_dir="src/navigation/navi2_bringup/maps/2026"
                            pcd_dir="src/utils/pcd2esdf/maps"
-                           map_name="rmuc2026" /> -->
+                           map_name="rmuc2026" />
 
           <ReactiveFallback name="OffensiveStrategies">
-            <!-- <ReactiveSequence name="TargetPursuit">
+            <!-- 追击模式，在区域内自动追击 -->
+            <ReactiveSequence name="TargetPursuit">
               <CheckTargetLocked name="CheckTargetLocked" />
               <SetTargetCoordinate name="SetTargetCoordinate" />
               <NavigateToPoseAction name="PublishPursuitGoal" />
-            </ReactiveSequence> -->
+            </ReactiveSequence>
 
+            <!-- 普通巡逻模式 -->
             <Sequence name="RegularPatrol">
               <SelectPatrolPoint name="SelectPatrolPoint" />
                 <ReactiveSequence name="NavigationAndTunnelCheck">
@@ -81,9 +73,9 @@
               <!-- <NavigateToPoseAction name="PublishPatrolGoal" /> -->
               <Wait name="PostNavigationWait" />
             </Sequence>
-          </ReactiveFallback>
-        </ReactiveSequence>
-      </ReactiveFallback>
-    </ReactiveSequence>
+          </ReactiveFallback><!--OffensiveStrategies-->
+        </ReactiveSequence><!--OffensiveRoot-->
+      </ReactiveFallback><!--NavigationStrategies-->
+    </ReactiveSequence><!--NavigationRoot-->
   </BehaviorTree>
 </root>
