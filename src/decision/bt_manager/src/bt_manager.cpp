@@ -2,6 +2,7 @@
 #include "bt_manager/action/change_stance_action.hpp"
 #include "bt_manager/condition/change_stance_condition.hpp"
 #include "bt_manager/action/nav_action.hpp"
+#include "bt_manager/new_test.hpp"
 
 namespace Sentry_BT
 {
@@ -36,6 +37,7 @@ namespace Sentry_BT
 
     factory_.registerNodeType<CheckWillThroughTunnel>("CheckWillThroughTunnel");
     factory_.registerNodeType<ControlThroughTunnel>("ControlThroughTunnel");
+    factory_.registerNodeType<BlackboardTestNode>("BlackboardTestNode");
     // 创建行为树
     try
     {
