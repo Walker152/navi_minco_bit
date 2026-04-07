@@ -244,6 +244,27 @@ void publish_frame_body(
   pubLaserCloudFull_body->publish(laserCloudmsg);
 }
 
+void publish_frame_dense_world(
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_laser_cloud_dense_world)
+{
+  if (!pub_laser_cloud_dense_world) {
+    return;
+  }
+
+  const int size = feats_undistort->points.size();
+  PointCloudXYZI::Ptr dense_world_cloud(new PointCloudXYZI(size, 1));
+
+  for (int i = 0; i < size; i++) {
+    pointBodyToWorld(&feats_undistort->points[i], &dense_world_cloud->points[i]);
+  }
+
+  sensor_msgs::msg::PointCloud2 cloud_msg;
+  pcl::toROSMsg(*dense_world_cloud, cloud_msg);
+  cloud_msg.header.stamp = get_ros_time(lidar_end_time);
+  cloud_msg.header.frame_id = "camera_init";
+  pub_laser_cloud_dense_world->publish(cloud_msg);
+}
+
 template <typename T>
 void set_posestamp(T & out)
 {
@@ -545,6 +566,8 @@ int main(int argc, char ** argv)
     nh->create_subscription<sensor_msgs::msg::Imu>(imu_topic, rclcpp::SensorDataQoS(), imu_cbk);
   auto pub_laser_cloud_full_res =
     nh->create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered", 20);
+  auto pub_laser_cloud_dense_world =
+    nh->create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered_dense", 20);
   auto pub_laser_cloud_full_res_body =
     nh->create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered_body", 20);
   auto pub_laser_cloud_effect =
@@ -1184,6 +1207,7 @@ int main(int argc, char ** argv)
       /******* Publish points *******/
       if (path_en) publish_path(pub_path);
       if (scan_pub_en || pcd_save_en) publish_frame_world(pub_laser_cloud_full_res);
+      if (scan_pub_en) publish_frame_dense_world(pub_laser_cloud_dense_world);
       if (scan_pub_en && scan_body_pub_en) publish_frame_body(pub_laser_cloud_full_res_body);
       if (scan_pub_en) publish_init_map(pub_laser_cloud_map);
 

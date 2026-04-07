@@ -2,6 +2,7 @@
 #include "bt_manager/action/change_stance_action.hpp"
 #include "bt_manager/condition/change_stance_condition.hpp"
 #include "bt_manager/action/nav_action.hpp"
+#include "bt_manager/new_test.hpp"
 
 namespace Sentry_BT
 {
@@ -22,6 +23,7 @@ namespace Sentry_BT
     factory_.registerNodeType<SelectPatrolPoint>("SelectPatrolPoint");
     factory_.registerNodeType<SetTargetCoordinate>("SetTargetCoordinate");
     factory_.registerNodeType<SetCoordinate>("SetCoordinate");
+    factory_.registerNodeType<ChangeMapAction>("ChangeMapAction");
     factory_.registerNodeType<Wait>("Wait");
 
     factory_.registerNodeType<CheckMPCondition>("CheckMPCondition");
@@ -32,6 +34,10 @@ namespace Sentry_BT
     factory_.registerNodeType<DirectVelocityControl>("DirectVelocityControl");
     factory_.registerNodeType<SetStairsPosition>("SetStairsPosition");
     factory_.registerNodeType<CheckInStairsZone>("CheckInStairsZone");
+
+    factory_.registerNodeType<CheckWillThroughTunnel>("CheckWillThroughTunnel");
+    factory_.registerNodeType<ControlThroughTunnel>("ControlThroughTunnel");
+    factory_.registerNodeType<BlackboardTestNode>("BlackboardTestNode");
     // 创建行为树
     try
     {
