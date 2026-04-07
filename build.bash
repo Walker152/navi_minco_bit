@@ -27,7 +27,12 @@ if (( parallel_workers > max_workers_by_mem )); then
 	parallel_workers=$max_workers_by_mem
 fi
 
+
 mem_limit_mb=$(( MEM_LIMIT_GB * 1024 ))
+
+# 需要优先串行编译的包
+SERIAL_PACKAGES=(livox_ros_driver2 rog_map icp_relocalization point_lio)
+SERIAL_PACKAGES_CSV=$(IFS=,; echo "${SERIAL_PACKAGES[*]}")
 
 echo "[build] MEM_LIMIT_GB=${MEM_LIMIT_GB}, MEM_PER_WORKER_GB=${MEM_PER_WORKER_GB}, CPU_WORKERS=${cpu_workers}, PARALLEL_WORKERS=${parallel_workers}"
 
@@ -57,8 +62,20 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# 1. 串行编译指定包
+echo "[build] Serially building: ${SERIAL_PACKAGES[*]}"
+colcon build \
+	--symlink-install \
+	--parallel-workers 1 \
+	--packages-select ${SERIAL_PACKAGES[*]} \
+	--cmake-args -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPython3_EXECUTABLE=/usr/bin/python3 -DPYTHON_EXECUTABLE=/usr/bin/python3 \
+	--event-handlers console_direct+ status+
+
+# 2. 并行编译剩余包
+echo "[build] Parallel building remaining packages, skipping: ${SERIAL_PACKAGES[*]}"
 colcon build \
 	--symlink-install \
 	--parallel-workers "$parallel_workers" \
+	--packages-skip ${SERIAL_PACKAGES[*]} \
 	--cmake-args -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPython3_EXECUTABLE=/usr/bin/python3 -DPYTHON_EXECUTABLE=/usr/bin/python3 \
 	--event-handlers console_direct+ status+
