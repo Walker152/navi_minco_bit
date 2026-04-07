@@ -167,6 +167,29 @@ void Visualizer::publishRecoveryDebug(
   recover_path_vis_pub_->publish(path_msg);
 }
 
+void Visualizer::clearRecoveryDebug()
+{
+  auto node = node_.lock();
+  if (!node) {
+    return;
+  }
+  if (!recover_goal_vis_pub_ || !recover_path_vis_pub_) {
+    return;
+  }
+
+  visualization_msgs::msg::Marker goal_mk;
+  goal_mk.header.stamp = node->now();
+  goal_mk.header.frame_id = global_frame_;
+  goal_mk.ns = "recover_goal";
+  goal_mk.id = 0;
+  goal_mk.action = visualization_msgs::msg::Marker::DELETE;
+  recover_goal_vis_pub_->publish(goal_mk);
+
+  nav_msgs::msg::Path path_msg;
+  path_msg.header = goal_mk.header;
+  recover_path_vis_pub_->publish(path_msg);
+}
+
 void Visualizer::update(
   const std::vector<Eigen::Vector3d> & control_points,
   const traj_opt::Trajectory & backup_traj,
