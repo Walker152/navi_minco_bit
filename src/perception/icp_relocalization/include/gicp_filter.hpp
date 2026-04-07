@@ -75,7 +75,7 @@ namespace icp_relocalization
     struct Result
     {
       bool converged = false;
-      double fitness_score = -1.0;
+      double overlap_ratio = 0.0;
       Eigen::Matrix4f final_transformation = Eigen::Matrix4f::Identity();
     };
 

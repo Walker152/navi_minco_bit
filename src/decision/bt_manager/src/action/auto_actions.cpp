@@ -386,6 +386,57 @@ BT::NodeStatus SetStairsPosition::tick()
   
   return BT::NodeStatus::SUCCESS;
 }
+
+// ------------------- ChangeMapAction -------------------
+ChangeMapAction::ChangeMapAction(const std::string& name, const BT::NodeConfiguration& config)
+    : BT::SyncActionNode(name, config)
+{}
+
+BT::PortsList ChangeMapAction::providedPorts()
+{
+  return {
+      BT::InputPort<std::string>("map_dir", "Directory containing map files"),
+      BT::InputPort<std::string>("pcd_dir", "Directory containing ESDF PCD files"),
+      BT::InputPort<std::string>("map_name", "Base name of the map files (without extensions)")
+  };
+}
+
+BT::NodeStatus ChangeMapAction::tick()
+{
+  static std::string last_map_name;
+
+  auto map_dir = getInput<std::string>("map_dir");
+  if (!map_dir) {
+    throw BT::RuntimeError("missing required input [map_dir]: ", map_dir.error());
+  }
+
+  auto map_name = getInput<std::string>("map_name");
+  if (!map_name) {
+    throw BT::RuntimeError("missing required input [map_name]: ", map_name.error());
+  }
+
+  if (map_name.value() == last_map_name) {
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  auto pcd_dir = getInput<std::string>("pcd_dir");
+  const std::string pcd_dir_value = pcd_dir ? pcd_dir.value() : map_dir.value();
+
+  std::string yaml_path = map_dir.value() + "/" + map_name.value() + ".yaml";
+  std::string pcd_path = pcd_dir_value + "/" + map_name.value() + "_esdf.pcd";
+
+  auto ros_iface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
+  if (!ros_iface || !ros_iface->getParamManager()) {
+    throw BT::RuntimeError("ros_interface or ParamManager is not available from blackboard");
+  }
+
+  std::cout << CYAN << "Changing map to: " << map_name.value() << " (Paths: " << yaml_path << ", "
+            << pcd_path << ")" << RESET << std::endl;
+
+  ros_iface->getParamManager()->changeMapAndPcd(yaml_path, pcd_path);
+  last_map_name = map_name.value();
+  return BT::NodeStatus::SUCCESS;
+}
 // ------------------- ControlThroughTunnel -------------------
 ControlThroughTunnel::ControlThroughTunnel(const std::string& name, const BT::NodeConfiguration& config)
     : BT::StatefulActionNode(name, config)
@@ -417,24 +468,18 @@ BT::NodeStatus ControlThroughTunnel::onStart()
   for (const auto& param : params) {
     if (param.get_name() == "FollowPath.use_small_gyro_mode") {
       initial_small_gyoro_ = param.as_bool();
-    } else if (param.get_name() == "FollowPath.fixed_wz") {
-      initial_wz_ = param.as_double();
+    } else if (param.get_name() == "FollowPath.enable_yaw_opt") {
+      initial_yaw_opt_ = param.as_bool();
     }
   }
-  auto current_orientation = ros_iface->getCurrentPose().orientation;
-  // 将四元数转换为欧拉角
-  tf2::Quaternion quat(current_orientation.x, current_orientation.y, current_orientation.z, current_orientation.w);
-  double roll, pitch, yaw;
-  tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
-  initial_yaw_ = yaw;
   auto set_param_future = parameters_client_->set_parameters({
-    rclcpp::Parameter("FollowPath.use_small_gyro_mode", true), 
-    rclcpp::Parameter("FollowPath.fixed_wz", fixed_wz_)});
+    rclcpp::Parameter("FollowPath.use_small_gyro_mode", false),
+    rclcpp::Parameter("FollowPath.enable_yaw_opt", true)});
   if (set_param_future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
     std::cerr << "Failed to set parameters within timeout." << std::endl;
     return BT::NodeStatus::FAILURE;
   }
-  last_pub_time_ = ros_iface->now();
+  //last_pub_time_ = ros_iface->now();
   return BT::NodeStatus::RUNNING;
 }
 
@@ -446,11 +491,12 @@ BT::NodeStatus ControlThroughTunnel::onRunning()
     return BT::NodeStatus::FAILURE;
   }
   is_through_tunnel_ = blackboard->get<bool>("through_tunnel");
+  RCLCPP_INFO(ros_iface->get_logger(), "is_through_tunnel: %s", is_through_tunnel_ ? "true" : "false");
   if(!is_through_tunnel_)
   {
     auto set_param_future = parameters_client_->set_parameters({
-      rclcpp::Parameter("FollowPath.use_small_gyro_mode", initial_small_gyoro_), 
-      rclcpp::Parameter("FollowPath.fixed_wz", initial_wz_)});
+      rclcpp::Parameter("FollowPath.use_small_gyro_mode", initial_small_gyoro_),
+      rclcpp::Parameter("FollowPath.enable_yaw_opt", initial_yaw_opt_)});
     if (set_param_future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
       std::cerr << "Failed to reset parameters within timeout." << std::endl;
       return BT::NodeStatus::FAILURE;
@@ -473,24 +519,23 @@ BT::NodeStatus ControlThroughTunnel::onRunning()
     if (!yaw_ready_) {
       yaw_ready_ = true;
       std::cout << GREEN << "Yaw is ready." << RESET << std::endl;
-      parameters_client_->set_parameters({rclcpp::Parameter("FollowPath.fixed_wz", 0.0)});
     }
   }
-  else {
-    if (yaw_ready_) {
-      geometry_msgs::msg::Twist vel;
-      geometry_msgs::msg::Twist current_cmd_vel = blackboard->get<geometry_msgs::msg::Twist>("cmd_vel");
-      vel.linear = current_cmd_vel.linear;
-      double wz = yaw_diff * 4.0; // 简单的比例控制
-      wz = std::clamp(wz, -fixed_wz_, fixed_wz_);
-      vel.angular.z = wz;
-      rclcpp::Time now = ros_iface->now();
-      if ((now - last_pub_time_).seconds() >= 0.05) { // 20Hz发布频率
-        ros_iface->publishCmdVel(vel);
-        last_pub_time_ = now;
-      }
-    }
-  }
+  // else {
+  //   if (yaw_ready_) {
+  //     geometry_msgs::msg::Twist vel;
+  //     geometry_msgs::msg::Twist current_cmd_vel = blackboard->get<geometry_msgs::msg::Twist>("cmd_vel");
+  //     vel.linear = current_cmd_vel.linear;
+  //     double wz = yaw_diff * 4.0; // 简单的比例控制
+  //     wz = std::clamp(wz, -fixed_wz_, fixed_wz_);
+  //     vel.angular.z = wz;
+  //     rclcpp::Time now = ros_iface->now();
+  //     if ((now - last_pub_time_).seconds() >= 0.05) { // 20Hz发布频率
+  //       ros_iface->publishCmdVel(vel);
+  //       last_pub_time_ = now;
+  //     }
+  //   }
+  // }
   int lifter_pose = blackboard->get<int>("lifter_pos_now");
   if (lifter_pose == 1 && !lifter_ready_)
   {
