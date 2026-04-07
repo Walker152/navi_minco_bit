@@ -193,13 +193,22 @@ namespace Sentry_BT
 
   BT::NodeStatus CheckOutpostRemained::tick()
   {
-    std::cout << BLUE << "---------- CheckOutpostRemained ----------" << RESET << std::endl;
     auto blackboard = config().blackboard;
 
     auto enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
-    std::cout << WHITE << "Enemy outpost destroyed: " << (enemy_outpost_destroyed ? "true" : "false") << RESET << std::endl;
+    const bool outpost_remained = !enemy_outpost_destroyed;
+
+    static bool last_outpost_remained = !outpost_remained;
+    if(outpost_remained != last_outpost_remained)
+    {
+      std::cout << BLUE << "CheckOutpostRemained => "
+                << (outpost_remained ? "OUTPOST_REMAINED" : "OUTPOST_DESTROYED")
+                << RESET << std::endl;
+      last_outpost_remained = outpost_remained;
+    }
+
     // 如果前哨站还在，切换到响应模式
-    if(!enemy_outpost_destroyed)
+    if(outpost_remained)
     {
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::RESPONSE);
       return BT::NodeStatus::SUCCESS;
@@ -265,7 +274,7 @@ BT::NodeStatus CheckWillThroughTunnel::tick()
 {
   auto blackboard = config().blackboard;
   bool will_through_tunnel = false;
-  auto lifter_pos_now = blackboard->get<int>("lifter_pos_now");
+  auto lifter_current_pos = blackboard->get<int>("lifter_current_pos");
   will_through_tunnel = blackboard->get<bool>("through_tunnel");
   static bool last_state_ = !will_through_tunnel;
   if (last_state_ != will_through_tunnel)
@@ -277,12 +286,12 @@ BT::NodeStatus CheckWillThroughTunnel::tick()
   }
   
   if (will_through_tunnel) {
-    if (lifter_pos_now == 0) {
+    if (lifter_current_pos == 0) {
       blackboard->set<int>("desired_lifter_pos", 2); // 设置目标升降位置为 2(bottom)，准备过隧道
     }
   }
   else {
-    if (lifter_pos_now != 0) {
+    if (lifter_current_pos != 0) {
       blackboard->set<int>("desired_lifter_pos", 0); // 设置目标升降位置为 0(top)，准备不通过隧道
     }
   }
