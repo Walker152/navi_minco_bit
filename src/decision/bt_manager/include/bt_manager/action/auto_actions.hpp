@@ -83,6 +83,15 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class ChangeMapAction : public BT::SyncActionNode
+{
+public:
+  ChangeMapAction(const std::string& name, const BT::NodeConfiguration& config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 // 控制过隧道
 class ControlThroughTunnel : public BT::StatefulActionNode
 {
@@ -94,15 +103,13 @@ public: ControlThroughTunnel(const std::string& name, const BT::NodeConfiguratio
 private:
   bool is_through_tunnel_;
   bool initial_small_gyoro_;
-  double initial_wz_;
-  double initial_yaw_;
-  const std::vector<std::string> required_params_ = {"FollowPath.use_small_gyro_mode", "FollowPath.fixed_wz"};
+  bool initial_yaw_opt_;
+  const std::vector<std::string> required_params_ = {"FollowPath.use_small_gyro_mode", "FollowPath.enable_yaw_opt"};
   double current_yaw_;
   const double target_yaw_ = -1.57; // 目标偏航角
   bool lifter_ready_ = false;
   bool yaw_ready_ = false;
-  double fixed_wz_ = 4.18;
-  rclcpp::Time last_pub_time_;
+  // rclcpp::Time last_pub_time_;
   bool wait_param_service();
   bool wait_param_available();
   bool has_params(std::vector<std::string> param_names);
