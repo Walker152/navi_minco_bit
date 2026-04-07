@@ -62,20 +62,35 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# 1. 串行编译指定包
-echo "[build] Serially building: ${SERIAL_PACKAGES[*]}"
-colcon build \
-	--symlink-install \
-	--parallel-workers 1 \
-	--packages-select ${SERIAL_PACKAGES[*]} \
-	--cmake-args -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPython3_EXECUTABLE=/usr/bin/python3 -DPYTHON_EXECUTABLE=/usr/bin/python3 \
-	--event-handlers console_direct+ status+
+cmake_args=(
+	-DCMAKE_BUILD_TYPE=Release
+	-DCMAKE_EXPORT_COMPILE_COMMANDS=1
+	-DPython3_EXECUTABLE=/usr/bin/python3
+	-DPYTHON_EXECUTABLE=/usr/bin/python3
+)
 
-# 2. 并行编译剩余包
-echo "[build] Parallel building remaining packages, skipping: ${SERIAL_PACKAGES[*]}"
+serial_packages=(
+	livox_ros_driver2
+	rog_map
+	icp_relocalization
+	point_lio
+)
+
+echo "[build] Stage 1/2: build critical packages one-by-one"
+for pkg in "${serial_packages[@]}"; do
+	echo "[build] Serial build package: ${pkg}"
+	colcon build \
+		--symlink-install \
+		--parallel-workers 1 \
+		--packages-select "${pkg}" \
+		--cmake-args "${cmake_args[@]}" \
+		--event-handlers console_direct+ status+
+done
+
+echo "[build] Stage 2/2: build remaining packages in parallel"
 colcon build \
 	--symlink-install \
 	--parallel-workers "$parallel_workers" \
-	--packages-skip ${SERIAL_PACKAGES[*]} \
-	--cmake-args -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPython3_EXECUTABLE=/usr/bin/python3 -DPYTHON_EXECUTABLE=/usr/bin/python3 \
+	--packages-skip "${serial_packages[@]}" \
+	--cmake-args "${cmake_args[@]}" \
 	--event-handlers console_direct+ status+

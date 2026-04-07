@@ -55,5 +55,7 @@ public:
   CheckWillThroughTunnel(const std::string& name, const BT::NodeConfiguration& config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+private:
+  static bool last_state_;
 };
 }  // namespace Sentry_BT

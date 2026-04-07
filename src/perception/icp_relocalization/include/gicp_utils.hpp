@@ -7,11 +7,17 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "tf2_ros/static_transform_broadcaster.h"
+#include "tf2_ros/transform_broadcaster.h"
 
 #include "gicp_filter.hpp"
 
 namespace icp_relocalization::gicp_utils
 {
+
+void publishCurrentTransform(const std::shared_ptr<tf2_ros::TransformBroadcaster>& tf_broadcaster,
+                             const std::string& map_frame,
+                             const Eigen::Matrix4f& map_to_camera_init,
+                             const rclcpp::Time& stamp);
 
 void publishStaticTf(const std::shared_ptr<tf2_ros::StaticTransformBroadcaster>& static_tf_broadcaster,
                      const std::string& map_frame,
@@ -29,7 +35,6 @@ void publishVisualization(const PointCloud::Ptr& cloud,
 
 void printEvaluation(const Eigen::Matrix4f& initial_guess,
                      const Eigen::Matrix4f& final_transformation,
-                     double fitness_score,
                      double time_ms);
 
 void publishTargetCroppedDebug(bool visualization_en,

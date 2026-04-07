@@ -1,0 +1,85 @@
+# 地面检测调试参数配置文件
+# Ground Detection Debug Parameters
+
+depth_cluster_node:
+  ros__parameters:
+    # ========== 地面检测参数 ==========
+    # Ground Detection Parameters
+    
+    # KD树搜索半径 (米) - 用于找邻近点
+    # KD-tree search radius (meters) - for finding neighboring points
+    normal_estimation_radius: 0.5
+    
+    # 最小邻居数 - 计算法向量所需的最少邻近点数
+    # Minimum neighbors required for reliable normal estimation
+    min_neighbors: 5
+    
+    # 最大斜坡角度 (度) - 超过此角度的斜坡会被拒绝
+    # Maximum slope angle (degrees) - steeper slopes will be rejected
+    # 常见取值: 20° (保守) / 30° (默认) / 45° (宽松)
+    # Common values: 20° (conservative) / 30° (default) / 45° (lenient)
+    max_slope_angle_degrees: 30.0
+    
+    # ========== 话题配置 ==========
+    # Topic Configuration
+    
+    # 输入点云话题
+    # Input point cloud topic
+    input_topic: "/cloud_registered"
+    
+    # 输出地面点云话题 (绿色)
+    # Output ground points topic (green)
+    output_ground_topic: "/cloud_baselink"
+    
+    # 输出障碍物点云话题 (彩色分群)
+    # Output obstacle points topic (colored clusters)
+    output_obstacles_topic: "/cloud_filter_baselink"
+    
+    # ========== 调试输出 ==========
+    # Debug Output
+    
+    # 是否打印详细日志
+    # Enable verbose logging
+    verbose: true
+    
+    # 打印频率 (每N帧打印一次)
+    # Print frequency (every N frames)
+    print_interval: 1
+    
+    # ========== 颜色配置 ==========
+    # Color Configuration
+    
+    # 地面点云颜色 (RGB)
+    # Ground points color (RGB)
+    ground_color:
+      r: 0
+      g: 255
+      b: 0
+    
+    # 无法确定的点云颜色 (RGB)
+    # Undetermined points color (RGB)
+    unknown_color:
+      r: 128
+      g: 128
+      b: 128
+
+# 推荐的调试工作流:
+# Recommended debugging workflow:
+# 
+# 1. 测试不同的搜索半径 (radius):
+#    - 稀疏点云: 0.8-1.0m
+#    - 密集点云: 0.3-0.5m
+#
+# 2. 测试不同的最大斜坡角度:
+#    - 保守 (只检测几乎平坦的地面): 15-20°
+#    - 平衡 (默认): 25-35°
+#    - 宽松 (包括陡峭地形): 40-50°
+#
+# 3. 观察点数变化:
+#    - 接受数 < 30%: 参数可能过于保守
+#    - 接受数 > 80%: 参数可能过于宽松
+#    - 接受数 50-70%: 通常正常
+#
+# 4. 使用 RViz2 可视化:
+#    - 绿色点: 检测到的地面
+#    - 其他颜色点: 障碍物或无法确定
