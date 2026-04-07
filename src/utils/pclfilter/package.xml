@@ -29,4 +29,6 @@
   <exec_depend>yaml-cpp</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs_py</exec_depend>
+  <depend>octomap</depend>
+  <depend>octomap_msgs</depend>
 </package>

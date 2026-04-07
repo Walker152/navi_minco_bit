@@ -1,0 +1,144 @@
+# PCL Filter 参数配置文件
+# PCL Filter Configuration Parameters
+
+depth_cluster:
+  ros__parameters:
+    # ========== 话题配置 ==========
+    # Topic Configuration
+    
+    # 输入点云话题名称 (订阅)
+    # Input point cloud topic name (subscription)
+    input_cloud_topic: "/gicp_map"
+    
+    # 输出地面点云话题名称 (发布)
+    # Output ground points topic name (publish)
+    output_ground_topic: "/cloud_baselink"
+    
+    # 输出障碍物点云话题名称 (发布)
+    # Output obstacle clusters topic name (publish)
+    output_obstacles_topic: "/cloud_filter_baselink"
+    
+    # ========== TF 坐标系配置 ==========
+    # TF Frame Configuration
+    
+    # 输入点云的坐标系
+    # Input point cloud frame
+    input_frame: "camera_init"
+    
+    # 输出点云的目标坐标系
+    # Output point cloud frame
+    output_frame: "map"
+    
+    # 是否进行坐标系转换
+    # Enable frame transformation
+    enable_transform: false
+    
+    # ========== 地面检测算法参数 ==========
+    # Ground Detection Algorithm Parameters
+    
+    # 法向量估计搜索半径 (米)
+    # Normal estimation search radius (meters)
+    normal_estimation_radius: 0.5
+    
+    # 计算法向量所需的最小邻近点数
+    # Minimum neighbors for normal calculation
+    min_neighbors: 5
+    
+    # 最大斜坡角度 (度) - 超过此值的地面被拒绝
+    # Maximum slope angle (degrees) - steeper slopes are rejected
+    max_slope_angle: 30.0
+    
+    # ========== 点云处理参数 ==========
+    # Point Cloud Processing Parameters
+    
+    # 是否对输入点云进行降采样
+    # Enable input cloud downsampling
+    enable_downsampling: false
+    
+    # 降采样体素大小 (米) - 仅在 enable_downsampling=true 时使用
+    # Downsampling voxel size (meters) - only used when downsampling enabled
+    downsampling_voxel_size: 0.05
+    
+    # 是否去除离群点
+    # Enable outlier removal
+    enable_outlier_removal: false
+    
+    # 离群点处理的邻域点数
+    # Neighbors for outlier detection
+    outlier_neighbors: 10
+    
+    # 离群点距离阈值 (米)
+    # Outlier distance threshold (meters)
+    outlier_distance_threshold: 0.1
+    
+    # ========== 聚类参数 ==========
+    # Clustering Parameters
+    
+    # 聚类搜索半径 (米)
+    # Clustering search radius (meters)
+    cluster_search_radius: 0.2
+    
+    # 聚类最小点数
+    # Minimum points for a valid cluster
+    cluster_min_points: 10
+    
+    # 聚类最大点数 (用于过滤过大的聚类，0表示无限制)
+    # Maximum points for a valid cluster (0=unlimited)
+    cluster_max_points: 0
+    
+    # ========== 发布参数 ==========
+    # Publishing Parameters
+    
+    # 发布频率 (Hz)
+    # Publishing frequency (Hz)
+    publish_rate: 10.0
+    
+    # 是否发布地面点云
+    # Publish ground points
+    publish_ground: true
+    
+    # 是否发布障碍物点云
+    # Publish obstacle points
+    publish_obstacles: true
+    
+    # ========== 调试参数 ==========
+    # Debug Parameters
+    
+    # 是否启用详细日志输出
+    # Enable verbose logging
+    verbose_logging: true
+    
+    # 日志输出间隔 (帧数) - 0表示不输出
+    # Logging interval (frames) - 0=disabled
+    log_interval: 1
+    
+    # 是否输出处理耗时
+    # Log processing time
+    log_processing_time: true
+
+    # ========== 与 DepthCluster 节点兼容的参数（用于代码中的命名空间） ==========
+    # 下面的结构与代码中期待的参数键名保持一致（clustering.*, topics.*, sensor.*）
+    clustering:
+      vertical_resolution: 1.0
+      horizontal_resolution: 0.2
+      lidar_lines: 32
+      min_cluster_size: 5
+      ground:
+        height_threshold: 2.5
+        max_slope_angle: 30.0
+      normal_estimation_radius: 0.25
+      depth_threshold: 0.5
+      use_euclidean: true
+      euclidean:
+        cluster_tolerance: 0.3
+        min_cluster_size: 5
+        max_cluster_size: 25000
+
+    topics:
+      input_cloud_topic: "/gicp_map"
+      output_ground_topic: "/cloud_baselink"
+      output_obstacles_topic: "/cloud_filter_baselink"
+
+    sensor:
+      pitch_deg: 0.0
+      roll_deg: 0.0

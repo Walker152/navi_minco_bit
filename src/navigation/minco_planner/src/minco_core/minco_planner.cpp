@@ -22,6 +22,7 @@
 #include "nav2_costmap_2d/cost_values.hpp"
 #include "nav2_util/node_utils.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "tf2/exceptions.h"
 
 // Project
 #include "minco_core/minco_fsm.hpp"
@@ -184,6 +185,17 @@ void MincoPlanner::configure(
     node, prefix + "static_esdf.esdf_resolution", rclcpp::ParameterValue(0.1));
   node->get_parameter(prefix + "static_esdf.esdf_resolution", esdf_resolution_);
 
+  double dynamic_esdf_size = 10.0;
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "static_esdf.dynamic_esdf_size", rclcpp::ParameterValue(10.0));
+  node->get_parameter(prefix + "static_esdf.dynamic_esdf_size", dynamic_esdf_size);
+
+  double dynamic_dilation_radius = 0.0;
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "static_esdf.dynamic_dilation_radius", rclcpp::ParameterValue(0.0));
+  node->get_parameter(prefix + "static_esdf.dynamic_dilation_radius", dynamic_dilation_radius);
+
+
   // --- Corridor config -------------------------------------------------------
 
   double corridor_robot_radius = 0.4;
@@ -252,14 +264,49 @@ void MincoPlanner::configure(
       if (!msg) {
         return;
       }
-      std::lock_guard<std::mutex> lk(odom_mutex_);
-      latest_odom_ = *msg;
-      has_latest_odom_ = true;
+
+      {
+        std::lock_guard<std::mutex> lk(odom_mutex_);
+        latest_odom_ = *msg;
+        has_latest_odom_ = true;
+      }
+
+      geometry_msgs::msg::PoseStamped odom_pose;
+      odom_pose.header = msg->header;
+      odom_pose.pose = msg->pose.pose;
+
+      try {
+        if (tf_) {
+          auto map_pose = tf_->transform(odom_pose, global_frame_);
+          const double x = map_pose.pose.position.x;
+          const double y = map_pose.pose.position.y;
+          if (esdf_map_) {
+            esdf_map_->setRobotPosition(x, y);
+          }
+        }
+      } catch (const tf2::TransformException &) {
+      }
     });
 
   // Load Static ESDF map.
   esdf_map_ = std::make_shared<small_rog_map::HybridESDFMap>();
-  esdf_map_->initRos(parent, "/global_costmap/voxel_grid");
+  esdf_map_->initRos(
+    parent,
+    "/global_costmap/voxel_grid",
+    esdf_resolution_,
+    dynamic_esdf_size,
+    dynamic_dilation_radius);
+
+  // Initialize ESDF window center once at startup so static validation works without odom.
+  geometry_msgs::msg::PoseStamped init_pose;
+  if (costmap_ros_ && costmap_ros_->getRobotPose(init_pose)) {
+    esdf_map_->setRobotPosition(init_pose.pose.position.x, init_pose.pose.position.y);
+  } else {
+    esdf_map_->setRobotPosition(0.0, 0.0);
+    RCLCPP_WARN(
+      logger_,
+      "[MincoPlanner] Failed to get initial robot pose from costmap, fallback ESDF center to (0, 0).");
+  }
 
   const bool esdf_loaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
   if (!esdf_loaded) {
@@ -307,6 +354,9 @@ void MincoPlanner::configure(
   safety_timer_ = node->create_wall_timer(
     std::chrono::duration<double>(1.0 / 20.0),
     std::bind(&MincoPlanner::safetyTimerCallback, this));
+
+  on_set_parameters_callback_handle_ = node->add_on_set_parameters_callback(
+    std::bind(&MincoPlanner::onSetParameters, this, std::placeholders::_1));
 }
 
 void MincoPlanner::activate()
@@ -319,6 +369,8 @@ void MincoPlanner::deactivate()
 
 void MincoPlanner::cleanup()
 {
+  on_set_parameters_callback_handle_.reset();
+
   fsm_timer_.reset();
   safety_timer_.reset();
 
@@ -337,6 +389,51 @@ void MincoPlanner::cleanup()
   yaw_opt_.reset();
   opt_path_pub_.reset();
   backup_path_pub_.reset();
+}
+
+rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
+  const std::vector<rclcpp::Parameter> & parameters)
+{
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+
+  const std::string target_param = name_ + ".static_esdf.esdf_pcd_path";
+  for (const auto & param : parameters) {
+    if (param.get_name() != target_param) {
+      continue;
+    }
+
+    if (param.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
+      result.successful = false;
+      result.reason = "Parameter must be a string: " + target_param;
+      RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+      return result;
+    }
+
+    esdf_pcd_path_ = param.as_string();
+    if (!esdf_map_) {
+      result.successful = false;
+      result.reason = "ESDF map is not initialized";
+      RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+      return result;
+    }
+
+    const bool reloaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
+    if (reloaded) {
+      RCLCPP_INFO(
+        logger_,
+        "[MincoPlanner] Reloaded static ESDF map from PCD: %s",
+        esdf_pcd_path_.c_str());
+    } else {
+      result.successful = false;
+      result.reason = "Failed to reload static ESDF map from PCD: " + esdf_pcd_path_;
+      RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+    }
+
+    return result;
+  }
+
+  return result;
 }
 
 // -----------------------------------------------------------------------------
@@ -645,7 +742,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   auto opt_start_time = rclcpp::Clock().now().seconds();
   double final_cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
 
-  const double max_allowed_cost = 3000.0;
+  const double max_allowed_cost = 2000.0;
   if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
     RCLCPP_WARN(
       logger_,

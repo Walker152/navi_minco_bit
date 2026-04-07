@@ -5,7 +5,7 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='pclfilter',
-            executable='depth_cluster_node',
+            executable='depth_cluster_test',
             name='pcd_processor',
             output='screen',
             parameters=[
