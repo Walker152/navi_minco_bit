@@ -20,8 +20,14 @@ class DynamicLayer
 public:
   DynamicLayer();
 
-  void configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr & node, const std::string & topic);
+  void configure(
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
+    const std::string & topic,
+    double resolution,
+    double local_size_m,
+    double dilation_radius_m);
   void setGeometry(int w, int h, double res, const Eigen::Vector2d & origin);
+  void setRobotPosition(double x, double y);
 
   // Update from sparse dynamic obstacle point cloud (e.g. STVL voxel_grid).
   // The grid size/resolution/origin should be aligned with the static layer.
@@ -59,6 +65,9 @@ private:
   int height_{0};
   double resolution_{0.0};
   Eigen::Vector2d origin_{0.0, 0.0};
+  double local_size_m_{10.0};
+  double dilation_radius_m_{0.0};
+  Eigen::Vector2d robot_pos_{0.0, 0.0};
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
   rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
