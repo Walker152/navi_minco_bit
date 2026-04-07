@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <iostream>
-
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "pcl/common/transforms.h"
 #include "pcl/filters/crop_box.h"
@@ -13,6 +12,36 @@
 
 namespace icp_relocalization::gicp_utils
 {
+
+void publishCurrentTransform(const std::shared_ptr<tf2_ros::TransformBroadcaster>& tf_broadcaster,
+                             const std::string& map_frame,
+                             const Eigen::Matrix4f& map_to_camera_init,
+                             const rclcpp::Time& stamp)
+{
+  if(!tf_broadcaster)
+  {
+    return;
+  }
+
+  geometry_msgs::msg::TransformStamped t;
+  t.header.stamp = stamp;
+  t.header.frame_id = map_frame;
+  t.child_frame_id = "camera_init";
+
+  const float x = map_to_camera_init(0, 3);
+  const float y = map_to_camera_init(1, 3);
+  const float yaw = std::atan2(map_to_camera_init(1, 0), map_to_camera_init(0, 0));
+
+  t.transform.translation.x = x;
+  t.transform.translation.y = y;
+  t.transform.translation.z = 0.0;
+  t.transform.rotation.x = 0.0;
+  t.transform.rotation.y = 0.0;
+  t.transform.rotation.z = std::sin(static_cast<double>(yaw) * 0.5);
+  t.transform.rotation.w = std::cos(static_cast<double>(yaw) * 0.5);
+
+  tf_broadcaster->sendTransform(t);
+}
 
 void publishStaticTf(const std::shared_ptr<tf2_ros::StaticTransformBroadcaster>& static_tf_broadcaster,
                      const std::string& map_frame,
@@ -42,7 +71,7 @@ void publishStaticTf(const std::shared_ptr<tf2_ros::StaticTransformBroadcaster>&
   t.transform.rotation.w = tf_quat.w();
 
   static_tf_broadcaster->sendTransform(t);
-  std::cout << color_text::MAGENTA << "[GICP] Published static TF: "
+  std::cout << color_text::GREEN << "[GICP] Published static TF: "
             << map_frame << " -> " << cloud_frame_id << color_text::RESET << std::endl;
 }
 
@@ -74,7 +103,6 @@ void publishVisualization(const PointCloud::Ptr& cloud,
 
 void printEvaluation(const Eigen::Matrix4f& initial_guess,
                      const Eigen::Matrix4f& final_transformation,
-                     double fitness_score,
                      double time_ms)
 {
   float init_x = initial_guess(0, 3);
@@ -93,12 +121,12 @@ void printEvaluation(const Eigen::Matrix4f& initial_guess,
   while(dyaw > PI) dyaw -= 2 * PI;
   while(dyaw < -PI) dyaw += 2 * PI;
 
-  std::cout << color_text::GREEN << "--------------------------------------------------" << color_text::RESET << std::endl;
-  printf("%s[GICP Eval] Score: %.4f, Time: %.2f ms%s\n", color_text::GREEN.c_str(), fitness_score, time_ms, color_text::RESET.c_str());
-  printf("%sExpected(Init): x=%.3f, y=%.3f, yaw=%.3f%s\n", color_text::GREEN.c_str(), init_x, init_y, init_yaw, color_text::RESET.c_str());
-  printf("%sActual(Final) : x=%.3f, y=%.3f, yaw=%.3f%s\n", color_text::GREEN.c_str(), final_x, final_y, final_yaw, color_text::RESET.c_str());
-  printf("%sDeviation     : dx=%.3f, dy=%.3f, dyaw=%.3f%s\n", color_text::GREEN.c_str(), dx, dy, dyaw, color_text::RESET.c_str());
-  std::cout << color_text::GREEN << "--------------------------------------------------" << color_text::RESET << std::endl;
+  std::cout << color_text::GREEN
+            << "[GICP Eval] Time: " << time_ms << " ms"
+            << " | Init[x=" << init_x << ", y=" << init_y << ", yaw=" << init_yaw << "]"
+            << " | Final[x=" << final_x << ", y=" << final_y << ", yaw=" << final_yaw << "]"
+            << " | Dev[dx=" << dx << ", dy=" << dy << ", dyaw=" << dyaw << "]"
+            << color_text::RESET << std::endl;
 }
 
 void publishTargetCroppedDebug(bool visualization_en,

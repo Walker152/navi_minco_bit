@@ -20,9 +20,9 @@ def generate_launch_description():
     map_yaml_path = launch.substitutions.LaunchConfiguration(
         'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmuc2026.yaml'))
         # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmul2026.yaml'))
-        # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/hotel.yaml'))
+        # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmuc2026_back.yaml'))
         #  'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/room.yaml'))
-        # 'map', default=os.path.join(DreamChaser_dir, 'maps', 'first_floor/first_floor1.yaml'))
+        # 'map', default=os.path.join(DreamChaser_dir, 'maps', 'first_floor/first_floor.yaml'))
     nav2_param_path = launch.substitutions.LaunchConfiguration(
         'params_file', default=os.path.join(DreamChaser_dir, 'params', 'sentry1.yaml'))
 
@@ -34,10 +34,12 @@ def generate_launch_description():
             name='static_tf_map_to_camera_init',
             # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
             arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
-            # arguments=['-0.2', '0.05', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['6.8', '3.67', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['12', '4.5', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['9', '6.0', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
-        # # 静态TF: camera_init -> body
+        # 静态TF: camera_init -> body
         # launch_ros.actions.Node(
         #     package='tf2_ros',
         #     executable='static_transform_publisher',
@@ -67,7 +69,8 @@ def generate_launch_description():
             launch_arguments={
                 'map': map_yaml_path,
                 'use_sim_time': use_sim_time,
-                'params_file': nav2_param_path}.items(),
+                'params_file': nav2_param_path,
+                'log_level': 'warn'}.items(),
         ),           
         launch_ros.actions.Node(
             package='rviz2',

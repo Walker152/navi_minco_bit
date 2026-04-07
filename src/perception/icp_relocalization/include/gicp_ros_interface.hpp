@@ -3,6 +3,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include "sensor_msgs/msg/point_cloud2.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 
 #include "pcl_conversions/pcl_conversions.h"
 
@@ -14,6 +15,7 @@
 #include "std_srvs/srv/trigger.hpp"
 
 #include <chrono>
+#include <mutex>
 
 #include "color_text.hpp"
 #include "gicp_filter.hpp"
@@ -55,6 +57,7 @@ namespace icp_relocalization
     };
 
     void lidarCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
+    void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
 
     void setupGicp(const std::string& target_pcd_file);
     void activateLidarSubscription();
@@ -62,11 +65,11 @@ namespace icp_relocalization
     void startVisualizationTimer();
     void startTfPublishTimer();
     void tfPublishTimerCallback();
-    void publishCurrentTransform(const rclcpp::Time& stamp);
 
     // ROS 接口
     std::unique_ptr<GicpFilter> gicp_filter_;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr lidar_sub_;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_source_raw_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_source_cropped_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_source_aligned_;
@@ -94,16 +97,20 @@ namespace icp_relocalization
 
     // 点云累积
     PointCloud::Ptr accumulated_cloud_;
-    PointCloud::Ptr latest_source_raw_cloud_;
-    PointCloud::Ptr latest_source_cloud_for_visualization_;
+    PointCloud::Ptr current_source_cloud_;
     int current_accumulated_frames_ = 0;
     rclcpp::Time last_cloud_stamp_;
-    rclcpp::Time last_source_raw_stamp_;
     std::string cloud_frame_id_;
-    std::string source_raw_frame_id_;
 
     bool gicp_initialized_ = false;
     rclcpp::Time last_icp_time_;
+
+    bool enable_continuous_relocalization_; // 低频重定位功能开关
+    int tracking_lost_count_ = 0; // 连续追踪丢失计数
+    int max_tracking_lost_count_; // 最大允许跟丢次数
+
+    Eigen::Matrix4f latest_odom_pose_ = Eigen::Matrix4f::Identity();
+    std::mutex odom_mtx_;
 
     // 变换与位姿
     Eigen::Matrix4f map_to_camera_init_ = Eigen::Matrix4f::Identity();
@@ -115,7 +122,7 @@ namespace icp_relocalization
     double alignment_frequency_;      // 地图对齐(GICP)低频执行频率
     Mode mode_ = Mode::MULTI_GUESS;   // 重定位模式
     int accumulate_frames_;           // 参与配准的累积帧数
-    double fitness_score_threshold_;  // 配准得分阈值
+    double overlap_threshold_ = 0.75; // 重叠率阈值
     int converged_count_threshold_;   // 收敛次数阈值
     int converged_count_ = 0;         // 当前收敛次数
     std::vector<double> initial_pose_; // 初始位姿猜测 [x, y, z, roll, pitch, yaw]
