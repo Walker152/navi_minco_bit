@@ -1,0 +1,20 @@
+<root main_tree_to_execute="StanceTree">
+  <BehaviorTree ID="StanceTree">
+    <Fallback>
+      <Sequence name="DefendStance">
+        <CheckDPCondition name="CheckDPCondition" />            
+        <ChangeStance name="ChangeStanceDefend" />
+      </Sequence>
+
+      <Sequence name="AttackStance">
+        <CheckAPCondition name="CheckAPCondition" />   
+        <ChangeStance name="ChangeStanceAttack" />
+      </Sequence>
+
+      <Sequence name="MoveStance">
+        <CheckMPCondition name="CheckMPCondition" />
+        <ChangeStance name="ChangeStanceMove" />
+      </Sequence>
+    </Fallback>
+  </BehaviorTree>
+</root>
