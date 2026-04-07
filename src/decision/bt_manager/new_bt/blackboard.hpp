@@ -43,33 +43,24 @@ namespace Sentry_BT
       blackboard_->set("through_tunnel", false);                            // 是否通过隧道
       blackboard_->set("cmd_vel", geometry_msgs::msg::Twist());             // 速度指令
       // new data
-      //team_info
-      blackboard_->set("allies_info", std::vector<AllyRobotInfo>());        // 队友信息列表
-      blackboard_->set("home_health", 3000);                    // 基地血量
-      //game_info
+      blackboard_->set("hero_hp",100);                                  // 英雄血量
+      blackboard_->set("hero_position", geometry_msgs::msg::Point());  // 英雄位置
+      blackboard_->set("engineer_hp",100);                              // 工程师血量
+      blackboard_->set("engineer_position", geometry_msgs::msg::Point());  // 工程师位置
+      blackboard_->set("infantry3_hp",100);                              // 步兵3血量
+      blackboard_->set("infantry3_position", geometry_msgs::msg::Point());  // 步兵3位置
+      blackboard_->set("infantry4_hp",100);                              // 步兵4血量
+      blackboard_->set("infantry4_position", geometry_msgs::msg::Point());  // 步兵4位置
       blackboard_->set("game_time_remaining", 420);                    // 比赛剩余时间（秒）
       blackboard_->set("coin_remaining", 0);                    // 我方金币剩余数量
       blackboard_->set("small_energy_status", 0);                    // 小能量机关状态
       blackboard_->set("big_energy_status", 0);                    // 大能量机关状态
       blackboard_->set("fort_occupation_status", 0);                    // 堡垒占领状态
-      //radar_info
       blackboard_->set("enemy_coin_left", 0);                   // 敌方金币剩余数量
       blackboard_->set("enemy_coin_accumulated", 0);                   // 敌方金币累计数量
-      blackboard_->set("enemies_info", std::vector<EnemyRobotInfo>());  // 敌方信息列表
-      //sentry_offline_info
-      blackboard_->set("is_transformable", true);  // 是否可变形
-      blackboard_->set("transform_state", 0.0f);  // 变形状态
-      //sentry_online_info
-       blackboard_->set("bullets_remaining", 0);  // 剩余子弹数量
-      blackboard_->set("cooling_value", 0);  // 冷却值
-      blackboard_->set("heat_limit", 0);  // 热量上限
-      blackboard_->set("current_heat", 0);  // 当前热量
-      blackboard_->set("speed_monitor_angle", 0.0f);  // 速度监测角度
       blackboard_->set("is_disengaged", true);                   // 是否脱战状态
       blackboard_->set("can_activate_energy", false);  // 是否能激活能量机关
-      blackboard_->set("can_free_resurrect", false);  // 是否能免费复活
-      blackboard_->set("can_instant_resurrect", false);  // 是否能立即复活
-      blackboard_->set("instant_resurrect_cost", 0);  // 立即复活的金币成本
+      blackboard_->set("target_valid", false);
     }
 
     template <typename T> void set(const std::string& key, const T& value)
