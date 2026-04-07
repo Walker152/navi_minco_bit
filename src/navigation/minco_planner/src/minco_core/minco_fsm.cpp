@@ -81,7 +81,29 @@ void MincoFsm::callMainFsmOnce()
       }
 
       if (!planner_->PlanGlobalPath(current_pose, goal_)) {
-        changeState("PlanGlobalPath", State::EMER_STOP);
+        Eigen::Vector2d escape_vel;
+        const auto decision = recovery_server_->handleReplanFailure(
+          planner_->nowSeconds(),
+          current_pose,
+          [this](const Eigen::Vector3d & p) { return planner_->getEsdfDistance(p); },
+          escape_vel);
+
+        if (decision == RecoverServer::RecoveryDecision::DO_ESCAPE) {
+          current_escape_vel_ = escape_vel;
+          changeState("GLOBAL_SEARCH_FAIL_TRIGGER_RECOVERING", State::RECOVERING);
+          return;
+        }
+
+        if (decision == RecoverServer::RecoveryDecision::ENTER_EMER_STOP) {
+          changeState("GLOBAL_SEARCH_FAIL_RECOVERY_FAIL", State::EMER_STOP);
+          return;
+        }
+
+        // Recovery threshold not reached yet: stay in GENERATE_TRAJ and keep accumulating failures.
+        if (!stop_published_) {
+          planner_->publishEmergencyStop(current_pose);
+          stop_published_ = true;
+        }
         return;
       }
       if (!planner_->ReplanLocal(current_pose)) {
@@ -334,8 +356,8 @@ void MincoFsm::changeState(const char * caller, State new_state)
 
   (void)caller;
   
-  std::cout << "[MincoFSM] [" << (caller ? caller : "?") << "] change state from ["
-            << StateToString(state_) << "] to [" << StateToString(new_state) << "]" << std::endl;
+  // std::cout << "[MincoFSM] [" << (caller ? caller : "?") << "] change state from ["
+  //           << StateToString(state_) << "] to [" << StateToString(new_state) << "]" << std::endl;
 
   last_state_ = state_;
   state_ = new_state;

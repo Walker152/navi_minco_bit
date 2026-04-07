@@ -9,7 +9,7 @@ livox_to_pointcloud2:
     # 点云坐标系相对于目标坐标系的平移
     # 例如: 如果雷达安装在机器人中心前方0.3m，设置 translation_x: 0.3
     translation_x: 0.0
-    translation_y: 0.21
+    translation_y: 0.0
     translation_z: 0.0
     
     # ==================== 旋转变换 (弧度) ====================

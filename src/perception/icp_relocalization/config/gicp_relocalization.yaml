@@ -2,25 +2,30 @@ gicp_relocalization_node:
   ros__parameters:
     # General Configuration
     mode: "initial_guess" # Options: "multi_guess", "initial_guess"
-    # target_pcd_file: "src/perception/icp_relocalization/maps/rmuc.pcd"
-    # target_pcd_file: "src/perception/icp_relocalization/maps/111.pcd"
-    # target_pcd_file: "src/perception/icp_relocalization/maps/hotel.pcd"
-    target_pcd_file: "src/perception/icp_relocalization/maps/rmul.pcd"
+    target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/2026rmuc.pcd"
+    # target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/111.pcd"
+    # target_pcd_file: "src/navigation/navi2_bringup/maps/hotel.pcd"
+    # target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/2026rmul.pcd"
     map_frame: "map"
     visualization_en: true
     source_cloud_topic: "/livox/stdpc"
-    alignment_frequency: 5.0
-    accumulate_frames: 5
+    alignment_frequency: 1.0
+    accumulate_frames: 3
     tf_publish_frequency: 30.0
     # Convergence Criteria
-    fitness_score_threshold: 200.0
+    overlap_threshold: 0.65
     converged_count_threshold: 2
 
+    # Continuous low-frequency relocalization
+    enable_continuous_relocalization: true
+    max_tracking_lost_count: 3
+
     timeout_seconds: 5.0  # 超时时间（秒）
-    default_pose_on_timeout: [1.18, 6.4, 0.0, 0.0, 0.0, 0.0]  # 超时后发布的默认位姿
+    default_pose_on_timeout: [6.0, 3.4, 0.0, 0.0, 0.0, 0.0]  # 超时后发布的默认位姿
     
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
-    initial_pose: [1.18, 6.4, 0.0, 0.0, 0.0, 0.0]
+    initial_pose: [12.0, 4.5, 0.0, 0.0, 0.0, 0.0]
+    # initial_pose: [7.3, 3.5, 0.0, 0.0, 0.0, 0.0]
     # initial_pose: [5.0, 7.0, 0.0, 0.0, 0.0, 0.4]
     # Multi-Guess Parameters
     multi_guess:

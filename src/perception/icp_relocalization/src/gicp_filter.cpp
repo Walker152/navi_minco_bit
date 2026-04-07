@@ -8,6 +8,8 @@
 #include <pcl/filters/filter.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/crop_box.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/common/transforms.h>
 
 namespace icp_relocalization
 {
@@ -174,7 +176,6 @@ namespace icp_relocalization
     {
       Result result;
       result.converged = false;
-      result.fitness_score = -1.0;
       result.final_transformation = Eigen::Matrix4f::Identity();
       return result;
     }
@@ -189,7 +190,6 @@ namespace icp_relocalization
     {
       Result result;
       result.converged = false;
-      result.fitness_score = -1.0;
       result.final_transformation = Eigen::Matrix4f::Identity();
       return result;
     }
@@ -202,7 +202,6 @@ namespace icp_relocalization
     {
       Result result;
       result.converged = false;
-      result.fitness_score = -1.0;
       result.final_transformation = Eigen::Matrix4f::Identity();
       return result;
     }
@@ -211,7 +210,6 @@ namespace icp_relocalization
     {
       Result result;
       result.converged = false;
-      result.fitness_score = -1.0;
       result.final_transformation = Eigen::Matrix4f::Identity();
       return result;
     }
@@ -220,12 +218,14 @@ namespace icp_relocalization
     {
       Result result;
       result.converged = false;
-      result.fitness_score = -1.0;
       result.final_transformation = Eigen::Matrix4f::Identity();
       return result;
     }
 
-    double best_score = std::numeric_limits<double>::max();
+    pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+    kdtree.setInputCloud(local_map_cloud_);
+
+    double best_overlap_ratio = 0.0;
     Eigen::Matrix4f best_pose = Eigen::Matrix4f::Identity();
     bool best_converged = false;
 
@@ -252,9 +252,40 @@ namespace icp_relocalization
               const small_gicp::RegistrationResult reg_result =
                   register_engine.align(*small_gicp_target_, *source_small, *target_tree_, init_guess_d);
 
-              if(reg_result.converged && reg_result.error < best_score)
+              if(!reg_result.converged)
               {
-                best_score = reg_result.error;
+                continue;
+              }
+
+              PointCloud::Ptr transformed_source(new PointCloud());
+              pcl::transformPointCloud(*source_cropped,
+                                       *transformed_source,
+                                       reg_result.T_target_source.matrix().cast<float>());
+
+              if(!transformed_source || transformed_source->empty())
+              {
+                continue;
+              }
+
+              std::vector<int> nearest_indices(1);
+              std::vector<float> nearest_dist_sq(1);
+              size_t inlier_count = 0;
+
+              for(const auto& point : transformed_source->points)
+              {
+                if(kdtree.nearestKSearch(point, 1, nearest_indices, nearest_dist_sq) > 0 &&
+                   nearest_dist_sq[0] < 0.09f)
+                {
+                  ++inlier_count;
+                }
+              }
+
+              const double overlap_ratio =
+                  static_cast<double>(inlier_count) / static_cast<double>(transformed_source->points.size());
+
+              if(overlap_ratio > best_overlap_ratio)
+              {
+                best_overlap_ratio = overlap_ratio;
                 best_pose = reg_result.T_target_source.matrix().cast<float>();
                 best_converged = true;
               }
@@ -266,7 +297,7 @@ namespace icp_relocalization
 
     Result result;
     result.converged = best_converged;
-    result.fitness_score = best_converged ? best_score : -1.0;
+    result.overlap_ratio = best_overlap_ratio;
     result.final_transformation = best_pose;
     return result;
   }
@@ -279,7 +310,6 @@ namespace icp_relocalization
     {
       Result result;
       result.converged = false;
-      result.fitness_score = -1.0;
       return result;
     }
 
@@ -292,7 +322,6 @@ namespace icp_relocalization
     {
       Result result;
       result.converged = false;
-      result.fitness_score = -1.0;
       return result;
     }
 
@@ -303,7 +332,6 @@ namespace icp_relocalization
     {
       Result result;
       result.converged = false;
-      result.fitness_score = -1.0;
       return result;
     }
 
@@ -317,7 +345,6 @@ namespace icp_relocalization
     {
       Result result;
       result.converged = false;
-      result.fitness_score = -1.0;
       return result;
     }
 
@@ -336,8 +363,35 @@ namespace icp_relocalization
     // 整理结果
     Result result;
     result.converged = small_gicp_result.converged;
-    result.fitness_score = small_gicp_result.error;
     result.final_transformation = small_gicp_result.T_target_source.matrix().cast<float>();
+
+    if(small_gicp_result.converged && local_map_cloud_ && !local_map_cloud_->empty())
+    {
+      PointCloud::Ptr transformed_source(new PointCloud());
+      pcl::transformPointCloud(*source_cropped, *transformed_source, result.final_transformation);
+
+      if(transformed_source && !transformed_source->empty())
+      {
+        pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+        kdtree.setInputCloud(local_map_cloud_);
+
+        std::vector<int> nearest_indices(1);
+        std::vector<float> nearest_dist_sq(1);
+        size_t inlier_count = 0;
+
+        for(const auto& point : transformed_source->points)
+        {
+          if(kdtree.nearestKSearch(point, 1, nearest_indices, nearest_dist_sq) > 0 &&
+             nearest_dist_sq[0] < 0.09f)
+          {
+            ++inlier_count;
+          }
+        }
+
+        result.overlap_ratio = static_cast<double>(inlier_count) /
+                               static_cast<double>(transformed_source->points.size());
+      }
+    }
 
     return result;
   }

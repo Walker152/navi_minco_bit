@@ -23,7 +23,13 @@ public:
 
   HybridESDFMap();
 
-  void initRos(const rclcpp_lifecycle::LifecycleNode::WeakPtr & node, const std::string & topic);
+  void initRos(
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
+    const std::string & topic,
+    double resolution,
+    double dynamic_size_m,
+    double dynamic_dilation_radius_m);
+  void setRobotPosition(double x, double y);
 
   bool loadStaticMap(const std::string & pcd_path, double resolution);
 
