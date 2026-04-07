@@ -80,36 +80,8 @@ void MincoFsm::callMainFsmOnce()
         return;
       }
 
-      if (!planner_->PlanGlobalPath(current_pose, goal_)) {
-        Eigen::Vector2d escape_vel;
-        const auto decision = recovery_server_->handleReplanFailure(
-          planner_->nowSeconds(),
-          current_pose,
-          [this](const Eigen::Vector3d & p) { return planner_->getEsdfDistance(p); },
-          escape_vel);
-
-        if (decision == RecoverServer::RecoveryDecision::DO_ESCAPE) {
-          current_escape_vel_ = escape_vel;
-          changeState("GLOBAL_SEARCH_FAIL_TRIGGER_RECOVERING", State::RECOVERING);
-          return;
-        }
-
-        if (decision == RecoverServer::RecoveryDecision::ENTER_EMER_STOP) {
-          changeState("GLOBAL_SEARCH_FAIL_RECOVERY_FAIL", State::EMER_STOP);
-          return;
-        }
-
-        // Recovery threshold not reached yet: stay in GENERATE_TRAJ and keep accumulating failures.
-        if (!stop_published_) {
-          planner_->publishEmergencyStop(current_pose);
-          stop_published_ = true;
-        }
-        return;
-      }
-      if (!planner_->ReplanLocal(current_pose)) {
-        Eigen::Vector3d cur_p(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
-        double dist = planner_->getEsdfDistance(cur_p);
-        if (dist < 0.25) {
+      auto handle_generate_replan_failure =
+        [this, &current_pose](const char * escape_reason, const char * emer_reason) {
           Eigen::Vector2d escape_vel;
           const auto decision = recovery_server_->handleReplanFailure(
             planner_->nowSeconds(),
@@ -119,22 +91,38 @@ void MincoFsm::callMainFsmOnce()
 
           if (decision == RecoverServer::RecoveryDecision::DO_ESCAPE) {
             current_escape_vel_ = escape_vel;
-            changeState("GEN_STUCK_TRIGGER_RECOVERING", State::RECOVERING);
+            changeState(escape_reason, State::RECOVERING);
             return;
           }
+
           if (decision == RecoverServer::RecoveryDecision::ENTER_EMER_STOP) {
-            changeState("GENERATE_RECOVERY_FAIL", State::EMER_STOP);
+            changeState(emer_reason, State::EMER_STOP);
             return;
           }
-          
-          // 如果是 NONE（未满 3 次失败），则留在当前状态累加，但下发急停指令保护底盘
+
+          // Recovery threshold not reached yet: stay in GENERATE_TRAJ and keep accumulating failures.
           if (!stop_published_) {
             planner_->publishEmergencyStop(current_pose);
             stop_published_ = true;
           }
+        };
+
+      if (!planner_->PlanGlobalPath(current_pose, goal_)) {
+        handle_generate_replan_failure(
+          "GLOBAL_SEARCH_FAIL_TRIGGER_RECOVERING",
+          "GLOBAL_SEARCH_FAIL_RECOVERY_FAIL");
+        return;
+      }
+      if (!planner_->ReplanLocal(current_pose)) {
+        Eigen::Vector3d cur_p(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
+        double dist = planner_->getEsdfDistance(cur_p);
+        if (dist < 0.25) {
+          handle_generate_replan_failure(
+            "GEN_STUCK_TRIGGER_RECOVERING",
+            "GENERATE_RECOVERY_FAIL");
           return;
         }
-        changeState("ReplanLocal", State::EMER_STOP);
+        recovery_server_->onReplanSuccess();
         return;
       }
 
@@ -221,7 +209,11 @@ void MincoFsm::callMainFsmOnce()
           return;
         }
 
-        // 4. 处于 NONE 状态：未满 3 次失败，留在 FOLLOW_TRAJ 继续累加错误，避免被架空
+        // 4. 处于 NONE 状态
+        if (!stop_published_) {
+          planner_->publishEmergencyStop(current_pose);
+          stop_published_ = true;
+        }
         return;
       }
 
@@ -274,7 +266,6 @@ void MincoFsm::callMainFsmOnce()
         planner_->publishEmergencyStop(current_pose);
         stop_published_ = true;
         emer_stop_start_time_ = planner_->nowSeconds();
-        has_goal_ = false;  // After emergency stop, wait for next goal.
       }
 
       // 2) Timeout protection: avoid deadlock.
@@ -309,7 +300,6 @@ void MincoFsm::callMainFsmOnce()
 
       // 5) Recovery: stopped, check safety before leaving EMER_STOP.
       recovery_server_->finishRecovery(false, now_s);
-      has_goal_ = false;
       recovery_server_->clearMissionGoal();
       changeState("EMER_SAFE", State::WAIT_GOAL);
       return;
@@ -352,6 +342,14 @@ void MincoFsm::changeState(const char * caller, State new_state)
 {
   if (state_ == new_state) {
     return;
+  }
+
+  // Leaving recovery-related states: clear debug visualization and reset recovery runtime.
+  if ((state_ == State::RECOVERING || state_ == State::EMER_STOP) &&
+    new_state != State::RECOVERING && new_state != State::EMER_STOP)
+  {
+    planner_->clearRecoveryDebugVisualization();
+    recovery_server_->reset();
   }
 
   (void)caller;
