@@ -12,11 +12,11 @@ publish_freq  = 80.0 # freqency of publish, 5.0, 10.0, 20.0, 50.0, etc.
 output_type   = 0
 frame_id      = 'livox_frame'
 lvx_file_path = '/home/livox/livox_test.lvx'
-cmdline_bd_code = 'livox0000000001'
+cmdline_bd_code = '47MDLC20020096'
 
 cur_path = os.path.split(os.path.realpath(__file__))[0] + '/'
 cur_config_path = cur_path + '../config'
-user_config_path = os.path.join(cur_config_path, 'MID360_config.json')
+user_config_path = os.path.join(cur_config_path, 'MID360_config_96.json')
 ################### user configure parameters for ros2 end #####################
 
 livox_ros2_params = [
