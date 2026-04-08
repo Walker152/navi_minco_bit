@@ -30,21 +30,23 @@ include_directories(
   include
 )
 
+file(GLOB_RECURSE BT_MANAGER_SOURCES
+  "src/*.cpp"
+  "src/action/*.cpp"
+  "src/condition/*.cpp"
+  "src/utils/*.cpp"
+)
+
+list(REMOVE_ITEM BT_MANAGER_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/event_status_pub_test.cpp"
+)
+
 add_executable(bt_manager_node 
-  src/bt_manager.cpp 
-  src/ros_interface.cpp 
-  src/param_manager.cpp
-  src/action/auto_actions.cpp 
-  src/condition/auto_conditions.cpp
-  src/action/change_stance_action.cpp
-  src/condition/change_stance_condition.cpp
-  src/utils/nav_zone.cpp
-  src/utils/tf_utils.cpp
-  src/main.cpp
-  )
+  ${BT_MANAGER_SOURCES}
+)
 
 add_executable(event_test
-  src/event_status_pub_test.cpp
+  src/test/event_status_pub_test.cpp
 )
 
 ament_target_dependencies(event_test
