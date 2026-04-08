@@ -107,6 +107,8 @@ public:
     const geometry_msgs::msg::PoseStamped & current_pose,
     const Eigen::Vector2d & escape_vel);
 
+  void clearRecoveryDebugVisualization();
+
   void publishEmergencyStop(const geometry_msgs::msg::PoseStamped & current_pose);
 
   traj_opt::Trajectory generateBackupTraj(const Eigen::Matrix3d & start_state);
@@ -143,7 +145,8 @@ private:
     const traj_opt::Trajectory & pos_traj,
     traj_opt::Trajectory & out_yaw_traj,
     PlanningState state,
-    const geometry_msgs::msg::Pose & current_pose);
+    const geometry_msgs::msg::Pose & current_pose,
+    double goal_yaw);
 
   rcl_interfaces::msg::SetParametersResult onSetParameters(
     const std::vector<rclcpp::Parameter> & parameters);
