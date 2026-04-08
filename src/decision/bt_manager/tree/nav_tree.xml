@@ -1,9 +1,9 @@
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <ReactiveSequence name="SentryMainLogic">
-      <!-- <ReactiveSequence name="BlackboardTest">
+      <ReactiveSequence name="BlackboardTest">
         <BlackboardTestNode name="BlackboardTestNode" />
-      </ReactiveSequence> -->
+      </ReactiveSequence>
       <!-- <ForceSuccess>
         <Fallback>
           <Sequence name="DefendStance">
