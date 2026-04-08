@@ -9,7 +9,7 @@ set -u
 # Hard memory budget for build process (GB).
 MEM_LIMIT_GB=${MEM_LIMIT_GB:-14}
 # Estimated memory usage per concurrently building package (GB).
-MEM_PER_WORKER_GB=${MEM_PER_WORKER_GB:-3}
+MEM_PER_WORKER_GB=${MEM_PER_WORKER_GB:-1}
 
 if (( MEM_PER_WORKER_GB <= 0 )); then
 	echo "MEM_PER_WORKER_GB must be > 0"
@@ -74,6 +74,7 @@ serial_packages=(
 	rog_map
 	icp_relocalization
 	point_lio
+	dbscan_cluster
 )
 
 echo "[build] Stage 1/2: build critical packages one-by-one"
