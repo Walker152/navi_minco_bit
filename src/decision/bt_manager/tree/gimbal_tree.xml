@@ -1,0 +1,16 @@
+<root main_tree_to_execute="GimbalTree">
+  <BehaviorTree ID="GimbalTree">
+    <ReactiveSequence name="GimbalMainLogic">
+      <!-- 云台控制逻辑 -->
+      <ReactiveFallback name="GimbalControlStrategies">
+        <Sequence name="TrackTarget">
+          <CheckTargetVisible name="CheckTargetVisible" />
+          <TrackTargetAction name="TrackTargetAction" />
+        </Sequence>
+
+        <!-- 默认云台行为 -->
+        <SetGimbalPose name="SetDefaultGimbalPose" pan="0.0" tilt="-30.0" />
+      </ReactiveFallback>
+    </ReactiveSequence>
+  </BehaviorTree>
+</root>

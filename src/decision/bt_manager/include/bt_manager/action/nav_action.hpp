@@ -26,10 +26,10 @@ public:
 
   static BT::PortsList providedPorts()
   {
-    return providedBasicPorts({BT::InputPort<Sentry_BT::Point2D>("nav_goal")});
+    return providedBasicPorts({BT::InputPort<Sentry_BT::PatrolPoint>("nav_goal")});
   }
 
-  bool readGoalFromBlackboard(Sentry_BT::Point2D & nav_goal)
+  bool readGoalFromBlackboard(Sentry_BT::Point2D& nav_goal)
   {
     auto blackboard = config().blackboard;
     return blackboard->get<Sentry_BT::Point2D>("nav_goal", nav_goal) || getInput("nav_goal", nav_goal);
@@ -64,11 +64,7 @@ public:
       blackboard->set("patrol_index", patrol_index);
     }
 
-    int own_outpost_health = 1;
-    blackboard->get<int>("own_outpost_health", own_outpost_health);
-
-    const auto & patrol_points =
-      (own_outpost_health <= 0) ? Sentry_BT::patrol_points_attack : Sentry_BT::patrol_points_normal;
+    const auto & patrol_points = Sentry_BT::patrol_points_normal;
     if(patrol_points.empty())
     {
       return false;
@@ -79,15 +75,11 @@ public:
       patrol_index = 0;
     }
 
-    next_goal = patrol_points[patrol_index];
+    next_goal = patrol_points[patrol_index].position;
     const int next_index = (patrol_index + 1) % static_cast<int>(patrol_points.size());
 
     blackboard->set("patrol_index", next_index);
     blackboard->set("nav_goal", next_goal);
-    if(patrol_index >= 0 && patrol_index < static_cast<int>(Sentry_BT::patrol_points_milliseconds.size()))
-    {
-      blackboard->set("patrol_wait_time", Sentry_BT::patrol_points_milliseconds[patrol_index]);
-    }
     blackboard->set<int>("current_mode", Sentry_BT::NavMode::PATROL);
     return true;
   }
@@ -116,7 +108,7 @@ public:
     int current_mode = -1;
     blackboard->get<int>("current_mode", current_mode);
     std::cout << GREEN << "[NavigateToPoseAction:" << name() << "] send initial goal=(" << nav_goal.x << ", "
-          << nav_goal.y << "), mode=" << current_mode << RESET << std::endl;
+              << nav_goal.y << "), mode=" << current_mode << RESET << std::endl;
   }
 
   void on_wait_for_result(std::shared_ptr<const typename nav2_msgs::action::NavigateToPose::Feedback>) override
@@ -145,7 +137,7 @@ public:
           nav_start_time_ = now;
 
           std::cout << YELLOW << "[NavigateToPoseAction:" << name()
-                    << "] patrol timeout(>15                                                                                            s), force next patrol goal=(" << timeout_goal.x << ", "
+                    << "] patrol timeout(>15s), force next patrol goal=(" << timeout_goal.x << ", "
                     << timeout_goal.y << ")" << RESET << std::endl;
           return;
         }
