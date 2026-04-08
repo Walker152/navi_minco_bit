@@ -1,0 +1,21 @@
+<root main_tree_to_execute="TacticalTree">
+  <BehaviorTree ID="TacticalTree">
+    <ReactiveSequence name="TacticalMainLogic">
+      <!-- 战术控制逻辑 -->
+      <ReactiveFallback name="TacticalControlStrategies">
+        <Sequence name="DefendStrategy">
+          <CheckDefendCondition name="CheckDefendCondition" />
+          <SetTacticalMode name="SetDefendMode" mode="defend" />
+        </Sequence>
+
+        <Sequence name="AttackStrategy">
+          <CheckAttackCondition name="CheckAttackCondition" />
+          <SetTacticalMode name="SetAttackMode" mode="attack" />
+        </Sequence>
+
+        <!-- 默认战术行为 -->
+        <SetTacticalMode name="SetDefaultMode" mode="default" />
+      </ReactiveFallback>
+    </ReactiveSequence>
+  </BehaviorTree>
+</root>
