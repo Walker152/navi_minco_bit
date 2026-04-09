@@ -1,0 +1,92 @@
+# ROG-Map 参数示例：针对无图（局部）导航的推荐配置
+# 用法：将此文件路径作为节点构造函数的 cfg_path（或在 launch 中传入），
+# 节点也可以通过 ROS2 参数文件（下面的 node_params 部分）读取节点级参数。
+
+rog_map:
+  # ESDF: 启用局部距离场以用于轨迹评分/避障
+  esdf:
+    enable: true
+    resolution: 0.1
+    local_update_box: [10.0, 10.0, 2.0]
+
+  # 是否加载静态点云地图（一般无图导航设为 false）
+  load_pcd_en: false
+  pcd_name: "map.pcd"
+
+  # 局部滑动窗口设置
+  map_sliding:
+    enable: true
+    threshold: -1.0
+
+  fix_map_origin: [0.0, 0.0, 0.0]
+  frontier_extraction_en: false
+
+  # 通过 ROS 订阅点云/里程计（若由 launch 启动，建议开启）
+  ros_callback:
+    enable: true
+    cloud_topic: "/cloud_registered"
+    odom_topic: "/lidar_slam/odom"
+    odom_timeout: 0.05
+
+  # 可视化（默认关闭以节省资源）
+  visualization:
+    enable: false
+    use_dynamic_reconfigure: false
+    pub_unknown_map_en: false
+    frame_id: "world"
+    time_rate: 0.0
+    frame_rate: 0
+    range: [10.0, 10.0, 2.0]
+
+  # 栅格/概率图分辨率与体积大小
+  resolution: 0.1
+  inflation_resolution: 0.2
+  inflation_step: 2
+  unk_inflation_en: false
+  unk_inflation_step: 0
+
+  intensity_thresh: -1
+
+  # 局部地图总大小（x, y, z），用于滑动窗口与索引计算
+  map_size: [10.0, 10.0, 2.0]
+
+  # 点云滤波（保守默认）
+  point_filt_num: 2
+
+  # 射线投射参数：用于标记自由空间与概率更新
+  raycasting:
+    enable: true
+    batch_update_size: 1
+    unk_thresh: 0.70
+    p_hit: 0.70
+    p_miss: 0.70
+    p_min: 0.12
+    p_max: 0.97
+    p_occ: 0.80
+    p_free: 0.30
+    ray_range: [0.3, 10.0]
+    local_update_box: [10.0, 10.0, 2.0]
+
+  # 虚拟地面/顶高度与高度过滤
+  virtual_ground_height: -0.1
+  virtual_ceil_height: -0.1
+  relative_ceil_height: 2.0
+  elevation_filter_z_min: -10.0
+  elevation_filter_z_max: 10.0
+
+  # 未知/衰减与滑动阈值
+  unk_thresh: 0.70
+  map_sliding_thresh: -1.0
+
+  # 可视化范围（当 visualization.enable 为 true 时生效）
+  visualization_range: [10.0, 10.0, 2.0]
+  viz_time_rate: 0.0
+  viz_frame_rate: 0
+
+# 示例 ROS2 节点参数部分（node 名称示例：rog_map_node）
+rog_map_node:
+  ros__parameters:
+    # 投影到二维栅格时使用的高度区间
+    proj_min_z: 0.1
+    proj_max_z: 1.5
+
