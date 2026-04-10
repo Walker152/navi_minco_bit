@@ -76,7 +76,7 @@ controller_server:
   ros__parameters:
     robot_base_frame: "base_link"
     use_sim_time: False
-    controller_frequency: 60.0
+    controller_frequency: 100.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.001
     min_theta_velocity_threshold: 0.001
@@ -393,7 +393,7 @@ velocity_smoother:
   ros__parameters:
     enabled: False
     use_sim_time: False
-    smoothing_frequency: 20.0
+    smoothing_frequency: 100.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
     max_velocity: [2.0, 2.0, 4.0]
