@@ -4,7 +4,7 @@ bt_navigator:
     global_frame: map
     robot_base_frame: "base_link"
     odom_topic: /aft_mapped_to_init
-    bt_loop_duration: 5 # ms
+    bt_loop_duration: 20 # ms
     # 行为树超时时间，秒
     default_server_timeout: 20
     # 毫秒
@@ -88,26 +88,26 @@ controller_server:
     # Progress checker parameters
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
-      required_movement_radius: 0.2
-      movement_time_allowance: 100.0
+      required_movement_radius: 0.1
+      movement_time_allowance: 1000.0
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.3
+      xy_goal_tolerance: 0.2
       yaw_goal_tolerance: 6.28
     
     FollowPath:
       plugin: "minco_controller::MincoMpcController"
       # MPC sampling period (s) and lookahead time (s)
-      dt: 0.05
+      dt: 0.01
       lookahead_time : 0.5
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.03
+      control_delay_compensation: 0.01
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [10.0, 10.0, 25.0]
-      R: [4.0, 4.0, 10.0]
+      R: [5.0, 5.0, 5.0]
 
       # Velocity bounds
       vx_min: -2.0
@@ -354,17 +354,17 @@ behavior_server:
     costmap_topic: local_costmap/costmap_raw
     footprint_topic: local_costmap/published_footprint
     cycle_frequency: 10.0
-    behavior_plugins: ["wait", "backup"]
+    behavior_plugins: ["wait"]
     wait:
       plugin: "nav2_behaviors/Wait"
-    backup:
-      # plugin: "nav2_behaviors/BackUp"
-      plugin: "nav2_behaviors/BackUpTwzFree"
-      local_costmap_global_frame: camera_init
-      local_costmap_robot_base_frame: base_link
-      robot_radius: 0.3
-      cost_threshold: 0.0
-      visualization: true
+    # backup:
+    #   # plugin: "nav2_behaviors/BackUp"
+    #   plugin: "nav2_behaviors/BackUpTwzFree"
+    #   local_costmap_global_frame: camera_init
+    #   local_costmap_robot_base_frame: base_link
+    #   robot_radius: 0.3
+    #   cost_threshold: 0.0
+    #   visualization: true
     global_frame: map
     robot_base_frame: base_link
     transform_tolerance: 0.1
