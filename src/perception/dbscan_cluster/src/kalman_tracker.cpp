@@ -141,20 +141,45 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
     }
 
     auto & track = tracked_objects_[static_cast<size_t>(trk_idx)];
-    const Eigen::Vector2f z(
-      current_objects[static_cast<size_t>(obj_idx)].centroid.x(),
-      current_objects[static_cast<size_t>(obj_idx)].centroid.y());
+    auto & obj = current_objects[static_cast<size_t>(obj_idx)];
 
-    const Eigen::Vector2f innovation = z - H * track.state;
-    const Eigen::Matrix2f S = H * track.covariance * H.transpose() + R;
-    const Eigen::Matrix<float, 6, 2> K = track.covariance * H.transpose() * S.inverse();
+    if (obj.has_vision_match) {
+      Eigen::Matrix<float, 4, 6> H4;
+      H4.setZero();
+      H4(0, 0) = 1.0f;
+      H4(1, 1) = 1.0f;
+      H4(2, 2) = 1.0f;
+      H4(3, 3) = 1.0f;
 
-    track.state = track.state + K * innovation;
-    track.covariance = (Eigen::Matrix<float, 6, 6>::Identity() - K * H) * track.covariance;
+      Eigen::Matrix4f R4 = Eigen::Matrix4f::Zero();
+      R4(0, 0) = r_pos_x;
+      R4(1, 1) = r_pos_y;
+      R4(2, 2) = config_.r_vel_x;
+      R4(3, 3) = config_.r_vel_y;
+
+      Eigen::Vector4f z4(obj.centroid.x(), obj.centroid.y(), obj.vision_vx, obj.vision_vy);
+      const Eigen::Vector4f innovation4 = z4 - H4 * track.state;
+      const Eigen::Matrix4f S4 = H4 * track.covariance * H4.transpose() + R4;
+      const Eigen::Matrix<float, 6, 4> K4 = track.covariance * H4.transpose() * S4.inverse();
+
+      track.state = track.state + K4 * innovation4;
+      track.covariance = (Eigen::Matrix<float, 6, 6>::Identity() - K4 * H4) * track.covariance;
+      
+      track.dynamic_match_frames = config_.class_confirm_frames;
+      track.dynamic_confirmed = true;
+    } else {
+      const Eigen::Vector2f z(obj.centroid.x(), obj.centroid.y());
+      const Eigen::Vector2f innovation = z - H * track.state;
+      const Eigen::Matrix2f S = H * track.covariance * H.transpose() + R;
+      const Eigen::Matrix<float, 6, 2> K = track.covariance * H.transpose() * S.inverse();
+
+      track.state = track.state + K * innovation;
+      track.covariance = (Eigen::Matrix<float, 6, 6>::Identity() - K * H) * track.covariance;
+    }
+
     track.position = track.state.head<2>();
     track.missed_frames = 0;
 
-    auto & obj = current_objects[static_cast<size_t>(obj_idx)];
     obj.centroid.x() = track.position.x();
     obj.centroid.y() = track.position.y();
     obj.track_id = track.id;
