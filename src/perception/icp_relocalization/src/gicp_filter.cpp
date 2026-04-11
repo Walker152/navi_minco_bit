@@ -274,7 +274,7 @@ namespace icp_relocalization
               for(const auto& point : transformed_source->points)
               {
                 if(kdtree.nearestKSearch(point, 1, nearest_indices, nearest_dist_sq) > 0 &&
-                   nearest_dist_sq[0] < 0.09f)
+                   nearest_dist_sq[0] < 0.25f) // 放宽内点判定距离 (0.5m)
                 {
                   ++inlier_count;
                 }
@@ -382,7 +382,7 @@ namespace icp_relocalization
         for(const auto& point : transformed_source->points)
         {
           if(kdtree.nearestKSearch(point, 1, nearest_indices, nearest_dist_sq) > 0 &&
-             nearest_dist_sq[0] < 0.09f)
+             nearest_dist_sq[0] < 0.25f) // 放宽内点判定距离 (0.5m)
           {
             ++inlier_count;
           }
