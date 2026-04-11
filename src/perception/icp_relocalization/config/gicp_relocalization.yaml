@@ -44,10 +44,10 @@ gicp_relocalization_node:
     # Source Crop Parameters
     source_crop:
       enable: true
-      min_x: -5.0
-      max_x: 5.0
-      min_y: -5.0
-      max_y: 5.0
+      min_x: -3.0
+      max_x: 3.0
+      min_y: -3.0
+      max_y: 3.0
       min_z: -0.5
       max_z: 2.5
 
