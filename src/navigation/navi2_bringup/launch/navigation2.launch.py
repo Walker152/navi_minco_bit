@@ -64,14 +64,24 @@ def generate_launch_description():
 
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                [nav2_bringup_dir, '/launch', '/bringup_launch.py']),
+                [nav2_bringup_dir, '/launch', '/navigation_launch.py']),
             # 使用 Launch 参数替换原有参数
             launch_arguments={
                 'map': map_yaml_path,
                 'use_sim_time': use_sim_time,
                 'params_file': nav2_param_path,
                 'log_level': 'warn'}.items(),
-        ),           
+        ),       
+        launch.actions.IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                [nav2_bringup_dir, '/launch', '/localization_launch.py']),
+            # 使用 Launch 参数替换原有参数
+            launch_arguments={
+                'map': map_yaml_path,
+                'use_sim_time': use_sim_time,
+                'params_file': nav2_param_path,
+                'log_level': 'warn'}.items(),
+        ),      
         launch_ros.actions.Node(
             package='rviz2',
             executable='rviz2',
