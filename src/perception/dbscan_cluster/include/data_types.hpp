@@ -17,6 +17,10 @@ struct Detected_Obj
   float vy = 0.0f;
   float speed = 0.0f;
   bool dynamic_confirmed = false;
+  
+  bool has_vision_match = false;
+  float vision_vx = 0.0f;
+  float vision_vy = 0.0f;
 };
 
 }  // namespace DBSCANCluster
