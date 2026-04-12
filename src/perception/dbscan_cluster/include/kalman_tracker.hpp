@@ -26,6 +26,8 @@ struct TrackerConfig
   float q_acc_y = 0.5f;
   float r_pos_x = 0.04f;
   float r_pos_y = 0.04f;
+  float r_vel_x = 0.05f;
+  float r_vel_y = 0.05f;
   float association_spatial_weight = 0.7f;
   float association_shape_weight = 0.3f;
   float association_gate_scale = 1.5f;
