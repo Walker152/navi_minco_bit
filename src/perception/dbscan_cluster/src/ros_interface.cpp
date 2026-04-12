@@ -60,6 +60,10 @@ RosInterface::RosInterface()
     this->declare_parameter<double>("tracker.r_pos_x", 0.04);
   tracker_config_.r_pos_y =
     this->declare_parameter<double>("tracker.r_pos_y", 0.04);
+  tracker_config_.r_vel_x =
+    this->declare_parameter<double>("tracker.r_vel_x", 0.05);
+  tracker_config_.r_vel_y =
+    this->declare_parameter<double>("tracker.r_vel_y", 0.05);
   tracker_config_.association_spatial_weight =
     this->declare_parameter<double>("tracker.association_spatial_weight", 0.7);
   tracker_config_.association_shape_weight =
@@ -81,7 +85,29 @@ RosInterface::RosInterface()
   pub_obstacles_ = this->create_publisher<ros_interfaces::msg::DynamicObstacleArray>(
     output_topic,
     rclcpp::QoS(rclcpp::KeepLast(10)));
+
+  sub_vision_ = this->create_subscription<geometry_msgs::msg::PoseArray>(
+    "/vision/targets_array",
+    rclcpp::SensorDataQoS(),
+    std::bind(&RosInterface::visionCallback, this, std::placeholders::_1));
+
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 };
+
+void RosInterface::visionCallback(const geometry_msgs::msg::PoseArray::ConstSharedPtr msg)
+{
+  std::lock_guard<std::mutex> lock(vision_mutex_);
+  latest_vision_targets_.clear();
+  for (const auto & pose : msg->poses) {
+    VisionTarget vt;
+    vt.position = Eigen::Vector3f(pose.position.x, pose.position.y, pose.position.z);
+    // Placeholder for velocity: assuming 0 since PoseArray does not have velocity.
+    // Replace with actual velocity parsing if using a different message type.
+    vt.velocity = Eigen::Vector3f::Zero(); 
+    latest_vision_targets_.push_back(vt);
+  }
+}
 
 void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg)
 {
@@ -104,6 +130,48 @@ void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::Const
 
   std::vector<Detected_Obj> objects;
   cluster_alg_.processCloud(cloud, objects);
+
+  // Vision association logic
+  std::vector<VisionTarget> vision_targets;
+  {
+    std::lock_guard<std::mutex> lock(vision_mutex_);
+    vision_targets = latest_vision_targets_;
+  }
+
+  if (!vision_targets.empty()) {
+    try {
+      // transform from gimbal (/gimbal) to world (/camera_init)
+      auto transform_stamped = tf_buffer_->lookupTransform(
+        "camera_init", "gimbal", tf2::TimePointZero);
+      
+      Eigen::Vector3f t(transform_stamped.transform.translation.x,
+                        transform_stamped.transform.translation.y,
+                        transform_stamped.transform.translation.z);
+      Eigen::Quaternionf q(transform_stamped.transform.rotation.w,
+                           transform_stamped.transform.rotation.x,
+                           transform_stamped.transform.rotation.y,
+                           transform_stamped.transform.rotation.z);
+
+      for (auto & obj : objects) {
+        for (const auto & vt : vision_targets) {
+          Eigen::Vector3f vt_global = q * vt.position + t;
+          Eigen::Vector3f vt_vel_global = q * vt.velocity; // rotate velocity
+          
+          float dist = (vt_global.head<2>() - obj.centroid.head<2>()).norm();
+          if (dist < 0.4f) { // 0.4m association threshold
+            obj.has_vision_match = true;
+            obj.vision_vx = vt_vel_global.x();
+            obj.vision_vy = vt_vel_global.y();
+            break;
+          }
+        }
+      }
+    } catch (tf2::TransformException &ex) {
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+        "Vision transform failed: %s", ex.what());
+    }
+  }
+
   if (!objects.empty()) {
     RCLCPP_INFO(this->get_logger(), "Current clustered object count: %zu", objects.size());
   }
