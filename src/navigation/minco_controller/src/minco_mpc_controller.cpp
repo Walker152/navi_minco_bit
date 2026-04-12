@@ -144,6 +144,7 @@ void MincoMpcController::configure(
 
   mpc_predict_path_pub_ = node->create_publisher<nav_msgs::msg::Path>("/mpc_predict_path", 1);
   mpc_real_path_pub_ = node->create_publisher<nav_msgs::msg::Path>("/mpc_real_path", 1);
+  cmd_vel_mpc_pub_ = node->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel_mpc", 1);
   real_path_history_.clear();
   last_real_path_pub_time_ = node->now();
 
@@ -223,6 +224,7 @@ void MincoMpcController::cleanup()
   odom_sub_.reset();
   mpc_predict_path_pub_.reset();
   mpc_real_path_pub_.reset();
+  cmd_vel_mpc_pub_.reset();
   solver_.reset();
 
   std::lock_guard<std::mutex> lk(data_mtx_);
@@ -680,6 +682,14 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   double vx_mpc = u_global.vx;
   double vy_mpc = u_global.vy;
   double wz = fixed_wz_;
+
+  if (cmd_vel_mpc_pub_) {
+    geometry_msgs::msg::Twist raw_cmd;
+    raw_cmd.linear.x = vx_mpc;
+    raw_cmd.linear.y = vy_mpc;
+    raw_cmd.angular.z = u_global.omega;
+    cmd_vel_mpc_pub_->publish(raw_cmd);
+  }
 
   // 小陀螺模式：当启用时，始终输出固定的旋转速度，而不使用 MPC 输出的角速度。
   if (!use_small_gyro_mode_) {
