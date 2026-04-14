@@ -70,7 +70,7 @@ def generate_launch_description():
                 'map': map_yaml_path,
                 'use_sim_time': use_sim_time,
                 'params_file': nav2_param_path,
-                'log_level': 'warn'}.items(),
+                'log_level': 'error'}.items(),
         ),       
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
@@ -80,7 +80,7 @@ def generate_launch_description():
                 'map': map_yaml_path,
                 'use_sim_time': use_sim_time,
                 'params_file': nav2_param_path,
-                'log_level': 'warn'}.items(),
+                'log_level': 'error'}.items(),
         ),      
         launch_ros.actions.Node(
             package='rviz2',
