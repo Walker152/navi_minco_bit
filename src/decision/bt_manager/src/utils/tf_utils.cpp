@@ -24,7 +24,7 @@ namespace Sentry_BT
         [this](const std_msgs::msg::Float32::ConstSharedPtr& msg) { this->updateGimbalYaw(msg); });
 
     tf_publish_timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(2),
+        std::chrono::milliseconds(10), 
         [this]() { this->publishDynamicTransform(); });
 
     publishDynamicTransform();
@@ -66,18 +66,16 @@ namespace Sentry_BT
   {
     try
     {
-      // 查找从gimbal到map的变换
+      // 查找从child_frame到map的变换（非阻塞，获取最新）
       geometry_msgs::msg::TransformStamped transform_stamped;
-      transform_stamped = tf_buffer_->lookupTransform("map", child_frame, tf2::TimePointZero, tf2::durationFromSec(1.0));
+      transform_stamped = tf_buffer_->lookupTransform("map", child_frame, tf2::TimePointZero);
 
       tf2::doTransform(input_pose, output_pose, transform_stamped);
 
-      // RCLCPP_INFO(this->get_logger(), "Transformed pose from gimbal to map");
       return true;
     }
     catch(const tf2::TransformException& ex)
     {
-      RCLCPP_ERROR(this->get_logger(), "Transform failed: %s", ex.what());
       return false;
     }
   }
