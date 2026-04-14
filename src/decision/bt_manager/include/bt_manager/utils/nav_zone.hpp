@@ -4,6 +4,7 @@
 #include <geometry_msgs/msg/pose.hpp>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 //ROS2
 #include <rclcpp/rclcpp.hpp>
@@ -18,6 +19,16 @@ namespace Sentry_BT
     double yaw;
     Point2D() : x(0.0), y(0.0), yaw(0.0) {}
     Point2D(double x_, double y_, double yaw_ = 0.0) : x(x_), y(y_), yaw(yaw_) {}
+  };
+
+  struct GimbalPatrolPoint
+  {
+    float yaw_lower_bound_deg; // 云台巡逻点的偏航角下界，单位为度
+    float yaw_upper_bound_deg; // 云台巡逻点的偏航角上界
+    bool pitch_up; // 是否需要抬头
+
+    GimbalPatrolPoint() : yaw_lower_bound_deg(0.0), yaw_upper_bound_deg(0.0), pitch_up(false) {}
+    GimbalPatrolPoint(float yaw_lower_bound_deg_, float yaw_upper_bound_deg_, bool pitch_up_) : yaw_lower_bound_deg(yaw_lower_bound_deg_), yaw_upper_bound_deg(yaw_upper_bound_deg_), pitch_up(pitch_up_) {}
   };
   struct Area_Square
   {
@@ -173,4 +184,32 @@ namespace Sentry_BT
     int allowed_projectile; // 可打弹丸数
     geometry_msgs::msg::Point position;  // 位置
   };
+
+  // =============== 战略模式：巡逻点与云台巡检区域映射表 ===============
+
+  using PatrolList = std::vector<PatrolPoint>;
+  using GimbalPatrolAreaList = std::vector<GimbalPatrolPoint>;
+
+  // 1. 底盘巡逻点映射表 (TacticalMode -> PatrolList)
+  inline std::unordered_map<TacticalMode, PatrolList> tactical_patrol_map = {
+      {TacticalMode::OFFENSIVE, patrol_points_attack},
+      {TacticalMode::DEFENSIVE, patrol_points_normal},
+      {TacticalMode::BALANCED, patrol_points_normal}
+  };
+
+  // 2. 云台巡检区域映射表 (TacticalMode -> GimbalPatrolAreaList)
+  inline std::unordered_map<TacticalMode, GimbalPatrolAreaList> tactical_gimbal_map = {
+      {TacticalMode::OFFENSIVE, {
+          {-45.0f, 45.0f, false},  // 直视前方扫射范围
+          {-30.0f, 30.0f, true}    // 抬头重点区域
+      }},
+      {TacticalMode::DEFENSIVE, {
+          {-180.0f, 180.0f, false}, // 360度全方位戒备
+          { 90.0f, 180.0f, true}    // 背后抬头观察高塔等
+      }},
+      {TacticalMode::BALANCED, {
+          {-90.0f, 90.0f, false}    // 兼顾前后
+      }}
+  };
+
 }  // namespace Sentry_BT
