@@ -75,6 +75,6 @@ namespace Sentry_BT
     bool TransformPose(const geometry_msgs::msg::Pose& input_pose, geometry_msgs::msg::Pose& output_pose);
 
     bool isTroughZone(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square& zone);
-    bool isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Point2D& tunnel_entry, const Point2D& tunnel_exit);
+    bool isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square& tunnel_area);
   };
 }  // namespace Sentry_BT
