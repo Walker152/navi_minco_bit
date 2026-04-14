@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <chrono>
+#include <iostream>
 #include <memory>
 #include <ros_interfaces/msg/detail/behavior__struct.hpp>
 #include <std_msgs/msg/detail/bool__struct.hpp>
@@ -201,14 +202,12 @@ namespace ns_com
       outpost_msg_sub_ = create_subscription<std_msgs::msg::Bool>(
           "/sentry/outpost_status", 1,
           [this](std_msgs::msg::Bool::ConstSharedPtr msg) {
-            std::lock_guard<std::mutex> lk(state_mutex_);
             outpost_msg_ = *msg;
           },
           sub_opt);
       behavior_sub_ = create_subscription<ros_interfaces::msg::Behavior>(
           "/sentry/behaivor_send", 1,
           [this](ros_interfaces::msg::Behavior::ConstSharedPtr msg) {
-            std::lock_guard<std::mutex> lk(state_mutex_);
             behavior_ = *msg;
           },
           sub_opt);
@@ -250,6 +249,9 @@ namespace ns_com
         desire_stance = behavior_.desired_stance; // 之前写死了，现作修改
         // desire_lifter_pos = behavior_.desire_lifter_pos; // 之前写死了，现作修改
         desire_lifter_pos = behavior_.desire_lifter_pos; // 变形哨升降头暂时不可用
+        
+        std::cout << "Desired stance: " << static_cast<int>(desire_stance) 
+                  << ", Desired lifter pos: " << static_cast<int>(desire_lifter_pos) << std::endl;
         outpost_msg = outpost_msg_.data;
         odom_x = odom_.pose.pose.position.x;
         odom_y = odom_.pose.pose.position.y;

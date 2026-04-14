@@ -1,8 +1,10 @@
 #include "bt_manager/ros_interface.hpp"
+#include "bt_manager/utils/area.hpp"
 
 #include <cmath>
 #include <chrono>
 #include <cstdint>
+#include <iostream>
 #include <string>
 
 namespace Sentry_BT
@@ -60,7 +62,8 @@ namespace Sentry_BT
         "/opt_path", 1, [this](const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg)
         {
           //std::cout << "Received MPC command with horizon: " << msg->mpc_horizon << std::endl;
-          blackboard_->set("through_tunnel", isTroughTunnel(msg, Area_Square{Point2D{9.46, 1.80}, Point2D{10.40, 2.65}}));
+          // blackboard_->set("through_tunnel", isTroughTunnel(msg, Area_Square{Point2D{9.46, 1.80}, Point2D{10.40, 2.65}}));
+          blackboard_->set("through_tunnel", isTroughTunnel(msg, tunnel_zone ));
         });
     // 订阅外部速度指令
     cmd_vel_sub = this->create_subscription<geometry_msgs::msg::Twist>(
@@ -78,7 +81,7 @@ namespace Sentry_BT
         {
           const auto current_mode = blackboard_->get<int>("current_mode");
           const auto desired_stance = blackboard_->get<Sentry_BT::SentryStance>("desired_stance");
-          const auto desired_lifter_pos = blackboard_->get<int>("desired_lifter_pos");
+          const auto desired_lifter_pos = blackboard_->get<Sentry_BT::LifterPos>("desired_lifter_pos");
           const auto current_pose = getCurrentPose();
 
           const bool is_reach_outpost_enemy =
@@ -94,7 +97,7 @@ namespace Sentry_BT
           behavior_msg.desired_stance = static_cast<int8_t>(desired_stance);
           behavior_msg.is_reach_outpost_enemy = is_reach_outpost_enemy;
           behavior_msg.is_reach_outpost_own = is_reach_outpost_own;
-          behavior_msg.desire_lifter_pos = desired_lifter_pos;
+          behavior_msg.desire_lifter_pos = static_cast<int8_t>(desired_lifter_pos);
           behavior_pub->publish(behavior_msg);
         });
         // std::cout << "成功初始化" << std::endl;
@@ -198,7 +201,8 @@ namespace Sentry_BT
     // 存储哨兵离线状态信息
     blackboard_->set<bool>("target_valid", msg->is_get);
     blackboard_->set<float>("gimbal_yaw", msg->yaw_imu);
-    blackboard_->set<int>("lifter_current_pos", static_cast<int>(msg->lifter_current_pos));
+    blackboard_->set<Sentry_BT::LifterPos>("lifter_current_pos",
+                                           static_cast<Sentry_BT::LifterPos>(msg->lifter_current_pos));
     blackboard_->set<bool>("is_transformable", msg->is_transformable);
     blackboard_->set<float>("transform_state", msg->transform_state);
     
@@ -342,15 +346,20 @@ namespace Sentry_BT
   // 判断MPC轨迹是否穿过指定隧道区域（由入口左端点和出口右端点两个点定义）
   bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square& tunnel_area)
   {
-    Area_Square inflated_zone{tunnel_area.top_left+Point2D{0.9, 1.2}, tunnel_area.bottom_right-Point2D{1.3, 0.66}};
     Point2D point_of_robot{msg->cmds[0].position.x, msg->cmds[0].position.y};
     // inflated_zone.top_left.x = std::min(tunnel_area.top_left.x, tunnel_area.bottom_right.x) - 0.9;  // 扩大一定的安全距离
     // inflated_zone.top_left.y = std::max(tunnel_area.top_left.y, tunnel_area.bottom_right.y) + 1.2;
     // inflated_zone.bottom_right.x = std::max(tunnel_area.top_left.x, tunnel_area.bottom_right.x) + 1.3;
     // inflated_zone.bottom_right.y = std::min(tunnel_area.top_left.y, tunnel_area.bottom_right.y) - 0.66;
-    bool flag1 = isTroughZone(msg, inflated_zone);
+    bool flag1 = transform_zone.contains(point_of_robot);
     bool flag2 = isTroughZone(msg, tunnel_area);
-    bool flag3 = inflated_zone.contains(point_of_robot);
+    // bool flag3 = inflated_zone.contains(point_of_robot);
+    std::cout << "MPC trajectory check: robot at (" << point_of_robot.x << ", " << point_of_robot.y << ")"
+              << ", in transform zone: " << (flag1 ? "YES" : "NO")
+              << ", through tunnel: " << (flag2 ? "YES" : "NO")
+              // << ", in inflated zone: " << (flag3 ? "YES" : "NO")
+              << std::endl;
+              
     if (flag1)
     {
       // std::cout << "MPC trajectory is close to tunnel zone." << std::endl;
@@ -359,10 +368,10 @@ namespace Sentry_BT
         // std::cout << "MPC trajectory is through the tunnel." << std::endl;
         return true;
       }
-      else if (flag3)
-      {
-        return false;
-      }
+      // else if (flag3)
+      // {
+      //   return false;
+      // }
       else
       {
         return true;
