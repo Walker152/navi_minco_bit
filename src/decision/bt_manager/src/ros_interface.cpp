@@ -60,7 +60,7 @@ namespace Sentry_BT
         "/opt_path", 1, [this](const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg)
         {
           //std::cout << "Received MPC command with horizon: " << msg->mpc_horizon << std::endl;
-          blackboard_->set("through_tunnel", isTroughTunnel(msg, Point2D{9.46, 2.65}, Point2D{10.40, 1.80}));
+          blackboard_->set("through_tunnel", isTroughTunnel(msg, Area_Square{Point2D{9.46, 1.80}, Point2D{10.40, 2.65}}));
         });
     // 订阅外部速度指令
     cmd_vel_sub = this->create_subscription<geometry_msgs::msg::Twist>(
@@ -340,16 +340,16 @@ namespace Sentry_BT
   }
 
   // 判断MPC轨迹是否穿过指定隧道区域（由入口左端点和出口右端点两个点定义）
-  bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Point2D& tunnel_entry, const Point2D& tunnel_exit)
+  bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square& tunnel_area)
   {
-    Area_Square inflated_zone;
+    Area_Square inflated_zone{tunnel_area.top_left+Point2D{0.9, 1.2}, tunnel_area.bottom_right-Point2D{1.3, 0.66}};
     Point2D point_of_robot{msg->cmds[0].position.x, msg->cmds[0].position.y};
-    inflated_zone.top_left.x = std::min(tunnel_entry.x, tunnel_exit.x) - 0.9;  // 扩大一定的安全距离
-    inflated_zone.top_left.y = std::max(tunnel_entry.y, tunnel_exit.y) + 1.2;
-    inflated_zone.bottom_right.x = std::max(tunnel_entry.x, tunnel_exit.x) + 1.3;
-    inflated_zone.bottom_right.y = std::min(tunnel_entry.y, tunnel_exit.y) - 0.66;
+    // inflated_zone.top_left.x = std::min(tunnel_area.top_left.x, tunnel_area.bottom_right.x) - 0.9;  // 扩大一定的安全距离
+    // inflated_zone.top_left.y = std::max(tunnel_area.top_left.y, tunnel_area.bottom_right.y) + 1.2;
+    // inflated_zone.bottom_right.x = std::max(tunnel_area.top_left.x, tunnel_area.bottom_right.x) + 1.3;
+    // inflated_zone.bottom_right.y = std::min(tunnel_area.top_left.y, tunnel_area.bottom_right.y) - 0.66;
     bool flag1 = isTroughZone(msg, inflated_zone);
-    bool flag2 = isTroughZone(msg, Area_Square{tunnel_entry, tunnel_exit});
+    bool flag2 = isTroughZone(msg, tunnel_area);
     bool flag3 = inflated_zone.contains(point_of_robot);
     if (flag1)
     {
