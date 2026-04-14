@@ -1,6 +1,10 @@
 #include "bt_manager/bt_manager.hpp"
 #include "bt_manager/action/change_stance_action.hpp"
+#include "bt_manager/action/gimbal_action.hpp"
+#include "bt_manager/action/tactical_action.hpp"
 #include "bt_manager/condition/change_stance_condition.hpp"
+#include "bt_manager/condition/gimbal_condition.hpp"
+#include "bt_manager/condition/tactical_condition.hpp"
 #include "bt_manager/action/nav_action.hpp"
 #include "bt_manager/new_test.hpp"
 
@@ -29,6 +33,13 @@ namespace Sentry_BT
     factory_.registerNodeType<CheckMPCondition>("CheckMPCondition");
     factory_.registerNodeType<CheckAPCondition>("CheckAPCondition");
     factory_.registerNodeType<CheckDPCondition>("CheckDPCondition");
+    factory_.registerNodeType<CheckTargetVisible>("CheckTargetVisible");
+    factory_.registerNodeType<CheckDefendCondition>("CheckDefendCondition");
+    factory_.registerNodeType<CheckAttackCondition>("CheckAttackCondition");
+    factory_.registerNodeType<TrackTargetAction>("TrackTargetAction");
+    factory_.registerNodeType<SetGimbalPose>("SetGimbalPose");
+    factory_.registerNodeType<SetTacticalMode>("SetTacticalMode");
+    factory_.registerNodeType<ChangeTacticalAction>("ChangeTacticalAction");
     factory_.registerNodeType<ChangeStance>("ChangeStance");
     
     factory_.registerNodeType<DirectVelocityControl>("DirectVelocityControl");
