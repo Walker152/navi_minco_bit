@@ -231,15 +231,15 @@ void publishEscapeCommand(
   uint32_t & trajectory_id_counter,
   const std_msgs::msg::Header & header)
 {
-  const double escape_duration = 0.5;  // seconds
+  // const double escape_duration = 0.5;  // seconds
   // 1. 构造空间伪轨迹 (平滑匀加速脱困曲线)
   // 多项式定义: p(t) = c0*t^5 + c1*t^4 + c2*t^3 + c3*t^2 + c4*t + c5
   traj_opt::Trajectory escape_traj;
   Eigen::MatrixXd cMat(3, 6);
   cMat.setZero();
   // 第 5 列 (c5) -> 常数项 (t^0): 设定起点为机器人的当前位置
-  cMat(0, 5) = current_pose.pose.position.x + escape_vel.x() * escape_duration;
-  cMat(1, 5) = current_pose.pose.position.y + escape_vel.y() * escape_duration;
+  cMat(0, 5) = current_pose.pose.position.x;
+  cMat(1, 5) = current_pose.pose.position.y;
   cMat(2, 5) = 0.0;
 
   // 第 4 列 (c4) -> 一次项 (t^1): 初始速度强制为 0，防止 QP 求解器因无限加速度崩溃 (Error 36)
