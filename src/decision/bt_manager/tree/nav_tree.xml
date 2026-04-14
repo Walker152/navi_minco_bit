@@ -46,6 +46,9 @@
                              map_name="rmuc2026" />
             <CheckOutpostRemained name="CheckOutpostRemained" />
             <SetCoordinate name="SetResponseCoordinate" goal="2" />
+            <ForceSuccess>
+              <CheckWillThroughTunnel name="CheckWillThroughTunnel" />
+            </ForceSuccess>
             <NavigateToPoseAction name="PublishResponseGoal" />
           </ReactiveSequence>
         </ReactiveFallback>
@@ -56,6 +59,9 @@
                            map_dir="src/navigation/navi2_bringup/maps/2026"
                            pcd_dir="src/utils/pcd2esdf/maps"
                            map_name="rmuc2026" />
+          <ForceSuccess>
+            <CheckWillThroughTunnel name="CheckWillThroughTunnel" />
+          </ForceSuccess>
 
           <ReactiveFallback name="OffensiveStrategies">
             <!-- 追击模式，在区域内自动追击 -->
