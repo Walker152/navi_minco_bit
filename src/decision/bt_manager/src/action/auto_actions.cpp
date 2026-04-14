@@ -532,8 +532,8 @@ BT::NodeStatus ControlThroughTunnel::onRunning()
   //     }
   //   }
   // }
-  int lifter_pose = blackboard->get<int>("lifter_pos_now");
-  if (lifter_pose == 1 && !lifter_ready_)
+  LifterPos lifter_pose = blackboard->get<LifterPos>("lifter_current_pos");
+  if (lifter_pose == LifterPos::BOTTOM && !lifter_ready_)
   {
     std::cout << GREEN << "Lifter is ready." << RESET << std::endl;
     lifter_ready_ = true;
