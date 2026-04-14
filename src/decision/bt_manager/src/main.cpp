@@ -1,4 +1,4 @@
-#include "bt_manager/bt_manager.hpp"
+#include "bt_manager/sentry_bt_manager.hpp"
 #include "bt_manager/ros_interface.hpp"
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -16,6 +16,7 @@ int main(int argc, char const* argv[])
   auto bt_blackboard = blackboard->getBTBlackboard();
   bt_blackboard->set<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface", ros_interface_node);
   bt_blackboard->set<rclcpp::Node::SharedPtr>("node", ros_interface_node);
+  bt_blackboard->set<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils", transform_utils_node);
   bt_blackboard->set<std::chrono::milliseconds>("bt_loop_duration", std::chrono::milliseconds(100));
   bt_blackboard->set<std::chrono::milliseconds>("server_timeout", std::chrono::milliseconds(500));
   bt_blackboard->set<std::chrono::milliseconds>("wait_for_service_timeout", std::chrono::milliseconds(10000));
@@ -26,21 +27,15 @@ int main(int argc, char const* argv[])
   executor.add_node(transform_utils_node);
   std::thread executor_thread([&executor]() { executor.spin(); });
 
-  Sentry_BT::BTManager bt_manager;
+  Sentry_BT::SentryBTManager bt_manager;
   auto pkg_share_dir = ament_index_cpp::get_package_share_directory("bt_manager");
-  bt_manager.getPackagePath(pkg_share_dir);
-  if(!bt_manager.initialize(bt_blackboard))
+  if(!bt_manager.initialize(bt_blackboard, pkg_share_dir))
   {
-    RCLCPP_ERROR(ros_interface_node->get_logger(), "Failed to initialize BTManager with tree path: %s", pkg_share_dir.c_str());
+    RCLCPP_ERROR(ros_interface_node->get_logger(), "Failed to initialize SentryBTManager with tree path: %s", pkg_share_dir.c_str());
     return -1;
   }
 
-  rclcpp::Rate loop_rate(10);  // 10 Hz
-  while(rclcpp::ok())
-  {
-    bt_manager.execute();
-    loop_rate.sleep();
-  }
+  bt_manager.run(10.0);
 
   // 清理
   executor.cancel();
