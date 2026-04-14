@@ -55,8 +55,8 @@
             gravity_init: [ 0.0, 0.0, -9.810 ]              # [0.0, 9.810, 0.0] # # preknown gravity in the first IMU body frame, use when imu_en is False or start from a non-stationary state
             extrinsic_T: [ -0.011, -0.02329, 0.04412 ]
             extrinsic_R: [ 1.0, 0.0, 0.0,
-                           0.0, 0.939693,  0.342020,
-                           0.0, -0.342020, 0.939693 ]
+                           0.0, 1.0, 0.0,
+                           0.0, 0.0, 1.0 ]
 
         odometry:
             publish_odometry_without_downsample: True

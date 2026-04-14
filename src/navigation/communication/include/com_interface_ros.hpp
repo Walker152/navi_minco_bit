@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <chrono>
 #include <memory>
+#include <ros_interfaces/msg/detail/behavior__struct.hpp>
 #include <std_msgs/msg/detail/bool__struct.hpp>
 #include <string>
 #include <thread>
@@ -245,9 +246,10 @@ namespace ns_com
         vx_mps = cmd_vel_.linear.x;
         vy_mps = cmd_vel_.linear.y;
         vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
-        // vw_rpm = 0.0f;
+        // vw_rpm = 80.0f;
         desire_stance = behavior_.desired_stance; // 之前写死了，现作修改
-        desire_lifter_pos = behavior_.desire_lifter_pos; // 之前写死了，现作修改
+        // desire_lifter_pos = behavior_.desire_lifter_pos; // 之前写死了，现作修改
+        desire_lifter_pos = behavior_.desire_lifter_pos; // 变形哨升降头暂时不可用
         outpost_msg = outpost_msg_.data;
         odom_x = odom_.pose.pose.position.x;
         odom_y = odom_.pose.pose.position.y;
@@ -257,14 +259,14 @@ namespace ns_com
       }
       
       uint8_t _is_use_mid360 = 0;
-      if(odom_x > 11.0)
-      {
-        vw_rpm = 40.0f;
-      }
-      if(std::hypot(vx_mps, vy_mps) < 0.35 && odom_x > 11.0)
-      {
-        vw_rpm = 80.0f;
-      }
+      // if(odom_x > 11.0)
+      // {
+      //   vw_rpm = 40.0f;
+      // }
+      // if(std::hypot(vx_mps, vy_mps) < 0.35 && odom_x > 11.0)
+      // {
+      //   vw_rpm = 80.0f;
+      // }
       tf2::Quaternion q;
       tf2::fromMsg(odom_q, q);
       double roll, pitch, yaw;
