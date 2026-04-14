@@ -60,7 +60,7 @@ namespace Sentry_BT
         "/opt_path", 1, [this](const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg)
         {
           //std::cout << "Received MPC command with horizon: " << msg->mpc_horizon << std::endl;
-          blackboard_->set("through_tunnel", isTroughTunnel(msg, Point2D{9.46, 2.65}, Point2D{10.40, 1.80}));
+          blackboard_->set("through_tunnel", isTroughTunnel(msg, tunnel_area[0].top_left, tunnel_area[0].bottom_right));
         });
     // 订阅外部速度指令
     cmd_vel_sub = this->create_subscription<geometry_msgs::msg::Twist>(
