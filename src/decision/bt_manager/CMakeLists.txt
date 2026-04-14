@@ -30,7 +30,7 @@ include_directories(
   include
 )
 
-file(GLOB_RECURSE BT_MANAGER_SOURCES
+file(GLOB_RECURSE BT_MANAGER_SOURCES CONFIGURE_DEPENDS
   "src/*.cpp"
   "src/action/*.cpp"
   "src/condition/*.cpp"
