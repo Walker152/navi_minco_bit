@@ -30,6 +30,7 @@
 #include "bt_manager/param_manager.hpp"
 #include "bt_manager/utils/tf_utils.hpp"
 #include "bt_manager/utils/nav_zone.hpp"
+#include "bt_manager/utils/area.hpp"
 namespace Sentry_BT
 {
   class ros_interface : public rclcpp::Node
