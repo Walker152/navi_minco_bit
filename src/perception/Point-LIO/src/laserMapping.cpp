@@ -448,7 +448,8 @@ void publish_odometry(
 
     tf2::Quaternion q;
     q.setRPY(0, 0, yaw_pose);
-    tf2::Vector3 offset_vec(0.0, 0.15, 0.0);
+    // tf2::Vector3 offset_vec(0.0, 0.15, 0.0);
+    tf2::Vector3 offset_vec(0.0, -0.205, 0.0); // 变形哨
     tf2::Vector3 base_pose = tf2::Vector3(odomAftMapped.pose.pose.position.x, 
                                           odomAftMapped.pose.pose.position.y, 
                                           0) 
