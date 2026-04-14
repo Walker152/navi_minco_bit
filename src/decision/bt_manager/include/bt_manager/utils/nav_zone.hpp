@@ -153,6 +153,10 @@ namespace Sentry_BT
       // {7.3, 4.5, 0.0}
   };
 
+  inline std::vector<Area_Square> tunnel_area = {
+      {{9.46, 2.65, 0.0}, {10.40, 1.80, 0.0}}  // 隧道区域定义
+  };
+
   inline std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};
   inline std::vector<std::string> mode_names = {"PATROL", "TRACING", "RETREAT", "RESPONSE"};
   inline std::vector<std::string> stance_names = {"MOVE", "ATTACK", "DEFEND"};
