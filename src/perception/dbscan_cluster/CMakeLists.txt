@@ -20,6 +20,8 @@ find_package(std_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(ros_interfaces REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common filters segmentation search)
 
 include_directories(
@@ -43,6 +45,8 @@ ament_target_dependencies(${PROJECT_NAME}_node
   visualization_msgs
   pcl_conversions
   ros_interfaces
+  tf2_ros
+  tf2_geometry_msgs
 )
 
 target_link_libraries(${PROJECT_NAME}_node
