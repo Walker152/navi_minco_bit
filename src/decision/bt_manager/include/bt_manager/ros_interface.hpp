@@ -30,6 +30,7 @@
 #include "bt_manager/param_manager.hpp"
 #include "bt_manager/utils/tf_utils.hpp"
 #include "bt_manager/utils/nav_zone.hpp"
+#include "bt_manager/utils/area.hpp"
 namespace Sentry_BT
 {
   class ros_interface : public rclcpp::Node
@@ -75,6 +76,6 @@ namespace Sentry_BT
     bool TransformPose(const geometry_msgs::msg::Pose& input_pose, geometry_msgs::msg::Pose& output_pose);
 
     bool isTroughZone(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square& zone);
-    bool isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Point2D& tunnel_entry, const Point2D& tunnel_exit);
+    bool isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square& tunnel_area);
   };
 }  // namespace Sentry_BT
