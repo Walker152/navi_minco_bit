@@ -103,9 +103,9 @@ namespace Sentry_BT
   geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
   {
     std::lock_guard<std::mutex> lock(current_pose_mutex_);
-    auto transforme_utils = std::make_shared<Sentry_BT::TransformUtils>();
+    auto transform_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
     geometry_msgs::msg::Pose transformed_pose;
-    if(transforme_utils->transformPoseToMap(current_pose_, transformed_pose, "camera_init"))
+    if(transform_utils && transform_utils->transformPoseToMap(current_pose_, transformed_pose, "camera_init"))
     {      
       return transformed_pose;
     }
@@ -312,8 +312,12 @@ namespace Sentry_BT
 
   bool ros_interface::TransformPose(const geometry_msgs::msg::Pose& input_pose, geometry_msgs::msg::Pose& output_pose)
   {
-    // 创建TransformUtils实例
-    auto transform_utils = std::make_shared<Sentry_BT::TransformUtils>();
+    // 从黑板获取TransformUtils实例
+    auto transform_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+
+    if (!transform_utils) {
+      return false;
+    }
 
     // 执行坐标转换
     bool success = transform_utils->transformPoseToMap(input_pose, output_pose, "gimbal");
