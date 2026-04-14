@@ -25,7 +25,7 @@ namespace Sentry_BT
       // stance tree
       blackboard_->set<SentryStance>("current_stance", SentryStance::MOVE); // 当前姿态
       blackboard_->set<SentryStance>("desired_stance", SentryStance::MOVE); // 期望姿态
-      blackboard_->set("desired_lifter_pos", 0);                        // 目标升降位置
+      blackboard_->set<LifterPos>("desired_lifter_pos", LifterPos::BOTTOM);                        // 目标升降位置
       // navigation tree
       blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));  // 当前模式
       blackboard_->set("nav_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});      // 当前导航目标
@@ -55,7 +55,7 @@ namespace Sentry_BT
       //sentry_offline_info
       blackboard_->set("target_valid", false);     // 目标锁定状态
       blackboard_->set("gimbal_yaw", 0.0f);        // 云台偏航角
-      blackboard_->set("lifter_current_pos", 0);   // 升降机构当前位置
+      blackboard_->set<LifterPos>("lifter_current_pos", LifterPos::BOTTOM);   // 升降机构当前位置
       blackboard_->set("is_transformable", true);  // 是否可变形
       blackboard_->set("transform_state", 0.0f);   // 变形状态
       blackboard_->set("target_pose", geometry_msgs::msg::Pose());    // 目标位置
