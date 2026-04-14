@@ -242,7 +242,6 @@ void MincoFsm::callMainFsmOnce()
       // 条件2: 挣扎超时保护
       if (!recovery_server_->inRecovery(now_s)) {
         recovery_server_->finishRecovery(false, now_s);
-        has_goal_ = false;
         changeState("ESCAPE_TIMEOUT", State::EMER_STOP);
         return;
       }
@@ -272,9 +271,8 @@ void MincoFsm::callMainFsmOnce()
       const double now_s = planner_->nowSeconds();
       if (std::isfinite(now_s) && std::isfinite(emer_stop_start_time_) &&
           (now_s - emer_stop_start_time_) > 5.0) {
-        has_goal_ = false;
-        recovery_server_->clearMissionGoal();
-        changeState("EMER_TIMEOUT", State::WAIT_GOAL);
+        // Keep mission goal so FSM can retry planning automatically after emergency stop timeout.
+        changeState("EMER_TIMEOUT", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
         return;
       }
 
@@ -300,8 +298,8 @@ void MincoFsm::callMainFsmOnce()
 
       // 5) Recovery: stopped, check safety before leaving EMER_STOP.
       recovery_server_->finishRecovery(false, now_s);
-      recovery_server_->clearMissionGoal();
-      changeState("EMER_SAFE", State::WAIT_GOAL);
+      // Keep mission goal so robot can continue navigating once it is safe/stopped.
+      changeState("EMER_SAFE", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
       return;
     }
 
