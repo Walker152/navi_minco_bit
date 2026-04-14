@@ -22,16 +22,20 @@ namespace Sentry_BT
 
       // 初始化黑板变量
       // tree data
-      blackboard_->set("desired_lifter_pos", 0);                            // 目标升降位置
-      blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));  // 当前模式
-      blackboard_->set("nav_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});                 // 当前导航目标
-      blackboard_->set("patrol_index", 0);                                  // 巡逻点索引
-      blackboard_->set("patrol_wait_time", 1000);                           // 巡逻等待时间（毫秒）
+      // stance tree
       blackboard_->set<SentryStance>("current_stance", SentryStance::MOVE); // 当前姿态
-      blackboard_->set<SentryStance>("desired_stance", SentryStance::MOVE); // 期望姿态                          
+      blackboard_->set<SentryStance>("desired_stance", SentryStance::MOVE); // 期望姿态
+      blackboard_->set("desired_lifter_pos", 0);                        // 目标升降位置
+      // navigation tree
+      blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));  // 当前模式
+      blackboard_->set("nav_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});      // 当前导航目标
+      blackboard_->set("patrol_index", 0);                                  // 巡逻点索引                     
       blackboard_->set("outpost_msg", false);                               // 抬头
       blackboard_->set("through_tunnel", false);                            // 是否通过隧道
       blackboard_->set("cmd_vel", geometry_msgs::msg::Twist());             // 速度指令
+      // gimbal tree
+      // tactical tree
+      blackboard_->set<TacticalMode>("tactical_mode", TacticalMode::BALANCED); // 战术模式
       //team_info
       blackboard_->set("allies_info", std::vector<AllyRobotInfo>());   // 队友信息列表
       blackboard_->set("home_health", 3000);                           // 基地血量  
