@@ -54,13 +54,11 @@
 
 using namespace boost::placeholders;
 
-namespace esekfom
-{
+namespace esekfom {
 
 using namespace Eigen;
 
-template <typename T>
-struct dyn_share_modified
+template <typename T> struct dyn_share_modified
 {
   bool valid;
   bool converge;
@@ -72,13 +70,20 @@ struct dyn_share_modified
   bool satu_check[6];
 };
 
-template <
-  typename state, int process_noise_dof, typename input = state, typename measurement = state,
+template <typename state,
+  int process_noise_dof,
+  typename input = state,
+  typename measurement = state,
   int measurement_noise_dof = 0>
 class esekf
 {
   typedef esekf self;
-  enum { n = state::DOF, m = state::DIM, l = measurement::DOF };
+  enum
+  {
+    n = state::DOF,
+    m = state::DIM,
+    l = measurement::DOF
+  };
 
 public:
   typedef typename state::scalar scalar_type;
@@ -98,8 +103,7 @@ public:
   typedef Eigen::Matrix<scalar_type, l, n> measurementMatrix1(state &);
   typedef Eigen::Matrix<scalar_type, Eigen::Dynamic, n> measurementMatrix1_dyn(state &);
   typedef Eigen::Matrix<scalar_type, l, measurement_noise_dof> measurementMatrix2(state &);
-  typedef Eigen::Matrix<scalar_type, Eigen::Dynamic, Eigen::Dynamic> measurementMatrix2_dyn(
-    state &);
+  typedef Eigen::Matrix<scalar_type, Eigen::Dynamic, Eigen::Dynamic> measurementMatrix2_dyn(state &);
   typedef Eigen::Matrix<scalar_type, measurement_noise_dof, measurement_noise_dof>
     measurementnoisecovariance;
   typedef Eigen::Matrix<scalar_type, Eigen::Dynamic, Eigen::Dynamic> measurementnoisecovariance_dyn;
@@ -107,8 +111,7 @@ public:
   esekf(const state & x = state(), const cov & P = cov::Identity()) : x_(x), P_(P){};
 
   void init_dyn_share_modified_2h(
-    processModel f_in, processMatrix1 f_x_in,
-    measurementModel_dyn_share_modified_cov h_dyn_share_in1)
+    processModel f_in, processMatrix1 f_x_in, measurementModel_dyn_share_modified_cov h_dyn_share_in1)
   {
     f = f_in;
     f_x = f_x_in;
@@ -122,8 +125,8 @@ public:
     x_.build_SEN_state();
   }
 
-  void init_dyn_share_modified_3h(
-    processModel f_in, processMatrix1 f_x_in,
+  void init_dyn_share_modified_3h(processModel f_in,
+    processMatrix1 f_x_in,
     measurementModel_dyn_share_modified_cov h_dyn_share_in1,
     measurementModel_dyn_share_modified h_dyn_share_in2)
   {
@@ -156,8 +159,9 @@ public:
       cov_ f_x_ = f_x(x_, i_in);
       cov f_x_final;
       F_x1 = cov::Identity();
-      for (std::vector<std::pair<std::pair<int, int>, int> >::iterator it = x_.vect_state.begin();
-           it != x_.vect_state.end(); it++) {
+      for (std::vector<std::pair<std::pair<int, int>, int>>::iterator it = x_.vect_state.begin();
+           it != x_.vect_state.end();
+           it++) {
         int idx = (*it).first.first;
         int dim = (*it).first.second;
         int dof = (*it).second;
@@ -170,8 +174,8 @@ public:
 
       Matrix<scalar_type, 3, 3> res_temp_SO3;
       MTK::vect<3, scalar_type> seg_SO3;
-      for (std::vector<std::pair<int, int> >::iterator it = x_.SO3_state.begin();
-           it != x_.SO3_state.end(); it++) {
+      for (std::vector<std::pair<int, int>>::iterator it = x_.SO3_state.begin(); it != x_.SO3_state.end();
+           it++) {
         int idx = (*it).first;
         int dim = (*it).second;
         for (int i = 0; i < 3; i++) {
@@ -183,8 +187,7 @@ public:
           MTK::SO3<scalar_type>::exp(seg_SO3);  // res.normalized().toRotationMatrix();
         res_temp_SO3 = MTK::A_matrix(seg_SO3);
         for (int i = 0; i < n; i++) {
-          f_x_final.template block<3, 1>(idx, i) =
-            res_temp_SO3 * (f_x_.template block<3, 1>(dim, i));
+          f_x_final.template block<3, 1>(idx, i) = res_temp_SO3 * (f_x_.template block<3, 1>(dim, i));
         }
       }
 
@@ -201,8 +204,7 @@ public:
     double m_noise;
     for (int i = 0; i < maximum_iter; i++) {
       dyn_share.valid = true;
-      h_dyn_share_modified_1(
-        x_, P_.template block<3, 3>(0, 0), P_.template block<3, 3>(3, 3), dyn_share);
+      h_dyn_share_modified_1(x_, P_.template block<3, 3>(0, 0), P_.template block<3, 3>(3, 3), dyn_share);
       if (!dyn_share.valid) {
         return false;
         // continue;
@@ -289,9 +291,8 @@ public:
   {
     x_ = input_state;
 
-    if (
-      (!x_.vect_state.size()) && (!x_.SO3_state.size()) && (!x_.S2_state.size()) &&
-      (!x_.SEN_state.size())) {
+    if ((!x_.vect_state.size()) && (!x_.SO3_state.size()) && (!x_.S2_state.size()) &&
+        (!x_.SEN_state.size())) {
       x_.build_S2_state();
       x_.build_SO3_state();
       x_.build_vect_state();

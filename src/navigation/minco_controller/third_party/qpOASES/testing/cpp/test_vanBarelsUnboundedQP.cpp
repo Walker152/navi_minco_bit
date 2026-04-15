@@ -21,7 +21,6 @@
  *
  */
 
-
 /**
  *	\file testing/cpp/test_vanBarelsUnboundedQP.cpp
  *	\author Hans Joachim Ferreau
@@ -31,38 +30,33 @@
  *	Example that causes troubles when hotstarting.
  */
 
-
-
 #include <qpOASES.hpp>
 #include <qpOASES/UnitTesting.hpp>
 
 #include <stdio.h>
 
-
-
-int main( )
+int main()
 {
-	USING_NAMESPACE_QPOASES
+  USING_NAMESPACE_QPOASES
 
-	real_t H[2*2] = { 1.0, 0.0, 0.0, 0.0 };
-	real_t g[2] = { 1.5, 1.0 };
-		
-	Options options;
-	//options.enableFarBounds = BT_FALSE;
+  real_t H[2 * 2] = {1.0, 0.0, 0.0, 0.0};
+  real_t g[2] = {1.5, 1.0};
 
-	QProblemB qp(2);
-	qp.setOptions( options );
+  Options options;
+  // options.enableFarBounds = BT_FALSE;
 
-	int_t iter = 10;
-	qp.init( H,g,0,0,iter );
+  QProblemB qp(2);
+  qp.setOptions(options);
 
-	real_t xOpt[2];
-	qp.getPrimalSolution( xOpt );
-	print( xOpt,2 );
+  int_t iter = 10;
+  qp.init(H, g, 0, 0, iter);
 
-	return TEST_PASSED;
+  real_t xOpt[2];
+  qp.getPrimalSolution(xOpt);
+  print(xOpt, 2);
+
+  return TEST_PASSED;
 }
-
 
 /*
  *	end of file

@@ -5,10 +5,10 @@
 #include <string>
 #include <vector>
 
-#include <rclcpp/rclcpp.hpp>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/synchronizer.h>
+#include <rclcpp/rclcpp.hpp>
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
@@ -16,7 +16,8 @@
 #include "livox_ros_driver2/msg/custom_msg.hpp"
 #include "livox_ros_driver2/msg/custom_point.hpp"
 
-class LidarMergerNode : public rclcpp::Node {
+class LidarMergerNode : public rclcpp::Node
+{
 public:
   LidarMergerNode();
   explicit LidarMergerNode(const rclcpp::NodeOptions & options);
@@ -26,16 +27,13 @@ private:
   void loadExtrinsics();
 
   static livox_ros_driver2::msg::CustomPoint transformPoint(
-    const livox_ros_driver2::msg::CustomPoint & pt_in,
-    const Eigen::Matrix4f & T);
+    const livox_ros_driver2::msg::CustomPoint & pt_in, const Eigen::Matrix4f & T);
 
-  void syncCallback(
-    const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr & msg_front,
+  void syncCallback(const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr & msg_front,
     const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr & msg_back);
 
 private:
-  using SyncPolicy = message_filters::sync_policies::ApproximateTime<
-    livox_ros_driver2::msg::CustomMsg,
+  using SyncPolicy = message_filters::sync_policies::ApproximateTime<livox_ros_driver2::msg::CustomMsg,
     livox_ros_driver2::msg::CustomMsg>;
   using Synchronizer = message_filters::Synchronizer<SyncPolicy>;
 

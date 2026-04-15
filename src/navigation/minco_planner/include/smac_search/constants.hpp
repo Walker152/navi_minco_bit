@@ -17,10 +17,8 @@
 
 #include <string>
 
-namespace minco_planner
-{
-namespace smac
-{
+namespace minco_planner {
+namespace smac {
 
 enum class MotionModel
 {
@@ -42,16 +40,16 @@ enum class GoalHeadingMode
 inline std::string toString(const MotionModel & n)
 {
   switch (n) {
-    case MotionModel::TWOD:
-      return "2D";
-    case MotionModel::DUBIN:
-      return "Dubin";
-    case MotionModel::REEDS_SHEPP:
-      return "Reeds-Shepp";
-    case MotionModel::STATE_LATTICE:
-      return "State Lattice";
-    default:
-      return "Unknown";
+  case MotionModel::TWOD:
+    return "2D";
+  case MotionModel::DUBIN:
+    return "Dubin";
+  case MotionModel::REEDS_SHEPP:
+    return "Reeds-Shepp";
+  case MotionModel::STATE_LATTICE:
+    return "State Lattice";
+  default:
+    return "Unknown";
   }
 }
 
@@ -73,14 +71,14 @@ inline MotionModel fromString(const std::string & n)
 inline std::string toString(const GoalHeadingMode & n)
 {
   switch (n) {
-    case GoalHeadingMode::DEFAULT:
-      return "DEFAULT";
-    case GoalHeadingMode::BIDIRECTIONAL:
-      return "BIDIRECTIONAL";
-    case GoalHeadingMode::ALL_DIRECTION:
-      return "ALL_DIRECTION";
-    default:
-      return "Unknown";
+  case GoalHeadingMode::DEFAULT:
+    return "DEFAULT";
+  case GoalHeadingMode::BIDIRECTIONAL:
+    return "BIDIRECTIONAL";
+  case GoalHeadingMode::ALL_DIRECTION:
+    return "ALL_DIRECTION";
+  default:
+    return "Unknown";
   }
 }
 
