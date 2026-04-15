@@ -52,6 +52,15 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
       // 更新当前位置
       std::lock_guard<std::mutex> lock(current_pose_mutex_);
       current_pose_ = msg->pose.pose;
+
+      geometry_msgs::msg::Pose pose_in_map;
+      auto transform_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+      if (transform_utils &&
+          transform_utils->transformPoseToMap(current_pose_, pose_in_map, "camera_init")) {
+        blackboard_->set("current_pose", pose_in_map);
+      } else {
+        blackboard_->set("current_pose", current_pose_);
+      }
     });
 
   // 订阅MPC轨迹指令
@@ -92,6 +101,9 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.is_reach_outpost_own = is_reach_outpost_own;
     behavior_msg.desire_lifter_pos = static_cast<int8_t>(desired_lifter_pos);
     behavior_pub->publish(behavior_msg);
+
+    const auto cmd_vel = blackboard_->get<geometry_msgs::msg::Twist>("cmd_vel");
+    cmd_vel_pub->publish(cmd_vel);
   });
   // std::cout << "成功初始化" << std::endl;
 }
@@ -348,11 +360,11 @@ bool ros_interface::isTroughTunnel(
   bool flag1 = transform_zone.contains(point_of_robot);
   bool flag2 = isTroughZone(msg, tunnel_area);
   // bool flag3 = inflated_zone.contains(point_of_robot);
-  std::cout << "MPC trajectory check: robot at (" << point_of_robot.x << ", " << point_of_robot.y << ")"
-            << ", in transform zone: " << (flag1 ? "YES" : "NO") << ", through tunnel: "
-            << (flag2 ? "YES" : "NO")
-            // << ", in inflated zone: " << (flag3 ? "YES" : "NO")
-            << std::endl;
+  // std::cout << "MPC trajectory check: robot at (" << point_of_robot.x << ", " << point_of_robot.y << ")"
+  //           << ", in transform zone: " << (flag1 ? "YES" : "NO") << ", through tunnel: "
+  //           << (flag2 ? "YES" : "NO")
+  //           // << ", in inflated zone: " << (flag3 ? "YES" : "NO")
+  //           << std::endl;
 
   if (flag1) {
     // std::cout << "MPC trajectory is close to tunnel zone." << std::endl;
@@ -370,16 +382,4 @@ bool ros_interface::isTroughTunnel(
   }
   return false;
 }
-void ros_interface::publishCmdVel(double linear_y, double angular_z)
-{
-  geometry_msgs::msg::Twist cmd_vel;
-  cmd_vel.linear.y = linear_y;
-  cmd_vel.angular.z = angular_z;
-  cmd_vel_pub->publish(cmd_vel);
-}
-void ros_interface::publishCmdVel(const geometry_msgs::msg::Twist & cmd_vel)
-{
-  cmd_vel_pub->publish(cmd_vel);
-}
-
 }  // namespace Sentry_BT

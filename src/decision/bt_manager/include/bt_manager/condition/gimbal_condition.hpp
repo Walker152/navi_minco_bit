@@ -13,4 +13,13 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class CheckNearEnemyOutpost : public BT::ConditionNode
+{
+public:
+  CheckNearEnemyOutpost(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 }  // namespace Sentry_BT

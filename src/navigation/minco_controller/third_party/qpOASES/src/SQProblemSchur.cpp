@@ -37,6 +37,7 @@
 
 #ifndef __MATLAB__
 #include <cstdarg>
+#include <cstdio>
 void MyPrintf(const char * pformat, ...)
 {
   va_list ap;
