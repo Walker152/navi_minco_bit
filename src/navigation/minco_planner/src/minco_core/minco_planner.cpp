@@ -947,7 +947,13 @@ bool MincoPlanner::makePlan(
       plan.poses.push_back(pose);
     }
     if (!plan.poses.empty()) {
+      plan.poses.back().pose.position.x = goal.position.x;
+      plan.poses.back().pose.position.y = goal.position.y;
+      plan.poses.back().pose.position.z = goal.position.z;
       plan.poses.back().pose.orientation = goal.orientation;
+      latest_global_path_.back().pose.position.x = goal.position.x;
+      latest_global_path_.back().pose.position.y = goal.position.y;
+      latest_global_path_.back().pose.position.z = goal.position.z;
       latest_global_path_.back().pose.orientation = goal.orientation;
     }
   } else {
@@ -1002,7 +1008,13 @@ bool MincoPlanner::makePlan(
       plan.poses.push_back(pose);
     }
     if (!plan.poses.empty()) {
+      plan.poses.back().pose.position.x = goal.position.x;
+      plan.poses.back().pose.position.y = goal.position.y;
+      plan.poses.back().pose.position.z = goal.position.z;
       plan.poses.back().pose.orientation = goal.orientation;
+      latest_global_path_.back().pose.position.x = goal.position.x;
+      latest_global_path_.back().pose.position.y = goal.position.y;
+      latest_global_path_.back().pose.position.z = goal.position.z;
       latest_global_path_.back().pose.orientation = goal.orientation;
     }
   }
