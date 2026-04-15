@@ -1,6 +1,8 @@
 #include "bt_manager/action/auto_actions.hpp"
 #include "bt_manager/blackboard.hpp"
+#include "bt_manager/utils/area.hpp"
 #include "bt_manager/utils/nav_zone.hpp"
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -30,7 +32,8 @@ BT::NodeStatus SetCoordinate::tick()
     return BT::NodeStatus::FAILURE;
   }
 
-  static const std::array<std::string, 3> goal_names = {"HOME", "BONUS", "OUTPOST"};
+  static const std::array<std::string, 5> goal_names = {
+    "HOME", "BONUS", "OUTPOST", "OWN_FORT", "ENEMY_FORT"};
   Sentry_BT::Point2D point = nav_points[goal_index.value()];
 
   auto blackboard = config().blackboard;
@@ -61,13 +64,7 @@ BT::NodeStatus SetTargetCoordinate::tick()
   auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
   Sentry_BT::Point2D point;  //最终目标点
   //获取当前位置
-  std::shared_ptr<ros_interface> ros_iface;
-  geometry_msgs::msg::Pose current_pose;
-  ros_iface = blackboard->get<std::shared_ptr<ros_interface>>("ros_interface");
-  if (!ros_iface) {
-    return BT::NodeStatus::FAILURE;
-  }
-  current_pose = ros_iface->getCurrentPose();
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
 
   // 提取坐标
   double current_x = current_pose.position.x;
@@ -170,7 +167,13 @@ BT::NodeStatus SelectPatrolPoint::tick()
     blackboard->set("patrol_index", current_index);
   }
 
+  TacticalMode tactical_mode = TacticalMode::BALANCED;
+  blackboard->get<TacticalMode>("tactical_mode", tactical_mode);
   std::vector<Sentry_BT::PatrolPoint> patrol_points = Sentry_BT::patrol_points_normal;
+  const auto patrol_it = tactical_patrol_map.find(tactical_mode);
+  if (patrol_it != tactical_patrol_map.end() && !patrol_it->second.empty()) {
+    patrol_points = patrol_it->second;
+  }
 
   // 检查索引有效性
   if (current_index >= static_cast<int>(patrol_points.size())) {
@@ -210,7 +213,18 @@ BT::NodeStatus Wait::onStart()
 {
   auto blackboard = config().blackboard;
   auto patrol_index = blackboard->get<int>("patrol_index");
-  auto wait_time = patrol_points_normal[patrol_index].duration_ms;
+  TacticalMode tactical_mode = TacticalMode::BALANCED;
+  blackboard->get<TacticalMode>("tactical_mode", tactical_mode);
+  auto patrol_list_it = tactical_patrol_map.find(tactical_mode);
+  const auto & patrol_list =
+    (patrol_list_it != tactical_patrol_map.end() && !patrol_list_it->second.empty())
+      ? patrol_list_it->second
+      : patrol_points_normal;
+
+  if (patrol_index >= static_cast<int>(patrol_list.size())) {
+    patrol_index = 0;
+  }
+  auto wait_time = patrol_list[patrol_index].duration_ms;
   if (!wait_time) {
     auto time = getInput<int>("milliseconds");
     wait_time = time.value();
@@ -261,7 +275,7 @@ BT::PortsList DirectVelocityControl::providedPorts()
 
 BT::NodeStatus DirectVelocityControl::onStart()
 {
-  auto ros_iface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
+  auto blackboard = config().blackboard;
 
   // 1. 获取参数
   auto linear_y = getInput<double>("linear_y");
@@ -290,11 +304,12 @@ BT::NodeStatus DirectVelocityControl::onStart()
   }
 
   // 3. 记录开始时间
+  auto ros_iface = blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
   start_time_ = ros_iface->now();
   last_pub_time_ = rclcpp::Time(0, 0, ros_iface->get_clock()->get_clock_type());
 
-  // 4. 发布停止指令，确保从静止开始
-  ros_iface->publishCmdVel(0.0, 0.0);
+  // 4. reset cmd_vel command on blackboard
+  blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
 
   return BT::NodeStatus::RUNNING;
 }
@@ -302,25 +317,28 @@ BT::NodeStatus DirectVelocityControl::onStart()
 BT::NodeStatus DirectVelocityControl::onRunning()
 {
   auto ros_iface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
+  auto blackboard = config().blackboard;
   // 计算经过的时间
   auto current_time = ros_iface->now();
   auto elapsed = (current_time - start_time_).seconds();
 
   if (elapsed < 0.1) {
-    ros_iface->publishCmdVel(0.0, 0.0);
+    blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
     return BT::NodeStatus::RUNNING;
   }
 
   // 检查是否超时
   if (elapsed >= duration_) {
-    // 时间到，发布停止指令
-    ros_iface->publishCmdVel(0.0, 0.0);
+    blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
     return BT::NodeStatus::SUCCESS;
   }
 
-  // 发布速度指令
+  // publish by writing to blackboard, ros_interface owns IO
   if ((current_time - last_pub_time_).seconds() >= 0.05) {  // 20Hz发布频率
-    ros_iface->publishCmdVel(linear_y_, angular_z_);
+    geometry_msgs::msg::Twist cmd_vel;
+    cmd_vel.linear.y = linear_y_;
+    cmd_vel.angular.z = angular_z_;
+    blackboard->set("cmd_vel", cmd_vel);
     last_pub_time_ = current_time;
   }
 
@@ -329,9 +347,7 @@ BT::NodeStatus DirectVelocityControl::onRunning()
 
 void DirectVelocityControl::onHalted()
 {
-  auto ros_iface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
-  // 被中断时立即停止
-  ros_iface->publishCmdVel(0.0, 0.0);
+  config().blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
 }
 
 // ------------------- SetStairsPosition -------------------
@@ -356,6 +372,79 @@ BT::NodeStatus SetStairsPosition::tick()
 
   blackboard->set("nav_goal", goal_point);
 
+  return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- DescendStairsAction -------------------
+DescendStairsAction::DescendStairsAction(const std::string & name, const BT::NodeConfiguration & config)
+: BT::StatefulActionNode(name, config)
+{
+}
+
+BT::PortsList DescendStairsAction::providedPorts()
+{
+  return {BT::InputPort<double>("linear_y", 0.8, "Linear velocity y"),
+    BT::InputPort<double>("angular_z", 0.0, "Angular velocity z")};
+}
+
+BT::NodeStatus DescendStairsAction::onStart()
+{
+  return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus DescendStairsAction::onRunning()
+{
+  auto blackboard = config().blackboard;
+  const auto pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const bool in_stairs = stairs_zone.contains({pose.position.x, pose.position.y, 0.0});
+  if (!in_stairs) {
+    blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  geometry_msgs::msg::Twist cmd_vel;
+  cmd_vel.linear.y = getInput<double>("linear_y").value_or(0.8);
+  cmd_vel.angular.z = getInput<double>("angular_z").value_or(0.0);
+  blackboard->set("cmd_vel", cmd_vel);
+  return BT::NodeStatus::RUNNING;
+}
+
+void DescendStairsAction::onHalted()
+{
+  config().blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
+}
+
+// ------------------- AccumulateAmmoPurchase -------------------
+AccumulateAmmoPurchase::AccumulateAmmoPurchase(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
+
+BT::PortsList AccumulateAmmoPurchase::providedPorts()
+{
+  return {BT::InputPort<int>("step", 30, "Minimum ammo purchase step")};
+}
+
+BT::NodeStatus AccumulateAmmoPurchase::tick()
+{
+  auto blackboard = config().blackboard;
+  const int step = getInput<int>("step").value_or(30);
+  const int ammo = blackboard->get<int>("bullets_remaining");
+  int total = blackboard->get<int>("ammo_purchase_total");
+
+  const int shortage = std::max(0, 100 - ammo);
+  const int request = std::max(step, shortage);
+  total += request;
+  blackboard->set("ammo_purchase_request", request);
+  blackboard->set("ammo_purchase_total", total);
+
+  static int last_total = -1;
+  if (total != last_total) {
+    std::cout << CYAN << "AccumulateAmmoPurchase => request=" << request << ", total=" << total << RESET
+              << std::endl;
+    last_total = total;
+  }
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -503,7 +592,6 @@ BT::NodeStatus ControlThroughTunnel::onRunning()
   //     vel.angular.z = wz;
   //     rclcpp::Time now = ros_iface->now();
   //     if ((now - last_pub_time_).seconds() >= 0.05) { // 20Hz发布频率
-  //       ros_iface->publishCmdVel(vel);
   //       last_pub_time_ = now;
   //     }
   //   }
