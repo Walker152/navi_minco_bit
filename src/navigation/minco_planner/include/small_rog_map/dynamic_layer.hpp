@@ -12,16 +12,14 @@
 
 #include "sensor_msgs/msg/point_cloud2.hpp"
 
-namespace small_rog_map
-{
+namespace small_rog_map {
 
 class DynamicLayer
 {
 public:
   DynamicLayer();
 
-  void configure(
-    const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
+  void configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
     const std::string & topic,
     double resolution,
     double local_size_m,
@@ -31,8 +29,7 @@ public:
 
   // Update from sparse dynamic obstacle point cloud (e.g. STVL voxel_grid).
   // The grid size/resolution/origin should be aligned with the static layer.
-  void updateFromPointCloud(
-    const sensor_msgs::msg::PointCloud2 & cloud,
+  void updateFromPointCloud(const sensor_msgs::msg::PointCloud2 & cloud,
     int width,
     int height,
     double resolution,

@@ -21,7 +21,6 @@
  *
  */
 
-
 /**
  *	\file testing/cpp/test_example6.cpp
  *	\author Hans Joachim Ferreau
@@ -31,78 +30,101 @@
  *	Example that caused troubles in an earlier release.
  */
 
-
-
 #include <qpOASES.hpp>
 #include <qpOASES/UnitTesting.hpp>
 
-
 /** Example for qpOASES main function using the QProblem class. */
-int main( )
+int main()
 {
-	USING_NAMESPACE_QPOASES
+  USING_NAMESPACE_QPOASES
 
-	/* Setup data of first QP. */
-	real_t H[5*5] = {	1.224642131370767e+01, 2.908638763113702e+00, 0.0, 0.0, 0.0,
-						2.908638763113702e+00, 2.497106275003180e+00, 0.0, 0.0, 0.0,
-						0.0, 0.0, 1.0, 0.0, 0.0,
-						0.0, 0.0, 0.0, 5.158460640334052e-02, 4.723556059962540e-02,
-						0.0, 0.0, 0.0, 4.723556059962540e-02, 4.325317843302175e-02 };
-	real_t A[2*5] = { 	-1.404358970692652e+00, -2.556613491156063e+00, 3.202524559238066e+00, -1.0, 0.0,
-						6.587910295430314e-01, -5.349454475937998e-01, 4.391976356955536e-01, 0.0, -1.0 };
-	real_t g[5] = { 	2.474135331302147e+01,
-						5.857286430296258e+00,
-						2.359382646348721e-01,
-						1.721047069188781e-01,
-						1.575947337774199e-01 };
-	real_t lb[5] = { -10.0, -10.0, -10.0, -10.0, -10.0 };
-	real_t ub[5] = {  10.0,  10.0,  10.0,  10.0,  10.0 };
-	real_t lbA[2] = { 1.643135416077167e+00, 1.056813028189597e+00 };
-	real_t ubA[2] = { 1.643135416077167e+00, 1.056813028189597e+00 };
+  /* Setup data of first QP. */
+  real_t H[5 * 5] = {1.224642131370767e+01,
+    2.908638763113702e+00,
+    0.0,
+    0.0,
+    0.0,
+    2.908638763113702e+00,
+    2.497106275003180e+00,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    5.158460640334052e-02,
+    4.723556059962540e-02,
+    0.0,
+    0.0,
+    0.0,
+    4.723556059962540e-02,
+    4.325317843302175e-02};
+  real_t A[2 * 5] = {-1.404358970692652e+00,
+    -2.556613491156063e+00,
+    3.202524559238066e+00,
+    -1.0,
+    0.0,
+    6.587910295430314e-01,
+    -5.349454475937998e-01,
+    4.391976356955536e-01,
+    0.0,
+    -1.0};
+  real_t g[5] = {2.474135331302147e+01,
+    5.857286430296258e+00,
+    2.359382646348721e-01,
+    1.721047069188781e-01,
+    1.575947337774199e-01};
+  real_t lb[5] = {-10.0, -10.0, -10.0, -10.0, -10.0};
+  real_t ub[5] = {10.0, 10.0, 10.0, 10.0, 10.0};
+  real_t lbA[2] = {1.643135416077167e+00, 1.056813028189597e+00};
+  real_t ubA[2] = {1.643135416077167e+00, 1.056813028189597e+00};
 
-	/* Setting up QProblem object. */
-	QProblem example( 5,2 );
+  /* Setting up QProblem object. */
+  QProblem example(5, 2);
 
-	Options options;
- 	//options.enableFlippingBounds = BT_FALSE;
-	//options.enableEqualities = BT_TRUE;
-	//options.initialStatusBounds = ST_INACTIVE;
-	example.setOptions( options );
-	example.setPrintLevel( PL_NONE );
-	
-	/* Solve first QP. */
-	returnValue retVal;
-	int_t simpleStatus = -1;
+  Options options;
+  // options.enableFlippingBounds = BT_FALSE;
+  // options.enableEqualities = BT_TRUE;
+  // options.initialStatusBounds = ST_INACTIVE;
+  example.setOptions(options);
+  example.setPrintLevel(PL_NONE);
 
-	int_t nWSR = 10;
-	retVal = example.init( H,g,A,lb,ub,lbA,ubA, nWSR,0 );
-	simpleStatus = getSimpleStatus( retVal,BT_TRUE );
+  /* Solve first QP. */
+  returnValue retVal;
+  int_t simpleStatus = -1;
 
-	QPOASES_TEST_FOR_TRUE( simpleStatus == 0 );
+  int_t nWSR = 10;
+  retVal = example.init(H, g, A, lb, ub, lbA, ubA, nWSR, 0);
+  simpleStatus = getSimpleStatus(retVal, BT_TRUE);
 
+  QPOASES_TEST_FOR_TRUE(simpleStatus == 0);
 
-	/* Get and print solution of second QP. */
-	real_t xOpt[5];
-	real_t yOpt[5+2];
-	
-	example.getPrimalSolution( xOpt );
-	example.getDualSolution( yOpt );
-	printf( "\nxOpt = [ %e, %e, ... ];  objVal = %e\n\n", xOpt[0],xOpt[1],example.getObjVal() );
-	
-	/* Compute KKT tolerances */
-	real_t stat, feas, cmpl;
-	SolutionAnalysis analyzer;
+  /* Get and print solution of second QP. */
+  real_t xOpt[5];
+  real_t yOpt[5 + 2];
 
-	analyzer.getKktViolation( &example, &stat,&feas,&cmpl );
-	printf( "stat = %e\nfeas = %e\ncmpl = %e\n", stat,feas,cmpl );
+  example.getPrimalSolution(xOpt);
+  example.getDualSolution(yOpt);
+  printf("\nxOpt = [ %e, %e, ... ];  objVal = %e\n\n", xOpt[0], xOpt[1], example.getObjVal());
 
-	QPOASES_TEST_FOR_TOL( stat,1e-14 );
-	QPOASES_TEST_FOR_TOL( feas,1e-14 );
-	QPOASES_TEST_FOR_TOL( cmpl,1e-15 );
+  /* Compute KKT tolerances */
+  real_t stat, feas, cmpl;
+  SolutionAnalysis analyzer;
 
-	return TEST_PASSED;
+  analyzer.getKktViolation(&example, &stat, &feas, &cmpl);
+  printf("stat = %e\nfeas = %e\ncmpl = %e\n", stat, feas, cmpl);
+
+  QPOASES_TEST_FOR_TOL(stat, 1e-14);
+  QPOASES_TEST_FOR_TOL(feas, 1e-14);
+  QPOASES_TEST_FOR_TOL(cmpl, 1e-15);
+
+  return TEST_PASSED;
 }
-
 
 /*
  *	end of file
