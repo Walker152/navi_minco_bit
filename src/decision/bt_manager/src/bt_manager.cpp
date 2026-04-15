@@ -48,7 +48,14 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<Wait>("Wait");
   factory_.registerNodeType<DirectVelocityControl>("DirectVelocityControl");
   factory_.registerNodeType<SetStairsPosition>("SetStairsPosition");
+  factory_.registerNodeType<DescendStairsAction>("DescendStairsAction");
+  factory_.registerNodeType<AccumulateAmmoPurchase>("AccumulateAmmoPurchase");
   factory_.registerNodeType<CheckInStairsZone>("CheckInStairsZone");
+  factory_.registerNodeType<CheckNoAllyBelowStairs>("CheckNoAllyBelowStairs");
+  factory_.registerNodeType<CheckAmmoLow>("CheckAmmoLow");
+  factory_.registerNodeType<CheckTacticalModeCondition>("CheckTacticalModeCondition");
+  factory_.registerNodeType<CheckOwnFortIdle>("CheckOwnFortIdle");
+  factory_.registerNodeType<CheckEnemyBaseLowHp>("CheckEnemyBaseLowHp");
   factory_.registerNodeType<CheckWillThroughTunnel>("CheckWillThroughTunnel");
   factory_.registerNodeType<ControlThroughTunnel>("ControlThroughTunnel");
 
@@ -56,12 +63,15 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckMPCondition>("CheckMPCondition");
   factory_.registerNodeType<CheckAPCondition>("CheckAPCondition");
   factory_.registerNodeType<CheckDPCondition>("CheckDPCondition");
+  factory_.registerNodeType<CheckStanceRefreshRequired>("CheckStanceRefreshRequired");
   factory_.registerNodeType<ChangeStance>("ChangeStance");
 
   // gimbal
   factory_.registerNodeType<CheckTargetVisible>("CheckTargetVisible");
+  factory_.registerNodeType<CheckNearEnemyOutpost>("CheckNearEnemyOutpost");
   factory_.registerNodeType<TrackTargetAction>("TrackTargetAction");
   factory_.registerNodeType<SetGimbalPose>("SetGimbalPose");
+  factory_.registerNodeType<SetGimbalPoseByAreaAction>("SetGimbalPoseByAreaAction");
 
   // tactical
   factory_.registerNodeType<CheckDefendCondition>("CheckDefendCondition");

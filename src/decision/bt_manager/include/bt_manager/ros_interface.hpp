@@ -67,8 +67,6 @@ public:
   ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr);
   ~ros_interface() override = default;
 
-  void publishCmdVel(double linear_y, double angular_z);
-  void publishCmdVel(const geometry_msgs::msg::Twist & cmd_vel);
   geometry_msgs::msg::Pose getCurrentPose() const;
   std::shared_ptr<ParamManager> getParamManager() const { return param_manager_; }
 

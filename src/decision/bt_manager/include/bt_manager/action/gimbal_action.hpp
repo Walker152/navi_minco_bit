@@ -25,4 +25,13 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class SetGimbalPoseByAreaAction : public BT::SyncActionNode
+{
+public:
+  SetGimbalPoseByAreaAction(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 }  // namespace Sentry_BT
