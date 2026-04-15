@@ -9,8 +9,7 @@
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
 
-namespace minco_planner
-{
+namespace minco_planner {
 
 class RecoverServer
 {
@@ -29,7 +28,8 @@ public:
   };
 
   // --- Recovery Decision ---
-  enum class RecoveryDecision {
+  enum class RecoveryDecision
+  {
     NONE,
     DO_ESCAPE,
     ENTER_EMER_STOP
@@ -60,8 +60,7 @@ public:
   void clearMissionGoal();
 
   // --- Recovery Decision Pipeline ---
-  RecoveryDecision handleReplanFailure(
-    double now_s,
+  RecoveryDecision handleReplanFailure(double now_s,
     const geometry_msgs::msg::PoseStamped & current_pose,
     const EsdfQueryFunc & esdf_func,
     Eigen::Vector2d & escape_vel_out);
@@ -81,8 +80,7 @@ private:
   // === Utility & Helper Functions ===
   // --- Internal Validation and Computation ---
   bool isTimeValid(double now_s) const;
-  bool calculateEscapeVelocity(
-    const geometry_msgs::msg::PoseStamped & current_pose,
+  bool calculateEscapeVelocity(const geometry_msgs::msg::PoseStamped & current_pose,
     const EsdfQueryFunc & esdf_func,
     Eigen::Vector2d & escape_vel_out) const;
 
