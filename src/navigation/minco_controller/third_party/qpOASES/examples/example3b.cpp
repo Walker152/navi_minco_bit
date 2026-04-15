@@ -21,7 +21,6 @@
  *
  */
 
-
 /**
  *	\file examples/example3b.cpp
  *	\author Hans Joachim Ferreau
@@ -30,58 +29,53 @@
  *
  *	Example demonstrating usage of qpOASES for solving a QP sequence of the
  *	Online QP Benchmark Collection. In order to run it, you have to download
- *	"Example 02" from http://www.qpOASES.org/onlineQP/ and store it into 
+ *	"Example 02" from http://www.qpOASES.org/onlineQP/ and store it into
  *	the directory bin/chain80/.
  */
 
-
-
 #include <qpOASES.hpp>
 
-
 /** Example for qpOASES main function using the OQP interface. */
-int main( )
+int main()
 {
-	USING_NAMESPACE_QPOASES
+  USING_NAMESPACE_QPOASES
 
-	/* 1) Define benchmark arguments. */
-	BooleanType isSparse = BT_FALSE;
-	Options options;
-	options.setToMPC();
-	options.printLevel = PL_NONE;
-	
-	int_t nWSR = 300;
-	real_t maxCPUtime = 10.0; /* seconds */
-	real_t maxStationarity, maxFeasibility, maxComplementarity;
+  /* 1) Define benchmark arguments. */
+  BooleanType isSparse = BT_FALSE;
+  Options options;
+  options.setToMPC();
+  options.printLevel = PL_NONE;
 
-	/* 2) Run benchmark. */
-	if ( runOqpBenchmark(	"./chain80/",
-							isSparse,
-							options,
-							nWSR,
-							maxCPUtime,
-							maxStationarity,
-							maxFeasibility,
-							maxComplementarity
-							) != SUCCESSFUL_RETURN )
-	{
-		myPrintf( "In order to run this example, you need to download example no. 02\nfrom the Online QP Benchmark Collection website first!\n" );
-		return -1;
-	}
+  int_t nWSR = 300;
+  real_t maxCPUtime = 10.0; /* seconds */
+  real_t maxStationarity, maxFeasibility, maxComplementarity;
 
-	/* 3) Print results. */
-	printf( "\n\n" );
-	printf( "OQP Benchmark Results:\n" );
-	printf( "======================\n\n" );
-	printf( "maximum violation stationarity:     %.3e\n",maxStationarity );
-	printf( "maximum violation feasibility:      %.3e\n",maxFeasibility );
-	printf( "maximum violation complementarity:  %.3e\n",maxComplementarity );
-	printf( "\n" );
-	printf( "maximum CPU time:             %.3f milliseconds\n\n",1000.0*maxCPUtime );
+  /* 2) Run benchmark. */
+  if (runOqpBenchmark("./chain80/",
+        isSparse,
+        options,
+        nWSR,
+        maxCPUtime,
+        maxStationarity,
+        maxFeasibility,
+        maxComplementarity) != SUCCESSFUL_RETURN) {
+    myPrintf("In order to run this example, you need to download example no. 02\nfrom the Online QP "
+             "Benchmark Collection website first!\n");
+    return -1;
+  }
 
-	return 0;
+  /* 3) Print results. */
+  printf("\n\n");
+  printf("OQP Benchmark Results:\n");
+  printf("======================\n\n");
+  printf("maximum violation stationarity:     %.3e\n", maxStationarity);
+  printf("maximum violation feasibility:      %.3e\n", maxFeasibility);
+  printf("maximum violation complementarity:  %.3e\n", maxComplementarity);
+  printf("\n");
+  printf("maximum CPU time:             %.3f milliseconds\n\n", 1000.0 * maxCPUtime);
+
+  return 0;
 }
-
 
 /*
  *	end of file

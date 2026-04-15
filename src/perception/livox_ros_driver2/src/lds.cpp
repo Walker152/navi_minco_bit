@@ -22,15 +22,15 @@
 // SOFTWARE.
 //
 
+#include <algorithm>
+#include <chrono>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include <chrono>
-#include <algorithm>
 
-#include "lds.h"
 #include "comm/ldq.h"
+#include "lds.h"
 
 namespace livox_ros {
 
@@ -38,23 +38,22 @@ CacheIndex Lds::cache_index_;
 
 /* Member function --------------------------------------------------------- */
 Lds::Lds(const double publish_freq, const uint8_t data_src)
-    : lidar_count_(kMaxSourceLidar),
-      pcd_semaphore_(0),
-      imu_semaphore_(0),
-      publish_freq_(publish_freq),
-      data_src_(data_src),
-      request_exit_(false) {
+: lidar_count_(kMaxSourceLidar), pcd_semaphore_(0), imu_semaphore_(0), publish_freq_(publish_freq),
+  data_src_(data_src), request_exit_(false)
+{
   ResetLds(data_src_);
 }
 
-Lds::~Lds() {
+Lds::~Lds()
+{
   lidar_count_ = 0;
   ResetLds(0);
   printf("lds destory!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 }
 
-void Lds::ResetLidar(LidarDevice *lidar, uint8_t data_src) {
-  //cache_index_.ResetIndex(lidar);
+void Lds::ResetLidar(LidarDevice * lidar, uint8_t data_src)
+{
+  // cache_index_.ResetIndex(lidar);
   DeInitQueue(&lidar->data);
   lidar->imu_data.Clear();
 
@@ -62,22 +61,26 @@ void Lds::ResetLidar(LidarDevice *lidar, uint8_t data_src) {
   lidar->connect_state = kConnectStateOff;
 }
 
-void Lds::SetLidarDataSrc(LidarDevice *lidar, uint8_t data_src) {
+void Lds::SetLidarDataSrc(LidarDevice * lidar, uint8_t data_src)
+{
   lidar->data_src = data_src;
 }
 
-void Lds::ResetLds(uint8_t data_src) {
+void Lds::ResetLds(uint8_t data_src)
+{
   lidar_count_ = kMaxSourceLidar;
   for (uint32_t i = 0; i < kMaxSourceLidar; i++) {
     ResetLidar(&lidars_[i], data_src);
   }
 }
 
-void Lds::RequestExit() {
+void Lds::RequestExit()
+{
   request_exit_ = true;
 }
 
-bool Lds::IsAllQueueEmpty() {
+bool Lds::IsAllQueueEmpty()
+{
   for (int i = 0; i < lidar_count_; i++) {
     if (!QueueIsEmpty(&lidars_[i].data)) {
       return false;
@@ -86,7 +89,8 @@ bool Lds::IsAllQueueEmpty() {
   return true;
 }
 
-bool Lds::IsAllQueueReadStop() {
+bool Lds::IsAllQueueReadStop()
+{
   for (int i = 0; i < lidar_count_; i++) {
     uint32_t data_size = QueueUsedSize(&lidars_[i].data);
     if (data_size) {
@@ -96,7 +100,8 @@ bool Lds::IsAllQueueReadStop() {
   return true;
 }
 
-void Lds::StorageImuData(ImuData* imu_data) {
+void Lds::StorageImuData(ImuData * imu_data)
+{
   uint32_t device_num = 0;
   if (imu_data->lidar_type == kLivoxLidarType) {
     device_num = imu_data->handle;
@@ -108,12 +113,14 @@ void Lds::StorageImuData(ImuData* imu_data) {
   uint8_t index = 0;
   int ret = cache_index_.GetIndex(imu_data->lidar_type, device_num, index);
   if (ret != 0) {
-    printf("Storage point data failed, can not get index, lidar type:%u, device_num:%u.\n", imu_data->lidar_type, device_num);
+    printf("Storage point data failed, can not get index, lidar type:%u, device_num:%u.\n",
+      imu_data->lidar_type,
+      device_num);
     return;
   }
 
-  LidarDevice *p_lidar = &lidars_[index];
-  LidarImuDataQueue* imu_queue = &p_lidar->imu_data;
+  LidarDevice * p_lidar = &lidars_[index];
+  LidarImuDataQueue * imu_queue = &p_lidar->imu_data;
   imu_queue->Push(imu_data);
   if (!imu_queue->Empty()) {
     if (imu_semaphore_.GetCount() <= 0) {
@@ -122,20 +129,23 @@ void Lds::StorageImuData(ImuData* imu_data) {
   }
 }
 
-void Lds::StorageLvxPointData(PointFrame* frame) {
+void Lds::StorageLvxPointData(PointFrame * frame)
+{
   if (frame == nullptr) {
     return;
   }
 
   uint8_t lidar_number = frame->lidar_num;
   for (uint i = 0; i < lidar_number; ++i) {
-    PointPacket& lidar_point = frame->lidar_point[i];
+    PointPacket & lidar_point = frame->lidar_point[i];
 
     uint64_t base_time = frame->base_time[i];
     uint8_t index = 0;
     int8_t ret = cache_index_.LvxGetIndex(lidar_point.lidar_type, lidar_point.handle, index);
     if (ret != 0) {
-      printf("Storage lvx point data failed, lidar type:%u, device num:%u.\n", lidar_point.lidar_type, lidar_point.handle);
+      printf("Storage lvx point data failed, lidar type:%u, device num:%u.\n",
+        lidar_point.lidar_type,
+        lidar_point.handle);
       continue;
     }
 
@@ -145,35 +155,40 @@ void Lds::StorageLvxPointData(PointFrame* frame) {
   }
 }
 
-void Lds::StoragePointData(PointFrame* frame) {
+void Lds::StoragePointData(PointFrame * frame)
+{
   if (frame == nullptr) {
     return;
   }
 
   uint8_t lidar_number = frame->lidar_num;
   for (uint i = 0; i < lidar_number; ++i) {
-    PointPacket& lidar_point = frame->lidar_point[i];
-    //printf("StoragePointData, lidar_type:%u, point_num:%lu.\n", lidar_point.lidar_type, lidar_point.points_num);
+    PointPacket & lidar_point = frame->lidar_point[i];
+    // printf("StoragePointData, lidar_type:%u, point_num:%lu.\n", lidar_point.lidar_type,
+    // lidar_point.points_num);
 
     uint64_t base_time = frame->base_time[i];
 
     uint8_t index = 0;
     int8_t ret = cache_index_.GetIndex(lidar_point.lidar_type, lidar_point.handle, index);
     if (ret != 0) {
-      printf("Storage point data failed, lidar type:%u, handle:%u.\n", lidar_point.lidar_type, lidar_point.handle);
+      printf("Storage point data failed, lidar type:%u, handle:%u.\n",
+        lidar_point.lidar_type,
+        lidar_point.handle);
       continue;
     }
     PushLidarData(&lidar_point, index, base_time);
   }
 }
 
-void Lds::PushLidarData(PointPacket* lidar_data, const uint8_t index, const uint64_t base_time) {
+void Lds::PushLidarData(PointPacket * lidar_data, const uint8_t index, const uint64_t base_time)
+{
   if (lidar_data == nullptr) {
     return;
   }
 
-  LidarDevice *p_lidar = &lidars_[index];
-  LidarDataQueue *queue = &p_lidar->data;
+  LidarDevice * p_lidar = &lidars_[index];
+  LidarDataQueue * queue = &p_lidar->data;
 
   if (nullptr == queue->storage_packet) {
     uint32_t queue_size = CalculatePacketQueueSize(publish_freq_);
@@ -190,11 +205,13 @@ void Lds::PushLidarData(PointPacket* lidar_data, const uint8_t index, const uint
     }
   } else {
     if (pcd_semaphore_.GetCount() <= 0) {
-        pcd_semaphore_.Signal();
+      pcd_semaphore_.Signal();
     }
   }
 }
 
-void Lds::PrepareExit(void) {}
+void Lds::PrepareExit(void)
+{
+}
 
 }  // namespace livox_ros

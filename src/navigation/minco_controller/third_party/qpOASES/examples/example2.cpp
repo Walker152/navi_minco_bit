@@ -21,7 +21,6 @@
  *
  */
 
-
 /**
  *	\file examples/example2.cpp
  *	\author Hans Joachim Ferreau (thanks to Boris Houska)
@@ -32,91 +31,84 @@
  *  with the SolutionAnalysis class.
  */
 
-
-
 #include <qpOASES.hpp>
 
-
 /** Example for qpOASES main function using the SolutionAnalysis class. */
-int main( )
+int main()
 {
-	USING_NAMESPACE_QPOASES
+  USING_NAMESPACE_QPOASES
 
-	/* Setup data of first QP. */
-	real_t H[2*2] = { 1.0, 0.0, 0.0, 0.5 };
-	real_t A[1*2] = { 1.0, 1.0 };
-	real_t g[2] = { 1.5, 1.0 };
-	real_t lb[2] = { 0.5, -2.0 };
-	real_t ub[2] = { 5.0, 2.0 };
-	real_t lbA[1] = { -1.0 };
-	real_t ubA[1] = { 2.0 };
+  /* Setup data of first QP. */
+  real_t H[2 * 2] = {1.0, 0.0, 0.0, 0.5};
+  real_t A[1 * 2] = {1.0, 1.0};
+  real_t g[2] = {1.5, 1.0};
+  real_t lb[2] = {0.5, -2.0};
+  real_t ub[2] = {5.0, 2.0};
+  real_t lbA[1] = {-1.0};
+  real_t ubA[1] = {2.0};
 
-	/* Setup data of second QP. */
-	real_t H_new[2*2] = { 1.0, 0.5, 0.5, 0.5 };
-	real_t A_new[1*2] = { 1.0, 5.0 };
-	real_t g_new[2] = { 1.0, 1.5 };
-	real_t lb_new[2] = { 0.0, -1.0 };
-	real_t ub_new[2] = { 5.0, -0.5 };
-	real_t lbA_new[1] = { -2.0 };
-	real_t ubA_new[1] = { 1.0 };
+  /* Setup data of second QP. */
+  real_t H_new[2 * 2] = {1.0, 0.5, 0.5, 0.5};
+  real_t A_new[1 * 2] = {1.0, 5.0};
+  real_t g_new[2] = {1.0, 1.5};
+  real_t lb_new[2] = {0.0, -1.0};
+  real_t ub_new[2] = {5.0, -0.5};
+  real_t lbA_new[1] = {-2.0};
+  real_t ubA_new[1] = {1.0};
 
+  /* Setting up SQProblem object and solution analyser. */
+  SQProblem example(2, 1);
+  SolutionAnalysis analyser;
 
-	/* Setting up SQProblem object and solution analyser. */
-	SQProblem example( 2,1 );
-	SolutionAnalysis analyser;
+  /* Solve first QP ... */
+  int_t nWSR = 10;
+  example.init(H, g, A, lb, ub, lbA, ubA, nWSR, 0);
 
-	/* Solve first QP ... */
-	int_t nWSR = 10;
-	example.init( H,g,A,lb,ub,lbA,ubA, nWSR,0 );
+  /* ... and analyse it. */
+  real_t maxKktViolation = analyser.getKktViolation(&example);
+  printf("maxKktViolation: %e\n", maxKktViolation);
 
-	/* ... and analyse it. */
-	real_t maxKktViolation = analyser.getKktViolation( &example );
-    printf( "maxKktViolation: %e\n", maxKktViolation );
+  /* Solve second QP ... */
+  nWSR = 10;
+  example.hotstart(H_new, g_new, A_new, lb_new, ub_new, lbA_new, ubA_new, nWSR, 0);
 
-	/* Solve second QP ... */
-	nWSR = 10;
-	example.hotstart( H_new,g_new,A_new,lb_new,ub_new,lbA_new,ubA_new, nWSR,0 );
+  /* ... and analyse it. */
+  maxKktViolation = analyser.getKktViolation(&example);
+  printf("maxKktViolation: %e\n", maxKktViolation);
 
-	/* ... and analyse it. */
-	maxKktViolation = analyser.getKktViolation( &example );
-    printf( "maxKktViolation: %e\n", maxKktViolation );
+  //  ------------ VARIANCE-COVARIANCE EVALUATION --------------------
 
+  real_t * Var = new real_t[5 * 5];
+  real_t * Primal_Dual_Var = new real_t[5 * 5];
 
-//  ------------ VARIANCE-COVARIANCE EVALUATION --------------------
+  int_t run1, run2;
+  for (run1 = 0; run1 < 5 * 5; run1++)
+    Var[run1] = 0.0;
 
-        real_t *Var              = new real_t[5*5];
-        real_t *Primal_Dual_Var  = new real_t[5*5];
+  Var[0] = 1.0;
+  Var[6] = 1.0;
 
-        int_t run1, run2;
-        for( run1 = 0; run1 < 5*5; run1++ )
-            Var[run1] = 0.0;
+  //                  (  1   0   0   0   0   )
+  //                  (  0   1   0   0   0   )
+  //     Var     =    (  0   0   0   0   0   )
+  //                  (  0   0   0   0   0   )
+  //                  (  0   0   0   0   0   )
 
-        Var[0] = 1.0;
-        Var[6] = 1.0;
+  analyser.getVarianceCovariance(&example, Var, Primal_Dual_Var);
 
-//                  (  1   0   0   0   0   )
-//                  (  0   1   0   0   0   )
-//     Var     =    (  0   0   0   0   0   )
-//                  (  0   0   0   0   0   )
-//                  (  0   0   0   0   0   )
+  printf("\nPrimal_Dual_VAR = \n");
+  for (run1 = 0; run1 < 5; run1++) {
+    for (run2 = 0; run2 < 5; run2++) {
+      printf(" %10f", Primal_Dual_Var[run1 * 5 + run2]);
+    }
+    printf("\n");
+  }
 
+  delete[] Primal_Dual_Var;
+  delete[] Var;
 
-        analyser.getVarianceCovariance( &example, Var,Primal_Dual_Var );
-
-        printf("\nPrimal_Dual_VAR = \n");
-        for( run1 = 0; run1 < 5; run1++ ){
-          for( run2 = 0; run2 < 5; run2++ ){
-            printf(" %10f", Primal_Dual_Var[run1*5+run2]);
-          }
-          printf("\n");
-        }
-
-        delete[] Primal_Dual_Var;
-        delete[] Var;
-
-	return 0;
+  return 0;
 }
-
 
 /*
  *	end of file

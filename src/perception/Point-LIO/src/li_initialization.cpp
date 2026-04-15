@@ -136,9 +136,9 @@ std::deque<sensor_msgs::msg::Imu::ConstSharedPtr> imu_deque;
  * @param msg ROS2标准点云消息（sensor_msgs::msg::PointCloud2）
  * @details 处理标准格式LiDAR点云数据的核心函数，支持多种LiDAR类型：
  *          - Velodyne系列（VLP-16等）
- *          - Ouster系列（OS1-64等）  
+ *          - Ouster系列（OS1-64等）
  *          - HESAI系列（PandarXT-32等）
- *          
+ *
  *          主要处理流程：
  *          1. 时间戳验证和回环检测
  *          2. 数据预处理和格式转换
@@ -150,13 +150,13 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
 {
   // 注意：原本的互斥锁已注释，使用无锁设计提高性能
   // mtx_buffer.lock();
-  
+
   // 扫描帧计数递增
   scan_count++;
-  
+
   // 记录预处理开始时间，用于性能统计
   double preprocess_start_time = omp_get_wtime();
-  
+
   // 时间戳回环检测：检查是否出现时间倒退现象
   if (rclcpp::Time(msg->header.stamp).seconds() < last_timestamp_lidar) {
     RCLCPP_ERROR(rclcpp::get_logger("li_initialization"), "lidar loop back, clear buffer");
@@ -165,7 +165,7 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
 
   // 更新LiDAR最新时间戳
   last_timestamp_lidar = rclcpp::Time(msg->header.stamp).seconds();
-  
+
   // 自动时间同步逻辑（已注释，可选功能）
   // 当IMU和LiDAR时间差过大时，自动计算硬件时间延迟
   // if (abs(last_timestamp_imu - last_timestamp_lidar) > 1.0 && !timediff_set_flg && !imu_deque.empty()) {
@@ -178,13 +178,13 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
   if ((lidar_type == VELO16 || lidar_type == OUST64 || lidar_type == HESAIxt32) && cut_frame_init) {
     // ===== 帧切分模式 =====
     // 适用于高频率LiDAR，将单帧切分为多个子帧以提高时间分辨率
-    
-    deque<PointCloudXYZI::Ptr> ptr;        // 切分后的点云队列
-    deque<double> timestamp_lidar;         // 对应的时间戳队列
-    
+
+    deque<PointCloudXYZI::Ptr> ptr;  // 切分后的点云队列
+    deque<double> timestamp_lidar;   // 对应的时间戳队列
+
     // 调用预处理器进行帧切分
     p_pre->process_cut_frame_pcl2(msg, ptr, timestamp_lidar, cut_frame_num, scan_count);
-    
+
     // 将切分后的子帧逐个加入缓冲区
     while (!ptr.empty() && !timestamp_lidar.empty()) {
       lidar_buffer.push_back(ptr.front());
@@ -194,22 +194,22 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
     }
   } else {
     // ===== 标准处理模式 =====
-    
+
     // 创建点云容器，预分配20000个点的空间
     PointCloudXYZI::Ptr ptr(new PointCloudXYZI(20000, 1));
-    
+
     // 调用预处理器进行标准点云处理
     p_pre->process(msg, ptr);
-    
+
     if (con_frame) {
       // ===== 连续帧合并模式 =====
       // 将多帧点云合并为一个更大的点云，提高特征密度
-      
+
       if (frame_ct == 0) {
         // 记录连续帧序列的起始时间
         time_con = last_timestamp_lidar;
       }
-      
+
       if (frame_ct < 10) {
         // 累积前10帧数据
         for (int i = 0; i < ptr->size(); i++) {
@@ -221,27 +221,27 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
       } else {
         // 达到帧数上限，输出合并后的点云
         PointCloudXYZI::Ptr ptr_con_i(new PointCloudXYZI(10000, 1));
-        *ptr_con_i = *ptr_con;                // 复制合并后的点云
-        lidar_buffer.push_back(ptr_con_i);    // 加入处理队列
+        *ptr_con_i = *ptr_con;              // 复制合并后的点云
+        lidar_buffer.push_back(ptr_con_i);  // 加入处理队列
         double time_con_i = time_con;
-        time_buffer.push_back(time_con_i);    // 使用起始时间作为时间戳
-        ptr_con->clear();                     // 清空容器，准备下一轮
-        frame_ct = 0;                         // 重置帧计数
+        time_buffer.push_back(time_con_i);  // 使用起始时间作为时间戳
+        ptr_con->clear();                   // 清空容器，准备下一轮
+        frame_ct = 0;                       // 重置帧计数
       }
     } else {
       // ===== 单帧处理模式 =====
       // 直接处理单帧点云数据
-      
+
       if (!ptr->points.empty()) {
-        lidar_buffer.emplace_back(ptr);       // 加入点云缓冲区
+        lidar_buffer.emplace_back(ptr);                                       // 加入点云缓冲区
         time_buffer.emplace_back(rclcpp::Time(msg->header.stamp).seconds());  // 加入时间缓冲区
       }
     }
   }
-  
+
   // 记录预处理耗时，用于性能分析
   s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
-  
+
   // 线程同步（已注释，使用无锁设计）
   // mtx_buffer.unlock();
   // sig_buffer.notify_all();
@@ -255,20 +255,20 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
  *          - 自定义的点云数据格式
  *          - 更高的点云密度和精度
  *          - 需要特殊的时间戳处理
- *          
+ *
  *          处理流程与标准点云类似，但适配Livox特有的数据结构
  */
 void livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::SharedPtr & msg)
 {
   // 使用无锁设计提高性能
   // mtx_buffer.lock();
-  
+
   // 记录预处理开始时间
   double preprocess_start_time = omp_get_wtime();
-  
+
   // 扫描帧计数递增
   scan_count++;
-  
+
   // Livox点云时间戳回环检测
   if (rclcpp::Time(msg->header.stamp).seconds() < last_timestamp_lidar) {
     RCLCPP_ERROR(rclcpp::get_logger("li_initialization"), "lidar loop back, clear buffer");
@@ -291,7 +291,7 @@ void livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::SharedPtr & msg)
     while (!ptr.empty() && !timestamp_lidar.empty()) {
       lidar_buffer.push_back(ptr.front());
       ptr.pop_front();
-      time_buffer.push_back(timestamp_lidar.front() / double(1000));  //unit:s
+      time_buffer.push_back(timestamp_lidar.front() / double(1000));  // unit:s
       timestamp_lidar.pop_front();
     }
   } else {
@@ -299,7 +299,7 @@ void livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::SharedPtr & msg)
     p_pre->process(msg, ptr);
     if (con_frame) {
       if (frame_ct == 0) {
-        time_con = last_timestamp_lidar;  //msg->header.stamp.toSec();
+        time_con = last_timestamp_lidar;  // msg->header.stamp.toSec();
       }
       if (frame_ct < 10) {
         for (int i = 0; i < ptr->size(); i++) {
@@ -337,7 +337,7 @@ void livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::SharedPtr & msg)
  *          2. 硬件时间延迟补偿
  *          3. 数据质量检查和异常处理
  *          4. IMU数据缓冲区管理
- *          
+ *
  *          时间校正策略：
  *          - 减去IMU相对LiDAR的硬件时间差
  *          - 减去系统配置的时间延迟参数
@@ -350,19 +350,19 @@ void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr & msg_in)
 
   // 创建IMU消息的可修改副本，用于时间戳校正
   sensor_msgs::msg::Imu::SharedPtr msg(new sensor_msgs::msg::Imu(*msg_in));
-  
+
   // 发布计数器（已注释）
   // publish_count ++;
 
   // ===== IMU时间戳校正 =====
   // 应用硬件时间差和系统时间延迟补偿
   // 校正公式：corrected_time = original_time - hardware_delay - system_delay
-  msg->header.stamp = get_ros_time(
-    get_time_sec(msg_in->header.stamp) - timediff_imu_wrt_lidar - time_lag_IMU_wtr_lidar);
+  msg->header.stamp =
+    get_ros_time(get_time_sec(msg_in->header.stamp) - timediff_imu_wrt_lidar - time_lag_IMU_wtr_lidar);
 
   // 获取校正后的时间戳
   double timestamp = get_time_sec(msg->header.stamp);
-  
+
   // 调试信息（已注释）
   // printf("time_diff%f, %f, %f\n", last_timestamp_imu - timestamp, last_timestamp_imu, timestamp);
 
@@ -370,7 +370,7 @@ void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr & msg_in)
   // 检查时间戳是否出现倒退现象，这可能导致系统不稳定
   if (timestamp < last_timestamp_imu) {
     RCLCPP_ERROR(rclcpp::get_logger("li_initialization"), "imu loop back, clear deque");
-    
+
     // 可选的缓冲区清理操作（已注释）
     // imu_deque.shrink_to_fit();
     // std::cout << "check time:" << timestamp << ";" << last_timestamp_imu << '\n';
@@ -381,11 +381,11 @@ void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr & msg_in)
     // sig_buffer.notify_all();
     return;  // 发现时间回环，丢弃当前数据
   }
-  
+
   // ===== 数据入队和状态更新 =====
-  imu_deque.emplace_back(msg);        // 将校正后的IMU数据加入队列
-  last_timestamp_imu = timestamp;     // 更新最新IMU时间戳
-  
+  imu_deque.emplace_back(msg);     // 将校正后的IMU数据加入队列
+  last_timestamp_imu = timestamp;  // 更新最新IMU时间戳
+
   // 线程同步（已注释，使用无锁设计）
   // mtx_buffer.unlock();
   // sig_buffer.notify_all();
@@ -396,13 +396,13 @@ void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr & msg_in)
  * @param meas 输出的同步测量数据组，包含LiDAR和IMU数据
  * @return true 同步成功，false 同步失败或数据不足
  * @details 核心的数据同步算法，实现LiDAR和IMU数据的精确时间对齐
- *          
+ *
  *          同步策略：
  *          1. 以LiDAR扫描周期为时间基准（通常10-20Hz）
  *          2. 收集每个LiDAR周期内的所有IMU数据（通常200Hz+）
  *          3. 处理传感器时间偏差和数据丢失
  *          4. 支持纯LiDAR模式（IMU禁用）
- *          
+ *
  *          时间对齐原理：
  *          - LiDAR提供低频高精度的空间约束
  *          - IMU提供高频的运动先验信息
@@ -419,7 +419,7 @@ bool sync_packages(MeasureGroup & meas)
           meas.lidar = lidar_buffer.front();
           meas.lidar_beg_time = time_buffer.front();
           lose_lid = false;
-          
+
           // 检查LiDAR点云是否为空
           if (meas.lidar->points.empty()) {
             std::cout << "lose lidar" << '\n';
@@ -444,10 +444,10 @@ bool sync_packages(MeasureGroup & meas)
         time_buffer.pop_front();
         lidar_buffer.pop_front();
         lidar_pushed = false;  // 重置推送标志
-        
+
         // 根据数据完整性返回结果
         if (!lose_lid) {
-          return true;   // 数据完整，同步成功
+          return true;  // 数据完整，同步成功
         } else {
           return false;  // 数据丢失，同步失败
         }
@@ -456,18 +456,18 @@ bool sync_packages(MeasureGroup & meas)
     }
 
     // ===== LiDAR-IMU融合模式 =====
-    
+
     // 检查数据缓冲区状态
     if (lidar_buffer.empty() || imu_deque.empty()) {
       return false;  // 任一传感器数据不足，无法同步
     }
-    
+
     // ===== 步骤1：推送LiDAR扫描数据 =====
     if (!lidar_pushed) {
       lose_lid = false;
       meas.lidar = lidar_buffer.front();          // 获取队列头部的LiDAR数据
       meas.lidar_beg_time = time_buffer.front();  // 获取对应的开始时间戳
-      
+
       // 检查LiDAR点云完整性
       if (meas.lidar->points.size() < 1) {
         std::cout << "lose lidar" << '\n';
@@ -487,10 +487,10 @@ bool sync_packages(MeasureGroup & meas)
         }
         // 计算绝对结束时间：开始时间 + 最大偏移时间（毫秒转秒）
         lidar_end_time = meas.lidar_beg_time + end_time / double(1000);
-        
+
         // 调试信息（已注释）
         // std::cout << "check time lidar:" << end_time << '\n';
-        
+
         meas.lidar_last_time = lidar_end_time;  // 设置LiDAR结束时间
       }
       lidar_pushed = true;  // 标记LiDAR数据已推送
@@ -498,12 +498,12 @@ bool sync_packages(MeasureGroup & meas)
 
     // ===== 步骤2：检查IMU数据充足性 =====
     // 确保有足够的IMU数据覆盖整个LiDAR扫描周期
-    
+
     if (!lose_lid && (last_timestamp_imu < lidar_end_time)) {
       // LiDAR数据完整，但IMU数据还未覆盖到LiDAR结束时间
       return false;  // 等待更多IMU数据
     }
-    
+
     if (lose_lid && last_timestamp_imu < meas.lidar_beg_time + lidar_time_inte) {
       // LiDAR数据丢失，但需要等待足够的IMU数据进行时间积分
       // lidar_time_inte: LiDAR时间积分窗口
@@ -511,27 +511,28 @@ bool sync_packages(MeasureGroup & meas)
     }
 
     // ===== 步骤3：收集对应时间段的IMU数据 =====
-    
+
     if (!lose_lid && !imu_pushed) {
       // ===== LiDAR数据完整的情况 =====
       // 收集从LiDAR开始到结束时间段内的所有IMU数据
-      
+
       if (p_imu->imu_need_init_) {  // 检查IMU是否需要初始化数据
         double imu_time = get_time_sec(imu_deque.front()->header.stamp);
         imu_next = *(imu_deque.front());  // 保存下一帧IMU数据
         meas.imu.shrink_to_fit();         // 优化IMU数据向量内存
-        
+
         // 收集时间窗口内的所有IMU数据
         while (imu_time < lidar_end_time) {
           meas.imu.emplace_back(imu_deque.front());  // 加入IMU数据到测量组
           imu_last = imu_next;                       // 更新上一帧IMU数据
           imu_deque.pop_front();                     // 从队列中移除已使用的数据
-          
-          if (imu_deque.empty()) break;              // 队列为空则退出
-          
+
+          if (imu_deque.empty())
+            break;  // 队列为空则退出
+
           // 获取下一帧时间戳
           imu_time = get_time_sec(imu_deque.front()->header.stamp);
-          imu_next = *(imu_deque.front());           // 保存下一帧数据
+          imu_next = *(imu_deque.front());  // 保存下一帧数据
         }
       }
       imu_pushed = true;  // 标记IMU数据已推送
@@ -540,21 +541,22 @@ bool sync_packages(MeasureGroup & meas)
     if (lose_lid && !imu_pushed) {
       // ===== LiDAR数据丢失的情况 =====
       // 收集LiDAR时间窗口 + 积分时间内的IMU数据，用于纯惯导传播
-      
+
       if (p_imu->imu_need_init_) {  // 检查IMU是否需要初始化数据
         double imu_time = get_time_sec(imu_deque.front()->header.stamp);
-        meas.imu.shrink_to_fit();   // 优化内存使用
+        meas.imu.shrink_to_fit();  // 优化内存使用
         imu_next = *(imu_deque.front());
-        
+
         // 收集扩展时间窗口内的IMU数据
         // 时间窗口：LiDAR开始时间 + 预设的积分时间间隔
         while (imu_time < meas.lidar_beg_time + lidar_time_inte) {
           meas.imu.emplace_back(imu_deque.front());  // 加入IMU数据
           imu_last = imu_next;                       // 更新历史数据
           imu_deque.pop_front();                     // 移除已使用数据
-          
-          if (imu_deque.empty()) break;              // 防止队列下溢
-          
+
+          if (imu_deque.empty())
+            break;  // 防止队列下溢
+
           // 获取下一帧时间戳和数据
           imu_time = get_time_sec(imu_deque.front()->header.stamp);
           imu_next = *(imu_deque.front());
@@ -568,7 +570,7 @@ bool sync_packages(MeasureGroup & meas)
     time_buffer.pop_front();   // 移除对应的时间戳
     lidar_pushed = false;      // 重置LiDAR推送标志
     imu_pushed = false;        // 重置IMU推送标志
-    
+
     return true;  // 同步完成，返回成功
   }
 }
