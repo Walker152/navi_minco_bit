@@ -287,7 +287,7 @@ BT::NodeStatus CheckWillThroughTunnel::tick()
   
   if (will_through_tunnel) {
     if (lifter_current_pos == 0) {
-      blackboard->set<int>("desired_lifter_pos", 2); // 设置目标升降位置为 2(bottom)，准备过隧道
+      blackboard->set<int>("desired_lifter_pos", 1); // 设置目标升降位置为 1(bottom)，准备过隧道
     }
   }
   else {
