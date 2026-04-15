@@ -27,12 +27,14 @@
 
 namespace livox_ros {
 
-CacheIndex::CacheIndex() {
+CacheIndex::CacheIndex()
+{
   std::array<bool, kMaxLidarCount> index_cache = {0};
   index_cache_.swap(index_cache);
 }
 
-int8_t CacheIndex::GetFreeIndex(const uint8_t livox_lidar_type, const uint32_t handle, uint8_t& index) {
+int8_t CacheIndex::GetFreeIndex(const uint8_t livox_lidar_type, const uint32_t handle, uint8_t & index)
+{
   std::string key;
   int8_t ret = GenerateIndexKey(livox_lidar_type, handle, key);
   if (ret != 0) {
@@ -61,17 +63,21 @@ int8_t CacheIndex::GetFreeIndex(const uint8_t livox_lidar_type, const uint32_t h
   return -1;
 }
 
-int8_t CacheIndex::GenerateIndexKey(const uint8_t livox_lidar_type, const uint32_t handle, std::string& key) {
+int8_t CacheIndex::GenerateIndexKey(
+  const uint8_t livox_lidar_type, const uint32_t handle, std::string & key)
+{
   if (livox_lidar_type == kLivoxLidarType) {
     key = "livox_lidar_" + std::to_string(handle);
   } else {
-    printf("Can not generate index, the livox lidar type is unknown, the livox lidar type:%u\n", livox_lidar_type);
+    printf("Can not generate index, the livox lidar type is unknown, the livox lidar type:%u\n",
+      livox_lidar_type);
     return -1;
   }
   return 0;
 }
 
-int8_t CacheIndex::GetIndex(const uint8_t livox_lidar_type, const uint32_t handle, uint8_t& index) {
+int8_t CacheIndex::GetIndex(const uint8_t livox_lidar_type, const uint32_t handle, uint8_t & index)
+{
   std::string key;
   int8_t ret = GenerateIndexKey(livox_lidar_type, handle, key);
   if (ret != 0) {
@@ -87,7 +93,8 @@ int8_t CacheIndex::GetIndex(const uint8_t livox_lidar_type, const uint32_t handl
   return -1;
 }
 
-int8_t CacheIndex::LvxGetIndex(const uint8_t livox_lidar_type, const uint32_t handle, uint8_t& index) {
+int8_t CacheIndex::LvxGetIndex(const uint8_t livox_lidar_type, const uint32_t handle, uint8_t & index)
+{
   std::string key;
   int8_t ret = GenerateIndexKey(livox_lidar_type, handle, key);
   if (ret != 0) {
@@ -102,11 +109,14 @@ int8_t CacheIndex::LvxGetIndex(const uint8_t livox_lidar_type, const uint32_t ha
   return GetFreeIndex(livox_lidar_type, handle, index);
 }
 
-void CacheIndex::ResetIndex(LidarDevice *lidar) {
+void CacheIndex::ResetIndex(LidarDevice * lidar)
+{
   std::string key;
   int8_t ret = GenerateIndexKey(lidar->lidar_type, lidar->handle, key);
   if (ret != 0) {
-    printf("Reset index failed, can not generate index key, lidar type:%u, handle:%u.\n", lidar->lidar_type, lidar->handle);
+    printf("Reset index failed, can not generate index key, lidar type:%u, handle:%u.\n",
+      lidar->lidar_type,
+      lidar->handle);
     return;
   }
 
@@ -118,4 +128,4 @@ void CacheIndex::ResetIndex(LidarDevice *lidar) {
   }
 }
 
-} // namespace
+}  // namespace livox_ros

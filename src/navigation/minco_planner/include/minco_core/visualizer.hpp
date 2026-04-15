@@ -8,9 +8,9 @@
 
 #include <Eigen/Core>
 
-#include "rclcpp/rclcpp.hpp"
 #include "nav2_util/lifecycle_node.hpp"
 #include "nav_msgs/msg/path.hpp"
+#include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "std_msgs/msg/header.hpp"
 #include "visualization_msgs/msg/marker.hpp"
@@ -18,8 +18,7 @@
 #include "small_rog_map/hybrid_esdf_map.hpp"
 #include "traj_opt/minco_optimizer.hpp"
 
-namespace minco_planner
-{
+namespace minco_planner {
 
 class Visualizer
 {
@@ -27,23 +26,20 @@ public:
   Visualizer() = default;
   ~Visualizer() = default;
 
-  void configure(
-    const nav2_util::LifecycleNode::WeakPtr & parent,
+  void configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     const std::string & global_frame,
     const small_rog_map::HybridESDFMap::Ptr & esdf_map,
     bool enable_esdf_timer);
 
   void cleanup();
 
-  void update(
-    const std::vector<Eigen::Vector3d> & control_points,
+  void update(const std::vector<Eigen::Vector3d> & control_points,
     const traj_opt::Trajectory & backup_traj,
     const traj_opt::Trajectory & opt_traj,
     double opt_time_seconds,
     const nav_msgs::msg::Path & astar_path);
 
-  void publishRecoveryDebug(
-    const geometry_msgs::msg::PoseStamped & current_pose,
+  void publishRecoveryDebug(const geometry_msgs::msg::PoseStamped & current_pose,
     const Eigen::Vector2d & escape_vel,
     double preview_sec = 0.5);
 
@@ -51,8 +47,7 @@ public:
 
 private:
   void visualTimerCallback();
-  nav_msgs::msg::Path convertTrajectoryToPath(
-    const traj_opt::Trajectory & traj,
+  nav_msgs::msg::Path convertTrajectoryToPath(const traj_opt::Trajectory & traj,
     const std_msgs::msg::Header & header,
     int steps,
     double t_step) const;

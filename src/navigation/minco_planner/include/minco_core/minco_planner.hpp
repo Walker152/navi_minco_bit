@@ -1,26 +1,26 @@
 #ifndef MINCO_PLANNER__MINCO_PLANNER_HPP_
 #define MINCO_PLANNER__MINCO_PLANNER_HPP_
 
-#include <string>
-#include <cstdint>
-#include <memory>
-#include <vector>
-#include <functional>
-#include <mutex>
-#include <chrono>
 #include <atomic>
+#include <chrono>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
 
 #include <Eigen/Core>
 
-#include "rclcpp/rclcpp.hpp"
-#include "rcl_interfaces/msg/set_parameters_result.hpp"
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav2_core/global_planner.hpp"
+#include "nav2_costmap_2d/costmap_2d_ros.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "nav_msgs/msg/path.hpp"
-#include "nav2_util/lifecycle_node.hpp"
-#include "nav2_costmap_2d/costmap_2d_ros.hpp"
+#include "rcl_interfaces/msg/set_parameters_result.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 #include "std_msgs/msg/header.hpp"
 
@@ -28,21 +28,20 @@
 
 #include "visualization_msgs/msg/marker.hpp"
 
-#include "ros_interfaces/msg/position_command.hpp"
 #include "ros_interfaces/msg/mpc_position_command.hpp"
+#include "ros_interfaces/msg/position_command.hpp"
 
 #include "minco_core/astar.hpp"
+#include "minco_core/corridor_generator.hpp"
 #include "minco_core/recovery_behaivor.hpp"
 #include "smac_search/smac_planner_2d_simple.hpp"
 #include "small_rog_map/hybrid_esdf_map.hpp"
-#include "minco_core/corridor_generator.hpp"
-#include "traj_opt/minco_optimizer.hpp"
 #include "traj_opt/backup_traj_optimizer_s4.h"
+#include "traj_opt/minco_optimizer.hpp"
 #include "traj_opt/yaw_traj_opt.h"
 
 #include "utils/header/color_text.hpp"
-namespace minco_planner
-{
+namespace minco_planner {
 
 class Visualizer;
 class MincoFsm;
@@ -56,9 +55,9 @@ public:
   MincoPlanner();
   ~MincoPlanner();
 
-  void configure(
-    const nav2_util::LifecycleNode::WeakPtr & parent,
-    std::string name, std::shared_ptr<tf2_ros::Buffer> tf,
+  void configure(const nav2_util::LifecycleNode::WeakPtr & parent,
+    std::string name,
+    std::shared_ptr<tf2_ros::Buffer> tf,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
   void activate() override;
   void deactivate() override;
@@ -66,16 +65,13 @@ public:
 
   // === Core Planning Interfaces ===
   nav_msgs::msg::Path createPlan(
-    const geometry_msgs::msg::PoseStamped & start,
-    const geometry_msgs::msg::PoseStamped & goal) override;
+    const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal) override;
 
   bool PlanGlobalPath(
-    const geometry_msgs::msg::PoseStamped & start,
-    const geometry_msgs::msg::PoseStamped & goal);
+    const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal);
 
   bool ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose);
-  bool makePlan(
-    const geometry_msgs::msg::Pose & start,
+  bool makePlan(const geometry_msgs::msg::Pose & start,
     const geometry_msgs::msg::Pose & goal,
     double tolerance,
     std::function<bool()> cancel_checker,
@@ -89,23 +85,22 @@ public:
   bool checkCollision(const geometry_utils::Trajectory & traj);
 
   // Accessors for FSM
-  bool isTrajSafe() const {return is_traj_safe_.load();}
+  bool isTrajSafe() const { return is_traj_safe_.load(); }
   double nowSeconds() const;
   double getTrajectoryRemainTime() const;
   bool isTrajectoryTimeExpired(double now_s) const;
-  double getLookaheadDist() const {return lookahead_dist_;}
+  double getLookaheadDist() const { return lookahead_dist_; }
   bool getRobotPose(geometry_msgs::msg::PoseStamped & pose) const;
   bool checkGoalReached(const geometry_msgs::msg::PoseStamped & current_pose);
   bool consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out);
   void cancelGoal();
   Eigen::Vector3d getCurrentSpeed() const;
-  
+
   // Query ESDF distance at the given position.
   double getEsdfDistance(const Eigen::Vector3d & pos) const;
 
   void publishEscapeCommand(
-    const geometry_msgs::msg::PoseStamped & current_pose,
-    const Eigen::Vector2d & escape_vel);
+    const geometry_msgs::msg::PoseStamped & current_pose, const Eigen::Vector2d & escape_vel);
 
   void clearRecoveryDebugVisualization();
 
@@ -116,7 +111,8 @@ public:
 
 private:
   // === Internal Types ===
-  enum class PlanningState {
+  enum class PlanningState
+  {
     COLD_START,     // Full replanning with zero initial velocity/acceleration.
     HOT_START,      // Replanning with inherited velocity/acceleration.
     EMERGENCY_STOP  // Immediate backup braking with safety priority.
@@ -124,24 +120,16 @@ private:
 
   // === Utility & Helper Functions ===
   PlanningState determinePlanningState(
-    const geometry_msgs::msg::Pose & start_pose,
-    const std::vector<Eigen::Vector3d> & new_path);
+    const geometry_msgs::msg::Pose & start_pose, const std::vector<Eigen::Vector3d> & new_path);
 
-  void prepareColdStart(
-    const geometry_msgs::msg::Pose & start_pose,
-    Eigen::Matrix3d & start_state);
+  void prepareColdStart(const geometry_msgs::msg::Pose & start_pose, Eigen::Matrix3d & start_state);
 
   void prepareHotStart(
-    const geometry_msgs::msg::Pose & start_pose,
-    double t_dur,
-    Eigen::Matrix3d & start_state);
+    const geometry_msgs::msg::Pose & start_pose, double t_dur, Eigen::Matrix3d & start_state);
 
-  bool validateTrajectory(
-    const traj_opt::Trajectory & traj,
-    const Eigen::Vector3d & expected_end_pos);
+  bool validateTrajectory(const traj_opt::Trajectory & traj, const Eigen::Vector3d & expected_end_pos);
 
-  bool optimizeYaw(
-    const Eigen::Matrix3d & start_state,
+  bool optimizeYaw(const Eigen::Matrix3d & start_state,
     const traj_opt::Trajectory & pos_traj,
     traj_opt::Trajectory & out_yaw_traj,
     PlanningState state,

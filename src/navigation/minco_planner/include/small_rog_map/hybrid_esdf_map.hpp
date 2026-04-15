@@ -13,8 +13,7 @@
 #include "small_rog_map/dynamic_layer.hpp"
 #include "small_rog_map/static_layer.hpp"
 
-namespace small_rog_map
-{
+namespace small_rog_map {
 
 class HybridESDFMap
 {
@@ -23,8 +22,7 @@ public:
 
   HybridESDFMap();
 
-  void initRos(
-    const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
+  void initRos(const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
     const std::string & topic,
     double resolution,
     double dynamic_size_m,
@@ -33,8 +31,7 @@ public:
 
   bool loadStaticMap(const std::string & pcd_path, double resolution);
 
-  void updateDynamicMapFromPointCloud(
-    const sensor_msgs::msg::PointCloud2 & cloud,
+  void updateDynamicMapFromPointCloud(const sensor_msgs::msg::PointCloud2 & cloud,
     const StaticLayer & reference_layer,
     double dilation_radius_m);
 
