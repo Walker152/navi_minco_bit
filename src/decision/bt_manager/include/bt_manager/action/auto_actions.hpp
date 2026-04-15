@@ -81,6 +81,24 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class DescendStairsAction : public BT::StatefulActionNode
+{
+public:
+  DescendStairsAction(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus onStart() override;
+  BT::NodeStatus onRunning() override;
+  void onHalted() override;
+};
+
+class AccumulateAmmoPurchase : public BT::SyncActionNode
+{
+public:
+  AccumulateAmmoPurchase(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 class ChangeMapAction : public BT::SyncActionNode
 {
 public:

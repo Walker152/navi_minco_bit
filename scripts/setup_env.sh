@@ -156,7 +156,7 @@ if not isinstance(existing_tasks, list):
     existing_tasks = []
 
 label = "Format: src (clang-format)"
-command = "find src -type f \\( -name '*.cpp' -o -name '*.hpp' \\) -print0 | xargs -0 clang-format -i -style=file"
+command = "find src -type d -name 'third_party' -prune -o -type f \\( -name '*.cpp' -o -name '*.hpp' \\) -print0 | xargs -0 clang-format -i -style=file"
 
 # Remove tasks with same label
 existing_tasks = [t for t in existing_tasks if not (isinstance(t, dict) and t.get("label") == label)]
