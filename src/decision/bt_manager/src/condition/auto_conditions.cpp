@@ -274,7 +274,7 @@ BT::NodeStatus CheckWillThroughTunnel::tick()
 {
   auto blackboard = config().blackboard;
   bool will_through_tunnel = false;
-  auto lifter_current_pos = blackboard->get<int>("lifter_current_pos");
+  auto lifter_current_pos = blackboard->get<LifterPos>("lifter_current_pos");
   will_through_tunnel = blackboard->get<bool>("through_tunnel");
   static bool last_state_ = !will_through_tunnel;
   if (last_state_ != will_through_tunnel)
@@ -286,14 +286,10 @@ BT::NodeStatus CheckWillThroughTunnel::tick()
   }
   
   if (will_through_tunnel) {
-    if (lifter_current_pos == 0) {
-      blackboard->set<int>("desired_lifter_pos", 1); // 设置目标升降位置为 1(bottom)，准备过隧道
-    }
+    blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::BOTTOM); // 设置目标升降位置为 1(bottom)，准备过隧道
   }
   else {
-    if (lifter_current_pos != 0) {
-      blackboard->set<int>("desired_lifter_pos", 0); // 设置目标升降位置为 0(top)，准备不通过隧道
-    }
+    blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::TOP); // 设置目标升降位置为 0(top)，准备不通过隧道
   }
   return BT::NodeStatus::SUCCESS;
 }
