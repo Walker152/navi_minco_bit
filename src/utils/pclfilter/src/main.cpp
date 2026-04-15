@@ -1,8 +1,8 @@
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/point_cloud2.hpp>
 #include "../include/depth_cluster.hpp"
 #include <iostream>
 #include <memory>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 
 class DepthClusterNode : public rclcpp::Node
 {
@@ -73,41 +73,39 @@ public:
     RCLCPP_INFO(this->get_logger(), "Curvature threshold: %.3f", normal_curvature);
     RCLCPP_INFO(this->get_logger(), "Auto estimate reference normal: %s", auto_estimate ? "yes" : "no");
     if (!auto_estimate)
-        RCLCPP_INFO(this->get_logger(), "Sensor tilt X: %.1f°, Y: %.1f°", tilt_x, tilt_y);
+      RCLCPP_INFO(this->get_logger(), "Sensor tilt X: %.1f°, Y: %.1f°", tilt_x, tilt_y);
     RCLCPP_INFO(this->get_logger(), "Use Euclidean: %s", use_euclidean ? "true" : "false");
     RCLCPP_INFO(this->get_logger(), "Euclidean tolerance: %.2f m", euclidean_tolerance);
     RCLCPP_INFO(this->get_logger(), "Adaptive radius: %s", adaptive_radius ? "true" : "false");
     RCLCPP_INFO(this->get_logger(), "Temporal filter: %s", temporal_filter ? "true" : "false");
     if (temporal_filter)
-        RCLCPP_INFO(this->get_logger(), "Temporal window size: %d", temporal_window);
+      RCLCPP_INFO(this->get_logger(), "Temporal window size: %d", temporal_window);
 
     // 创建算法实例
-    depthCluster_.reset(new pclfilter::DepthCluster(
-        static_cast<float>(vert_res),
-        static_cast<float>(horiz_res),
-        lidar_lines,
-        min_cluster_size,
-        static_cast<float>(ground_max_slope),
-        normal_k,
-        static_cast<float>(depth_thresh),
-        use_euclidean,
-        static_cast<float>(euclidean_tolerance),
-        euclidean_min_size,
-        euclidean_max_size,
-        static_cast<float>(normal_curvature),
-        auto_estimate,
-        static_cast<float>(tilt_x),
-        static_cast<float>(tilt_y),
-        adaptive_radius,
-        temporal_filter,
-        temporal_window));
+    depthCluster_.reset(new pclfilter::DepthCluster(static_cast<float>(vert_res),
+      static_cast<float>(horiz_res),
+      lidar_lines,
+      min_cluster_size,
+      static_cast<float>(ground_max_slope),
+      normal_k,
+      static_cast<float>(depth_thresh),
+      use_euclidean,
+      static_cast<float>(euclidean_tolerance),
+      euclidean_min_size,
+      euclidean_max_size,
+      static_cast<float>(normal_curvature),
+      auto_estimate,
+      static_cast<float>(tilt_x),
+      static_cast<float>(tilt_y),
+      adaptive_radius,
+      temporal_filter,
+      temporal_window));
 
     // 创建发布者和订阅者
     point_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(output_obstacles, 10);
     ground_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(output_ground, 10);
     cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-      input_topic, 10,
-      std::bind(&DepthClusterNode::CloudCB, this, std::placeholders::_1));
+      input_topic, 10, std::bind(&DepthClusterNode::CloudCB, this, std::placeholders::_1));
   }
 
   void CloudCB(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_ptr)
@@ -118,47 +116,47 @@ public:
 
     depthCluster_->setInputCloud(laserCloudIn);
 
-    const auto &clustersIndex = depthCluster_->getClustersIndex();
-    const auto &ground_index = depthCluster_->getGroundCloudIndices();
+    const auto & clustersIndex = depthCluster_->getClustersIndex();
+    const auto & ground_index = depthCluster_->getGroundCloudIndices();
 
     RCLCPP_INFO(this->get_logger(), "Clusters: %zu", clustersIndex.size());
     for (size_t i = 0; i < clustersIndex.size(); ++i)
-        RCLCPP_INFO(this->get_logger(), "  Cluster %zu: %zu points", i, clustersIndex[i].size());
+      RCLCPP_INFO(this->get_logger(), "  Cluster %zu: %zu points", i, clustersIndex[i].size());
 
     // 构建彩色点云
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr colorCloud(new pcl::PointCloud<pcl::PointXYZRGB>());
     colorCloud->resize(laserCloudIn->size());
     for (size_t i = 0; i < laserCloudIn->size(); ++i) {
-        colorCloud->points[i].x = laserCloudIn->points[i].x;
-        colorCloud->points[i].y = laserCloudIn->points[i].y;
-        colorCloud->points[i].z = laserCloudIn->points[i].z;
-        colorCloud->points[i].r = 128;
-        colorCloud->points[i].g = 128;
-        colorCloud->points[i].b = 128;
+      colorCloud->points[i].x = laserCloudIn->points[i].x;
+      colorCloud->points[i].y = laserCloudIn->points[i].y;
+      colorCloud->points[i].z = laserCloudIn->points[i].z;
+      colorCloud->points[i].r = 128;
+      colorCloud->points[i].g = 128;
+      colorCloud->points[i].b = 128;
     }
 
     // 地面绿色
     for (int idx : ground_index) {
-        if (idx >= 0 && idx < static_cast<int>(colorCloud->size())) {
-            colorCloud->points[idx].r = 0;
-            colorCloud->points[idx].g = 255;
-            colorCloud->points[idx].b = 0;
-        }
+      if (idx >= 0 && idx < static_cast<int>(colorCloud->size())) {
+        colorCloud->points[idx].r = 0;
+        colorCloud->points[idx].g = 255;
+        colorCloud->points[idx].b = 0;
+      }
     }
 
     // 聚类随机颜色
     srand(12345);
-    for (const auto &cluster : clustersIndex) {
-        uint8_t r = rand() % 256;
-        uint8_t g = rand() % 256;
-        uint8_t b = rand() % 256;
-        for (int idx : cluster) {
-            if (idx >= 0 && idx < static_cast<int>(colorCloud->size())) {
-                colorCloud->points[idx].r = r;
-                colorCloud->points[idx].g = g;
-                colorCloud->points[idx].b = b;
-            }
+    for (const auto & cluster : clustersIndex) {
+      uint8_t r = rand() % 256;
+      uint8_t g = rand() % 256;
+      uint8_t b = rand() % 256;
+      for (int idx : cluster) {
+        if (idx >= 0 && idx < static_cast<int>(colorCloud->size())) {
+          colorCloud->points[idx].r = r;
+          colorCloud->points[idx].g = g;
+          colorCloud->points[idx].b = b;
         }
+      }
     }
 
     // 发布地面点云
@@ -182,7 +180,7 @@ public:
   }
 };
 
-int main(int argc, char **argv)
+int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<DepthClusterNode>());

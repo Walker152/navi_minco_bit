@@ -6,8 +6,7 @@
 
 #include "data_types.hpp"
 
-namespace DBSCANCluster
-{
+namespace DBSCANCluster {
 
 struct TrackerConfig
 {

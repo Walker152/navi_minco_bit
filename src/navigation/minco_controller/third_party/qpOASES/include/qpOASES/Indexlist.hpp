@@ -21,7 +21,6 @@
  *
  */
 
-
 /**
  *	\file include/qpOASES/Indexlist.hpp
  *	\author Hans Joachim Ferreau, Andreas Potschka, Christian Kirches
@@ -32,18 +31,14 @@
  *	constraints and bounds within a SubjectTo object.
  */
 
-
 #ifndef QPOASES_INDEXLIST_HPP
 #define QPOASES_INDEXLIST_HPP
 
-
 #include <qpOASES/Utils.hpp>
-
 
 BEGIN_NAMESPACE_QPOASES
 
-
-/** 
+/**
  *	\brief Stores and manages index lists.
  *
  *	This class manages index lists of active/inactive bounds/constraints.
@@ -54,145 +49,136 @@ BEGIN_NAMESPACE_QPOASES
  */
 class Indexlist
 {
-	/*
-	 *  FRIENDS
-	 */
-	friend class DenseMatrix;
-	friend class SymDenseMat;
-	friend class SparseMatrix;
-	friend class SparseMatrixRow;
-	friend class SymSparseMat;
+  /*
+   *  FRIENDS
+   */
+  friend class DenseMatrix;
+  friend class SymDenseMat;
+  friend class SparseMatrix;
+  friend class SparseMatrixRow;
+  friend class SymSparseMat;
 
-	/*
-	 *	PUBLIC MEMBER FUNCTIONS
-	 */
-	public:
-		/** Default constructor. */
-		Indexlist( );
+  /*
+   *	PUBLIC MEMBER FUNCTIONS
+   */
+public:
+  /** Default constructor. */
+  Indexlist();
 
-		/** Constructor which takes the desired physical length of the index list. */
-		Indexlist(	int_t n	/**< Physical length of index list. */
-					);
+  /** Constructor which takes the desired physical length of the index list. */
+  Indexlist(int_t n /**< Physical length of index list. */
+  );
 
-		/** Copy constructor (deep copy). */
-		Indexlist(	const Indexlist& rhs	/**< Rhs object. */
-					);
+  /** Copy constructor (deep copy). */
+  Indexlist(const Indexlist & rhs /**< Rhs object. */
+  );
 
-		/** Destructor. */
-		~Indexlist( );
+  /** Destructor. */
+  ~Indexlist();
 
-		/** Assingment operator (deep copy). */
-		Indexlist& operator=(	const Indexlist& rhs	/**< Rhs object. */
-								);
+  /** Assingment operator (deep copy). */
+  Indexlist & operator=(const Indexlist & rhs /**< Rhs object. */
+  );
 
+  /** Initialises index list of desired physical length.
+   *	\return SUCCESSFUL_RETURN \n
+        RET_INVALID_ARGUMENTS */
+  returnValue init(int_t n = 0 /**< Physical length of index list. */
+  );
 
-		/** Initialises index list of desired physical length.
-		 *	\return SUCCESSFUL_RETURN \n
-		 			RET_INVALID_ARGUMENTS */
-		returnValue init(	int_t n = 0	/**< Physical length of index list. */
-							);
+  /** Creates an array of all numbers within the index set in correct order.
+   *	\return SUCCESSFUL_RETURN \n
+        RET_INDEXLIST_CORRUPTED */
+  returnValue getNumberArray(int_t ** const numberarray /**< Output: Array of numbers (NULL on error). */
+  ) const;
 
+  /** Creates an array of all numbers within the index set in correct order.
+   *	\return SUCCESSFUL_RETURN \n
+        RET_INDEXLIST_CORRUPTED */
+  returnValue getISortArray(int_t ** const iSortArray /**< Output: iSort Array. */
+  ) const;
 
-		/** Creates an array of all numbers within the index set in correct order.
-		 *	\return SUCCESSFUL_RETURN \n
-		 			RET_INDEXLIST_CORRUPTED */
-		returnValue	getNumberArray(	int_t** const numberarray	/**< Output: Array of numbers (NULL on error). */
-									) const;
+  /** Determines the index within the index list at which a given number is stored.
+   *	\return >= 0: Index of given number. \n
+        -1: Number not found. */
+  int_t getIndex(int_t givennumber /**< Number whose index shall be determined. */
+  ) const;
 
-		/** Creates an array of all numbers within the index set in correct order.
-		 *	\return SUCCESSFUL_RETURN \n
-					RET_INDEXLIST_CORRUPTED */
-		returnValue	getISortArray(	int_t** const iSortArray	/**< Output: iSort Array. */
-									) const;
+  /** Returns the number stored at a given physical index.
+   *	\return >= 0: Number stored at given physical index. \n
+        -RET_INDEXLIST_OUTOFBOUNDS */
+  int_t getNumber(int_t physicalindex /**< Physical index of the number to be returned. */
+  ) const;
 
+  /** Returns the current length of the index list.
+   *	\return Current length of the index list. */
+  inline int_t getLength() const;
 
-		/** Determines the index within the index list at which a given number is stored.
-		 *	\return >= 0: Index of given number. \n
-		 			-1: Number not found. */
-		int_t getIndex(	int_t givennumber	/**< Number whose index shall be determined. */
-						) const;
+  /** Returns last number within the index list.
+   *	\return Last number within the index list. */
+  inline int_t getLastNumber() const;
 
-		/** Returns the number stored at a given physical index.
-		 *	\return >= 0: Number stored at given physical index. \n
-		 			-RET_INDEXLIST_OUTOFBOUNDS */
-		int_t getNumber(	int_t physicalindex	/**< Physical index of the number to be returned. */
-							) const;
+  /** Adds number to index list.
+   *	\return SUCCESSFUL_RETURN \n
+        RET_INDEXLIST_MUST_BE_REORDERD \n
+        RET_INDEXLIST_EXCEEDS_MAX_LENGTH */
+  returnValue addNumber(int_t addnumber /**< Number to be added. */
+  );
 
+  /** Removes number from index list.
+   *	\return SUCCESSFUL_RETURN */
+  returnValue removeNumber(int_t removenumber /**< Number to be removed. */
+  );
 
-		/** Returns the current length of the index list.
-		 *	\return Current length of the index list. */
-		inline int_t getLength( ) const;
+  /** Swaps two numbers within index list.
+   *	\return SUCCESSFUL_RETURN */
+  returnValue swapNumbers(int_t number1, /**< First number for swapping. */
+    int_t number2                        /**< Second number for swapping. */
+  );
 
-		/** Returns last number within the index list.
-		 *	\return Last number within the index list. */
-		inline int_t getLastNumber( ) const;
+  /** Determines if a given number is contained in the index set.
+   *	\return BT_TRUE iff number is contain in the index set */
+  inline BooleanType isMember(int_t _number /**< Number to be tested for membership. */
+  ) const;
 
+  /*
+   *	PROTECTED MEMBER FUNCTIONS
+   */
+protected:
+  /** Frees all allocated memory.
+   *  \return SUCCESSFUL_RETURN */
+  returnValue clear();
 
-		/** Adds number to index list.
-		 *	\return SUCCESSFUL_RETURN \n
-		 			RET_INDEXLIST_MUST_BE_REORDERD \n
-		 			RET_INDEXLIST_EXCEEDS_MAX_LENGTH */
-		returnValue addNumber(	int_t addnumber			/**< Number to be added. */
-								);
+  /** Copies all members from given rhs object.
+   *  \return SUCCESSFUL_RETURN */
+  returnValue copy(const Indexlist & rhs /**< Rhs object. */
+  );
 
-		/** Removes number from index list.
-		 *	\return SUCCESSFUL_RETURN */
-		returnValue removeNumber(	int_t removenumber	/**< Number to be removed. */
-									);
+  /** Find first index j between -1 and length in sorted list of indices
+   *  iSort such that numbers[iSort[j]] <= i < numbers[iSort[j+1]]. Uses
+   *  bisection.
+   *  \return j. */
+  int_t findInsert(int_t i) const;
 
-		/** Swaps two numbers within index list.
-		 *	\return SUCCESSFUL_RETURN */
-		returnValue swapNumbers(	int_t number1,		/**< First number for swapping. */
-									int_t number2			/**< Second number for swapping. */
-									);
+  /*
+   *	PROTECTED MEMBER VARIABLES
+   */
+protected:
+  int_t * number; /**< Array to store numbers of constraints or bounds. */
+  int_t * iSort;  /**< Index list to sort vector \a number */
 
-		/** Determines if a given number is contained in the index set.
-		 *	\return BT_TRUE iff number is contain in the index set */
-		inline BooleanType isMember(	int_t _number		/**< Number to be tested for membership. */
-										) const;
-
-
-	/*
-	 *	PROTECTED MEMBER FUNCTIONS
-	 */
-	protected:
-		/** Frees all allocated memory.
-		 *  \return SUCCESSFUL_RETURN */
-		returnValue clear( );
-
-		/** Copies all members from given rhs object.
-		 *  \return SUCCESSFUL_RETURN */
-		returnValue copy(	const Indexlist& rhs	/**< Rhs object. */
-							);
-
-		/** Find first index j between -1 and length in sorted list of indices
-		 *  iSort such that numbers[iSort[j]] <= i < numbers[iSort[j+1]]. Uses
-		 *  bisection.
-		 *  \return j. */
-		int_t findInsert(	int_t i
-							) const;
-
-
-	/*
-	 *	PROTECTED MEMBER VARIABLES
-	 */
-	protected:
-		int_t* number;			/**< Array to store numbers of constraints or bounds. */
-		int_t* iSort;			/**< Index list to sort vector \a number */
-
-		int_t	length;			/**< Length of index list. */
-		int_t	first;			/**< Physical index of first element. */
-		int_t	last;			/**< Physical index of last element. */
-		int_t	lastusedindex;	/**< Physical index of last entry in index list. */
-		int_t	physicallength;	/**< Physical length of index list. */
+  int_t length;         /**< Length of index list. */
+  int_t first;          /**< Physical index of first element. */
+  int_t last;           /**< Physical index of last element. */
+  int_t lastusedindex;  /**< Physical index of last entry in index list. */
+  int_t physicallength; /**< Physical length of index list. */
 };
 
 END_NAMESPACE_QPOASES
 
 #include <qpOASES/Indexlist.ipp>
 
-#endif	/* QPOASES_INDEXLIST_HPP */
-
+#endif /* QPOASES_INDEXLIST_HPP */
 
 /*
  *	end of file

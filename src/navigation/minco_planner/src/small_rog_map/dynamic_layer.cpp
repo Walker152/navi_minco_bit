@@ -7,19 +7,17 @@
 #include <cstddef>
 #include <cstring>
 #include <limits>
-#include <string>
 #include <stdexcept>
+#include <string>
 
 #include "sensor_msgs/msg/point_field.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 
-namespace small_rog_map
-{
+namespace small_rog_map {
 
-namespace
-{
+namespace {
 struct PointXYZ
 {
   float x;
@@ -30,8 +28,7 @@ struct PointXYZ
 
 DynamicLayer::DynamicLayer() = default;
 
-void DynamicLayer::configure(
-  const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
+void DynamicLayer::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
   const std::string & topic,
   double resolution,
   double local_size_m,
@@ -52,9 +49,7 @@ void DynamicLayer::configure(
   }
 
   cloud_sub_ = node_ptr->create_subscription<sensor_msgs::msg::PointCloud2>(
-    topic,
-    rclcpp::SensorDataQoS(),
-    std::bind(&DynamicLayer::cloudCallback, this, std::placeholders::_1));
+    topic, rclcpp::SensorDataQoS(), std::bind(&DynamicLayer::cloudCallback, this, std::placeholders::_1));
 }
 
 void DynamicLayer::setRobotPosition(double x, double y)
@@ -149,7 +144,8 @@ bool DynamicLayer::isInside(const Eigen::Vector2d & pos_xy) const
   }
   const double px = (pos_xy.x() - origin_.x()) / resolution_;
   const double py = (pos_xy.y() - origin_.y()) / resolution_;
-  return px >= 0.0 && py >= 0.0 && px < static_cast<double>(width_ - 1) && py < static_cast<double>(height_ - 1);
+  return px >= 0.0 && py >= 0.0 && px < static_cast<double>(width_ - 1) &&
+         py < static_cast<double>(height_ - 1);
 }
 
 void DynamicLayer::buildDilationOffsets(int radius_cells, std::vector<Eigen::Vector2i> & offsets) const
@@ -169,8 +165,7 @@ void DynamicLayer::buildDilationOffsets(int radius_cells, std::vector<Eigen::Vec
   }
 }
 
-void DynamicLayer::updateFromPointCloud(
-  const sensor_msgs::msg::PointCloud2 & cloud,
+void DynamicLayer::updateFromPointCloud(const sensor_msgs::msg::PointCloud2 & cloud,
   int width,
   int height,
   double resolution,
@@ -203,8 +198,8 @@ void DynamicLayer::updateFromPointCloud(
     const auto * fx = find_field("x");
     const auto * fy = find_field("y");
     const bool fields_ok =
-      fx && fy && fx->datatype == sensor_msgs::msg::PointField::FLOAT32 && fy->datatype == sensor_msgs::msg::PointField::FLOAT32 &&
-      fx->count == 1U && fy->count == 1U &&
+      fx && fy && fx->datatype == sensor_msgs::msg::PointField::FLOAT32 &&
+      fy->datatype == sensor_msgs::msg::PointField::FLOAT32 && fx->count == 1U && fy->count == 1U &&
       (static_cast<size_t>(fx->offset) + sizeof(float) <= static_cast<size_t>(cloud.point_step)) &&
       (static_cast<size_t>(fy->offset) + sizeof(float) <= static_cast<size_t>(cloud.point_step));
 
@@ -214,10 +209,9 @@ void DynamicLayer::updateFromPointCloud(
       const size_t max_points_by_bytes = cloud.data.size() / stride;
       const size_t n = std::min(point_count, max_points_by_bytes);
 
-      const bool is_standard_xyz_layout =
-        fx->offset == static_cast<uint32_t>(offsetof(PointXYZ, x)) &&
-        fy->offset == static_cast<uint32_t>(offsetof(PointXYZ, y)) &&
-        stride >= sizeof(PointXYZ);
+      const bool is_standard_xyz_layout = fx->offset == static_cast<uint32_t>(offsetof(PointXYZ, x)) &&
+                                          fy->offset == static_cast<uint32_t>(offsetof(PointXYZ, y)) &&
+                                          stride >= sizeof(PointXYZ);
 
       if (is_standard_xyz_layout) {
         const uint8_t * p = cloud.data.data();
@@ -266,7 +260,7 @@ void DynamicLayer::updateFromPointCloud(
 
   std::vector<double> dist_m(expected, kFarDistance);
 #ifdef _OPENMP
-  #pragma omp parallel for
+#pragma omp parallel for
 #endif
   for (size_t i = 0; i < expected; ++i) {
     if (occ01[i] == 0U) {

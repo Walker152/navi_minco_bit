@@ -4,11 +4,9 @@
 #include <limits>
 #include <vector>
 
-namespace traj_opt
-{
+namespace traj_opt {
 
-namespace
-{
+namespace {
 
 struct Aabb
 {
@@ -65,8 +63,7 @@ inline bool insideBounds(const Aabb & b, const Eigen::Vector3d & p)
           p.z() > b.zmin + eps && p.z() < b.zmax - eps);
 }
 
-inline double raycastBox(
-  const Eigen::Vector3d & start_pos,
+inline double raycastBox(const Eigen::Vector3d & start_pos,
   const Eigen::Vector3d & direction,
   const Eigen::Vector3d & box_min,
   const Eigen::Vector3d & box_max)
@@ -78,7 +75,7 @@ inline double raycastBox(
 
   const bool inside =
     (start_pos.x() >= box_min.x() && start_pos.x() <= box_max.x() && start_pos.y() >= box_min.y() &&
-     start_pos.y() <= box_max.y() && start_pos.z() >= box_min.z() && start_pos.z() <= box_max.z());
+      start_pos.y() <= box_max.y() && start_pos.z() >= box_min.z() && start_pos.z() <= box_max.z());
   if (!inside) {
     return 0.0;
   }
@@ -120,8 +117,7 @@ inline double raycastBox(
 // t=0: P=P0, V=V0, A=A0
 // t=T: P=P_end, V=0, A=0
 // Coeff matrix follows Piece convention: [t^5 t^4 t^3 t^2 t 1]
-inline bool buildForwardStopQuintic(
-  const Eigen::Vector3d & p0,
+inline bool buildForwardStopQuintic(const Eigen::Vector3d & p0,
   const Eigen::Vector3d & v0,
   const Eigen::Vector3d & a0,
   const Eigen::Vector3d & p_end,
@@ -240,34 +236,34 @@ bool BackupTrajOpt::optimize(Trajectory & out_traj) const
   }
 
   double a_brake = a_max;
-  
+
   if (L_phy > L_geo && L_geo > 0.05) {
-      a_brake = (v_mag * v_mag) / (2.0 * L_geo);
-      a_brake = std::min(a_brake, 8.0); 
+    a_brake = (v_mag * v_mag) / (2.0 * L_geo);
+    a_brake = std::min(a_brake, 8.0);
   }
 
   if (L_geo <= 0.05) {
-      a_brake = 8.0; 
+    a_brake = 8.0;
   }
 
   // 5. 生成恒定减速时间与加速度向量
   double T = v_mag / a_brake;
-  T = std::max(0.05, T); // 防止时间过短
+  T = std::max(0.05, T);  // 防止时间过短
   Eigen::Vector3d a_final = -a_brake * dir;
 
   // 6. 填充 MINCO 要求的 [t^5, t^4, t^3, t^2, t^1, t^0] 系数矩阵
   // 对于匀减速运动： p(t) = p0 + v0*t + 0.5*a*t^2
   Eigen::MatrixXd coeffMat = Eigen::MatrixXd::Zero(3, 6);
   for (int axis = 0; axis < 3; ++axis) {
-    coeffMat(axis, 5) = p0(axis);               // c0
-    coeffMat(axis, 4) = v0(axis);               // c1
-    coeffMat(axis, 3) = 0.5 * a_final(axis);    // c2
+    coeffMat(axis, 5) = p0(axis);             // c0
+    coeffMat(axis, 4) = v0(axis);             // c1
+    coeffMat(axis, 3) = 0.5 * a_final(axis);  // c2
     // c3, c4, c5 保持为 0
   }
 
-    out_traj.clear();
-    out_traj.emplace_back(T, coeffMat);
-    return true;
+  out_traj.clear();
+  out_traj.emplace_back(T, coeffMat);
+  return true;
 
   return false;
 }
