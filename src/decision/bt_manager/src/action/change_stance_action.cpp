@@ -28,23 +28,16 @@ BT::NodeStatus ChangeStance::tick()
   };
 
   auto blackboard = config().blackboard;
-  std::shared_ptr<Sentry_BT::ros_interface> ros_iface;
   Sentry_BT::SentryStance desired_stance;
   Sentry_BT::SentryStance current_stance;
   try {
-    ros_iface = blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
     desired_stance = blackboard->get<Sentry_BT::SentryStance>("desired_stance");
     current_stance = blackboard->get<Sentry_BT::SentryStance>("current_stance");
   } catch (...) {
     return BT::NodeStatus::FAILURE;
   }
 
-  if (!ros_iface) {
-    return BT::NodeStatus::FAILURE;
-  }
-
   if (current_stance == desired_stance) {
-    // Silent success to avoid 10Hz log spam when stance is already aligned.
     return BT::NodeStatus::SUCCESS;
   }
 
@@ -60,7 +53,7 @@ BT::NodeStatus ChangeStance::tick()
 
   std::cout << GREEN << "Change from stance " << stance_to_string(current_stance) << " to stance "
             << stance_to_string(desired_stance) << RESET << std::endl;
-  // 下发姿态切换指令
+  blackboard->set<Sentry_BT::SentryStance>("current_stance", desired_stance);
   last_change_time_ = now;
   return BT::NodeStatus::SUCCESS;
 }

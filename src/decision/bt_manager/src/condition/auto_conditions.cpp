@@ -18,6 +18,8 @@ BT::PortsList CheckRetreatCondition::providedPorts()
   return {
     BT::InputPort<float>("health_threshold"),
     BT::InputPort<float>("recovery_threshold"),
+    BT::InputPort<int>("ammo_threshold", 100, "Low ammo threshold"),
+    BT::InputPort<int>("ammo_recovery_threshold", 100, "Ammo recovery threshold"),
   };
 }
 
@@ -26,23 +28,28 @@ BT::NodeStatus CheckRetreatCondition::tick()
   auto blackboard = config().blackboard;
   auto health_threshold_ = getInput<float>("health_threshold");
   auto recovery_threshold_ = getInput<float>("recovery_threshold");
-  if (!health_threshold_ || !recovery_threshold_) {
+  auto ammo_threshold_ = getInput<int>("ammo_threshold");
+  auto ammo_recovery_threshold_ = getInput<int>("ammo_recovery_threshold");
+  if (!health_threshold_ || !recovery_threshold_ || !ammo_threshold_ || !ammo_recovery_threshold_) {
     throw BT::RuntimeError("missing required input [health_threshold] or [recovery_threshold]");
   }
   float health_threshold = health_threshold_.value();
   float recovery_threshold = recovery_threshold_.value();
+  int ammo_threshold = ammo_threshold_.value();
+  int ammo_recovery_threshold = ammo_recovery_threshold_.value();
   auto health = blackboard->get<float>("health");
+  auto ammo = blackboard->get<int>("bullets_remaining");
   auto current_mode = blackboard->get<int>("current_mode");
 
   BT::NodeStatus result = BT::NodeStatus::FAILURE;
   if (current_mode == Sentry_BT::NavMode::RETREAT) {
-    if (health >= recovery_threshold) {
+    if (health >= recovery_threshold && ammo > ammo_recovery_threshold) {
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::PATROL);
       result = BT::NodeStatus::FAILURE;
     } else {
       result = BT::NodeStatus::SUCCESS;
     }
-  } else if (health < health_threshold) {
+  } else if (health < health_threshold || ammo < ammo_threshold) {
     blackboard->set<int>("current_mode", Sentry_BT::NavMode::RETREAT);
     result = BT::NodeStatus::SUCCESS;
   }
@@ -52,7 +59,8 @@ BT::NodeStatus CheckRetreatCondition::tick()
     std::cout << WHITE << "CheckRetreatCondition => "
               << (result == BT::NodeStatus::SUCCESS ? "RETREAT_ACTIVE" : "RETREAT_INACTIVE")
               << ", health=" << health << ", threshold=" << health_threshold
-              << ", recovery=" << recovery_threshold << RESET << std::endl;
+              << ", recovery=" << recovery_threshold << ", ammo=" << ammo
+              << ", ammo_threshold=" << ammo_threshold << RESET << std::endl;
     last_result = result;
   }
 
@@ -109,10 +117,20 @@ BT::NodeStatus CheckTargetLocked::tick()
   //  Sentry_BT::Area_Square enemy_outpost_area = {{8.5, 4.5}, {11.5, 2.8}};
   //  Sentry_BT::Area_Square own_outpost_area = {{8.5, -2.7}, {11.5, -4.2}};  //待修改
 
-  // rmul
-  Sentry_BT::Area_Square attack_area = {{7.8, 7.4}, {4.5, 2.0}};
+  TacticalMode tactical_mode = TacticalMode::BALANCED;
+  blackboard->get<TacticalMode>("tactical_mode", tactical_mode);
 
-  const bool in_attack_area = attack_area.contains({target_pose.position.x, target_pose.position.y});
+  const Sentry_BT::Point2D target_point{target_pose.position.x, target_pose.position.y, 0.0};
+  bool in_attack_area = false;
+
+  if (tactical_mode == TacticalMode::OFFENSIVE) {
+    // Offensive: highland + own_defense + enemy_defense
+    in_attack_area = highland_zone.contains(target_point) || own_defense_zone.contains(target_point) ||
+                     enemy_defense_zone.contains(target_point);
+  } else {
+    // Defensive and default(BALANCED): own_defense + highland
+    in_attack_area = own_defense_zone.contains(target_point) || highland_zone.contains(target_point);
+  }
   bool condition_met = false;
 
   if (in_attack_area && target_valid) {
@@ -127,10 +145,6 @@ BT::NodeStatus CheckTargetLocked::tick()
     // 容忍 1.0 秒内的视觉丢失
     if (lost_duration < 1.0) {
       tick_count++;
-      if (tick_count % 5 == 0) {
-        std::cout << YELLOW << "[Debounce] Target visually lost, keeping lock for " << (1.0 - lost_duration)
-                  << "s" << RESET << std::endl;
-      }
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::TRACING);
       condition_met = true;
     } else {
@@ -144,10 +158,12 @@ BT::NodeStatus CheckTargetLocked::tick()
     if (condition_met) {
       std::cout << GREEN << "CheckTargetLocked => LOCKED"
                 << ", target_xy=(" << target_pose.position.x << ", " << target_pose.position.y << ")"
+                << ", tactical_mode=" << static_cast<int>(tactical_mode)
                 << RESET << std::endl;
     } else {
       std::cout << YELLOW << "CheckTargetLocked => UNLOCKED"
-                << (in_attack_area ? "" : " (out of attack area)") << RESET << std::endl;
+                << (in_attack_area ? "" : " (out of attack area)")
+                << ", tactical_mode=" << static_cast<int>(tactical_mode) << RESET << std::endl;
     }
     last_condition_met = condition_met;
   }
@@ -205,18 +221,12 @@ BT::NodeStatus CheckInStairsZone::tick()
 {
   auto blackboard = config().blackboard;
 
-  std::shared_ptr<ros_interface> ros_iface;
-  geometry_msgs::msg::Pose current_pose;
-  ros_iface = blackboard->get<std::shared_ptr<ros_interface>>("ros_interface");
-  if (!ros_iface) {
-    return BT::NodeStatus::FAILURE;
-  }
-  current_pose = ros_iface->getCurrentPose();
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
 
   double x = current_pose.position.x;
   double y = current_pose.position.y;
 
-  bool in_stairs_zone = (x > 3.2 && x < 6.0 && y > -6.4 && y < -5.3);
+  bool in_stairs_zone = stairs_zone.contains({x, y, 0.0});
 
   static bool last_in_stairs_zone = false;
   if (in_stairs_zone != last_in_stairs_zone) {
@@ -263,5 +273,133 @@ BT::NodeStatus CheckWillThroughTunnel::tick()
       "desired_lifter_pos", LifterPos::TOP);  // 设置目标升降位置为 0(top)，准备不通过隧道
   }
   return BT::NodeStatus::SUCCESS;
+}
+
+// --------------------- CheckNoAllyBelowStairs ----------------------
+CheckNoAllyBelowStairs::CheckNoAllyBelowStairs(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckNoAllyBelowStairs::providedPorts()
+{
+  return {};
+}
+
+BT::NodeStatus CheckNoAllyBelowStairs::tick()
+{
+  auto blackboard = config().blackboard;
+  const auto allies = blackboard->get<std::vector<AllyRobotInfo>>("allies_info");
+  bool ally_below = false;
+  for (const auto & ally : allies) {
+    if (stairs_lower_safe_zone.contains({ally.position.x, ally.position.y, 0.0})) {
+      ally_below = true;
+      break;
+    }
+  }
+
+  static bool last_clear = ally_below;
+  const bool clear = !ally_below;
+  if (clear != last_clear) {
+    std::cout << WHITE << "CheckNoAllyBelowStairs => " << (clear ? "CLEAR" : "BLOCKED") << RESET
+              << std::endl;
+    last_clear = clear;
+  }
+  return clear ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// --------------------- CheckAmmoLow ----------------------
+CheckAmmoLow::CheckAmmoLow(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckAmmoLow::providedPorts()
+{
+  return {BT::InputPort<int>("ammo_threshold", 100, "Low ammo threshold")};
+}
+
+BT::NodeStatus CheckAmmoLow::tick()
+{
+  auto blackboard = config().blackboard;
+  const int threshold = getInput<int>("ammo_threshold").value_or(100);
+  const int ammo = blackboard->get<int>("bullets_remaining");
+  const bool low = ammo < threshold;
+
+  static bool last_low = !low;
+  if (low != last_low) {
+    std::cout << WHITE << "CheckAmmoLow => " << (low ? "LOW" : "NORMAL") << ", ammo=" << ammo << std::endl;
+    last_low = low;
+  }
+  return low ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// --------------------- CheckTacticalModeCondition ----------------------
+CheckTacticalModeCondition::CheckTacticalModeCondition(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckTacticalModeCondition::providedPorts()
+{
+  return {BT::InputPort<std::string>("mode")};
+}
+
+BT::NodeStatus CheckTacticalModeCondition::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string mode = getInput<std::string>("mode").value_or("normal");
+  TacticalMode expected_mode = TacticalMode::BALANCED;
+  if (mode == "attack") {
+    expected_mode = TacticalMode::OFFENSIVE;
+  } else if (mode == "defend") {
+    expected_mode = TacticalMode::DEFENSIVE;
+  }
+  const auto current_mode = blackboard->get<TacticalMode>("tactical_mode");
+  return current_mode == expected_mode ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// --------------------- CheckOwnFortIdle ----------------------
+CheckOwnFortIdle::CheckOwnFortIdle(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckOwnFortIdle::providedPorts()
+{
+  return {};
+}
+
+BT::NodeStatus CheckOwnFortIdle::tick()
+{
+  auto blackboard = config().blackboard;
+  const int fort_status = blackboard->get<int>("fort_occupation_status");
+  const bool idle = fort_status == 0;
+  return idle ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// --------------------- CheckEnemyBaseLowHp ----------------------
+CheckEnemyBaseLowHp::CheckEnemyBaseLowHp(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckEnemyBaseLowHp::providedPorts()
+{
+  return {BT::InputPort<int>("threshold", 1000, "Enemy base HP threshold")};
+}
+
+BT::NodeStatus CheckEnemyBaseLowHp::tick()
+{
+  static bool logged_once = false;
+  if (!logged_once) {
+    std::cout << YELLOW
+              << "CheckEnemyBaseLowHp is disabled: enemy base HP is currently unavailable from IO"
+              << RESET << std::endl;
+    logged_once = true;
+  }
+  return BT::NodeStatus::FAILURE;
 }
 }  // namespace Sentry_BT
