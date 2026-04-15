@@ -19,6 +19,14 @@ namespace Sentry_BT
     double yaw;
     Point2D() : x(0.0), y(0.0), yaw(0.0) {}
     Point2D(double x_, double y_, double yaw_ = 0.0) : x(x_), y(y_), yaw(yaw_) {}
+    Point2D operator-(const Point2D& other) const
+    {
+      return Point2D(x - other.x, y - other.y, yaw - other.yaw);
+    }
+    Point2D operator+(const Point2D& other) const
+    {
+      return Point2D(x + other.x, y + other.y, yaw + other.yaw);
+    }
   };
 
   struct GimbalPatrolPoint
@@ -80,6 +88,12 @@ namespace Sentry_BT
     BALANCED = 2,
   } TacticalMode;
 
+  typedef enum _LifterPos
+  {
+    TOP = 0,                      // 云台顶部
+    BOTTOM = 1,                   // 云台底部
+    MIDDLE = 2                    // 云台升降中
+  } LifterPos;
   typedef enum _NavMode
   {
     PATROL = 0,
@@ -129,9 +143,9 @@ namespace Sentry_BT
 
   inline std::vector<PatrolPoint> patrol_points_normal = {
     // for rmuc
-      {{14.2, 11.5, 0.0}, 5000},
-      {{12.8, 1.0, 0.0}, 5000},
-      {{11.5, 3.8, 0.0}, 6000},
+      {{16.8, 9.3, 0.0}, 5000},
+      {{13.7, 10.8, 0.0}, 5000},
+      {{15.5, 4.4, 0.0}, 6000},
       // {{12.4, 5.1, 0.0}, 5000},
       // {{12.0, 8.6, 0.0}, 5000},
       // {{14.0, 12.0, 0.0}, 6000}
@@ -148,9 +162,9 @@ namespace Sentry_BT
   };
 
     inline std::vector<PatrolPoint> patrol_points_attack = {
-      {{15.2, 11.5, 0.0}, 5000},
-      {{12.8, -0.1, 0.0}, 5000},
-      {{11.5, -3.8, 0.0}, 6000}
+      {{16.8, 9.3, 0.0}, 5000},
+      {{13.7, 10.8, 0.0}, 5000},
+      {{15.5, 4.4, 0.0}, 6000}
 
     // for test
     // {5.6, 6.0, 0.0},
