@@ -33,6 +33,7 @@
  */
 
 #include <qpOASES/extras/SolutionAnalysis.hpp>
+#include <cstdio>
 
 BEGIN_NAMESPACE_QPOASES
 

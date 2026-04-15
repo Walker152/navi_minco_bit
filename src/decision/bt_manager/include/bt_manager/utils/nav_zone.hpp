@@ -115,6 +115,8 @@ typedef enum _NavGoal
   HOME = 0,
   BONUS = 1,
   OUTPOST = 2,
+  OWN_FORT = 3,
+  ENEMY_FORT = 4,
 } NavGoal;
 
 typedef enum _SentryStance
@@ -135,8 +137,10 @@ typedef enum _RobotID
 
 inline std::vector<Point2D> nav_points = {
   {3.0, 3.0, 0.0},   // HOME
-  {8.5, 8.5, 0.0},   // BONUS
-  {15.7, 11.0, 0.0}  // OUTPOST
+  {12.8, 5.5, 0.0},   // BONUS
+  {15.7, 11.0, 0.0}, // OUTPOST
+  {7.2, 7.5, 0.0},   // OWN_FORT
+  {22.0, 7.5, 0.0}   // ENEMY_FORT
 
   // for test
   // {1.8, 5.6, 0.0},  //HOME
@@ -151,9 +155,9 @@ inline std::vector<Point2D> nav_points = {
 
 inline std::vector<PatrolPoint> patrol_points_normal = {
   // for rmuc
-  {{16.8, 9.3, 0.0}, 5000},
-  {{13.7, 10.8, 0.0}, 5000},
-  {{15.5, 4.4, 0.0}, 6000},
+  {{16.0, 12.0, 0.0}, 5000},
+  {{17.3, 7.9, 0.0}, 5000},
+  {{15.3, 3.8, 0.0}, 6000},
   // {{12.4, 5.1, 0.0}, 5000},
   // {{12.0, 8.6, 0.0}, 5000},
   // {{14.0, 12.0, 0.0}, 6000}
@@ -170,7 +174,7 @@ inline std::vector<PatrolPoint> patrol_points_normal = {
 };
 
 inline std::vector<PatrolPoint> patrol_points_attack = {
-  {{16.8, 9.3, 0.0}, 5000}, {{13.7, 10.8, 0.0}, 5000}, {{15.5, 4.4, 0.0}, 6000}
+  {{16.0, 12.0, 0.0}, 5000}, {{17.3, 7.9, 0.0}, 5000}, {{15.3, 3.8, 0.0}, 6000}
 
   // for test
   // {5.6, 6.0, 0.0},
@@ -218,7 +222,7 @@ inline std::unordered_map<TacticalMode, PatrolList> tactical_patrol_map = {
 inline std::unordered_map<TacticalMode, GimbalPatrolAreaList> tactical_gimbal_map = {
   {TacticalMode::OFFENSIVE,
     {
-      {-45.0f, 45.0f, false},  // 直视前方扫射范围
+      {-180.0f, 180.0f, false},  // 直视前方扫射范围
       {-30.0f, 30.0f, true}    // 抬头重点区域
     }},
   {TacticalMode::DEFENSIVE,
@@ -228,7 +232,7 @@ inline std::unordered_map<TacticalMode, GimbalPatrolAreaList> tactical_gimbal_ma
     }},
   {TacticalMode::BALANCED,
     {
-      {-90.0f, 90.0f, false}  // 兼顾前后
+      {-180.0f, 180.0f, false}  // 兼顾前后
     }}};
 
 }  // namespace Sentry_BT

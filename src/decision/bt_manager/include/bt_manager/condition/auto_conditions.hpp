@@ -58,4 +58,44 @@ public:
 private:
   static bool last_state_;
 };
+
+class CheckNoAllyBelowStairs : public BT::ConditionNode
+{
+public:
+  CheckNoAllyBelowStairs(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckAmmoLow : public BT::ConditionNode
+{
+public:
+  CheckAmmoLow(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckTacticalModeCondition : public BT::ConditionNode
+{
+public:
+  CheckTacticalModeCondition(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckOwnFortIdle : public BT::ConditionNode
+{
+public:
+  CheckOwnFortIdle(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckEnemyBaseLowHp : public BT::ConditionNode
+{
+public:
+  CheckEnemyBaseLowHp(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
 }  // namespace Sentry_BT
