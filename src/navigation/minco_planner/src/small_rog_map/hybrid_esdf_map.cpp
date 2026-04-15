@@ -6,17 +6,14 @@
 #include <iostream>
 #include <limits>
 
-namespace small_rog_map
-{
+namespace small_rog_map {
 
 HybridESDFMap::HybridESDFMap()
-: static_layer_(std::make_shared<StaticLayer>()),
-  dynamic_layer_(std::make_shared<DynamicLayer>())
+: static_layer_(std::make_shared<StaticLayer>()), dynamic_layer_(std::make_shared<DynamicLayer>())
 {
 }
 
-void HybridESDFMap::initRos(
-  const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
+void HybridESDFMap::initRos(const rclcpp_lifecycle::LifecycleNode::WeakPtr & node,
   const std::string & topic,
   double resolution,
   double dynamic_size_m,
@@ -51,8 +48,7 @@ bool HybridESDFMap::loadStaticMap(const std::string & pcd_path, double resolutio
   return true;
 }
 
-void HybridESDFMap::updateDynamicMapFromPointCloud(
-  const sensor_msgs::msg::PointCloud2 & cloud,
+void HybridESDFMap::updateDynamicMapFromPointCloud(const sensor_msgs::msg::PointCloud2 & cloud,
   const StaticLayer & reference_layer,
   double dilation_radius_m)
 {
@@ -61,8 +57,7 @@ void HybridESDFMap::updateDynamicMapFromPointCloud(
   }
 
   // 1. Update the dynamic ESDF using the static layer as geometry reference
-  dynamic_layer_->updateFromPointCloud(
-    cloud,
+  dynamic_layer_->updateFromPointCloud(cloud,
     reference_layer.width(),
     reference_layer.height(),
     reference_layer.resolution(),
@@ -131,7 +126,13 @@ void HybridESDFMap::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::
   }
 }
 
-const std::shared_ptr<StaticLayer> & HybridESDFMap::staticLayer() const { return static_layer_; }
-const std::shared_ptr<DynamicLayer> & HybridESDFMap::dynamicLayer() const { return dynamic_layer_; }
+const std::shared_ptr<StaticLayer> & HybridESDFMap::staticLayer() const
+{
+  return static_layer_;
+}
+const std::shared_ptr<DynamicLayer> & HybridESDFMap::dynamicLayer() const
+{
+  return dynamic_layer_;
+}
 
 }  // namespace small_rog_map

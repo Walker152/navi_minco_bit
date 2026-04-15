@@ -4,12 +4,11 @@
 
 #include "bt_manager/utils/nav_zone.hpp"
 
-namespace Sentry_BT
-{
+namespace Sentry_BT {
 class ChangeTacticalAction : public BT::SyncActionNode
 {
 public:
-  ChangeTacticalAction(const std::string& name, const BT::NodeConfiguration& config);
+  ChangeTacticalAction(const std::string & name, const BT::NodeConfiguration & config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
@@ -18,7 +17,7 @@ public:
 class SetTacticalMode : public BT::SyncActionNode
 {
 public:
-  SetTacticalMode(const std::string& name, const BT::NodeConfiguration& config);
+  SetTacticalMode(const std::string & name, const BT::NodeConfiguration & config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;

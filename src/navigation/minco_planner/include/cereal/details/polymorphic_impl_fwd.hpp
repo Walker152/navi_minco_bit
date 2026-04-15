@@ -45,21 +45,17 @@
 #ifndef CEREAL_DETAILS_POLYMORPHIC_IMPL_FWD_HPP_
 #define CEREAL_DETAILS_POLYMORPHIC_IMPL_FWD_HPP_
 
-namespace cereal
-{
-  namespace detail
-  {
-    //! Forward declaration, see polymorphic_impl.hpp for more information
-    template <class Base, class Derived>
-    struct RegisterPolymorphicCaster;
+namespace cereal {
+namespace detail {
+//! Forward declaration, see polymorphic_impl.hpp for more information
+template <class Base, class Derived> struct RegisterPolymorphicCaster;
 
-    //! Forward declaration, see polymorphic_impl.hpp for more information
-    struct PolymorphicCasters;
+//! Forward declaration, see polymorphic_impl.hpp for more information
+struct PolymorphicCasters;
 
-    //! Forward declaration, see polymorphic_impl.hpp for more information
-    template <class Base, class Derived>
-    struct PolymorphicRelation;
-  } // namespace detail
-} // namespace cereal
+//! Forward declaration, see polymorphic_impl.hpp for more information
+template <class Base, class Derived> struct PolymorphicRelation;
+}  // namespace detail
+}  // namespace cereal
 
-#endif // CEREAL_DETAILS_POLYMORPHIC_IMPL_FWD_HPP_
+#endif  // CEREAL_DETAILS_POLYMORPHIC_IMPL_FWD_HPP_

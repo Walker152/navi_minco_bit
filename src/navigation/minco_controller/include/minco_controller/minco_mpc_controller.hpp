@@ -1,9 +1,9 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
-#include <cstdint>
 #include <vector>
 
 #include "nav2_core/controller.hpp"
@@ -20,11 +20,10 @@
 
 #include "ros_interfaces/msg/mpc_position_command.hpp"
 
-#include "minco_controller/mpc_solver.hpp"
 #include "log.hpp"
+#include "minco_controller/mpc_solver.hpp"
 
-namespace minco_controller
-{
+namespace minco_controller {
 
 class MincoMpcController : public nav2_core::Controller
 {
@@ -33,8 +32,7 @@ public:
   MincoMpcController() = default;
   ~MincoMpcController() override = default;
 
-  void configure(
-    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
+  void configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
     std::string name,
     std::shared_ptr<tf2_ros::Buffer> tf,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
@@ -44,8 +42,7 @@ public:
   void deactivate() override;
 
   // === Core Planning Interfaces ===
-  geometry_msgs::msg::TwistStamped computeVelocityCommands(
-    const geometry_msgs::msg::PoseStamped & pose,
+  geometry_msgs::msg::TwistStamped computeVelocityCommands(const geometry_msgs::msg::PoseStamped & pose,
     const geometry_msgs::msg::Twist & velocity,
     nav2_core::GoalChecker * goal_checker) override;
 
@@ -61,17 +58,13 @@ private:
   // === Utility & Helper Functions ===
   // --- Reference and Path Processing ---
   // Find the nearest point on cached trajectory and build horizon reference sequence.
-  bool buildReferenceFromOptPath(
-    const State & curr,
-    std::vector<ReferencePoint> & out_ref) const;
+  bool buildReferenceFromOptPath(const State & curr, std::vector<ReferencePoint> & out_ref) const;
 
-  bool transformPathToOdom(
-    const ros_interfaces::msg::MpcPositionCommand::SharedPtr & opt,
+  bool transformPathToOdom(const ros_interfaces::msg::MpcPositionCommand::SharedPtr & opt,
     std::vector<ros_interfaces::msg::PositionCommand> & out_cmds) const;
 
   // --- Motion and Frame Utilities ---
-  void compensateLeverArm(
-    double v_lidar_x,
+  void compensateLeverArm(double v_lidar_x,
     double v_lidar_y,
     double omega_z,
     double yaw,
@@ -79,8 +72,7 @@ private:
     double & vy_global,
     double & omega_global) const;
 
-  void extractGlobalVelocityAndYaw(
-    const nav_msgs::msg::Odometry::SharedPtr & odom,
+  void extractGlobalVelocityAndYaw(const nav_msgs::msg::Odometry::SharedPtr & odom,
     double & vx_global,
     double & vy_global,
     double & omega_global,
@@ -88,19 +80,16 @@ private:
 
   // --- Interpolation Utilities ---
   static double normalizeYaw(double yaw);
-  inline static double interpolateYaw(double yaw1, double yaw2, double alpha) {
+  inline static double interpolateYaw(double yaw1, double yaw2, double alpha)
+  {
     double diff = std::atan2(std::sin(yaw2 - yaw1), std::cos(yaw2 - yaw1));
     return yaw1 + diff * alpha;
   }
 
-  inline static double interpolate(double v1, double v2, double alpha) {
-    return v1 + (v2 - v1) * alpha;
-  }
+  inline static double interpolate(double v1, double v2, double alpha) { return v1 + (v2 - v1) * alpha; }
 
   inline static Eigen::Vector2d interpolate(
-    const Eigen::Vector2d & v1,
-    const Eigen::Vector2d & v2,
-    double alpha)
+    const Eigen::Vector2d & v1, const Eigen::Vector2d & v2, double alpha)
   {
     return v1 + (v2 - v1) * alpha;
   }

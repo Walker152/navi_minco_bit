@@ -3,8 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace minco_planner
-{
+namespace minco_planner {
 
 SimpleCorridorGenerator::SimpleCorridorGenerator(small_rog_map::HybridESDFMap::Ptr esdf_map)
 : esdf_map_(esdf_map)
@@ -22,8 +21,7 @@ void SimpleCorridorGenerator::setSafetyMargins(double robot_radius, double extra
 }
 
 PolyhedronH SimpleCorridorGenerator::generateSafeBox(
-  const Eigen::Vector3d & center,
-  double max_radius) const
+  const Eigen::Vector3d & center, double max_radius) const
 {
   // 1. Query ESDF distance at the box center
   constexpr double kMinHalfSize = 0.05;  // meters
