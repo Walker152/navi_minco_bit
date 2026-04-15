@@ -5,26 +5,22 @@
 
 #include <pcl_conversions/pcl_conversions.h>
 
-namespace DBSCANCluster
-{
+namespace DBSCANCluster {
 
-RosInterface::RosInterface()
-: Node("dbscan_cluster_node")
+RosInterface::RosInterface() : Node("dbscan_cluster_node")
 {
-  const std::string input_topic = this->declare_parameter<std::string>(
-    "topics.input", "/filtered_points_no_ground");
-  const std::string output_topic = this->declare_parameter<std::string>(
-    "topics.output", "/clustered_obstacles");
+  const std::string input_topic =
+    this->declare_parameter<std::string>("topics.input", "/filtered_points_no_ground");
+  const std::string output_topic =
+    this->declare_parameter<std::string>("topics.output", "/clustered_obstacles");
 
   cluster_config_.z_min = this->declare_parameter<double>("cluster.z_min", 0.15);
   cluster_config_.z_max = this->declare_parameter<double>("cluster.z_max", 0.6);
   cluster_config_.max_detection_range =
     this->declare_parameter<double>("cluster.max_detection_range", 10.0);
   cluster_config_.leaf_size = this->declare_parameter<double>("cluster.leaf_size", 0.05);
-  cluster_config_.cluster_tolerance =
-    this->declare_parameter<double>("cluster.cluster_tolerance", 0.2);
-  cluster_config_.dbscan_min_points =
-    this->declare_parameter<int>("cluster.dbscan_min_points", 8);
+  cluster_config_.cluster_tolerance = this->declare_parameter<double>("cluster.cluster_tolerance", 0.2);
+  cluster_config_.dbscan_min_points = this->declare_parameter<int>("cluster.dbscan_min_points", 8);
   cluster_config_.min_cluster_size = this->declare_parameter<int>("cluster.min_cluster_size", 15);
   cluster_config_.max_cluster_size = this->declare_parameter<int>("cluster.max_cluster_size", 1000);
   cluster_config_.min_valid_size = this->declare_parameter<double>("cluster.min_valid_size", 0.05);
@@ -32,38 +28,23 @@ RosInterface::RosInterface()
 
   tracker_config_.match_distance_threshold =
     this->declare_parameter<double>("tracker.match_distance_threshold", 0.5);
-  tracker_config_.max_missed_frames =
-    this->declare_parameter<int>("tracker.max_missed_frames", 3);
+  tracker_config_.max_missed_frames = this->declare_parameter<int>("tracker.max_missed_frames", 3);
   tracker_config_.dynamic_speed_threshold =
     this->declare_parameter<double>("tracker.dynamic_speed_threshold", 0.2);
-  tracker_config_.alpha_size =
-    this->declare_parameter<double>("tracker.alpha_size", 0.2);
-  tracker_config_.alpha_orientation =
-    this->declare_parameter<double>("tracker.alpha_orientation", 0.2);
-  tracker_config_.class_confirm_frames =
-    this->declare_parameter<int>("tracker.class_confirm_frames", 3);
-  tracker_config_.dt_default =
-    this->declare_parameter<double>("tracker.dt_default", 0.1);
-  tracker_config_.q_pos_x =
-    this->declare_parameter<double>("tracker.q_pos_x", 0.01);
-  tracker_config_.q_pos_y =
-    this->declare_parameter<double>("tracker.q_pos_y", 0.01);
-  tracker_config_.q_vel_x =
-    this->declare_parameter<double>("tracker.q_vel_x", 0.25);
-  tracker_config_.q_vel_y =
-    this->declare_parameter<double>("tracker.q_vel_y", 0.25);
-  tracker_config_.q_acc_x =
-    this->declare_parameter<double>("tracker.q_acc_x", 0.5);
-  tracker_config_.q_acc_y =
-    this->declare_parameter<double>("tracker.q_acc_y", 0.5);
-  tracker_config_.r_pos_x =
-    this->declare_parameter<double>("tracker.r_pos_x", 0.04);
-  tracker_config_.r_pos_y =
-    this->declare_parameter<double>("tracker.r_pos_y", 0.04);
-  tracker_config_.r_vel_x =
-    this->declare_parameter<double>("tracker.r_vel_x", 0.05);
-  tracker_config_.r_vel_y =
-    this->declare_parameter<double>("tracker.r_vel_y", 0.05);
+  tracker_config_.alpha_size = this->declare_parameter<double>("tracker.alpha_size", 0.2);
+  tracker_config_.alpha_orientation = this->declare_parameter<double>("tracker.alpha_orientation", 0.2);
+  tracker_config_.class_confirm_frames = this->declare_parameter<int>("tracker.class_confirm_frames", 3);
+  tracker_config_.dt_default = this->declare_parameter<double>("tracker.dt_default", 0.1);
+  tracker_config_.q_pos_x = this->declare_parameter<double>("tracker.q_pos_x", 0.01);
+  tracker_config_.q_pos_y = this->declare_parameter<double>("tracker.q_pos_y", 0.01);
+  tracker_config_.q_vel_x = this->declare_parameter<double>("tracker.q_vel_x", 0.25);
+  tracker_config_.q_vel_y = this->declare_parameter<double>("tracker.q_vel_y", 0.25);
+  tracker_config_.q_acc_x = this->declare_parameter<double>("tracker.q_acc_x", 0.5);
+  tracker_config_.q_acc_y = this->declare_parameter<double>("tracker.q_acc_y", 0.5);
+  tracker_config_.r_pos_x = this->declare_parameter<double>("tracker.r_pos_x", 0.04);
+  tracker_config_.r_pos_y = this->declare_parameter<double>("tracker.r_pos_y", 0.04);
+  tracker_config_.r_vel_x = this->declare_parameter<double>("tracker.r_vel_x", 0.05);
+  tracker_config_.r_vel_y = this->declare_parameter<double>("tracker.r_vel_y", 0.05);
   tracker_config_.association_spatial_weight =
     this->declare_parameter<double>("tracker.association_spatial_weight", 0.7);
   tracker_config_.association_shape_weight =
@@ -74,20 +55,16 @@ RosInterface::RosInterface()
   cluster_alg_.configure(cluster_config_);
   tracker_alg_.configure(tracker_config_);
 
-  sub_point_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    input_topic,
+  sub_point_cloud_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(input_topic,
     rclcpp::SensorDataQoS(),
     std::bind(&RosInterface::pointCloudCallback, this, std::placeholders::_1));
 
   pub_markers_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
-    "/clustered_obstacles_vis",
-    rclcpp::QoS(rclcpp::KeepLast(5)));
+    "/clustered_obstacles_vis", rclcpp::QoS(rclcpp::KeepLast(5)));
   pub_obstacles_ = this->create_publisher<ros_interfaces::msg::DynamicObstacleArray>(
-    output_topic,
-    rclcpp::QoS(rclcpp::KeepLast(10)));
+    output_topic, rclcpp::QoS(rclcpp::KeepLast(10)));
 
-  sub_vision_ = this->create_subscription<geometry_msgs::msg::PoseArray>(
-    "/vision/targets_array",
+  sub_vision_ = this->create_subscription<geometry_msgs::msg::PoseArray>("/vision/targets_array",
     rclcpp::SensorDataQoS(),
     std::bind(&RosInterface::visionCallback, this, std::placeholders::_1));
 
@@ -104,7 +81,7 @@ void RosInterface::visionCallback(const geometry_msgs::msg::PoseArray::ConstShar
     vt.position = Eigen::Vector3f(pose.position.x, pose.position.y, pose.position.z);
     // Placeholder for velocity: assuming 0 since PoseArray does not have velocity.
     // Replace with actual velocity parsing if using a different message type.
-    vt.velocity = Eigen::Vector3f::Zero(); 
+    vt.velocity = Eigen::Vector3f::Zero();
     latest_vision_targets_.push_back(vt);
   }
 }
@@ -141,24 +118,23 @@ void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::Const
   if (!vision_targets.empty()) {
     try {
       // transform from gimbal (/gimbal) to world (/camera_init)
-      auto transform_stamped = tf_buffer_->lookupTransform(
-        "camera_init", "gimbal", tf2::TimePointZero);
-      
+      auto transform_stamped = tf_buffer_->lookupTransform("camera_init", "gimbal", tf2::TimePointZero);
+
       Eigen::Vector3f t(transform_stamped.transform.translation.x,
-                        transform_stamped.transform.translation.y,
-                        transform_stamped.transform.translation.z);
+        transform_stamped.transform.translation.y,
+        transform_stamped.transform.translation.z);
       Eigen::Quaternionf q(transform_stamped.transform.rotation.w,
-                           transform_stamped.transform.rotation.x,
-                           transform_stamped.transform.rotation.y,
-                           transform_stamped.transform.rotation.z);
+        transform_stamped.transform.rotation.x,
+        transform_stamped.transform.rotation.y,
+        transform_stamped.transform.rotation.z);
 
       for (auto & obj : objects) {
         for (const auto & vt : vision_targets) {
           Eigen::Vector3f vt_global = q * vt.position + t;
-          Eigen::Vector3f vt_vel_global = q * vt.velocity; // rotate velocity
-          
+          Eigen::Vector3f vt_vel_global = q * vt.velocity;  // rotate velocity
+
           float dist = (vt_global.head<2>() - obj.centroid.head<2>()).norm();
-          if (dist < 0.4f) { // 0.4m association threshold
+          if (dist < 0.4f) {  // 0.4m association threshold
             obj.has_vision_match = true;
             obj.vision_vx = vt_vel_global.x();
             obj.vision_vy = vt_vel_global.y();
@@ -166,9 +142,9 @@ void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::Const
           }
         }
       }
-    } catch (tf2::TransformException &ex) {
-      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-        "Vision transform failed: %s", ex.what());
+    } catch (tf2::TransformException & ex) {
+      RCLCPP_WARN_THROTTLE(
+        this->get_logger(), *this->get_clock(), 1000, "Vision transform failed: %s", ex.what());
     }
   }
 
@@ -235,8 +211,7 @@ void RosInterface::pointCloudCallback(const sensor_msgs::msg::PointCloud2::Const
       mk.color.b = 0.2f;
       mk.color.a = 0.8f;
 
-      RCLCPP_INFO(
-        this->get_logger(),
+      RCLCPP_INFO(this->get_logger(),
         "Dynamic obstacle id=%d pos=(%.2f, %.2f) vel=(%.2f, %.2f) speed=%.2f m/s",
         objects[i].track_id,
         static_cast<double>(objects[i].centroid.x()),

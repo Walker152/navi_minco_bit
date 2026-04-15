@@ -7,8 +7,7 @@
 #include <cmath>
 #include <limits>
 
-namespace small_rog_map
-{
+namespace small_rog_map {
 
 StaticLayer::StaticLayer() = default;
 
@@ -17,11 +16,26 @@ bool StaticLayer::isValid() const
   return width_ > 1 && height_ > 1 && !dist_m_.empty() && resolution_ > 0.0;
 }
 
-int StaticLayer::width() const { return width_; }
-int StaticLayer::height() const { return height_; }
-double StaticLayer::resolution() const { return resolution_; }
-const Eigen::Vector2d & StaticLayer::origin() const { return origin_; }
-const std::vector<double> & StaticLayer::distanceBuffer() const { return dist_m_; }
+int StaticLayer::width() const
+{
+  return width_;
+}
+int StaticLayer::height() const
+{
+  return height_;
+}
+double StaticLayer::resolution() const
+{
+  return resolution_;
+}
+const Eigen::Vector2d & StaticLayer::origin() const
+{
+  return origin_;
+}
+const std::vector<double> & StaticLayer::distanceBuffer() const
+{
+  return dist_m_;
+}
 
 bool StaticLayer::loadFromPCD(const std::string & pcd_path, double resolution)
 {

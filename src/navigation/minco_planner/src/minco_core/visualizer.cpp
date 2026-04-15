@@ -13,8 +13,7 @@
 
 namespace minco_planner {
 
-void Visualizer::configure(
-  const nav2_util::LifecycleNode::WeakPtr & parent,
+void Visualizer::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   const std::string & global_frame,
   const small_rog_map::HybridESDFMap::Ptr & esdf_map,
   bool enable_esdf_timer)
@@ -31,20 +30,20 @@ void Visualizer::configure(
   // --- Visualization publishers ---------------------------------------------
 
   // Backup
-  backup_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
-    "/backup_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)));
+  backup_path_vis_pub_ =
+    node->create_publisher<nav_msgs::msg::Path>("/backup_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)));
 
   // Optimized
-  opt_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
-    "/opt_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)));
+  opt_path_vis_pub_ =
+    node->create_publisher<nav_msgs::msg::Path>("/opt_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)));
 
   // A* guide path
   astar_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
     "/astar_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
 
   // Recovery debug
-  recover_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
-    "/recover_path", rclcpp::QoS(rclcpp::KeepLast(1)));
+  recover_path_vis_pub_ =
+    node->create_publisher<nav_msgs::msg::Path>("/recover_path", rclcpp::QoS(rclcpp::KeepLast(1)));
   recover_goal_vis_pub_ = node->create_publisher<visualization_msgs::msg::Marker>(
     "/recover_goal", rclcpp::QoS(rclcpp::KeepLast(1)));
 
@@ -53,38 +52,33 @@ void Visualizer::configure(
     "/minco_control_points_vis", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
 
   // ESDF cloud
-  esdf_cloud_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>(
-    "/esdf_cloud", 10);
-  global_esdf_cloud_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>(
-    "/global_esdf_cloud", 10);
+  esdf_cloud_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>("/esdf_cloud", 10);
+  global_esdf_cloud_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>("/global_esdf_cloud", 10);
 
   // 15Hz visualization timer
   visual_timer_ = node->create_wall_timer(
-    std::chrono::milliseconds(66),
-    std::bind(&Visualizer::visualTimerCallback, this));
+    std::chrono::milliseconds(66), std::bind(&Visualizer::visualTimerCallback, this));
 
   // 1Hz ESDF timer (only if enabled)
   if (enable_esdf_timer) {
-    esdf_timer_ = node->create_wall_timer(
-      std::chrono::milliseconds(50),
-      [this]() {
-        auto node_ptr = node_.lock();
-        if (!node_ptr) {
-          return;
-        }
-        if (esdf_cloud_pub_ && esdf_cloud_pub_->get_subscription_count() > 0) {
-          std_msgs::msg::Header header;
-          header.stamp = node_ptr->now();
-          header.frame_id = global_frame_;
-          publishEsdfCloud(header);
-        }
-        if (global_esdf_cloud_pub_ && global_esdf_cloud_pub_->get_subscription_count() > 0) {
-          std_msgs::msg::Header header;
-          header.stamp = node_ptr->now();
-          header.frame_id = global_frame_;
-          publishGlobalEsdfCloud(header);
-        }
-      });
+    esdf_timer_ = node->create_wall_timer(std::chrono::milliseconds(50), [this]() {
+      auto node_ptr = node_.lock();
+      if (!node_ptr) {
+        return;
+      }
+      if (esdf_cloud_pub_ && esdf_cloud_pub_->get_subscription_count() > 0) {
+        std_msgs::msg::Header header;
+        header.stamp = node_ptr->now();
+        header.frame_id = global_frame_;
+        publishEsdfCloud(header);
+      }
+      if (global_esdf_cloud_pub_ && global_esdf_cloud_pub_->get_subscription_count() > 0) {
+        std_msgs::msg::Header header;
+        header.stamp = node_ptr->now();
+        header.frame_id = global_frame_;
+        publishGlobalEsdfCloud(header);
+      }
+    });
   }
 }
 
@@ -112,8 +106,7 @@ void Visualizer::cleanup()
   has_vis_backup_traj_ = false;
 }
 
-void Visualizer::publishRecoveryDebug(
-  const geometry_msgs::msg::PoseStamped & current_pose,
+void Visualizer::publishRecoveryDebug(const geometry_msgs::msg::PoseStamped & current_pose,
   const Eigen::Vector2d & escape_vel,
   double preview_sec)
 {
@@ -125,8 +118,7 @@ void Visualizer::publishRecoveryDebug(
     return;
   }
   if (!(std::isfinite(current_pose.pose.position.x) && std::isfinite(current_pose.pose.position.y) &&
-    escape_vel.allFinite()))
-  {
+        escape_vel.allFinite())) {
     return;
   }
 
@@ -190,8 +182,7 @@ void Visualizer::clearRecoveryDebug()
   recover_path_vis_pub_->publish(path_msg);
 }
 
-void Visualizer::update(
-  const std::vector<Eigen::Vector3d> & control_points,
+void Visualizer::update(const std::vector<Eigen::Vector3d> & control_points,
   const traj_opt::Trajectory & backup_traj,
   const traj_opt::Trajectory & opt_traj,
   double opt_time_seconds,
@@ -233,8 +224,8 @@ void Visualizer::visualTimerCallback()
   }
 
   // 2. Project A* sampled control points to optimized trajectory + straight line connections
-  if (control_points_vis_pub_ && has_vis_opt_traj_ &&
-    vis_opt_traj_.getTotalDuration() > 1e-3 && !vis_control_points_.empty()) {
+  if (control_points_vis_pub_ && has_vis_opt_traj_ && vis_opt_traj_.getTotalDuration() > 1e-3 &&
+      !vis_control_points_.empty()) {
     const double t_step = 0.02;
     const double total_duration = vis_opt_traj_.getTotalDuration();
     const int sample_steps = static_cast<int>(std::ceil(total_duration / t_step)) + 1;
@@ -333,7 +324,8 @@ void Visualizer::visualTimerCallback()
   }
 
   // 5. Opt time text
-  if (control_points_vis_pub_ && has_vis_opt_traj_ && vis_opt_traj_.getTotalDuration() > 1e-3 && vis_opt_time_ > 0.0) {
+  if (control_points_vis_pub_ && has_vis_opt_traj_ && vis_opt_traj_.getTotalDuration() > 1e-3 &&
+      vis_opt_time_ > 0.0) {
     visualization_msgs::msg::Marker mk;
     mk.header = header;
     mk.ns = "opt_time";
@@ -360,10 +352,7 @@ void Visualizer::visualTimerCallback()
 }
 
 nav_msgs::msg::Path Visualizer::convertTrajectoryToPath(
-  const traj_opt::Trajectory & traj,
-  const std_msgs::msg::Header & header,
-  int steps,
-  double t_step) const
+  const traj_opt::Trajectory & traj, const std_msgs::msg::Header & header, int steps, double t_step) const
 {
   nav_msgs::msg::Path path_msg;
   path_msg.header = header;
@@ -482,8 +471,7 @@ void Visualizer::publishEsdfCloud(const std_msgs::msg::Header & header)
       const float z = 0.0f;
       double dist = 0.0;
       Eigen::Vector3d grad;
-      esdf_map_->evaluate(
-        Eigen::Vector3d(static_cast<double>(x), static_cast<double>(y), 0.0), dist, grad);
+      esdf_map_->evaluate(Eigen::Vector3d(static_cast<double>(x), static_cast<double>(y), 0.0), dist, grad);
       if (!std::isfinite(dist)) {
         dist = 0.0;
       }

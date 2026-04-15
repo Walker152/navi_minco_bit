@@ -7,8 +7,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "minco_core/recovery_behaivor.hpp"
 
-namespace minco_planner
-{
+namespace minco_planner {
 
 class MincoPlanner;
 
@@ -16,7 +15,8 @@ class MincoFsm
 {
 public:
   // === Internal Types ===
-  enum class State {
+  enum class State
+  {
     INIT,
     WAIT_GOAL,
     GENERATE_TRAJ,
@@ -29,9 +29,7 @@ public:
   using RecoveryPtr = std::shared_ptr<RecoverServer>;
 
   // === Constructor & Lifecycle ===
-  MincoFsm(
-    const PlannerPtr & planner,
-    const RecoveryPtr & recovery_server);
+  MincoFsm(const PlannerPtr & planner, const RecoveryPtr & recovery_server);
 
   // === Core Planning Interfaces ===
   void callMainFsmOnce();

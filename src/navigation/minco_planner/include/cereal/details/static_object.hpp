@@ -45,84 +45,82 @@
     http://www.boost.org/LICENSE_1_0.txt) */
 
 #if defined(_MSC_VER) && !defined(__clang__)
-#   define CEREAL_DLL_EXPORT __declspec(dllexport)
-#   define CEREAL_USED
-#else // clang or gcc
-#   define CEREAL_DLL_EXPORT __attribute__ ((visibility("default")))
-#   define CEREAL_USED __attribute__ ((__used__))
+#define CEREAL_DLL_EXPORT __declspec(dllexport)
+#define CEREAL_USED
+#else  // clang or gcc
+#define CEREAL_DLL_EXPORT __attribute__((visibility("default")))
+#define CEREAL_USED __attribute__((__used__))
 #endif
 
-namespace cereal
+namespace cereal {
+namespace detail {
+//! A static, pre-execution object
+/*! This class will create a single copy (singleton) of some
+    type and ensures that merely referencing this type will
+    cause it to be instantiated and initialized pre-execution.
+    For example, this is used heavily in the polymorphic pointer
+    serialization mechanisms to bind various archive types with
+    different polymorphic classes */
+template <class T> class CEREAL_DLL_EXPORT StaticObject
 {
-  namespace detail
+private:
+  static T & create()
   {
-    //! A static, pre-execution object
-    /*! This class will create a single copy (singleton) of some
-        type and ensures that merely referencing this type will
-        cause it to be instantiated and initialized pre-execution.
-        For example, this is used heavily in the polymorphic pointer
-        serialization mechanisms to bind various archive types with
-        different polymorphic classes */
-    template <class T>
-    class CEREAL_DLL_EXPORT StaticObject
+    static T t;
+    //! Forces instantiation at pre-execution time
+    (void)instance;
+    return t;
+  }
+
+  StaticObject(StaticObject const & /*other*/) {}
+
+public:
+  static T & getInstance() { return create(); }
+
+  //! A class that acts like std::lock_guard
+  class LockGuard
+  {
+#if CEREAL_THREAD_SAFE
+  public:
+    LockGuard(std::mutex & m) : lock(m)
     {
-      private:
+    }
 
-        static T & create()
-        {
-          static T t;
-          //! Forces instantiation at pre-execution time
-          (void)instance;
-          return t;
-        }
+  private:
+    std::unique_lock<std::mutex> lock;
+#else
+  public:
+    LockGuard() = default;
+    LockGuard(LockGuard const &) = default;  // prevents implicit copy ctor warning
+    ~LockGuard() CEREAL_NOEXCEPT
+    {
+    }  // prevents variable not used
+#endif
+  };
 
-        StaticObject( StaticObject const & /*other*/ ) {}
+  //! Attempts to lock this static object for the current scope
+  /*! @note This function is a no-op if cereal is not compiled with
+            thread safety enabled (CEREAL_THREAD_SAFE = 1).
 
-      public:
-        static T & getInstance()
-        {
-          return create();
-        }
+      This function returns an object that holds a lock for
+      this StaticObject that will release its lock upon destruction. This
+      call will block until the lock is available. */
+  static LockGuard lock()
+  {
+#if CEREAL_THREAD_SAFE
+    static std::mutex instanceMutex;
+    return LockGuard{instanceMutex};
+#else
+    return LockGuard{};
+#endif
+  }
 
-        //! A class that acts like std::lock_guard
-        class LockGuard
-        {
-          #if CEREAL_THREAD_SAFE
-          public:
-            LockGuard(std::mutex & m) : lock(m) {}
-          private:
-            std::unique_lock<std::mutex> lock;
-          #else
-          public:
-            LockGuard() = default;
-            LockGuard(LockGuard const &) = default; // prevents implicit copy ctor warning
-            ~LockGuard() CEREAL_NOEXCEPT {} // prevents variable not used
-          #endif
-        };
+private:
+  static T & instance;
+};
 
-        //! Attempts to lock this static object for the current scope
-        /*! @note This function is a no-op if cereal is not compiled with
-                  thread safety enabled (CEREAL_THREAD_SAFE = 1).
+template <class T> T & StaticObject<T>::instance = StaticObject<T>::create();
+}  // namespace detail
+}  // namespace cereal
 
-            This function returns an object that holds a lock for
-            this StaticObject that will release its lock upon destruction. This
-            call will block until the lock is available. */
-        static LockGuard lock()
-        {
-          #if CEREAL_THREAD_SAFE
-          static std::mutex instanceMutex;
-          return LockGuard{instanceMutex};
-          #else
-          return LockGuard{};
-          #endif
-        }
-
-      private:
-        static T & instance;
-    };
-
-    template <class T> T & StaticObject<T>::instance = StaticObject<T>::create();
-  } // namespace detail
-} // namespace cereal
-
-#endif // CEREAL_DETAILS_STATIC_OBJECT_HPP_
+#endif  // CEREAL_DETAILS_STATIC_OBJECT_HPP_

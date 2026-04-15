@@ -9,39 +9,36 @@
 #include <ros_interfaces/msg/sentry_info_online.hpp>
 #include <ros_interfaces/msg/team_information.hpp>
 
-namespace
-{
+namespace {
 uint16_t buildSentryInfo2(bool is_disengaged, uint8_t current_stance_bits, bool can_activate_energy)
 {
   uint16_t value = 0;
-  if (is_disengaged)
-  {
+  if (is_disengaged) {
     value |= 0x0001;
   }
   value |= static_cast<uint16_t>((current_stance_bits & 0x3) << 12);
-  if (can_activate_energy)
-  {
+  if (can_activate_energy) {
     value |= static_cast<uint16_t>(1U << 14);
   }
   return value;
 }
 
-uint32_t buildSentryInfo1(bool can_free_resurrect, bool can_instant_resurrect, uint16_t instant_resurrect_cost)
+uint32_t buildSentryInfo1(
+  bool can_free_resurrect, bool can_instant_resurrect, uint16_t instant_resurrect_cost)
 {
   uint32_t value = 0;
-  if (can_free_resurrect)
-  {
+  if (can_free_resurrect) {
     value |= (1U << 19);
   }
-  if (can_instant_resurrect)
-  {
+  if (can_instant_resurrect) {
     value |= (1U << 20);
   }
   value |= (static_cast<uint32_t>(instant_resurrect_cost & 0x03FF) << 21);
   return value;
 }
 
-uint32_t buildEventCode(uint8_t small_energy_status, uint8_t big_energy_status, uint8_t fort_occupation_status)
+uint32_t buildEventCode(
+  uint8_t small_energy_status, uint8_t big_energy_status, uint8_t fort_occupation_status)
 {
   uint32_t value = 0;
   value |= (static_cast<uint32_t>(small_energy_status & 0x3) << 3);
@@ -51,7 +48,7 @@ uint32_t buildEventCode(uint8_t small_energy_status, uint8_t big_energy_status, 
 }
 }  // namespace
 
-int main(int argc, char** argv)
+int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
   auto node = rclcpp::Node::make_shared("event_status_test");
@@ -59,23 +56,24 @@ int main(int argc, char** argv)
   auto team_pub = node->create_publisher<ros_interfaces::msg::TeamInformation>("/sentry/team_info", 10);
   auto game_pub = node->create_publisher<ros_interfaces::msg::GameInfo>("/sentry/game_info", 10);
   auto radar_pub = node->create_publisher<ros_interfaces::msg::RadarInfo>("/sentry/radar_info", 10);
-  auto offline_pub = node->create_publisher<ros_interfaces::msg::SentryInfoOffline>("/sentry/offline_info", 10);
-  auto online_pub = node->create_publisher<ros_interfaces::msg::SentryInfoOnline>("/sentry/online_info", 10);
+  auto offline_pub =
+    node->create_publisher<ros_interfaces::msg::SentryInfoOffline>("/sentry/offline_info", 10);
+  auto online_pub =
+    node->create_publisher<ros_interfaces::msg::SentryInfoOnline>("/sentry/online_info", 10);
 
   RCLCPP_INFO(node->get_logger(), "=========================================================");
   RCLCPP_INFO(node->get_logger(), "哨兵响应式行为树业务逻辑压测启动 (10Hz / multi-topic)");
-  RCLCPP_INFO(node->get_logger(), "topics: /sentry/{team_info,game_info,radar_info,offline_info,online_info}");
+  RCLCPP_INFO(
+    node->get_logger(), "topics: /sentry/{team_info,game_info,radar_info,offline_info,online_info}");
   RCLCPP_INFO(node->get_logger(), "=========================================================");
 
   rclcpp::Rate rate(10);
   int time_counter = 0;  // +1 = 0.1s, every 100 ticks = 10s phase
   int last_phase = -1;
 
-  while (rclcpp::ok())
-  {
+  while (rclcpp::ok()) {
     const int sec = time_counter / 10;
-    if (time_counter >= 800)
-    {
+    if (time_counter >= 800) {
       RCLCPP_INFO(node->get_logger(), "\n===============================");
       RCLCPP_INFO(node->get_logger(), "所有测试完成");
       RCLCPP_INFO(node->get_logger(), "===============================");
@@ -101,9 +99,8 @@ int main(int argc, char** argv)
 
     team_msg.outpost_hp = 1500;
     team_msg.base_hp = 3000;
-    for (size_t i = 0; i < team_msg.allies.size(); ++i)
-    {
-      auto& ally = team_msg.allies[i];
+    for (size_t i = 0; i < team_msg.allies.size(); ++i) {
+      auto & ally = team_msg.allies[i];
       ally.armor_id = static_cast<uint8_t>(i + 1);
       ally.remain_hp = 200;
       ally.position.x = 0.0;
@@ -119,8 +116,7 @@ int main(int argc, char** argv)
     radar_msg.enemy_coin_left = 30;
     radar_msg.enemy_coin_accumulated = 120;
     radar_msg.is_enemy_outpost_sensed = false;  // false => enemy_outpost_destroyed=true
-    for (auto& enemy : radar_msg.enemies)
-    {
+    for (auto & enemy : radar_msg.enemies) {
       enemy.robot_id = 0;
       enemy.robot_hp = 0;
       enemy.allowed_projectile = 0;
@@ -154,20 +150,17 @@ int main(int argc, char** argv)
     if (time_counter < 100)  // Phase 0: [0, 10s)
     {
       phase = 0;
-      if (last_phase != phase)
-      {
+      if (last_phase != phase) {
         RCLCPP_INFO(node->get_logger(), "\n=================================================");
         RCLCPP_INFO(node->get_logger(), "Phase 0 [0-10s] 基础巡逻与兜底姿态");
         RCLCPP_INFO(node->get_logger(), "预期: RegularPatrol + MOVE");
         RCLCPP_INFO(node->get_logger(), "=================================================");
         last_phase = phase;
       }
-    }
-    else if (time_counter < 200)  // Phase 1: [10, 20s)
+    } else if (time_counter < 200)  // Phase 1: [10, 20s)
     {
       phase = 1;
-      if (last_phase != phase)
-      {
+      if (last_phase != phase) {
         RCLCPP_INFO(node->get_logger(), "\n=================================================");
         RCLCPP_INFO(node->get_logger(), "Phase 1 [10-20s] 区域外索敌拦截 (Out of Bounds)");
         RCLCPP_INFO(node->get_logger(), "预期: CheckTargetLocked拦截FAILURE, 保持巡逻");
@@ -179,12 +172,10 @@ int main(int argc, char** argv)
       offline_msg.armor_pos.x = 10000.0;  // 10m, likely outside attack area
       offline_msg.armor_pos.y = 10000.0;
       offline_msg.armor_pos.z = 0.0;
-    }
-    else if (time_counter < 300)  // Phase 2: [20, 30s)
+    } else if (time_counter < 300)  // Phase 2: [20, 30s)
     {
       phase = 2;
-      if (last_phase != phase)
-      {
+      if (last_phase != phase) {
         RCLCPP_INFO(node->get_logger(), "\n=================================================");
         RCLCPP_INFO(node->get_logger(), "Phase 2 [20-30s] 正常追击与进攻姿态");
         RCLCPP_INFO(node->get_logger(), "预期: CheckTargetLocked通过, current_mode进入TRACING, 姿态ATTACK");
@@ -196,12 +187,10 @@ int main(int argc, char** argv)
       offline_msg.armor_pos.x = 6000.0;  // 6m
       offline_msg.armor_pos.y = 4000.0;  // 4m (inside attack_area when transform unavailable)
       offline_msg.armor_pos.z = 0.0;
-    }
-    else if (time_counter < 400)  // Phase 3: [30, 40s)
+    } else if (time_counter < 400)  // Phase 3: [30, 40s)
     {
       phase = 3;
-      if (last_phase != phase)
-      {
+      if (last_phase != phase) {
         RCLCPP_INFO(node->get_logger(), "\n=================================================");
         RCLCPP_INFO(node->get_logger(), "Phase 3 [30-40s] 1.0秒视觉防抖测试");
         RCLCPP_INFO(node->get_logger(), "预期: 30-31s短时丢目标仍保持TRACING, 31s后回落");
@@ -214,12 +203,10 @@ int main(int argc, char** argv)
       offline_msg.armor_pos.y = 4000.0;
       offline_msg.armor_pos.z = 0.0;
       offline_msg.is_get = (time_counter >= 310);
-    }
-    else if (time_counter < 500)  // Phase 4: [40, 50s)
+    } else if (time_counter < 500)  // Phase 4: [40, 50s)
     {
       phase = 4;
-      if (last_phase != phase)
-      {
+      if (last_phase != phase) {
         RCLCPP_INFO(node->get_logger(), "\n=================================================");
         RCLCPP_INFO(node->get_logger(), "Phase 4 [40-50s] 前哨站响应抢占");
         RCLCPP_INFO(node->get_logger(), "预期: CheckOutpostRemained成功, 进入RESPONSE导航");
@@ -229,12 +216,10 @@ int main(int argc, char** argv)
 
       radar_msg.is_enemy_outpost_sensed = true;  // true => enemy_outpost_destroyed=false
       offline_msg.is_get = false;
-    }
-    else if (time_counter < 600)  // Phase 5: [50, 60s)
+    } else if (time_counter < 600)  // Phase 5: [50, 60s)
     {
       phase = 5;
-      if (last_phase != phase)
-      {
+      if (last_phase != phase) {
         RCLCPP_INFO(node->get_logger(), "\n=================================================");
         RCLCPP_INFO(node->get_logger(), "Phase 5 [50-60s] 紧急撤退与防御姿态");
         RCLCPP_INFO(node->get_logger(), "预期: EmergencyRetreat + CheckDPCondition => DEFEND");
@@ -246,12 +231,10 @@ int main(int argc, char** argv)
       online_msg.sentry_info_2 = buildSentryInfo2(false, 2, false);
       offline_msg.is_get = false;
       radar_msg.is_enemy_outpost_sensed = false;
-    }
-    else if (time_counter < 700)  // Phase 6: [60, 70s)
+    } else if (time_counter < 700)  // Phase 6: [60, 70s)
     {
       phase = 6;
-      if (last_phase != phase)
-      {
+      if (last_phase != phase) {
         RCLCPP_INFO(node->get_logger(), "\n=================================================");
         RCLCPP_INFO(node->get_logger(), "Phase 6 [60-70s] 回血重置撤退");
         RCLCPP_INFO(node->get_logger(), "预期: 血量>recovery_threshold后退出RETREAT");
@@ -264,12 +247,10 @@ int main(int argc, char** argv)
       game_msg.coin_remaining = 120;
       game_msg.event_code = buildEventCode(1, 0, 1);
       online_msg.sentry_info_1 = buildSentryInfo1(true, false, 0);
-    }
-    else  // Phase 7: [70, 80s)
+    } else  // Phase 7: [70, 80s)
     {
       phase = 7;
-      if (last_phase != phase)
-      {
+      if (last_phase != phase) {
         RCLCPP_INFO(node->get_logger(), "\n=================================================");
         RCLCPP_INFO(node->get_logger(), "Phase 7 [70-80s] 收尾综合数据");
         RCLCPP_INFO(node->get_logger(), "预期: 常规巡逻，同时验证经济/机关/复活位解码字段");
@@ -309,16 +290,14 @@ int main(int argc, char** argv)
     offline_pub->publish(offline_msg);
     online_pub->publish(online_msg);
 
-    if (time_counter % 10 == 0)
-    {
+    if (time_counter % 10 == 0) {
       std::cout << "[t=" << sec << "s][Phase " << phase << "] "
                 << "self_health_raw=" << online_msg.self_health
                 << ", target_valid=" << (offline_msg.is_get ? "true" : "false")
                 << ", target_gimbal_mm(x,y,z)=(" << offline_msg.armor_pos.x << ", "
                 << offline_msg.armor_pos.y << ", " << offline_msg.armor_pos.z << ")"
                 << ", enemy_outpost_sensed=" << (radar_msg.is_enemy_outpost_sensed ? "true" : "false")
-                << ", game_event_code=" << game_msg.event_code
-                << std::endl;
+                << ", game_event_code=" << game_msg.event_code << std::endl;
     }
 
     ++time_counter;

@@ -15,17 +15,15 @@
 #ifndef MINCO_PLANNER__SMAC_SEARCH__TYPES_HPP_
 #define MINCO_PLANNER__SMAC_SEARCH__TYPES_HPP_
 
-#include <vector>
-#include <utility>
-#include <string>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 
-namespace minco_planner
-{
-namespace smac
-{
+namespace minco_planner {
+namespace smac {
 
 typedef std::pair<float, uint64_t> NodeHeuristicPair;
 
@@ -63,10 +61,7 @@ struct SmootherParams
   /**
    * @brief A constructor for minco_planner::smac::SmootherParams
    */
-  SmootherParams()
-  : holonomic_(false)
-  {
-  }
+  SmootherParams() : holonomic_(false) {}
 
   /**
    * @brief Get params from ROS parameter
@@ -130,12 +125,12 @@ struct MotionPose
    */
   MotionPose(const float & x, const float & y, const float & theta, const TurnDirection & turn_dir)
   : _x(x), _y(y), _theta(theta), _turn_dir(turn_dir)
-  {}
+  {
+  }
 
   MotionPose operator-(const MotionPose & p2)
   {
-    return MotionPose(
-      this->_x - p2._x, this->_y - p2._y, this->_theta - p2._theta, TurnDirection::UNKNOWN);
+    return MotionPose(this->_x - p2._x, this->_y - p2._y, this->_theta - p2._theta, TurnDirection::UNKNOWN);
   }
 
   float _x;
@@ -181,8 +176,7 @@ struct MotionPrimitive
  * @struct minco_planner::smac::GoalState
  * @brief A struct to store the goal state
  */
-template<typename NodeT>
-struct GoalState
+template <typename NodeT> struct GoalState
 {
   NodeT * goal = nullptr;
   bool is_valid = true;

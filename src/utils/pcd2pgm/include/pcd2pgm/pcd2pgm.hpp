@@ -3,8 +3,7 @@
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <rclcpp/rclcpp.hpp>
 
-namespace pcd2pgm
-{
+namespace pcd2pgm {
 class PCLFiltersNode : public rclcpp::Node
 {
 private:
@@ -35,11 +34,9 @@ private:
 
   // 半径滤波
   void radiusOutlierFilter(
-    const pcl::PointCloud<pcl::PointXYZ>::Ptr & pcd_cloud0, const double & radius,
-    const int & thre_count);
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr & pcd_cloud0, const double & radius, const int & thre_count);
 
-  void setMapTopicMsg(
-    const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, nav_msgs::msg::OccupancyGrid & msg);
+  void setMapTopicMsg(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, nav_msgs::msg::OccupancyGrid & msg);
 
   void publishMap();
 
