@@ -143,17 +143,18 @@ typedef enum _RobotID
 } RobotID;
 
 inline std::vector<Point2D> nav_points = {
-  {3.0, 3.0, 0.0},   // HOME
-  {12.8, 5.5, 0.0},   // BONUS
-  {15.7, 11.0, 0.0}, // OUTPOST
-  {7.2, 7.5, 0.0},   // OWN_FORT
-  {22.0, 7.5, 0.0}   // ENEMY_FORT
+  // {3.0, 3.0, 0.0},   // HOME
+  // {12.8, 5.5, 0.0},   // BONUS
+  // {15.7, 11.0, 0.0}, // OUTPOST
+  // {7.2, 7.5, 0.0},   // OWN_FORT
+  // {22.0, 7.5, 0.0}   // ENEMY_FORT
 
   // for test
-  // {1.8, 5.6, 0.0},  //HOME
-  // {5.6, 3.8, 0.0},  //BONUS
-  // {7.2, 6.0, 0.0}   //OUTPOST
-
+  {6.7, 3.9, 0.0},  //HOME
+  {5.6, 3.8, 0.0},  //BONUS
+  {7.0, 6.7, 0.0},   //OUTPOST
+  {7.0, 6.7, 0.0},   // OWN_FORT
+  {7.0, 6.7, 0.0}   // ENEMY_FORT
   // for rmul
   // {1.2, 7.2, 0.0},  //HOME
   // {6.4, 4.4, 0.0},  // BONUS
