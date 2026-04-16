@@ -574,7 +574,11 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
         tangent = Eigen::Vector3d(1.0, 0.0, 0.0);
       }
     }
-    const double v_cmd = 0.8 * std::max(0.0, minco_config.max_vel);
+    const double v_curr = std::max(0.0, start_state.col(1).norm());
+    const double amax = std::max(0.0, minco_config.max_acc);
+    const double v_max_kinematic = std::sqrt(std::max(0.0, v_curr * v_curr + 2.0 * amax * dist_to_goal));
+    const double v_cmd =
+      std::min({0.8 * std::max(0.0, minco_config.max_vel), v_max_kinematic, std::max(0.0, dist_to_goal)});
     end_state.col(1) = tangent * v_cmd;
     end_state.col(2).setZero();
   } else {
@@ -1079,13 +1083,14 @@ void MincoPlanner::prepareColdStart(
 {
   start_state.setZero();
   start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
-  if (has_last_traj_) {
-    double now = rclcpp::Clock().now().seconds();
-    double t_dur = now - last_traj_.start_WT;
-    if (t_dur > 0 && t_dur < last_traj_.getTotalDuration()) {
-      start_state.col(1) = 0.5 * last_traj_.getVel(t_dur);
-    }
-  }
+  // if (has_last_traj_) {
+  //   double now = rclcpp::Clock().now().seconds();
+  //   double t_dur = now - last_traj_.start_WT;
+  //   if (t_dur > 0 && t_dur < last_traj_.getTotalDuration()) {
+  //     start_state.col(1) = 0.5 * last_traj_.getVel(t_dur);
+  //   }
+  // }
+  start_state.col(1) = getCurrentSpeed();
 }
 
 void MincoPlanner::prepareHotStart(
