@@ -150,10 +150,10 @@ inline std::vector<Point2D> nav_points = {
   // {22.0, 7.5, 0.0}   // ENEMY_FORT
 
   // for test
-  {6.7, 3.9, 0.0},  //HOME
-  {5.6, 3.8, 0.0},  //BONUS
-  {7.0, 6.7, 0.0},   //OUTPOST
-  {7.0, 6.7, 0.0},   // OWN_FORT
+  {6.7, 3.9, 0.0},  // HOME
+  {5.6, 3.8, 0.0},  // BONUS
+  {7.0, 6.7, 0.0},  // OUTPOST
+  {7.0, 6.7, 0.0},  // OWN_FORT
   {7.0, 6.7, 0.0}   // ENEMY_FORT
   // for rmul
   // {1.2, 7.2, 0.0},  //HOME
@@ -202,16 +202,16 @@ inline std::vector<std::string> stance_names = {"MOVE", "ATTACK", "DEFEND"};
 
 struct AllyRobotInfo
 {
-  int robot_id;                        // 机器人ID
-  int remain_hp;                       // 剩余血量
+  int robot_id;                       // 机器人ID
+  int remain_hp;                      // 剩余血量
   geometry_msgs::msg::Pose position;  // 位置
 };
 
 struct EnemyRobotInfo
 {
-  int robot_id;                        // 机器人ID
-  int remain_hp;                       // 剩余血量
-  int allowed_projectile;              // 可打弹丸数
+  int robot_id;                       // 机器人ID
+  int remain_hp;                      // 剩余血量
+  int allowed_projectile;             // 可打弹丸数
   geometry_msgs::msg::Pose position;  // 位置
 };
 
@@ -231,7 +231,7 @@ inline std::unordered_map<TacticalMode, GimbalPatrolAreaList> tactical_gimbal_ma
   {TacticalMode::OFFENSIVE,
     {
       {-180.0f, 180.0f, false},  // 直视前方扫射范围
-      {-30.0f, 30.0f, true}    // 抬头重点区域
+      {-30.0f, 30.0f, true}      // 抬头重点区域
     }},
   {TacticalMode::DEFENSIVE,
     {
