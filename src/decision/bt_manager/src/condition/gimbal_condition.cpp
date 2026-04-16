@@ -64,10 +64,11 @@ BT::NodeStatus CheckNearEnemyOutpost::tick()
 }
 
 // --------------------- CheckWillThroughTunnel ----------------------
-// CheckWillThroughTunnel::CheckWillThroughTunnel(const std::string& name, const BT::NodeConfiguration& config)
+// CheckWillThroughTunnel::CheckWillThroughTunnel(const std::string& name, const BT::NodeConfiguration&
+// config)
 //     : BT::ConditionNode(name, config)
 // {
-//   // 构造函数：初始化节点，不需要复杂操作 
+//   // 构造函数：初始化节点，不需要复杂操作
 // }
 
 // BT::PortsList CheckWillThroughTunnel::providedPorts()
@@ -89,7 +90,7 @@ BT::NodeStatus CheckNearEnemyOutpost::tick()
 //             << RESET << std::endl;
 //     last_state_ = will_through_tunnel;
 //   }
-  
+
 //   if (will_through_tunnel) {
 //     if (lifter_current_pos == 0) {
 //       blackboard->set<int>("desired_lifter_pos", 1); // 设置目标升降位置为 1(bottom)，准备过隧道

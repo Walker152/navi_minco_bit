@@ -171,8 +171,8 @@ BT::NodeStatus SetManualOverrideGoal::tick()
 
   static Sentry_BT::Point2D last_goal;
   static bool has_last_goal = false;
-  const bool goal_changed = !has_last_goal ||
-                            std::hypot(manual_goal.x - last_goal.x, manual_goal.y - last_goal.y) > 0.01;
+  const bool goal_changed =
+    !has_last_goal || std::hypot(manual_goal.x - last_goal.x, manual_goal.y - last_goal.y) > 0.01;
   if (goal_changed) {
     std::cout << CYAN << "Set manual override goal to (" << manual_goal.x << ", " << manual_goal.y << ")"
               << RESET << std::endl;
