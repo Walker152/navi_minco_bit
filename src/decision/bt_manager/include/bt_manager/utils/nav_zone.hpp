@@ -108,6 +108,7 @@ typedef enum _NavMode
   TRACING = 1,
   RETREAT = 2,
   RESPONSE = 3,
+  MANUAL = 4,
 } NavMode;
 
 typedef enum _NavGoal
@@ -125,6 +126,12 @@ typedef enum _SentryStance
   ATTACK = 1,
   DEFEND = 2
 } SentryStance;
+
+typedef enum _ControlMode
+{
+  AUTO = 0,
+  MANUAL_CONTROL = 1,
+} ControlMode;
 
 typedef enum _RobotID
 {
@@ -189,14 +196,14 @@ inline std::vector<PatrolPoint> patrol_points_attack = {
 };
 
 inline std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};
-inline std::vector<std::string> mode_names = {"PATROL", "TRACING", "RETREAT", "RESPONSE"};
+inline std::vector<std::string> mode_names = {"PATROL", "TRACING", "RETREAT", "RESPONSE", "MANUAL"};
 inline std::vector<std::string> stance_names = {"MOVE", "ATTACK", "DEFEND"};
 
 struct AllyRobotInfo
 {
   int robot_id;                        // 机器人ID
   int remain_hp;                       // 剩余血量
-  geometry_msgs::msg::Point position;  // 位置
+  geometry_msgs::msg::Pose position;  // 位置
 };
 
 struct EnemyRobotInfo
@@ -204,7 +211,7 @@ struct EnemyRobotInfo
   int robot_id;                        // 机器人ID
   int remain_hp;                       // 剩余血量
   int allowed_projectile;              // 可打弹丸数
-  geometry_msgs::msg::Point position;  // 位置
+  geometry_msgs::msg::Pose position;  // 位置
 };
 
 // =============== 战略模式：巡逻点与云台巡检区域映射表 ===============
