@@ -205,6 +205,139 @@ BT::NodeStatus CheckOutpostRemained::tick()
   return BT::NodeStatus::FAILURE;
 }
 
+// ------------------- CheckManualOverride -------------------
+CheckManualOverride::CheckManualOverride(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckManualOverride::providedPorts()
+{
+  return {
+    BT::InputPort<double>("timeout_seconds", 4.0, "Manual override timeout when goal is unchanged"),
+    BT::InputPort<double>("same_goal_eps", 0.05, "Position epsilon to consider goal unchanged")};
+}
+
+BT::NodeStatus CheckManualOverride::tick()
+{
+  auto blackboard = config().blackboard;
+  const double timeout_seconds = getInput<double>("timeout_seconds").value_or(4.0);
+  const double same_goal_eps = getInput<double>("same_goal_eps").value_or(0.05);
+
+  const bool manual_active = blackboard->get<bool>("manual_override_active");
+  const bool goal_valid = blackboard->get<bool>("manual_override_goal_valid");
+  if (!manual_active || !goal_valid) {
+    blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
+    if (blackboard->get<int>("current_mode") == static_cast<int>(Sentry_BT::NavMode::MANUAL)) {
+      blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::PATROL));
+    }
+    initialized_ = false;
+    return BT::NodeStatus::FAILURE;
+  }
+
+  const auto manual_goal = blackboard->get<Sentry_BT::Point2D>("manual_override_goal");
+  const auto now = std::chrono::steady_clock::now();
+
+  if (!initialized_) {
+    last_goal_ = manual_goal;
+    last_goal_change_time_ = now;
+    initialized_ = true;
+  }
+
+  const double delta = std::hypot(manual_goal.x - last_goal_.x, manual_goal.y - last_goal_.y);
+  if (delta > same_goal_eps) {
+    last_goal_ = manual_goal;
+    last_goal_change_time_ = now;
+  }
+
+  const double unchanged_seconds =
+    std::chrono::duration<double>(now - last_goal_change_time_).count();
+  if (unchanged_seconds >= timeout_seconds) {
+    blackboard->set("manual_override_active", false);
+    blackboard->set("manual_override_goal_valid", false);
+    blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
+    blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::PATROL));
+    initialized_ = false;
+    return BT::NodeStatus::FAILURE;
+  }
+
+  blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::MANUAL_CONTROL);
+  blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::MANUAL));
+  return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- CheckOutpostSafeResponse -------------------
+CheckOutpostSafeResponse::CheckOutpostSafeResponse(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckOutpostSafeResponse::providedPorts()
+{
+  return {
+    BT::InputPort<double>("stable_seconds", 5.0, "Required stable-health duration to release cooldown"),
+    BT::InputPort<double>("health_drop_threshold", 0.5, "Health drop threshold to trigger cooldown"),
+    BT::InputPort<double>("health_change_eps", 0.1, "Health change epsilon"),
+    BT::InputPort<bool>("require_response_mode", false, "Require current nav mode to be RESPONSE")};
+}
+
+BT::NodeStatus CheckOutpostSafeResponse::tick()
+{
+  auto blackboard = config().blackboard;
+  const double stable_seconds = getInput<double>("stable_seconds").value_or(5.0);
+  const double health_drop_threshold = getInput<double>("health_drop_threshold").value_or(0.5);
+  const double health_change_eps = getInput<double>("health_change_eps").value_or(0.1);
+  const bool require_response_mode = getInput<bool>("require_response_mode").value_or(false);
+
+  const float health = blackboard->get<float>("health");
+  int current_mode = blackboard->get<int>("current_mode");
+  const bool outpost_remained = !blackboard->get<bool>("enemy_outpost_destroyed");
+  const auto now = std::chrono::steady_clock::now();
+
+  if (!initialized_) {
+    last_health_ = health;
+    last_health_change_time_ = now;
+    initialized_ = true;
+  }
+
+  const bool health_changed = std::fabs(health - last_health_) > health_change_eps;
+  if (health_changed) {
+    last_health_change_time_ = now;
+  }
+
+  const bool health_dropped = (last_health_ - health) > health_drop_threshold;
+  if (current_mode == static_cast<int>(Sentry_BT::NavMode::RESPONSE) && health_dropped) {
+    cooldown_active_ = true;
+    blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::PATROL));
+    current_mode = static_cast<int>(Sentry_BT::NavMode::PATROL);
+  }
+
+  last_health_ = health;
+
+  if (!outpost_remained) {
+    cooldown_active_ = false;
+    blackboard->set("outpost_safe_cooldown_active", false);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  if (cooldown_active_) {
+    const double stable_duration = std::chrono::duration<double>(now - last_health_change_time_).count();
+    if (stable_duration < stable_seconds) {
+      blackboard->set("outpost_safe_cooldown_active", true);
+      return BT::NodeStatus::FAILURE;
+    }
+    cooldown_active_ = false;
+  }
+
+  blackboard->set("outpost_safe_cooldown_active", false);
+  if (require_response_mode) {
+    return current_mode == static_cast<int>(Sentry_BT::NavMode::RESPONSE) ? BT::NodeStatus::SUCCESS
+                                                                          : BT::NodeStatus::FAILURE;
+  }
+  return BT::NodeStatus::SUCCESS;
+}
+
 // --------------------- CheckInStairsZone ----------------------
 CheckInStairsZone::CheckInStairsZone(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
