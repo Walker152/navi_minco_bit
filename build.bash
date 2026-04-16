@@ -65,6 +65,7 @@ cmake_args=(
 )
 
 serial_packages=(
+	ros_interfaces
 	livox_ros_driver2
 	rog_map
 	icp_relocalization

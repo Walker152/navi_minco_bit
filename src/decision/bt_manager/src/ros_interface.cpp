@@ -392,35 +392,37 @@ bool ros_interface::isTroughZone(
 bool ros_interface::isTroughTunnel(
   const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square & tunnel_area)
 {
+  if (!msg || msg->cmds.empty()) {
+    tunnel_detect_latched_ = false;
+    return false;
+  }
+
   Point2D point_of_robot{msg->cmds[0].position.x, msg->cmds[0].position.y};
   // inflated_zone.top_left.x = std::min(tunnel_area.top_left.x, tunnel_area.bottom_right.x) - 0.9;  //
   // 扩大一定的安全距离 inflated_zone.top_left.y = std::max(tunnel_area.top_left.y,
   // tunnel_area.bottom_right.y) + 1.2; inflated_zone.bottom_right.x = std::max(tunnel_area.top_left.x,
   // tunnel_area.bottom_right.x) + 1.3; inflated_zone.bottom_right.y = std::min(tunnel_area.top_left.y,
   // tunnel_area.bottom_right.y) - 0.66;
-  bool flag1 = transform_zone.contains(point_of_robot);
-  bool flag2 = isTroughZone(msg, tunnel_area);
-  // bool flag3 = inflated_zone.contains(point_of_robot);
-  // std::cout << "MPC trajectory check: robot at (" << point_of_robot.x << ", " << point_of_robot.y << ")"
-  //           << ", in transform zone: " << (flag1 ? "YES" : "NO") << ", through tunnel: "
-  //           << (flag2 ? "YES" : "NO")
-  //           // << ", in inflated zone: " << (flag3 ? "YES" : "NO")
-  //           << std::endl;
+  const bool in_transform_zone = transform_zone.contains(point_of_robot);
+  const bool through_tunnel_now = isTroughZone(msg, tunnel_area);
 
-  if (flag1) {
-    // std::cout << "MPC trajectory is close to tunnel zone." << std::endl;
-    if (flag2) {
-      // std::cout << "MPC trajectory is through the tunnel." << std::endl;
-      return true;
-    }
-    // else if (flag3)
-    // {
-    //   return false;
-    // }
-    else {
-      return true;
-    }
+  // 一旦离开变形区，立即释放隧道判定锁存。
+  if (!in_transform_zone) {
+    tunnel_detect_latched_ = false;
+  } else if (through_tunnel_now) {
+    // 进入变形区后，只要出现过一次隧道判定，就保持为true直到离开变形区。
+    tunnel_detect_latched_ = true;
   }
-  return false;
+
+  const bool through_tunnel_stable = in_transform_zone && tunnel_detect_latched_;
+  // bool flag3 = inflated_zone.contains(point_of_robot);
+  std::cout << "MPC trajectory check: robot at (" << point_of_robot.x << ", " << point_of_robot.y << ")"
+            << ", in transform zone: " << (in_transform_zone ? "YES" : "NO")
+            << ", through tunnel now: " << (through_tunnel_now ? "YES" : "NO")
+            << ", through tunnel latched: " << (through_tunnel_stable ? "YES" : "NO")
+            // << ", in inflated zone: " << (flag3 ? "YES" : "NO")
+            << std::endl;
+
+  return through_tunnel_stable;
 }
 }  // namespace Sentry_BT

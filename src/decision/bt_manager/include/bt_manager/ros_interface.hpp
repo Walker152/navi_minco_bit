@@ -57,6 +57,7 @@ private:
 
   geometry_msgs::msg::Pose current_pose_;
   mutable std::mutex current_pose_mutex_;
+  bool tunnel_detect_latched_{false};
 
   // 回调函数声明
   void teamInfoCallback(const ros_interfaces::msg::TeamInformation::SharedPtr msg);
