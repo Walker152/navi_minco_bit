@@ -1,0 +1,15 @@
+cloud_registered_crop_filter:
+  ros__parameters:
+    input_topic: /cloud_registered
+    output_topic: /cloud_registered_filtered
+    queue_size: 10
+    filter_mode: transform_center   # transform_cloud | transform_center
+    position_frame: map
+    position:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+    box_size:
+      x: 1.0
+      y: 0.3
+      z: 0.8

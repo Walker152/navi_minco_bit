@@ -22,6 +22,11 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(livox_ros_driver2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(pcl_conversions REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common filters)
+
+include_directories(${PCL_INCLUDE_DIRS})
 
 # Add executable
 add_executable(livox_to_pointcloud2 src/livox_to_pointcloud2.cpp)
@@ -31,13 +36,28 @@ ament_target_dependencies(livox_to_pointcloud2
   livox_ros_driver2
 )
 
+add_executable(cloud_registered_crop_filter src/cloud_registered_crop_filter.cpp)
+ament_target_dependencies(cloud_registered_crop_filter
+  rclcpp
+  sensor_msgs
+  tf2_ros
+  pcl_conversions
+)
+target_link_libraries(cloud_registered_crop_filter
+  ${PCL_LIBRARIES}
+)
+
 # 启用链接时优化
 set_target_properties(livox_to_pointcloud2 PROPERTIES
   INTERPROCEDURAL_OPTIMIZATION TRUE
 )
 
+set_target_properties(cloud_registered_crop_filter PROPERTIES
+  INTERPROCEDURAL_OPTIMIZATION TRUE
+)
+
 # Install executable
-install(TARGETS livox_to_pointcloud2
+install(TARGETS livox_to_pointcloud2 cloud_registered_crop_filter
   DESTINATION lib/${PROJECT_NAME}
 )
 
