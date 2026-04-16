@@ -84,6 +84,21 @@ BT::NodeStatus CheckMoveStanceCondition::tick()
     const bool need_cross_to_highland = in_own_defense && through_tunnel;
     const bool need_go_home_supply = current_mode == static_cast<int>(Sentry_BT::NavMode::RETREAT);
     const bool condition_met = (need_cross_to_highland || need_go_home_supply) && !in_highland;
+
+    static bool last_through_tunnel = false;
+    if (through_tunnel != last_through_tunnel) {
+      std::cout << CYAN << "CheckMoveStanceCondition => through_tunnel "
+                << (through_tunnel ? "ON" : "OFF") << RESET << std::endl;
+      last_through_tunnel = through_tunnel;
+    }
+
+    static bool last_condition_met = false;
+    if (condition_met != last_condition_met) {
+      std::cout << (condition_met ? GREEN : YELLOW) << "CheckMoveStanceCondition => "
+                << (condition_met ? "MOVE enabled" : "MOVE disabled") << RESET << std::endl;
+      last_condition_met = condition_met;
+    }
+
     if (condition_met) {
       blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::MOVE);
       blackboard->set("use_gyro_mode", false);
