@@ -35,12 +35,12 @@ def generate_launch_description():
             # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
             # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['8', '5', '0', '0', '0', '0', 'map', 'camera_init'],
-            arguments=['6.8', '3.67', '0', '0', '0', '0', 'map', 'camera_init'],
+            arguments=['6.8', '4.07', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['10', '4.5', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['9', '6.0', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
-        # # 静态TF: camera_init -> body
+        # 静态TF: camera_init -> body
         # launch_ros.actions.Node(
         #     package='tf2_ros',
         #     executable='static_transform_publisher',
