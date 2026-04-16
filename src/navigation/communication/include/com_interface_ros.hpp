@@ -93,8 +93,8 @@ public:
     for (int i = 0; i < 4; i++) {
       msg.allies[i].armor_id = in.ally_status[i].robot_id;
       msg.allies[i].remain_hp = in.ally_status[i].robot_hp;
-      msg.allies[i].position.x = static_cast<double>(in.ally_status[i].robot_pos_x);
-      msg.allies[i].position.y = static_cast<double>(in.ally_status[i].robot_pos_y);
+      msg.allies[i].position.position.x = static_cast<double>(in.ally_status[i].robot_pos_x);
+      msg.allies[i].position.position.y = static_cast<double>(in.ally_status[i].robot_pos_y);
     }
     msg.base_hp = in.base_hp;
     msg.outpost_hp = in.outpost_hp;
@@ -161,9 +161,9 @@ public:
       msg.enemies[i].robot_id = in.enemy_status[i].robot_id;
       msg.enemies[i].robot_hp = in.enemy_status[i].robot_hp;
       msg.enemies[i].allowed_projectile = in.enemy_status[i].allowed_projectile;
-      msg.enemies[i].position.x =
+      msg.enemies[i].position.position.x =
         static_cast<double>(in.enemy_status[i].robot_pos_x) / 100.0;  // 协议里是cm，转换成m
-      msg.enemies[i].position.y =
+      msg.enemies[i].position.position.y =
         static_cast<double>(in.enemy_status[i].robot_pos_y) / 100.0;  // 协议里是cm，转换成m
     }
     msg.enemy_coin_left = in.enemy_coin_left;
@@ -237,7 +237,7 @@ private:
     float gimbal_yaw = 0.0f;
     uint8_t desire_stance = 0;
     uint8_t desire_lifter_pos = 0;
-    uint8_t control_mode = 0;
+    // uint8_t control_mode = 0;
     bool use_gyro_mode = false;
     float gyro_vel = 0.0f;
     bool outpost_msg = false;
@@ -255,16 +255,16 @@ private:
       desire_stance = behavior_.desired_stance;  // 之前写死了，现作修改
       // desire_lifter_pos = behavior_.desire_lifter_pos; // 之前写死了，现作修改
       desire_lifter_pos = behavior_.desire_lifter_pos;  // 变形哨升降头暂时不可用
-      control_mode = behavior_.control_mode;
-      use_gyro_mode = behavior_.use_gyro_mode;
-      gyro_vel = behavior_.gyro_vel;
+      std::cout << "desired_stance: " << static_cast<int>(desire_stance)
+                << ", desired_lifter_pos: " << static_cast<int>(desire_lifter_pos) << std::endl;
+      // control_mode = behavior_.control_mode;
+      // use_gyro_mode = behavior_.use_gyro_mode;
+      // gyro_vel = behavior_.gyro_vel;
 
-      if (use_gyro_mode) {
-        vw_rpm = gyro_vel;
-      }
+      // if (use_gyro_mode) {
+      //   vw_rpm = gyro_vel;
+      // }
 
-      std::cout << "Desired stance: " << static_cast<int>(desire_stance)
-                << ", Desired lifter pos: " << static_cast<int>(desire_lifter_pos) << std::endl;
       outpost_msg = outpost_msg_.data;
       odom_x = odom_.pose.pose.position.x;
       odom_y = odom_.pose.pose.position.y;
@@ -299,8 +299,7 @@ private:
       current_yaw_deg,
       outpost_msg,
       desire_stance,
-      desire_lifter_pos,
-      control_mode);
+      desire_lifter_pos);
     auto flag = Communication::send2stm32<ChassisTarget>(target);
     if (flag == 0) {
       static auto last_send_time = this->now();
@@ -315,8 +314,7 @@ private:
           NV(target.current_yaw),
           NV(target.is_aim_outpost),
           NV(static_cast<int>(target.desire_stance)),
-          NV(static_cast<int>(target.desire_lifter_pos)),
-          NV(static_cast<int>(target.control_mode)));
+          NV(static_cast<int>(target.desire_lifter_pos)));
         last_send_time = now_time;
       }
     }

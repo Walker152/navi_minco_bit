@@ -426,7 +426,7 @@ BT::NodeStatus CheckNoAllyBelowStairs::tick()
   const auto allies = blackboard->get<std::vector<AllyRobotInfo>>("allies_info");
   bool ally_below = false;
   for (const auto & ally : allies) {
-    if (stairs_lower_safe_zone.contains({ally.position.x, ally.position.y, 0.0})) {
+    if (stairs_lower_safe_zone.contains({ally.position.position.x, ally.position.position.y, 0.0})) {
       ally_below = true;
       break;
     }
