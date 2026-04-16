@@ -237,6 +237,9 @@ private:
     float gimbal_yaw = 0.0f;
     uint8_t desire_stance = 0;
     uint8_t desire_lifter_pos = 0;
+    uint8_t control_mode = 0;
+    bool use_gyro_mode = false;
+    float gyro_vel = 0.0f;
     bool outpost_msg = false;
     double odom_x = 0.0;
     double odom_y = 0.0;
@@ -252,6 +255,13 @@ private:
       desire_stance = behavior_.desired_stance;  // 之前写死了，现作修改
       // desire_lifter_pos = behavior_.desire_lifter_pos; // 之前写死了，现作修改
       desire_lifter_pos = behavior_.desire_lifter_pos;  // 变形哨升降头暂时不可用
+      control_mode = behavior_.control_mode;
+      use_gyro_mode = behavior_.use_gyro_mode;
+      gyro_vel = behavior_.gyro_vel;
+
+      if (use_gyro_mode) {
+        vw_rpm = gyro_vel;
+      }
 
       std::cout << "Desired stance: " << static_cast<int>(desire_stance)
                 << ", Desired lifter pos: " << static_cast<int>(desire_lifter_pos) << std::endl;
@@ -289,7 +299,8 @@ private:
       current_yaw_deg,
       outpost_msg,
       desire_stance,
-      desire_lifter_pos);
+      desire_lifter_pos,
+      control_mode);
     auto flag = Communication::send2stm32<ChassisTarget>(target);
     if (flag == 0) {
       static auto last_send_time = this->now();
@@ -304,7 +315,8 @@ private:
           NV(target.current_yaw),
           NV(target.is_aim_outpost),
           NV(static_cast<int>(target.desire_stance)),
-          NV(static_cast<int>(target.desire_lifter_pos)));
+          NV(static_cast<int>(target.desire_lifter_pos)),
+          NV(static_cast<int>(target.control_mode)));
         last_send_time = now_time;
       }
     }

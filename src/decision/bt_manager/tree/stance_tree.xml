@@ -1,24 +1,22 @@
 <root main_tree_to_execute="StanceTree">
   <BehaviorTree ID="StanceTree">
     <ReactiveFallback name="StancePriorityRoot">
-      <Sequence name="PenaltyRefreshStance">
-        <CheckStanceRefreshRequired name="CheckStanceRefreshRequired" max_hold_seconds="180" />
-        <ChangeStance name="ChangeStanceRefresh" />
-      </Sequence>
-
-      <Sequence name="DefendStance">
-        <CheckDPCondition name="CheckDPCondition" />
-        <ChangeStance name="ChangeStanceDefend" />
-      </Sequence>
-
       <Sequence name="AttackStance">
-        <CheckAPCondition name="CheckAPCondition" />
+        <CheckAttackStanceCondition name="CheckAttackStanceCondition"
+                                    high_heat_threshold="200"
+                                    low_heat_threshold="80"
+                                    attack_gyro_vel="80.0" />
         <ChangeStance name="ChangeStanceAttack" />
       </Sequence>
 
-      <Sequence name="MoveStance">
-        <CheckMPCondition name="CheckMPCondition" />
+      <Sequence name="MoveStanceStrict">
+        <CheckMoveStanceCondition name="CheckMoveStanceCondition" />
         <ChangeStance name="ChangeStanceMove" />
+      </Sequence>
+
+      <Sequence name="DefendStance">
+        <CheckDefendStanceCondition name="CheckDefendStanceCondition" />
+        <ChangeStance name="ChangeStanceDefend" />
       </Sequence>
     </ReactiveFallback>
   </BehaviorTree>
