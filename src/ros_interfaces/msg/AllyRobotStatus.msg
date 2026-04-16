@@ -8,4 +8,4 @@ uint8 armor_id               # 装甲板ID（机器人标识）
 uint16 remain_hp              # 剩余血量
 
 # 机器人位置信息
-geometry_msgs/Point position  # 位置坐标
+geometry_msgs/Pose position  # 位置坐标

@@ -23,9 +23,13 @@ public:
     // === Tree Internal Data ===
 
     // --- Stance Tree ---
-    blackboard_->set<SentryStance>("current_stance", SentryStance::MOVE);  // 当前姿态
-    blackboard_->set<SentryStance>("desired_stance", SentryStance::MOVE);  // 期望姿态
-    blackboard_->set<LifterPos>("desired_lifter_pos", LifterPos::BOTTOM);  // 目标升降位置
+    blackboard_->set<SentryStance>("current_stance", SentryStance::DEFEND);  // 当前姿态
+    blackboard_->set<SentryStance>("desired_stance", SentryStance::DEFEND);  // 期望姿态
+    blackboard_->set<LifterPos>("desired_lifter_pos", LifterPos::BOTTOM);    // 目标升降位置
+    blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);        // 控制模式
+    blackboard_->set("use_gyro_mode", true);                                // 小陀螺开关
+    blackboard_->set("gyro_vel", 80.0f);                                    // 小陀螺转速(rpm)
+    blackboard_->set("heat_attack_latched", false);                         // 热量触发攻击滞回锁存
 
     // --- Navigation Tree ---
     blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));  // 当前模式
@@ -37,6 +41,10 @@ public:
     blackboard_->set("current_pose", geometry_msgs::msg::Pose());         // 当前位姿缓存
     blackboard_->set("ammo_purchase_total", 0);                           // 累计买弹请求量
     blackboard_->set("ammo_purchase_request", 0);                         // 单次买弹请求量
+    blackboard_->set("manual_override_active", false);                    // 手动接管是否激活
+    blackboard_->set("manual_override_goal_valid", false);                // 手动接管目标是否有效
+    blackboard_->set("manual_override_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});  // 手动接管目标点
+    blackboard_->set("outpost_safe_cooldown_active", false);              // 前哨站避险冷却状态
 
     // --- Gimbal Tree ---
     blackboard_->set("target_gimbal_pan", 0.0f);    // 云台目标偏航
@@ -82,7 +90,7 @@ public:
 
     // --- Sentry Online Info ---
     blackboard_->set("health", 100.0f);                // 初始生命值(百分比)
-    blackboard_->set("bullets_remaining", 300);          // 剩余子弹数量
+    blackboard_->set("bullets_remaining", 300);        // 剩余子弹数量
     blackboard_->set("cooling_value", 0);              // 冷却值
     blackboard_->set("heat_limit", 0);                 // 热量上限
     blackboard_->set("current_heat", 0);               // 当前热量

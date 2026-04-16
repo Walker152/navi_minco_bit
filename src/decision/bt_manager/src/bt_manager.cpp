@@ -35,6 +35,8 @@ void SentryBTManager::registerNodes()
 {
   // nav + common
   factory_.registerNodeType<CheckRetreatCondition>("CheckRetreatCondition");
+  factory_.registerNodeType<CheckManualOverride>("CheckManualOverride");
+  factory_.registerNodeType<CheckOutpostSafeResponse>("CheckOutpostSafeResponse");
   factory_.registerNodeType<CheckOutpostRemained>("CheckOutpostRemained");
   factory_.registerNodeType<CheckTargetLocked>("CheckTargetLocked");
   factory_.registerBuilder<NavigateToPoseAction>(
@@ -43,6 +45,7 @@ void SentryBTManager::registerNodes()
     });
   factory_.registerNodeType<SelectPatrolPoint>("SelectPatrolPoint");
   factory_.registerNodeType<SetTargetCoordinate>("SetTargetCoordinate");
+  factory_.registerNodeType<SetManualOverrideGoal>("SetManualOverrideGoal");
   factory_.registerNodeType<SetCoordinate>("SetCoordinate");
   factory_.registerNodeType<ChangeMapAction>("ChangeMapAction");
   factory_.registerNodeType<Wait>("Wait");
@@ -60,9 +63,9 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<ControlThroughTunnel>("ControlThroughTunnel");
 
   // stance
-  factory_.registerNodeType<CheckMPCondition>("CheckMPCondition");
-  factory_.registerNodeType<CheckAPCondition>("CheckAPCondition");
-  factory_.registerNodeType<CheckDPCondition>("CheckDPCondition");
+  factory_.registerNodeType<CheckAttackStanceCondition>("CheckAttackStanceCondition");
+  factory_.registerNodeType<CheckMoveStanceCondition>("CheckMoveStanceCondition");
+  factory_.registerNodeType<CheckDefendStanceCondition>("CheckDefendStanceCondition");
   factory_.registerNodeType<CheckStanceRefreshRequired>("CheckStanceRefreshRequired");
   factory_.registerNodeType<ChangeStance>("ChangeStance");
 
