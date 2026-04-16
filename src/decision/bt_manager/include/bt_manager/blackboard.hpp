@@ -25,11 +25,11 @@ public:
     // --- Stance Tree ---
     blackboard_->set<SentryStance>("current_stance", SentryStance::DEFEND);  // 当前姿态
     blackboard_->set<SentryStance>("desired_stance", SentryStance::DEFEND);  // 期望姿态
-    blackboard_->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);    // 目标升降位置
+    blackboard_->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);       // 目标升降位置
     blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);        // 控制模式
-    blackboard_->set("use_gyro_mode", true);                                // 小陀螺开关
-    blackboard_->set("gyro_vel", 80.0f);                                    // 小陀螺转速(rpm)
-    blackboard_->set("heat_attack_latched", false);                         // 热量触发攻击滞回锁存
+    blackboard_->set("use_gyro_mode", true);                                 // 小陀螺开关
+    blackboard_->set("gyro_vel", 80.0f);                                     // 小陀螺转速(rpm)
+    blackboard_->set("heat_attack_latched", false);  // 热量触发攻击滞回锁存
 
     // --- Navigation Tree ---
     blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));  // 当前模式
@@ -44,7 +44,7 @@ public:
     blackboard_->set("manual_override_active", false);                    // 手动接管是否激活
     blackboard_->set("manual_override_goal_valid", false);                // 手动接管目标是否有效
     blackboard_->set("manual_override_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});  // 手动接管目标点
-    blackboard_->set("outpost_safe_cooldown_active", false);              // 前哨站避险冷却状态
+    blackboard_->set("outpost_safe_cooldown_active", false);  // 前哨站避险冷却状态
 
     // --- Gimbal Tree ---
     blackboard_->set("target_gimbal_pan", 0.0f);    // 云台目标偏航
@@ -55,7 +55,7 @@ public:
 
     // --- Tactical Tree ---
     blackboard_->set<TacticalMode>("tactical_mode", TacticalMode::BALANCED);  // 战术模式
-    blackboard_->set("stance_refresh_required", false);                        // 姿态惩罚刷新标志
+    blackboard_->set("stance_refresh_required", false);                       // 姿态惩罚刷新标志
 
     // === External Info (From Referee/Lower Computer) ===
 
@@ -80,13 +80,13 @@ public:
     blackboard_->set("enemy_outpost_destroyed", true);                // 敌方前哨站是否被摧毁
 
     // --- Sentry Offline Info ---
-    blackboard_->set("target_valid", false);                               // 目标锁定状态
-    blackboard_->set("gimbal_yaw", 0.0f);                                  // 云台偏航角
+    blackboard_->set("target_valid", false);                            // 目标锁定状态
+    blackboard_->set("gimbal_yaw", 0.0f);                               // 云台偏航角
     blackboard_->set<LifterPos>("lifter_current_pos", LifterPos::TOP);  // 升降机构当前位置
-    blackboard_->set("is_transformable", true);                            // 是否可变形
-    blackboard_->set("transform_state", 0.0f);                             // 变形状态
-    blackboard_->set("target_pose", geometry_msgs::msg::Pose());           // 目标位置
-    blackboard_->set("target_armor_id", -1);                               // 目标装甲板ID
+    blackboard_->set("is_transformable", true);                         // 是否可变形
+    blackboard_->set("transform_state", 0.0f);                          // 变形状态
+    blackboard_->set("target_pose", geometry_msgs::msg::Pose());        // 目标位置
+    blackboard_->set("target_armor_id", -1);                            // 目标装甲板ID
 
     // --- Sentry Online Info ---
     blackboard_->set("health", 100.0f);                // 初始生命值(百分比)

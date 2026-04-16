@@ -96,10 +96,10 @@ struct _ChassisTarget
     bool _is_aim_outpost,
     uint8_t _desire_stance,
     uint8_t _desire_lifter_pos)
-    // uint8_t _control_mode)
+  // uint8_t _control_mode)
   : vx_mps(_vx_mps), vy_mps(_vy_mps), vw_rpm(_vw_rpm), current_x(_current_x), current_y(_current_y),
     current_yaw(_current_yaw), is_aim_outpost(_is_aim_outpost), desire_stance(_desire_stance),
-    desire_lifter_pos(_desire_lifter_pos)//, control_mode(_control_mode)
+    desire_lifter_pos(_desire_lifter_pos)  //, control_mode(_control_mode)
   {
   }
 };
