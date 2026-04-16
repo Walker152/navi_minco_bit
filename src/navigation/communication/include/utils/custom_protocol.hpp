@@ -84,7 +84,7 @@ struct _ChassisTarget
   bool is_aim_outpost;        // 是否抬头击打前哨站
   uint8_t desire_stance;      // 哨兵姿态
   uint8_t desire_lifter_pos;  // 云台升降状态
-  uint8_t control_mode;       // 控制模式: 0 AUTO, 1 MANUAL
+  // uint8_t control_mode;       // 控制模式: 0 AUTO, 1 MANUAL
   // bool buy_bullet;    // 是否购买子弹
   // bool buy_revive;        // 是否立即复活
   _ChassisTarget(float _vx_mps,
@@ -95,11 +95,11 @@ struct _ChassisTarget
     float _current_yaw,
     bool _is_aim_outpost,
     uint8_t _desire_stance,
-    uint8_t _desire_lifter_pos,
-    uint8_t _control_mode)
+    uint8_t _desire_lifter_pos)
+    // uint8_t _control_mode)
   : vx_mps(_vx_mps), vy_mps(_vy_mps), vw_rpm(_vw_rpm), current_x(_current_x), current_y(_current_y),
     current_yaw(_current_yaw), is_aim_outpost(_is_aim_outpost), desire_stance(_desire_stance),
-    desire_lifter_pos(_desire_lifter_pos), control_mode(_control_mode)
+    desire_lifter_pos(_desire_lifter_pos)//, control_mode(_control_mode)
   {
   }
 };
