@@ -127,7 +127,7 @@ public:
           for (const auto & ally : allies_info) {
             if (ally.robot_id == 1) {
               std::cout << "  ▸ \033[1;33m【英雄】\033[0m ID: " << ally.robot_id
-                        << ", 血量: " << ally.remain_hp << ", 位置: " << formatPoint(ally.position)
+                        << ", 血量: " << ally.remain_hp << ", 位置: " << formatPoint(ally.position.position)
                         << std::endl;
               hero_found = true;
               break;
@@ -167,7 +167,7 @@ public:
             if (enemy.robot_id == ENEMY_HERO_ROBOT_ID) {
               std::cout << "  ▸ \033[1;31m【敌方英雄】\033[0m ID: " << enemy.robot_id
                         << ", 血量: " << enemy.remain_hp << ", 弹药: " << enemy.allowed_projectile
-                        << ", 位置: " << formatPoint(enemy.position) << std::endl;
+                        << ", 位置: " << formatPoint(enemy.position.position) << std::endl;
               enemy_hero_found = true;
             }
           }
