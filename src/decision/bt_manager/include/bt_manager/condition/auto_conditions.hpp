@@ -6,6 +6,7 @@
 #include "bt_manager/utils/log.hpp"
 #include "bt_manager/utils/nav_zone.hpp"
 #include <behaviortree_cpp_v3/condition_node.h>
+#include <chrono>
 
 namespace Sentry_BT {
 class CheckRetreatCondition : public BT::ConditionNode
@@ -27,6 +28,35 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+};
+
+class CheckManualOverride : public BT::ConditionNode
+{
+public:
+  CheckManualOverride(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  bool initialized_ = false;
+  Point2D last_goal_;
+  std::chrono::steady_clock::time_point last_goal_change_time_;
+};
+
+class CheckOutpostSafeResponse : public BT::ConditionNode
+{
+public:
+  CheckOutpostSafeResponse(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  bool initialized_ = false;
+  float last_health_ = 100.0f;
+  std::chrono::steady_clock::time_point last_health_change_time_;
+  bool cooldown_active_ = false;
 };
 
 class CheckTargetLocked : public BT::ConditionNode

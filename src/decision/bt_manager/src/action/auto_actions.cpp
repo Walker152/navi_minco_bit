@@ -37,6 +37,7 @@ BT::NodeStatus SetCoordinate::tick()
   Sentry_BT::Point2D point = nav_points[goal_index.value()];
 
   auto blackboard = config().blackboard;
+  blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
   blackboard->set("nav_goal", point);
   static int last_goal_index = -1;
   if (goal_index.value() != last_goal_index) {
@@ -61,6 +62,7 @@ BT::PortsList SetTargetCoordinate::providedPorts()
 BT::NodeStatus SetTargetCoordinate::tick()
 {
   auto blackboard = config().blackboard;
+  blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
   auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
   Sentry_BT::Point2D point;  //最终目标点
   //获取当前位置
@@ -144,6 +146,43 @@ BT::NodeStatus SetTargetCoordinate::tick()
   return BT::NodeStatus::SUCCESS;
 }
 
+// ------------------- SetManualOverrideGoal -------------------
+SetManualOverrideGoal::SetManualOverrideGoal(const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
+
+BT::PortsList SetManualOverrideGoal::providedPorts()
+{
+  return {};
+}
+
+BT::NodeStatus SetManualOverrideGoal::tick()
+{
+  auto blackboard = config().blackboard;
+  const bool goal_valid = blackboard->get<bool>("manual_override_goal_valid");
+  if (!goal_valid) {
+    return BT::NodeStatus::FAILURE;
+  }
+
+  const auto manual_goal = blackboard->get<Sentry_BT::Point2D>("manual_override_goal");
+  blackboard->set("nav_goal", manual_goal);
+  blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::MANUAL));
+
+  static Sentry_BT::Point2D last_goal;
+  static bool has_last_goal = false;
+  const bool goal_changed = !has_last_goal ||
+                            std::hypot(manual_goal.x - last_goal.x, manual_goal.y - last_goal.y) > 0.01;
+  if (goal_changed) {
+    std::cout << CYAN << "Set manual override goal to (" << manual_goal.x << ", " << manual_goal.y << ")"
+              << RESET << std::endl;
+    last_goal = manual_goal;
+    has_last_goal = true;
+  }
+
+  return BT::NodeStatus::SUCCESS;
+}
+
 // ------------------- SelectPatrolPoint -------------------
 SelectPatrolPoint::SelectPatrolPoint(const std::string & name, const BT::NodeConfiguration & config)
 : BT::SyncActionNode(name, config)
@@ -158,6 +197,7 @@ BT::PortsList SelectPatrolPoint::providedPorts()
 BT::NodeStatus SelectPatrolPoint::tick()
 {
   auto blackboard = config().blackboard;
+  blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
 
   // 获取当前巡逻索引
   int current_index = 0;
