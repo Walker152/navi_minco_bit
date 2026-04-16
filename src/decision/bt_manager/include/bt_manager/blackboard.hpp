@@ -25,7 +25,7 @@ public:
     // --- Stance Tree ---
     blackboard_->set<SentryStance>("current_stance", SentryStance::DEFEND);  // 当前姿态
     blackboard_->set<SentryStance>("desired_stance", SentryStance::DEFEND);  // 期望姿态
-    blackboard_->set<LifterPos>("desired_lifter_pos", LifterPos::BOTTOM);    // 目标升降位置
+    blackboard_->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);    // 目标升降位置
     blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);        // 控制模式
     blackboard_->set("use_gyro_mode", true);                                // 小陀螺开关
     blackboard_->set("gyro_vel", 80.0f);                                    // 小陀螺转速(rpm)
@@ -82,7 +82,7 @@ public:
     // --- Sentry Offline Info ---
     blackboard_->set("target_valid", false);                               // 目标锁定状态
     blackboard_->set("gimbal_yaw", 0.0f);                                  // 云台偏航角
-    blackboard_->set<LifterPos>("lifter_current_pos", LifterPos::BOTTOM);  // 升降机构当前位置
+    blackboard_->set<LifterPos>("lifter_current_pos", LifterPos::TOP);  // 升降机构当前位置
     blackboard_->set("is_transformable", true);                            // 是否可变形
     blackboard_->set("transform_state", 0.0f);                             // 变形状态
     blackboard_->set("target_pose", geometry_msgs::msg::Pose());           // 目标位置
