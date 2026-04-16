@@ -289,15 +289,15 @@ private:
     // 默认友军位置放在台阶安全区外
     team_msg.allies[0].armor_id = 1;
     team_msg.allies[0].remain_hp = 180;
-    team_msg.allies[0].position.x = 2.0;
-    team_msg.allies[0].position.y = -1.0;
+    team_msg.allies[0].position.position.x = 2.0;
+    team_msg.allies[0].position.position.y = -1.0;
 
     // 默认敌方观测
     radar_msg.enemies[0].robot_id = 101;
     radar_msg.enemies[0].robot_hp = 220;
     radar_msg.enemies[0].allowed_projectile = 90;
-    radar_msg.enemies[0].position.x = 8.0;
-    radar_msg.enemies[0].position.y = 3.0;
+    radar_msg.enemies[0].position.position.x = 8.0;
+    radar_msg.enemies[0].position.position.y = 3.0;
   }
 
   void applyPhaseScenario(
@@ -328,16 +328,16 @@ private:
           online_msg.bullets_remaining = 50;
           tf_anchor = getAreaCenter(Sentry_BT::stairs_zone);
           // 中文说明：把友军放入台阶下安全区，触发“有队友占位，暂停下台阶”
-          team_msg.allies[0].position.x = getAreaCenter(Sentry_BT::stairs_lower_safe_zone).x;
-          team_msg.allies[0].position.y = getAreaCenter(Sentry_BT::stairs_lower_safe_zone).y;
+          team_msg.allies[0].position.position.x = getAreaCenter(Sentry_BT::stairs_lower_safe_zone).x;
+          team_msg.allies[0].position.position.y = getAreaCenter(Sentry_BT::stairs_lower_safe_zone).y;
         } else if (sub == 1) {
           // 台阶恢复阶段：继续保持低血低弹，验证解除队友占位后的下台阶恢复。
           online_msg.self_health = 80;
           online_msg.bullets_remaining = 50;
           tf_anchor = getAreaCenter(Sentry_BT::stairs_zone);
           // 清空队友占位
-          team_msg.allies[0].position.x = 2.0;
-          team_msg.allies[0].position.y = -1.0;
+          team_msg.allies[0].position.position.x = 2.0;
+          team_msg.allies[0].position.position.y = -1.0;
         } else {
           // 隧道阶段：血量和弹量恢复，避免继续走“低血回家”语义。
           online_msg.self_health = 400;     // /4后为100

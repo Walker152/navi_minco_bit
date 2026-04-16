@@ -3,8 +3,8 @@
 #include <cmath>
 
 #include <Eigen/Geometry>
-#include <pcl/filters/crop_box.h>
 #include <pcl/common/transforms.h>
+#include <pcl/common/point_tests.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
@@ -34,6 +34,7 @@ public:
     position_frame_ = this->declare_parameter<std::string>("position_frame", "camera_init");
 
     filter_mode_ = this->declare_parameter<std::string>("filter_mode", "transform_cloud");
+    remove_inside_ = this->declare_parameter<bool>("remove_inside", true);
     if (filter_mode_ != "transform_cloud" && filter_mode_ != "transform_center") {
       RCLCPP_WARN(
         this->get_logger(),
@@ -42,11 +43,9 @@ public:
       filter_mode_ = "transform_cloud";
     }
 
-    const bool use_sim_time = this->declare_parameter<bool>("use_sim_time", false);
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
     tf_buffer_->setUsingDedicatedThread(true);
-    this->set_parameter(rclcpp::Parameter("use_sim_time", use_sim_time));
 
     size_x_ = static_cast<float>(this->declare_parameter<double>("box_size.x", 12.0));
     size_y_ = static_cast<float>(this->declare_parameter<double>("box_size.y", 6.0));
@@ -73,7 +72,7 @@ public:
 
     RCLCPP_INFO(
       this->get_logger(),
-      "Crop filter started. input=%s output=%s center=(%.3f, %.3f, %.3f) frame=%s mode=%s box_size=(%.3f, %.3f, %.3f)",
+      "Crop filter started. input=%s output=%s center=(%.3f, %.3f, %.3f) frame=%s mode=%s remove_inside=%s box_size=(%.3f, %.3f, %.3f)",
       input_topic.c_str(),
       output_topic.c_str(),
       center_x_,
@@ -81,6 +80,7 @@ public:
       center_z_,
       position_frame_.c_str(),
       filter_mode_.c_str(),
+      remove_inside_ ? "true" : "false",
       size_x_,
       size_y_,
       size_z_);
@@ -180,16 +180,36 @@ private:
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out(new pcl::PointCloud<pcl::PointXYZ>());
 
-    pcl::CropBox<pcl::PointXYZ> crop_box;
-    crop_box.setInputCloud(cloud_for_filter);
-
     const float half_x = 0.5f * size_x_;
     const float half_y = 0.5f * size_y_;
     const float half_z = 0.5f * size_z_;
 
-    crop_box.setMin(Eigen::Vector4f(center.x() - half_x, center.y() - half_y, center.z() - half_z, 1.0f));
-    crop_box.setMax(Eigen::Vector4f(center.x() + half_x, center.y() + half_y, center.z() + half_z, 1.0f));
-    crop_box.filter(*cloud_out);
+    const float min_x = center.x() - half_x;
+    const float max_x = center.x() + half_x;
+    const float min_y = center.y() - half_y;
+    const float max_y = center.y() + half_y;
+    const float min_z = center.z() - half_z;
+    const float max_z = center.z() + half_z;
+
+    cloud_out->points.reserve(cloud_for_filter->points.size());
+    for (const auto & p : cloud_for_filter->points) {
+      if (!pcl::isFinite(p)) {
+        continue;
+      }
+
+      const bool inside =
+        (p.x >= min_x && p.x <= max_x) &&
+        (p.y >= min_y && p.y <= max_y) &&
+        (p.z >= min_z && p.z <= max_z);
+
+      const bool keep = remove_inside_ ? !inside : inside;
+      if (keep) {
+        cloud_out->points.push_back(p);
+      }
+    }
+    cloud_out->width = static_cast<uint32_t>(cloud_out->points.size());
+    cloud_out->height = 1;
+    cloud_out->is_dense = true;
 
     sensor_msgs::msg::PointCloud2 filtered_msg;
     pcl::toROSMsg(*cloud_out, filtered_msg);
@@ -206,6 +226,7 @@ private:
   float center_z_{0.0f};
   std::string position_frame_;
   std::string filter_mode_;
+  bool remove_inside_{true};
   float size_x_{12.0f};
   float size_y_{6.0f};
   float size_z_{3.5f};
