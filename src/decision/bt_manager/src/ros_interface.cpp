@@ -49,9 +49,9 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     });
 
   manual_override_sub = this->create_subscription<geometry_msgs::msg::PointStamped>(
-    "/sentry/manual_override_goal",
-    1,
-    [this](const geometry_msgs::msg::PointStamped::SharedPtr msg) { this->manualOverrideCallback(msg); });
+    "/sentry/manual_override_goal", 1, [this](const geometry_msgs::msg::PointStamped::SharedPtr msg) {
+      this->manualOverrideCallback(msg);
+    });
 
   odom_sub = this->create_subscription<nav_msgs::msg::Odometry>(
     "/aft_mapped_to_init", 1, [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
@@ -60,7 +60,8 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
       current_pose_ = msg->pose.pose;
 
       geometry_msgs::msg::Pose pose_in_map;
-      auto transform_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+      auto transform_utils =
+        blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
       if (transform_utils &&
           transform_utils->transformPoseToMap(current_pose_, pose_in_map, "camera_init")) {
         blackboard_->set("current_pose", pose_in_map);
@@ -143,15 +144,15 @@ void ros_interface::teamInfoCallback(const ros_interfaces::msg::TeamInformation:
   ros_interfaces::msg::TeamInformation team_info = *msg;
   std::vector<AllyRobotInfo> allies_info;
   allies_info.reserve(msg->allies.size());
-  const auto tf_utils_node = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  const auto tf_utils_node =
+    blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
 
   for (const auto & ally : msg->allies) {
     AllyRobotInfo info;
     info.robot_id = ally.armor_id;  // 将armor_id映射到robot_id
     info.remain_hp = static_cast<int>(ally.remain_hp);
     if (tf_utils_node) {
-      if (tf_utils_node->transformPoseToMap(ally.position, info.position, "minimap")) {
-      }
+      if (tf_utils_node->transformPoseToMap(ally.position, info.position, "minimap")) {}
     }
 
     allies_info.push_back(info);
@@ -198,10 +199,11 @@ void ros_interface::radarInfoCallback(const ros_interfaces::msg::RadarInfo::Shar
 
   // 存储所有敌方机器人状态
   ros_interfaces::msg::RadarInfo radar_info = *msg;
-  
+
   std::vector<EnemyRobotInfo> enemies_info;
   enemies_info.reserve(msg->enemies.size());
-  const auto tf_utils_node = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  const auto tf_utils_node =
+    blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
   for (auto & enemy : radar_info.enemies) {
     if (enemy.robot_id > 0) {  // 有效敌方
       EnemyRobotInfo info;
@@ -220,7 +222,8 @@ void ros_interface::radarInfoCallback(const ros_interfaces::msg::RadarInfo::Shar
 
 void ros_interface::manualOverrideCallback(const geometry_msgs::msg::PointStamped::SharedPtr msg)
 {
-  const auto tf_utils_node = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  const auto tf_utils_node =
+    blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
   geometry_msgs::msg::Point manual_goal_in_map = msg->point;
   if (tf_utils_node) {
     geometry_msgs::msg::Pose input_pose;
@@ -298,7 +301,8 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
   blackboard_->set<float>("speed_monitor_angle", msg->speed_monitor_angle);
 
   // 存储哨兵位置
-  const auto tf_utils_node = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  const auto tf_utils_node =
+    blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
   geometry_msgs::msg::Point sentry_position = msg->sentry_pos;
   if (tf_utils_node) {
     geometry_msgs::msg::Pose input_pose;
@@ -392,34 +396,29 @@ bool ros_interface::isTroughZone(
 bool ros_interface::isTroughTunnel(
   const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square & tunnel_area)
 {
+  const auto current_pose = getCurrentPose();
+  const Point2D current_point{current_pose.position.x, current_pose.position.y};
+  const bool in_transform_zone = transform_zone.contains(current_point);
+  const bool through_tunnel_now = isTroughZone(msg, tunnel_area);
   if (!msg || msg->cmds.empty()) {
-    tunnel_detect_latched_ = false;
-    return false;
+    if (!in_transform_zone) {
+      tunnel_detect_latched_ = false;
+    }
+    return in_transform_zone && tunnel_detect_latched_;
   }
 
-  Point2D point_of_robot{msg->cmds[0].position.x, msg->cmds[0].position.y};
-  // inflated_zone.top_left.x = std::min(tunnel_area.top_left.x, tunnel_area.bottom_right.x) - 0.9;  //
-  // 扩大一定的安全距离 inflated_zone.top_left.y = std::max(tunnel_area.top_left.y,
-  // tunnel_area.bottom_right.y) + 1.2; inflated_zone.bottom_right.x = std::max(tunnel_area.top_left.x,
-  // tunnel_area.bottom_right.x) + 1.3; inflated_zone.bottom_right.y = std::min(tunnel_area.top_left.y,
-  // tunnel_area.bottom_right.y) - 0.66;
-  const bool in_transform_zone = transform_zone.contains(point_of_robot);
-  const bool through_tunnel_now = isTroughZone(msg, tunnel_area);
-
-  // 一旦离开变形区，立即释放隧道判定锁存。
   if (!in_transform_zone) {
     tunnel_detect_latched_ = false;
   } else if (through_tunnel_now) {
-    // 进入变形区后，只要出现过一次隧道判定，就保持为true直到离开变形区。
     tunnel_detect_latched_ = true;
   }
 
   const bool through_tunnel_stable = in_transform_zone && tunnel_detect_latched_;
-  // bool flag3 = inflated_zone.contains(point_of_robot);
-  std::cout << "MPC trajectory check: robot at (" << point_of_robot.x << ", " << point_of_robot.y << ")"
+  std::cout << "MPC trajectory check: robot at (" << current_point.x << ", " << current_point.y << ")"
             << ", in transform zone: " << (in_transform_zone ? "YES" : "NO")
             << ", through tunnel now: " << (through_tunnel_now ? "YES" : "NO")
-            << ", through tunnel latched: " << (through_tunnel_stable ? "YES" : "NO")
+            << ", through tunnel latched: "
+            << (through_tunnel_stable ? "YES" : "NO")
             // << ", in inflated zone: " << (flag3 ? "YES" : "NO")
             << std::endl;
 
