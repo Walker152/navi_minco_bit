@@ -22,7 +22,7 @@ constexpr const char * C_CYAN = "\033[1;36m";
 constexpr const char * C_MAGENTA = "\033[1;35m";
 constexpr const char * C_RESET = "\033[0m";
 constexpr int TICK_PERIOD_MS = 100;
-constexpr int TICKS_PER_SUBPHASE = 100;  // 10s / 100ms
+constexpr int TICKS_PER_SUBPHASE = 100;     // 10s / 100ms
 constexpr int PHASE_DURATION_SECONDS = 30;  // A/B/C each 10s
 
 uint16_t buildSentryInfo2(bool is_disengaged, uint8_t current_stance_bits, bool can_activate_energy)
@@ -93,13 +93,17 @@ public:
     online_pub_ = create_publisher<ros_interfaces::msg::SentryInfoOnline>("/sentry/online_info", 10);
 
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
-    tick_timer_ = create_wall_timer(std::chrono::milliseconds(TICK_PERIOD_MS), [this]() { this->onTick(); });
-    phase_timer_ = create_wall_timer(std::chrono::seconds(PHASE_DURATION_SECONDS), [this]() { this->advancePhase(); });
+    tick_timer_ = create_wall_timer(std::chrono::milliseconds(TICK_PERIOD_MS), [this]() {
+      this->onTick();
+    });
+    phase_timer_ = create_wall_timer(std::chrono::seconds(PHASE_DURATION_SECONDS), [this]() {
+      this->advancePhase();
+    });
 
-    RCLCPP_INFO(
-      get_logger(),
+    RCLCPP_INFO(get_logger(),
       "%s[TestNode] event_test started: 10Hz publish + 30s phase switch (10s per sub-scenario)%s",
-      C_CYAN, C_RESET);
+      C_CYAN,
+      C_RESET);
     logStateTransition(true);
   }
 
@@ -131,58 +135,84 @@ private:
     last_tf_enabled_ = tf_enabled_;
 
     switch (phase_) {
-      case 1:
-        if (sub == 0) {
-          RCLCPP_INFO(get_logger(), "%s[Phase1-A] 生存最高优先: 低血低弹，预期强制回血回弹(HOME)+MOVE%s", C_GREEN, C_RESET);
-        } else {
-          RCLCPP_INFO(get_logger(), "%s[Phase1-B] 恢复血弹: 预期退出回血模式，恢复常规行为%s", C_GREEN, C_RESET);
-        }
-        break;
-      case 2:
-        if (sub == 0) {
-          RCLCPP_INFO(get_logger(), "%s[Phase2-A] TF进台阶区 + 台阶下有队友: 预期下台阶避让中止%s", C_YELLOW, C_RESET);
-        } else if (sub == 1) {
-          RCLCPP_INFO(get_logger(), "%s[Phase2-B] 清除队友占位: 预期恢复下台阶cmd_vel%s", C_YELLOW, C_RESET);
-        } else {
-          RCLCPP_INFO(get_logger(), "%s[Phase2-C] TF进隧道区: 预期触发过隧道流程(含升降相关)%s", C_YELLOW, C_RESET);
-        }
-        break;
-      case 3:
-        if (sub == 0) {
-          RCLCPP_INFO(get_logger(), "%s[Phase3-A] NORMAL: 前哨站未摧毁，预期优先响应前哨站%s", C_CYAN, C_RESET);
-        } else if (sub == 1) {
-          RCLCPP_INFO(get_logger(), "%s[Phase3-B] DEFEND: 基地低血+堡垒空闲，预期占领己方堡垒%s", C_CYAN, C_RESET);
-        } else {
-          RCLCPP_INFO(get_logger(), "%s[Phase3-C] ATTACK: 前哨站已毁+能量激活，预期压制敌方堡垒%s", C_CYAN, C_RESET);
-        }
-        break;
-      case 4:
-        if (sub == 0) {
-          RCLCPP_INFO(get_logger(), "%s[Phase4-A] 强锁敌追踪: target_valid=true，预期追踪与追击目标发布%s", C_MAGENTA, C_RESET);
-        } else if (sub == 1) {
-          RCLCPP_INFO(get_logger(), "%s[Phase4-B1] 丢失目标+DEFEND语义巡检: 预期防御战术巡检输出%s", C_MAGENTA, C_RESET);
-        } else {
-          RCLCPP_INFO(get_logger(), "%s[Phase4-B2] 丢失目标+ATTACK/NORMAL巡检: 预期战术隔离巡检输出%s", C_MAGENTA, C_RESET);
-        }
-        break;
-      case 5:
-        if (sub == 0 || sub == 1) {
-          RCLCPP_INFO(get_logger(), "%s[Phase5-A] 1Hz交替target_valid: 预期5秒CD拦截姿态抖动%s", C_YELLOW, C_RESET);
-        } else {
-          RCLCPP_INFO(get_logger(), "%s[Phase5-B] 伪造长时间流逝(>180s): 预期触发姿态超时刷新机制%s", C_YELLOW, C_RESET);
-        }
-        break;
-      case 6:
-        if (sub == 0) {
-          RCLCPP_INFO(get_logger(), "%s[Phase6-A] 同时触发多事件: 预期抢占顺序回血>特殊响应>追踪>巡逻%s", C_GREEN, C_RESET);
-        } else {
-          RCLCPP_INFO(
-            get_logger(), "%s[Phase6-B] 关闭TF广播: 预期系统安全退化，不崩溃(缓存/报错处理)%s",
-            C_GREEN, C_RESET);
-        }
-        break;
-      default:
-        break;
+    case 1:
+      if (sub == 0) {
+        RCLCPP_INFO(get_logger(),
+          "%s[Phase1-A] 生存最高优先: 低血低弹，预期强制回血回弹(HOME)+MOVE%s",
+          C_GREEN,
+          C_RESET);
+      } else {
+        RCLCPP_INFO(
+          get_logger(), "%s[Phase1-B] 恢复血弹: 预期退出回血模式，恢复常规行为%s", C_GREEN, C_RESET);
+      }
+      break;
+    case 2:
+      if (sub == 0) {
+        RCLCPP_INFO(
+          get_logger(), "%s[Phase2-A] TF进台阶区 + 台阶下有队友: 预期下台阶避让中止%s", C_YELLOW, C_RESET);
+      } else if (sub == 1) {
+        RCLCPP_INFO(get_logger(), "%s[Phase2-B] 清除队友占位: 预期恢复下台阶cmd_vel%s", C_YELLOW, C_RESET);
+      } else {
+        RCLCPP_INFO(
+          get_logger(), "%s[Phase2-C] TF进隧道区: 预期触发过隧道流程(含升降相关)%s", C_YELLOW, C_RESET);
+      }
+      break;
+    case 3:
+      if (sub == 0) {
+        RCLCPP_INFO(
+          get_logger(), "%s[Phase3-A] NORMAL: 前哨站未摧毁，预期优先响应前哨站%s", C_CYAN, C_RESET);
+      } else if (sub == 1) {
+        RCLCPP_INFO(
+          get_logger(), "%s[Phase3-B] DEFEND: 基地低血+堡垒空闲，预期占领己方堡垒%s", C_CYAN, C_RESET);
+      } else {
+        RCLCPP_INFO(
+          get_logger(), "%s[Phase3-C] ATTACK: 前哨站已毁+能量激活，预期压制敌方堡垒%s", C_CYAN, C_RESET);
+      }
+      break;
+    case 4:
+      if (sub == 0) {
+        RCLCPP_INFO(get_logger(),
+          "%s[Phase4-A] 强锁敌追踪: target_valid=true，预期追踪与追击目标发布%s",
+          C_MAGENTA,
+          C_RESET);
+      } else if (sub == 1) {
+        RCLCPP_INFO(get_logger(),
+          "%s[Phase4-B1] 丢失目标+DEFEND语义巡检: 预期防御战术巡检输出%s",
+          C_MAGENTA,
+          C_RESET);
+      } else {
+        RCLCPP_INFO(get_logger(),
+          "%s[Phase4-B2] 丢失目标+ATTACK/NORMAL巡检: 预期战术隔离巡检输出%s",
+          C_MAGENTA,
+          C_RESET);
+      }
+      break;
+    case 5:
+      if (sub == 0 || sub == 1) {
+        RCLCPP_INFO(
+          get_logger(), "%s[Phase5-A] 1Hz交替target_valid: 预期5秒CD拦截姿态抖动%s", C_YELLOW, C_RESET);
+      } else {
+        RCLCPP_INFO(get_logger(),
+          "%s[Phase5-B] 伪造长时间流逝(>180s): 预期触发姿态超时刷新机制%s",
+          C_YELLOW,
+          C_RESET);
+      }
+      break;
+    case 6:
+      if (sub == 0) {
+        RCLCPP_INFO(get_logger(),
+          "%s[Phase6-A] 同时触发多事件: 预期抢占顺序回血>特殊响应>追踪>巡逻%s",
+          C_GREEN,
+          C_RESET);
+      } else {
+        RCLCPP_INFO(get_logger(),
+          "%s[Phase6-B] 关闭TF广播: 预期系统安全退化，不崩溃(缓存/报错处理)%s",
+          C_GREEN,
+          C_RESET);
+      }
+      break;
+    default:
+      break;
     }
 
     if (tf_enabled_) {
@@ -236,10 +266,12 @@ private:
     tf_broadcaster_->sendTransform(camera_to_gimbal);
   }
 
-  void applyBaseline(
-    ros_interfaces::msg::TeamInformation & team_msg, ros_interfaces::msg::GameInfo & game_msg,
-    ros_interfaces::msg::RadarInfo & radar_msg, ros_interfaces::msg::SentryInfoOffline & offline_msg,
-    ros_interfaces::msg::SentryInfoOnline & online_msg, Sentry_BT::Point2D & tf_anchor)
+  void applyBaseline(ros_interfaces::msg::TeamInformation & team_msg,
+    ros_interfaces::msg::GameInfo & game_msg,
+    ros_interfaces::msg::RadarInfo & radar_msg,
+    ros_interfaces::msg::SentryInfoOffline & offline_msg,
+    ros_interfaces::msg::SentryInfoOnline & online_msg,
+    Sentry_BT::Point2D & tf_anchor)
   {
     const auto stamp = now();
     team_msg.header.stamp = stamp;
@@ -277,8 +309,8 @@ private:
     offline_msg.transform_state = 0.0F;
 
     // Online baseline
-    online_msg.self_health = 1000;      // bt内通常会做/4，对应约250
-    online_msg.bullets_remaining = 300; // 充足弹药
+    online_msg.self_health = 1000;       // bt内通常会做/4，对应约250
+    online_msg.bullets_remaining = 300;  // 充足弹药
     online_msg.cooling_value = 40;
     online_msg.heat_limit = 200;
     online_msg.current_heat = 20;
@@ -300,142 +332,143 @@ private:
     radar_msg.enemies[0].position.position.y = 3.0;
   }
 
-  void applyPhaseScenario(
-    ros_interfaces::msg::TeamInformation & team_msg, ros_interfaces::msg::GameInfo & game_msg,
-    ros_interfaces::msg::RadarInfo & radar_msg, ros_interfaces::msg::SentryInfoOffline & offline_msg,
-    ros_interfaces::msg::SentryInfoOnline & online_msg, Sentry_BT::Point2D & tf_anchor)
+  void applyPhaseScenario(ros_interfaces::msg::TeamInformation & team_msg,
+    ros_interfaces::msg::GameInfo & game_msg,
+    ros_interfaces::msg::RadarInfo & radar_msg,
+    ros_interfaces::msg::SentryInfoOffline & offline_msg,
+    ros_interfaces::msg::SentryInfoOnline & online_msg,
+    Sentry_BT::Point2D & tf_anchor)
   {
     const int sub = subPhase();
 
     switch (phase_) {
-      case 1: {
-        // [Phase1] 生存最高优先 + 10秒后恢复
-        if (phase_tick_ < TICKS_PER_SUBPHASE) {
-          online_msg.self_health = 80;      // /4后为20
-          online_msg.bullets_remaining = 50;
-        } else {
-          online_msg.self_health = 400;     // /4后为100
-          online_msg.bullets_remaining = 300;
-        }
-        break;
+    case 1: {
+      // [Phase1] 生存最高优先 + 10秒后恢复
+      if (phase_tick_ < TICKS_PER_SUBPHASE) {
+        online_msg.self_health = 80;  // /4后为20
+        online_msg.bullets_remaining = 50;
+      } else {
+        online_msg.self_health = 400;  // /4后为100
+        online_msg.bullets_remaining = 300;
       }
+      break;
+    }
 
-      case 2: {
-        // [Phase2-A/B/C] 台阶避让 -> 解除避让 -> 过隧道
-        if (sub == 0) {
-          // 台阶避让阶段：保持低血低弹，确保进入生存分支并触发下台阶监测。
-          online_msg.self_health = 80;      // /4后为20，低于阈值30
-          online_msg.bullets_remaining = 50;
-          tf_anchor = getAreaCenter(Sentry_BT::stairs_zone);
-          // 中文说明：把友军放入台阶下安全区，触发“有队友占位，暂停下台阶”
-          team_msg.allies[0].position.position.x = getAreaCenter(Sentry_BT::stairs_lower_safe_zone).x;
-          team_msg.allies[0].position.position.y = getAreaCenter(Sentry_BT::stairs_lower_safe_zone).y;
-        } else if (sub == 1) {
-          // 台阶恢复阶段：继续保持低血低弹，验证解除队友占位后的下台阶恢复。
-          online_msg.self_health = 80;
-          online_msg.bullets_remaining = 50;
-          tf_anchor = getAreaCenter(Sentry_BT::stairs_zone);
-          // 清空队友占位
-          team_msg.allies[0].position.position.x = 2.0;
-          team_msg.allies[0].position.position.y = -1.0;
-        } else {
-          // 隧道阶段：血量和弹量恢复，避免继续走“低血回家”语义。
-          online_msg.self_health = 400;     // /4后为100
-          online_msg.bullets_remaining = 300;
-          tf_anchor = getAreaCenter(Sentry_BT::tunnel_zone);
-          offline_msg.lifter_current_pos = 1;  // 模拟升降机构处于“准备过洞”状态
-        }
-        break;
+    case 2: {
+      // [Phase2-A/B/C] 台阶避让 -> 解除避让 -> 过隧道
+      if (sub == 0) {
+        // 台阶避让阶段：保持低血低弹，确保进入生存分支并触发下台阶监测。
+        online_msg.self_health = 80;  // /4后为20，低于阈值30
+        online_msg.bullets_remaining = 50;
+        tf_anchor = getAreaCenter(Sentry_BT::stairs_zone);
+        // 中文说明：把友军放入台阶下安全区，触发“有队友占位，暂停下台阶”
+        team_msg.allies[0].position.position.x = getAreaCenter(Sentry_BT::stairs_lower_safe_zone).x;
+        team_msg.allies[0].position.position.y = getAreaCenter(Sentry_BT::stairs_lower_safe_zone).y;
+      } else if (sub == 1) {
+        // 台阶恢复阶段：继续保持低血低弹，验证解除队友占位后的下台阶恢复。
+        online_msg.self_health = 80;
+        online_msg.bullets_remaining = 50;
+        tf_anchor = getAreaCenter(Sentry_BT::stairs_zone);
+        // 清空队友占位
+        team_msg.allies[0].position.position.x = 2.0;
+        team_msg.allies[0].position.position.y = -1.0;
+      } else {
+        // 隧道阶段：血量和弹量恢复，避免继续走“低血回家”语义。
+        online_msg.self_health = 400;  // /4后为100
+        online_msg.bullets_remaining = 300;
+        tf_anchor = getAreaCenter(Sentry_BT::tunnel_zone);
+        offline_msg.lifter_current_pos = 1;  // 模拟升降机构处于“准备过洞”状态
       }
+      break;
+    }
 
-      case 3: {
-        // [Phase3-A/B/C] NORMAL -> DEFEND -> ATTACK
-        if (sub == 0) {
-          radar_msg.is_enemy_outpost_sensed = true;  // 前哨站未摧毁
-          team_msg.base_hp = 2500;
-          game_msg.event_code = buildEventCode(0, 0, 0);
-        } else if (sub == 1) {
-          team_msg.base_hp = 800;                    // 触发防守阈值
-          game_msg.event_code = buildEventCode(0, 0, 0);  // fort_occupation_status=0
-        } else {
-          radar_msg.is_enemy_outpost_sensed = false; // 前哨站已摧毁
-          team_msg.base_hp = 2200;
-          game_msg.event_code = buildEventCode(1, 0, 1);
-          online_msg.sentry_info_2 = buildSentryInfo2(true, 1, true);  // can_activate_energy=true
-        }
-        break;
+    case 3: {
+      // [Phase3-A/B/C] NORMAL -> DEFEND -> ATTACK
+      if (sub == 0) {
+        radar_msg.is_enemy_outpost_sensed = true;  // 前哨站未摧毁
+        team_msg.base_hp = 2500;
+        game_msg.event_code = buildEventCode(0, 0, 0);
+      } else if (sub == 1) {
+        team_msg.base_hp = 800;                         // 触发防守阈值
+        game_msg.event_code = buildEventCode(0, 0, 0);  // fort_occupation_status=0
+      } else {
+        radar_msg.is_enemy_outpost_sensed = false;  // 前哨站已摧毁
+        team_msg.base_hp = 2200;
+        game_msg.event_code = buildEventCode(1, 0, 1);
+        online_msg.sentry_info_2 = buildSentryInfo2(true, 1, true);  // can_activate_energy=true
       }
+      break;
+    }
 
-      case 4: {
-        // [Phase4-A/B] 强锁敌追踪 + 丢失目标后的战术巡检
-        if (sub == 0) {
-          offline_msg.is_get = true;
-          offline_msg.armor_pos.x = 6000.0;
-          offline_msg.armor_pos.y = 4000.0;
-          tf_anchor = getAreaCenter(Sentry_BT::highland_zone);
-        } else if (sub == 1) {
-          offline_msg.is_get = false;
-          team_msg.base_hp = 700;                    // 倾向DEFEND
-          radar_msg.is_enemy_outpost_sensed = true;  // 未摧毁
-          tf_anchor = getAreaCenter(Sentry_BT::own_defense_zone);
-        } else {
-          offline_msg.is_get = false;
-          team_msg.base_hp = 2200;
-          radar_msg.is_enemy_outpost_sensed = false; // 倾向ATTACK/NORMAL切换
-          online_msg.sentry_info_2 = buildSentryInfo2(true, 1, true);
-          tf_anchor = getOutsidePointNearArea(Sentry_BT::own_defense_zone);
-        }
-        break;
+    case 4: {
+      // [Phase4-A/B] 强锁敌追踪 + 丢失目标后的战术巡检
+      if (sub == 0) {
+        offline_msg.is_get = true;
+        offline_msg.armor_pos.x = 6000.0;
+        offline_msg.armor_pos.y = 4000.0;
+        tf_anchor = getAreaCenter(Sentry_BT::highland_zone);
+      } else if (sub == 1) {
+        offline_msg.is_get = false;
+        team_msg.base_hp = 700;                    // 倾向DEFEND
+        radar_msg.is_enemy_outpost_sensed = true;  // 未摧毁
+        tf_anchor = getAreaCenter(Sentry_BT::own_defense_zone);
+      } else {
+        offline_msg.is_get = false;
+        team_msg.base_hp = 2200;
+        radar_msg.is_enemy_outpost_sensed = false;  // 倾向ATTACK/NORMAL切换
+        online_msg.sentry_info_2 = buildSentryInfo2(true, 1, true);
+        tf_anchor = getOutsidePointNearArea(Sentry_BT::own_defense_zone);
       }
+      break;
+    }
 
-      case 5: {
-        // [Phase5-A] 1Hz target_valid 翻转测试5秒CD
-        if (sub < 2) {
-          const bool target_on = ((phase_tick_ / 10) % 2) == 0;
-          offline_msg.is_get = target_on;
-          if (target_on) {
-            offline_msg.armor_pos.x = 7000.0;
-            offline_msg.armor_pos.y = 3500.0;
-          }
-        } else {
-          // [Phase5-B] 伪造超时刷新场景：在测试节点中模拟“逻辑时钟跳变”
-          // 注：是否真正触发BT内部超时刷新，取决于被测系统如何取时。
-          if (!fake_time_jump_applied_) {
-            fake_time_jump_applied_ = true;
-            RCLCPP_INFO(
-              get_logger(), "%s[Phase5-B] 伪造Time Jump: +181s (用于超时刷新测试)%s", C_YELLOW,
-              C_RESET);
-          }
-          offline_msg.is_get = false;
-          online_msg.self_health = 1200;
-          online_msg.bullets_remaining = 260;
+    case 5: {
+      // [Phase5-A] 1Hz target_valid 翻转测试5秒CD
+      if (sub < 2) {
+        const bool target_on = ((phase_tick_ / 10) % 2) == 0;
+        offline_msg.is_get = target_on;
+        if (target_on) {
+          offline_msg.armor_pos.x = 7000.0;
+          offline_msg.armor_pos.y = 3500.0;
         }
-        break;
-      }
-
-      case 6: {
-        // [Phase6-A/B] 抢占顺序校验 + TF丢失边界
-        if (sub == 0) {
-          // 同时触发：回血 + 前哨站响应 + 锁敌
-          online_msg.self_health = 80;               // 低血
-          online_msg.bullets_remaining = 50;         // 低弹
-          radar_msg.is_enemy_outpost_sensed = true;  // 前哨站未摧毁
-          offline_msg.is_get = true;                 // 有目标
-          offline_msg.armor_pos.x = 5500.0;
-          offline_msg.armor_pos.y = 3000.0;
-          tf_anchor = getAreaCenter(Sentry_BT::highland_zone);
-        } else {
-          // TF 丢失测试：停止广播，但消息继续发布
-          tf_enabled_ = false;
-          online_msg.self_health = 900;
-          online_msg.bullets_remaining = 220;
-          offline_msg.is_get = false;
+      } else {
+        // [Phase5-B] 伪造超时刷新场景：在测试节点中模拟“逻辑时钟跳变”
+        // 注：是否真正触发BT内部超时刷新，取决于被测系统如何取时。
+        if (!fake_time_jump_applied_) {
+          fake_time_jump_applied_ = true;
+          RCLCPP_INFO(
+            get_logger(), "%s[Phase5-B] 伪造Time Jump: +181s (用于超时刷新测试)%s", C_YELLOW, C_RESET);
         }
-        break;
+        offline_msg.is_get = false;
+        online_msg.self_health = 1200;
+        online_msg.bullets_remaining = 260;
       }
+      break;
+    }
 
-      default:
-        break;
+    case 6: {
+      // [Phase6-A/B] 抢占顺序校验 + TF丢失边界
+      if (sub == 0) {
+        // 同时触发：回血 + 前哨站响应 + 锁敌
+        online_msg.self_health = 80;               // 低血
+        online_msg.bullets_remaining = 50;         // 低弹
+        radar_msg.is_enemy_outpost_sensed = true;  // 前哨站未摧毁
+        offline_msg.is_get = true;                 // 有目标
+        offline_msg.armor_pos.x = 5500.0;
+        offline_msg.armor_pos.y = 3000.0;
+        tf_anchor = getAreaCenter(Sentry_BT::highland_zone);
+      } else {
+        // TF 丢失测试：停止广播，但消息继续发布
+        tf_enabled_ = false;
+        online_msg.self_health = 900;
+        online_msg.bullets_remaining = 220;
+        offline_msg.is_get = false;
+      }
+      break;
+    }
+
+    default:
+      break;
     }
   }
 
