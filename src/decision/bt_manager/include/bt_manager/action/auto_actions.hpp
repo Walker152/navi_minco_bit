@@ -30,6 +30,15 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class SetManualOverrideGoal : public BT::SyncActionNode
+{
+public:
+  SetManualOverrideGoal(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 class SelectPatrolPoint : public BT::SyncActionNode
 {
 public:

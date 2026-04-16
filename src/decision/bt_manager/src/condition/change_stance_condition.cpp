@@ -4,54 +4,52 @@
 #include <chrono>
 using namespace color_text;
 namespace Sentry_BT {
-// ------------------- CheckMPCondition -------------------
-CheckMPCondition::CheckMPCondition(const std::string & name, const BT::NodeConfiguration & config)
+// ------------------- CheckAttackStanceCondition -------------------
+CheckAttackStanceCondition::CheckAttackStanceCondition(
+  const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
 {
 }
 
-BT::PortsList CheckMPCondition::providedPorts()
+BT::PortsList CheckAttackStanceCondition::providedPorts()
 {
-  return {};
+  return {BT::InputPort<int>("high_heat_threshold", 200, "Heat threshold to enter ATTACK"),
+    BT::InputPort<int>("low_heat_threshold", 80, "Heat threshold to release ATTACK hysteresis"),
+    BT::InputPort<float>("attack_gyro_vel", 80.0f, "Gyro rpm when ATTACK is active")};
 }
 
-BT::NodeStatus CheckMPCondition::tick()
-{
-  auto blackboard = config().blackboard;
-  blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::MOVE);
-  return BT::NodeStatus::SUCCESS;
-}
-
-// ------------------- CheckAPCondition -------------------
-CheckAPCondition::CheckAPCondition(const std::string & name, const BT::NodeConfiguration & config)
-: BT::ConditionNode(name, config)
-{
-}
-
-BT::PortsList CheckAPCondition::providedPorts()
-{
-  return {};
-}
-
-BT::NodeStatus CheckAPCondition::tick()
+BT::NodeStatus CheckAttackStanceCondition::tick()
 {
   auto blackboard = config().blackboard;
   try {
-    auto current_mode = blackboard->get<int>("current_mode");
-    bool outpost_msg = blackboard->get<bool>("outpost_msg");
-    bool target_valid = blackboard->get<bool>("target_valid");
-    const bool condition_met =
-      current_mode == static_cast<int>(Sentry_BT::NavMode::TRACING) || outpost_msg || target_valid;
+    const int high_heat_threshold = getInput<int>("high_heat_threshold").value_or(200);
+    const int low_heat_threshold = getInput<int>("low_heat_threshold").value_or(80);
+    const float attack_gyro_vel = getInput<float>("attack_gyro_vel").value_or(80.0f);
 
+    const int current_heat = blackboard->get<int>("current_heat");
+    const bool outpost_msg = blackboard->get<bool>("outpost_msg");
+
+    if (!heat_attack_latched_ && current_heat > high_heat_threshold) {
+      heat_attack_latched_ = true;
+    }
+    if (heat_attack_latched_ && current_heat < low_heat_threshold) {
+      heat_attack_latched_ = false;
+    }
+
+    blackboard->set("heat_attack_latched", heat_attack_latched_);
+
+    const bool condition_met = heat_attack_latched_ || outpost_msg;
     static bool last_condition_met = false;
     if (condition_met != last_condition_met) {
-      std::cout << (condition_met ? GREEN : YELLOW) << "CheckAPCondition => "
+      std::cout << (condition_met ? GREEN : YELLOW) << "CheckAttackStanceCondition => "
                 << (condition_met ? "ATTACK enabled" : "ATTACK disabled") << RESET << std::endl;
       last_condition_met = condition_met;
     }
 
     if (condition_met) {
       blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::ATTACK);
+      blackboard->set("use_gyro_mode", true);
+      blackboard->set("gyro_vel", attack_gyro_vel);
       return BT::NodeStatus::SUCCESS;
     }
   } catch (...) {
@@ -60,42 +58,89 @@ BT::NodeStatus CheckAPCondition::tick()
   return BT::NodeStatus::FAILURE;
 }
 
-// ------------------- CheckDPCondition -------------------
-CheckDPCondition::CheckDPCondition(const std::string & name, const BT::NodeConfiguration & config)
+// ------------------- CheckMoveStanceCondition -------------------
+CheckMoveStanceCondition::CheckMoveStanceCondition(
+  const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
 {
 }
 
-BT::PortsList CheckDPCondition::providedPorts()
+BT::PortsList CheckMoveStanceCondition::providedPorts()
 {
   return {};
 }
 
-BT::NodeStatus CheckDPCondition::tick()
+BT::NodeStatus CheckMoveStanceCondition::tick()
 {
   auto blackboard = config().blackboard;
   try {
+    auto current_mode = blackboard->get<int>("current_mode");
     const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-    const bool in_fort_area =
+    const bool through_tunnel = blackboard->get<bool>("through_tunnel");
+    const bool in_highland = highland_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
+    const bool in_own_defense =
       own_defense_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
-    const int fort_status = blackboard->get<int>("fort_occupation_status");
-    const bool condition_met = in_fort_area && fort_status > 0;
 
-    static bool last_condition_met = false;
-    if (condition_met != last_condition_met) {
-      std::cout << (condition_met ? RED : WHITE) << "CheckDPCondition => "
-                << (condition_met ? "DEFEND enabled" : "DEFEND disabled") << RESET << std::endl;
-      last_condition_met = condition_met;
-    }
-
+    const bool need_cross_to_highland = in_own_defense && through_tunnel;
+    const bool need_go_home_supply = current_mode == static_cast<int>(Sentry_BT::NavMode::RETREAT);
+    const bool condition_met = (need_cross_to_highland || need_go_home_supply) && !in_highland;
     if (condition_met) {
-      blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::DEFEND);
+      blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::MOVE);
+      blackboard->set("use_gyro_mode", false);
+      blackboard->set("gyro_vel", 0.0f);
       return BT::NodeStatus::SUCCESS;
     }
   } catch (...) {
     return BT::NodeStatus::FAILURE;
   }
   return BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckDefendStanceCondition -------------------
+CheckDefendStanceCondition::CheckDefendStanceCondition(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckDefendStanceCondition::providedPorts()
+{
+  return {};
+}
+
+BT::NodeStatus CheckDefendStanceCondition::tick()
+{
+  auto blackboard = config().blackboard;
+  try {
+    const int current_mode = blackboard->get<int>("current_mode");
+    const bool target_valid = blackboard->get<bool>("target_valid");
+    const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+    const int fort_status = blackboard->get<int>("fort_occupation_status");
+    const bool in_fort_area = own_defense_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
+
+    // 追踪模式统一归防御姿态；其余情况也作为默认兜底防御
+    const bool defend_reason =
+      current_mode == static_cast<int>(Sentry_BT::NavMode::TRACING) || target_valid ||
+      (in_fort_area && fort_status > 0);
+
+    static int last_reason = -1;
+    int reason = defend_reason ? 1 : 0;
+    if (reason != last_reason) {
+      std::cout << (defend_reason ? RED : WHITE) << "CheckDefendStanceCondition => DEFEND"
+                << (defend_reason ? " (trace/target/fort)" : " (default)") << RESET << std::endl;
+      last_reason = reason;
+    }
+
+    blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::DEFEND);
+    blackboard->set("use_gyro_mode", true);
+    if (blackboard->get<float>("gyro_vel") <= 0.0f) {
+      blackboard->set("gyro_vel", 80.0f);
+    }
+    return BT::NodeStatus::SUCCESS;
+  } catch (...) {
+    return BT::NodeStatus::FAILURE;
+  }
+  return BT::NodeStatus::SUCCESS;
 }
 
 // ------------------- CheckStanceRefreshRequired -------------------

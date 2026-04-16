@@ -8,6 +8,7 @@
 #include <string>
 
 namespace Sentry_BT {
+
 ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
 : Node(
     "ros_interface_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count() % 10000),
@@ -47,6 +48,11 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
       this->sentryOnlineCallback(msg);
     });
 
+  manual_override_sub = this->create_subscription<geometry_msgs::msg::PointStamped>(
+    "/sentry/manual_override_goal",
+    1,
+    [this](const geometry_msgs::msg::PointStamped::SharedPtr msg) { this->manualOverrideCallback(msg); });
+
   odom_sub = this->create_subscription<nav_msgs::msg::Odometry>(
     "/aft_mapped_to_init", 1, [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
       // 更新当前位置
@@ -84,6 +90,9 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto current_mode = blackboard_->get<int>("current_mode");
     const auto desired_stance = blackboard_->get<Sentry_BT::SentryStance>("desired_stance");
     const auto desired_lifter_pos = blackboard_->get<Sentry_BT::LifterPos>("desired_lifter_pos");
+    auto control_mode = blackboard_->get<Sentry_BT::ControlMode>("control_mode");
+    auto use_gyro_mode = blackboard_->get<bool>("use_gyro_mode");
+    auto gyro_vel = blackboard_->get<float>("gyro_vel");
     const auto current_pose = getCurrentPose();
 
     const bool is_reach_outpost_enemy =
@@ -96,10 +105,13 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     blackboard_->set<bool>("outpost_msg", is_reach_outpost_enemy);
 
     ros_interfaces::msg::Behavior behavior_msg;
-    behavior_msg.desired_stance = static_cast<int8_t>(desired_stance);
+    behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
+    behavior_msg.control_mode = static_cast<uint8_t>(control_mode);
+    behavior_msg.use_gyro_mode = use_gyro_mode;
+    behavior_msg.gyro_vel = gyro_vel;
     behavior_msg.is_reach_outpost_enemy = is_reach_outpost_enemy;
     behavior_msg.is_reach_outpost_own = is_reach_outpost_own;
-    behavior_msg.desire_lifter_pos = static_cast<int8_t>(desired_lifter_pos);
+    behavior_msg.desire_lifter_pos = static_cast<uint8_t>(desired_lifter_pos);
     behavior_pub->publish(behavior_msg);
 
     const auto cmd_vel = blackboard_->get<geometry_msgs::msg::Twist>("cmd_vel");
@@ -123,25 +135,29 @@ geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
 // 新增：全局信息回调函数
 void ros_interface::teamInfoCallback(const ros_interfaces::msg::TeamInformation::SharedPtr msg)
 {
-  // 保存完整的团队信息
-  blackboard_->set<ros_interfaces::msg::TeamInformation>("team_info", *msg);
-
   // 提取基地和前哨站血量
   blackboard_->set<int>("home_health", static_cast<int>(msg->base_hp));
   blackboard_->set<int>("own_outpost_health", static_cast<int>(msg->outpost_hp));
 
   // 处理队友信息
+  ros_interfaces::msg::TeamInformation team_info = *msg;
   std::vector<AllyRobotInfo> allies_info;
   allies_info.reserve(msg->allies.size());
+  const auto tf_utils_node = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
 
   for (const auto & ally : msg->allies) {
     AllyRobotInfo info;
     info.robot_id = ally.armor_id;  // 将armor_id映射到robot_id
     info.remain_hp = static_cast<int>(ally.remain_hp);
-    info.position = ally.position;
+    if (tf_utils_node) {
+      if (tf_utils_node->transformPoseToMap(ally.position, info.position, "minimap")) {
+      }
+    }
+
     allies_info.push_back(info);
   }
 
+  // 保存转换后的团队信息
   blackboard_->set<std::vector<AllyRobotInfo>>("allies_info", allies_info);
 }
 
@@ -181,23 +197,45 @@ void ros_interface::radarInfoCallback(const ros_interfaces::msg::RadarInfo::Shar
   blackboard_->set<bool>("enemy_outpost_destroyed", !(msg->is_enemy_outpost_sensed));
 
   // 存储所有敌方机器人状态
+  ros_interfaces::msg::RadarInfo radar_info = *msg;
+  
   std::vector<EnemyRobotInfo> enemies_info;
   enemies_info.reserve(msg->enemies.size());
-  for (const auto & enemy : msg->enemies) {
+  const auto tf_utils_node = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  for (auto & enemy : radar_info.enemies) {
     if (enemy.robot_id > 0) {  // 有效敌方
-      EnemyRobotInfo enemy_info;
-      enemy_info.robot_id = static_cast<int>(enemy.robot_id);
-      enemy_info.remain_hp = static_cast<int>(enemy.robot_hp);
-      enemy_info.allowed_projectile = static_cast<int>(enemy.allowed_projectile);
-      enemy_info.position = enemy.position;
-
-      enemies_info.push_back(enemy_info);
+      EnemyRobotInfo info;
+      info.remain_hp = static_cast<int>(enemy.robot_hp);
+      info.robot_id = static_cast<int>(enemy.robot_id);
+      if (tf_utils_node) {
+        tf_utils_node->transformPoseToMap(enemy.position, info.position, "minimap");
+      }
+      info.allowed_projectile = static_cast<int>(enemy.allowed_projectile);
+      enemies_info.push_back(info);
     }
   }
 
   blackboard_->set<std::vector<EnemyRobotInfo>>("enemies_info", enemies_info);
-  // 可以存储完整的雷达信息
-  blackboard_->set<ros_interfaces::msg::RadarInfo>("radar_info", *msg);
+}
+
+void ros_interface::manualOverrideCallback(const geometry_msgs::msg::PointStamped::SharedPtr msg)
+{
+  const auto tf_utils_node = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  geometry_msgs::msg::Point manual_goal_in_map = msg->point;
+  if (tf_utils_node) {
+    geometry_msgs::msg::Pose input_pose;
+    input_pose.position = msg->point;
+    input_pose.orientation.w = 1.0;
+    geometry_msgs::msg::Pose output_pose;
+    if (tf_utils_node->transformPoseToMap(input_pose, output_pose, "minimap")) {
+      manual_goal_in_map = output_pose.position;
+    }
+  }
+
+  const Point2D manual_goal{manual_goal_in_map.x, manual_goal_in_map.y, 0.0};
+  blackboard_->set("manual_override_goal", manual_goal);
+  blackboard_->set("manual_override_goal_valid", true);
+  blackboard_->set("manual_override_active", true);
 }
 
 // 新增：哨兵离线信息回调函数
@@ -260,15 +298,18 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
   blackboard_->set<float>("speed_monitor_angle", msg->speed_monitor_angle);
 
   // 存储哨兵位置
-  geometry_msgs::msg::Point sentry_position;
-  sentry_position.x = msg->sentry_pos.x;
-  sentry_position.y = msg->sentry_pos.y;
-  sentry_position.z = 0.0;
+  const auto tf_utils_node = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  geometry_msgs::msg::Point sentry_position = msg->sentry_pos;
+  if (tf_utils_node) {
+    geometry_msgs::msg::Pose input_pose;
+    input_pose.position = msg->sentry_pos;
+    input_pose.orientation.w = 1.0;
+    geometry_msgs::msg::Pose output_pose;
+    if (tf_utils_node->transformPoseToMap(input_pose, output_pose, "minimap")) {
+      sentry_position = output_pose.position;
+    }
+  }
   blackboard_->set<geometry_msgs::msg::Point>("sentry_position", sentry_position);
-
-  // 存储原始信息
-  blackboard_->set<uint32_t>("sentry_info_1_raw", msg->sentry_info_1);
-  blackboard_->set<uint16_t>("sentry_info_2_raw", msg->sentry_info_2);
 
   // 解码sentry_info_2
   uint16_t sentry_info_2 = msg->sentry_info_2;
