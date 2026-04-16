@@ -77,7 +77,8 @@ BT::NodeStatus CheckMoveStanceCondition::tick()
     auto current_mode = blackboard->get<int>("current_mode");
     const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
     const bool through_tunnel = blackboard->get<bool>("through_tunnel");
-    const bool in_highland = highland_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
+    const bool in_highland =
+      highland_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
     const bool in_own_defense =
       own_defense_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
 
@@ -87,8 +88,8 @@ BT::NodeStatus CheckMoveStanceCondition::tick()
 
     static bool last_through_tunnel = false;
     if (through_tunnel != last_through_tunnel) {
-      std::cout << CYAN << "CheckMoveStanceCondition => through_tunnel "
-                << (through_tunnel ? "ON" : "OFF") << RESET << std::endl;
+      std::cout << CYAN << "CheckMoveStanceCondition => through_tunnel " << (through_tunnel ? "ON" : "OFF")
+                << RESET << std::endl;
       last_through_tunnel = through_tunnel;
     }
 
@@ -131,12 +132,12 @@ BT::NodeStatus CheckDefendStanceCondition::tick()
     const bool target_valid = blackboard->get<bool>("target_valid");
     const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
     const int fort_status = blackboard->get<int>("fort_occupation_status");
-    const bool in_fort_area = own_defense_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
+    const bool in_fort_area =
+      own_defense_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
 
     // 追踪模式统一归防御姿态；其余情况也作为默认兜底防御
-    const bool defend_reason =
-      current_mode == static_cast<int>(Sentry_BT::NavMode::TRACING) || target_valid ||
-      (in_fort_area && fort_status > 0);
+    const bool defend_reason = current_mode == static_cast<int>(Sentry_BT::NavMode::TRACING) ||
+                               target_valid || (in_fort_area && fort_status > 0);
 
     static int last_reason = -1;
     int reason = defend_reason ? 1 : 0;

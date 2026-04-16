@@ -1,10 +1,10 @@
+#include <cmath>
 #include <memory>
 #include <string>
-#include <cmath>
 
 #include <Eigen/Geometry>
-#include <pcl/common/transforms.h>
 #include <pcl/common/point_tests.h>
+#include <pcl/common/transforms.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
@@ -20,8 +20,7 @@ namespace msg_convert {
 class CloudRegisteredCropFilterNode : public rclcpp::Node
 {
 public:
-  CloudRegisteredCropFilterNode()
-  : Node("cloud_registered_crop_filter")
+  CloudRegisteredCropFilterNode() : Node("cloud_registered_crop_filter")
   {
     const auto input_topic = this->declare_parameter<std::string>("input_topic", "/cloud_registered");
     const auto output_topic =
@@ -37,9 +36,7 @@ public:
     remove_inside_ = this->declare_parameter<bool>("remove_inside", true);
     if (filter_mode_ != "transform_cloud" && filter_mode_ != "transform_center") {
       RCLCPP_WARN(
-        this->get_logger(),
-        "Unknown filter_mode='%s', fallback to transform_cloud",
-        filter_mode_.c_str());
+        this->get_logger(), "Unknown filter_mode='%s', fallback to transform_cloud", filter_mode_.c_str());
       filter_mode_ = "transform_cloud";
     }
 
@@ -52,27 +49,26 @@ public:
     size_z_ = static_cast<float>(this->declare_parameter<double>("box_size.z", 3.5));
 
     if (size_x_ <= 0.0f || size_y_ <= 0.0f || size_z_ <= 0.0f) {
-      RCLCPP_WARN(
-        this->get_logger(),
+      RCLCPP_WARN(this->get_logger(),
         "box_size must be positive. Using absolute value: (%.3f, %.3f, %.3f)",
-        size_x_, size_y_, size_z_);
+        size_x_,
+        size_y_,
+        size_z_);
       size_x_ = std::abs(size_x_);
       size_y_ = std::abs(size_y_);
       size_z_ = std::abs(size_z_);
     }
 
-    cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-      input_topic,
+    cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(input_topic,
       rclcpp::QoS(rclcpp::KeepLast(queue_size)),
       std::bind(&CloudRegisteredCropFilterNode::cloudCallback, this, std::placeholders::_1));
 
     cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
-      output_topic,
-      rclcpp::QoS(rclcpp::KeepLast(queue_size)));
+      output_topic, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
 
-    RCLCPP_INFO(
-      this->get_logger(),
-      "Crop filter started. input=%s output=%s center=(%.3f, %.3f, %.3f) frame=%s mode=%s remove_inside=%s box_size=(%.3f, %.3f, %.3f)",
+    RCLCPP_INFO(this->get_logger(),
+      "Crop filter started. input=%s output=%s center=(%.3f, %.3f, %.3f) frame=%s mode=%s remove_inside=%s "
+      "box_size=(%.3f, %.3f, %.3f)",
       input_topic.c_str(),
       output_topic.c_str(),
       center_x_,
@@ -94,10 +90,7 @@ private:
 
     Eigen::Matrix4f m = Eigen::Matrix4f::Identity();
     const Eigen::Quaternionf quat(
-      static_cast<float>(q.w),
-      static_cast<float>(q.x),
-      static_cast<float>(q.y),
-      static_cast<float>(q.z));
+      static_cast<float>(q.w), static_cast<float>(q.x), static_cast<float>(q.y), static_cast<float>(q.z));
     m.block<3, 3>(0, 0) = quat.normalized().toRotationMatrix();
     m(0, 3) = static_cast<float>(t.x);
     m(1, 3) = static_cast<float>(t.y);
@@ -105,24 +98,23 @@ private:
     return m;
   }
 
-  bool lookupTransform(
-    const std::string & target_frame,
+  bool lookupTransform(const std::string & target_frame,
     const std::string & source_frame,
     const rclcpp::Time & stamp,
     geometry_msgs::msg::TransformStamped & tf_out)
   {
     try {
       tf_out = tf_buffer_->lookupTransform(
-        target_frame,
-        source_frame,
-        stamp,
-        rclcpp::Duration::from_seconds(0.05));
+        target_frame, source_frame, stamp, rclcpp::Duration::from_seconds(0.05));
       return true;
     } catch (const tf2::TransformException & ex) {
-      RCLCPP_WARN_THROTTLE(
-        this->get_logger(), *this->get_clock(), 2000,
+      RCLCPP_WARN_THROTTLE(this->get_logger(),
+        *this->get_clock(),
+        2000,
         "TF lookup failed: %s <- %s, reason: %s",
-        target_frame.c_str(), source_frame.c_str(), ex.what());
+        target_frame.c_str(),
+        source_frame.c_str(),
+        ex.what());
       return false;
     }
   }
@@ -162,10 +154,7 @@ private:
         }
 
         cloud_for_filter = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
-        pcl::transformPointCloud(
-          *cloud_input,
-          *cloud_for_filter,
-          transformToMatrix(tf_cloud_to_filter));
+        pcl::transformPointCloud(*cloud_input, *cloud_for_filter, transformToMatrix(tf_cloud_to_filter));
       }
     } else {  // transform_center
       if (filter_frame != cloud_frame) {
@@ -198,9 +187,7 @@ private:
       }
 
       const bool inside =
-        (p.x >= min_x && p.x <= max_x) &&
-        (p.y >= min_y && p.y <= max_y) &&
-        (p.z >= min_z && p.z <= max_z);
+        (p.x >= min_x && p.x <= max_x) && (p.y >= min_y && p.y <= max_y) && (p.z >= min_z && p.z <= max_z);
 
       const bool keep = remove_inside_ ? !inside : inside;
       if (keep) {

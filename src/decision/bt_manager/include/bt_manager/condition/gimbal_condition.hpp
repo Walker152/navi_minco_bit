@@ -1,11 +1,11 @@
 #pragma once
 
+#include "bt_manager/blackboard.hpp"
+#include "bt_manager/ros_interface.hpp"
+#include "bt_manager/utils/log.hpp"
+#include "bt_manager/utils/nav_zone.hpp"
 #include <behaviortree_cpp_v3/condition_node.h>
 #include <geometry_msgs/msg/pose.hpp>
-#include "bt_manager/utils/log.hpp"
-#include "bt_manager/blackboard.hpp"
-#include "bt_manager/utils/nav_zone.hpp"
-#include "bt_manager/ros_interface.hpp"
 
 namespace Sentry_BT {
 class CheckTargetVisible : public BT::ConditionNode
@@ -24,6 +24,7 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+
 private:
   geometry_msgs::msg::Pose target_pose_;
   float gimbal_yaw_;
@@ -34,7 +35,7 @@ private:
 // 检查是否将要过隧道
 // class CheckWillThroughTunnel : public BT::ConditionNode
 // {
-// public: 
+// public:
 //   CheckWillThroughTunnel(const std::string& name, const BT::NodeConfiguration& config);
 //   static BT::PortsList providedPorts();
 //   BT::NodeStatus tick() override;

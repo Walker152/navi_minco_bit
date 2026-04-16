@@ -158,8 +158,7 @@ BT::NodeStatus CheckTargetLocked::tick()
     if (condition_met) {
       std::cout << GREEN << "CheckTargetLocked => LOCKED"
                 << ", target_xy=(" << target_pose.position.x << ", " << target_pose.position.y << ")"
-                << ", tactical_mode=" << static_cast<int>(tactical_mode)
-                << RESET << std::endl;
+                << ", tactical_mode=" << static_cast<int>(tactical_mode) << RESET << std::endl;
     } else {
       std::cout << YELLOW << "CheckTargetLocked => UNLOCKED"
                 << (in_attack_area ? "" : " (out of attack area)")
@@ -213,8 +212,7 @@ CheckManualOverride::CheckManualOverride(const std::string & name, const BT::Nod
 
 BT::PortsList CheckManualOverride::providedPorts()
 {
-  return {
-    BT::InputPort<double>("timeout_seconds", 4.0, "Manual override timeout when goal is unchanged"),
+  return {BT::InputPort<double>("timeout_seconds", 4.0, "Manual override timeout when goal is unchanged"),
     BT::InputPort<double>("same_goal_eps", 0.05, "Position epsilon to consider goal unchanged")};
 }
 
@@ -250,8 +248,7 @@ BT::NodeStatus CheckManualOverride::tick()
     last_goal_change_time_ = now;
   }
 
-  const double unchanged_seconds =
-    std::chrono::duration<double>(now - last_goal_change_time_).count();
+  const double unchanged_seconds = std::chrono::duration<double>(now - last_goal_change_time_).count();
   if (unchanged_seconds >= timeout_seconds) {
     blackboard->set("manual_override_active", false);
     blackboard->set("manual_override_goal_valid", false);
@@ -528,8 +525,7 @@ BT::NodeStatus CheckEnemyBaseLowHp::tick()
 {
   static bool logged_once = false;
   if (!logged_once) {
-    std::cout << YELLOW
-              << "CheckEnemyBaseLowHp is disabled: enemy base HP is currently unavailable from IO"
+    std::cout << YELLOW << "CheckEnemyBaseLowHp is disabled: enemy base HP is currently unavailable from IO"
               << RESET << std::endl;
     logged_once = true;
   }
