@@ -381,9 +381,9 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3
   };
 
   // 3) Build Ideal Indices by time-uniform sampling in trapezoid time, then s(t)->raw index.
-  const double desired_spatial_res = 0.4;
+  const double desired_spatial_res = 0.8;
   const int n_segments_spatial = static_cast<int>(std::ceil(total_length / desired_spatial_res));
-  const int n_segments_time = static_cast<int>(std::ceil(t_total / 0.25));
+  const int n_segments_time = static_cast<int>(std::ceil(t_total / 0.5));
   const int n_segments = std::max(4, std::max(n_segments_spatial, n_segments_time));
   const double dt = t_total / static_cast<double>(n_segments);
 
