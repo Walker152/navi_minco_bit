@@ -14,13 +14,10 @@
 
 #include "smac_search/collision_checker.hpp"
 
-namespace minco_planner
-{
-namespace smac
-{
+namespace minco_planner {
+namespace smac {
 
-GridCollisionChecker::GridCollisionChecker(
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
+GridCollisionChecker::GridCollisionChecker(std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
   unsigned int num_quantizations,
   rclcpp_lifecycle::LifecycleNode::SharedPtr node)
 : FootprintCollisionChecker(costmap_ros ? costmap_ros->getCostmap() : nullptr)
@@ -43,14 +40,13 @@ GridCollisionChecker::GridCollisionChecker(
 }
 
 void GridCollisionChecker::setFootprint(
-  const nav2_costmap_2d::Footprint & footprint,
-  const bool & radius,
-  const double & possible_collision_cost)
+  const nav2_costmap_2d::Footprint & footprint, const bool & radius, const double & possible_collision_cost)
 {
   possible_collision_cost_ = static_cast<float>(possible_collision_cost);
   if (possible_collision_cost_ <= 0.0f) {
-    RCLCPP_ERROR_THROTTLE(
-      logger_, *clock_, 1000,
+    RCLCPP_ERROR_THROTTLE(logger_,
+      *clock_,
+      1000,
       "Inflation layer either not found or inflation is not set sufficiently for "
       "optimized non-circular collision checking capabilities. It is HIGHLY recommended to set"
       " the inflation radius to be at MINIMUM half of the robot's largest cross-section. See "
@@ -96,30 +92,25 @@ void GridCollisionChecker::setFootprint(
 }
 
 bool GridCollisionChecker::inCollision(
-  const float & x,
-  const float & y,
-  const float & angle_bin,
-  const bool & traverse_unknown)
+  const float & x, const float & y, const float & angle_bin, const bool & traverse_unknown)
 {
   // Check to make sure cell is inside the map
-  if (outsideRange(costmap_->getSizeInCellsX(), x) ||
-    outsideRange(costmap_->getSizeInCellsY(), y))
-  {
+  if (outsideRange(costmap_->getSizeInCellsX(), x) || outsideRange(costmap_->getSizeInCellsY(), y)) {
     return true;
   }
 
   // Assumes setFootprint already set
-  center_cost_ = static_cast<float>(costmap_->getCost(
-      static_cast<unsigned int>(x + 0.5f), static_cast<unsigned int>(y + 0.5f)));
+  center_cost_ = static_cast<float>(
+    costmap_->getCost(static_cast<unsigned int>(x + 0.5f), static_cast<unsigned int>(y + 0.5f)));
 
   if (!footprint_is_radius_) {
     // if possible inscribed, need to check actual footprint
     if (center_cost_ > possible_collision_cost_) {
       if (angle_bin >= oriented_footprints_.size()) {
-        throw std::runtime_error(
-                "Angle bin is out of bounds. Check angle quantizations.");
+        throw std::runtime_error("Angle bin is out of bounds. Check angle quantizations.");
       }
-      return footprintCost(oriented_footprints_[static_cast<unsigned int>(angle_bin)]) >= nav2_costmap_2d::LETHAL_OBSTACLE;
+      return footprintCost(oriented_footprints_[static_cast<unsigned int>(angle_bin)]) >=
+             nav2_costmap_2d::LETHAL_OBSTACLE;
     }
 
     // If low enough cost, no need to check footprint
@@ -129,7 +120,8 @@ bool GridCollisionChecker::inCollision(
 
     // If traversing unknown, need to check actual footprint for unknown costs
     return center_cost_ == UNKNOWN_COST &&
-          footprintCost(oriented_footprints_[static_cast<unsigned int>(angle_bin)]) >= nav2_costmap_2d::LETHAL_OBSTACLE;
+           footprintCost(oriented_footprints_[static_cast<unsigned int>(angle_bin)]) >=
+             nav2_costmap_2d::LETHAL_OBSTACLE;
   } else {
     // If using a radius footprint model
     if (center_cost_ == UNKNOWN_COST && !traverse_unknown) {
@@ -141,9 +133,7 @@ bool GridCollisionChecker::inCollision(
   }
 }
 
-bool GridCollisionChecker::inCollision(
-  const unsigned int & i,
-  const bool & traverse_unknown)
+bool GridCollisionChecker::inCollision(const unsigned int & i, const bool & traverse_unknown)
 {
   // Check if index is within bounds
   if (i >= costmap_->getSizeInCellsX() * costmap_->getSizeInCellsY()) {
@@ -151,7 +141,7 @@ bool GridCollisionChecker::inCollision(
     center_cost_ = nav2_costmap_2d::LETHAL_OBSTACLE;
     return true;
   }
-  
+
   center_cost_ = costmap_->getCost(i);
   if (center_cost_ == UNKNOWN_COST && traverse_unknown) {
     return false;

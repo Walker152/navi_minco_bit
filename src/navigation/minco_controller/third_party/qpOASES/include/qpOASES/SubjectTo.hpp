@@ -21,7 +21,6 @@
  *
  */
 
-
 /**
  *	\file include/qpOASES/SubjectTo.hpp
  *	\author Hans Joachim Ferreau, Andreas Potschka, Christian Kirches
@@ -32,18 +31,14 @@
  *	constraints and bounds within a QProblem.
  */
 
-
 #ifndef QPOASES_SUBJECTTO_HPP
 #define QPOASES_SUBJECTTO_HPP
 
-
 #include <qpOASES/Indexlist.hpp>
-
 
 BEGIN_NAMESPACE_QPOASES
 
-
-/** 
+/**
  *	\brief Base class for managing working sets of bounds and constraints.
  *
  *	This class manages working sets of bounds and constraints by storing
@@ -55,174 +50,166 @@ BEGIN_NAMESPACE_QPOASES
  */
 class SubjectTo
 {
-	/*
-	 *	PUBLIC MEMBER FUNCTIONS
-	 */
-	public:
-		/** Default constructor. */
-		SubjectTo( );
+  /*
+   *	PUBLIC MEMBER FUNCTIONS
+   */
+public:
+  /** Default constructor. */
+  SubjectTo();
 
-		/** Constructor which takes the number of constraints or bounds. */
-		SubjectTo(	int_t _n 							/**< Number of constraints or bounds. */
-					);
+  /** Constructor which takes the number of constraints or bounds. */
+  SubjectTo(int_t _n /**< Number of constraints or bounds. */
+  );
 
-		/** Copy constructor (deep copy). */
-		SubjectTo(	const SubjectTo& rhs				/**< Rhs object. */
-					);
+  /** Copy constructor (deep copy). */
+  SubjectTo(const SubjectTo & rhs /**< Rhs object. */
+  );
 
-		/** Destructor. */
-		virtual ~SubjectTo( );
+  /** Destructor. */
+  virtual ~SubjectTo();
 
-		/** Assignment operator (deep copy). */
-		SubjectTo& operator=(	const SubjectTo& rhs	/**< Rhs object. */
-								);
+  /** Assignment operator (deep copy). */
+  SubjectTo & operator=(const SubjectTo & rhs /**< Rhs object. */
+  );
 
+  /** Initialises object with given number of constraints or bounds.
+   *	\return SUCCESSFUL_RETURN \n
+        RET_INVALID_ARGUMENTS */
+  returnValue init(int_t _n = 0 /**< Number of constraints or bounds. */
+  );
 
-		/** Initialises object with given number of constraints or bounds.
-		 *	\return SUCCESSFUL_RETURN \n
-		 			RET_INVALID_ARGUMENTS */
-		returnValue init(	int_t _n = 0				/**< Number of constraints or bounds. */
-							);
+  /** Returns number of constraints/bounds with given SubjectTo type.
+   *	\return Number of constraints/bounds with given type. */
+  inline int_t getNumberOfType(SubjectToType _type /**< Type of (constraints') bound. */
+  ) const;
 
+  /** Returns type of (constraints') bound.
+   *	\return Type of (constraints') bound \n
+        RET_INDEX_OUT_OF_BOUNDS */
+  inline SubjectToType getType(int_t i /**< Number of (constraints') bound. */
+  ) const;
 
-		/** Returns number of constraints/bounds with given SubjectTo type.
-		 *	\return Number of constraints/bounds with given type. */
-		inline int_t getNumberOfType(	SubjectToType _type	/**< Type of (constraints') bound. */
-										) const;
+  /** Returns status of (constraints') bound.
+   *	\return Status of (constraints') bound \n
+        ST_UNDEFINED */
+  inline SubjectToStatus getStatus(int_t i /**< Number of (constraints') bound. */
+  ) const;
 
+  /** Sets type of (constraints') bound.
+   *	\return SUCCESSFUL_RETURN \n
+        RET_INDEX_OUT_OF_BOUNDS */
+  inline returnValue setType(int_t i, /**< Number of (constraints') bound. */
+    SubjectToType value               /**< Type of (constraints') bound. */
+  );
 
-		/** Returns type of (constraints') bound.
-		 *	\return Type of (constraints') bound \n
-		 			RET_INDEX_OUT_OF_BOUNDS */
-		inline SubjectToType getType(	int_t i			/**< Number of (constraints') bound. */
-										) const;
+  /** Sets status of (constraints') bound.
+   *	\return SUCCESSFUL_RETURN \n
+        RET_INDEX_OUT_OF_BOUNDS */
+  inline returnValue setStatus(int_t i, /**< Number of (constraints') bound. */
+    SubjectToStatus value               /**< Status of (constraints') bound. */
+  );
 
-		/** Returns status of (constraints') bound.
-		 *	\return Status of (constraints') bound \n
-		 			ST_UNDEFINED */
-		inline SubjectToStatus getStatus(	int_t i		/**< Number of (constraints') bound. */
-											) const;
+  /** Sets status of lower (constraints') bounds. */
+  inline void setNoLower(BooleanType _status /**< Status of lower (constraints') bounds. */
+  );
 
+  /** Sets status of upper (constraints') bounds. */
+  inline void setNoUpper(BooleanType _status /**< Status of upper (constraints') bounds. */
+  );
 
-		/** Sets type of (constraints') bound.
-		 *	\return SUCCESSFUL_RETURN \n
-		 			RET_INDEX_OUT_OF_BOUNDS */
-		inline returnValue setType(	int_t i,			/**< Number of (constraints') bound. */
-									SubjectToType value	/**< Type of (constraints') bound. */
-									);
+  /** Returns status of lower (constraints') bounds.
+   *	\return BT_TRUE if there is no lower (constraints') bound on any variable. */
+  inline BooleanType hasNoLower() const;
 
-		/** Sets status of (constraints') bound.
-		 *	\return SUCCESSFUL_RETURN \n
-		 			RET_INDEX_OUT_OF_BOUNDS */
-		inline returnValue setStatus(	int_t i,				/**< Number of (constraints') bound. */
-										SubjectToStatus value	/**< Status of (constraints') bound. */
-										);
+  /** Returns status of upper bounds.
+   *	\return BT_TRUE if there is no upper (constraints') bound on any variable. */
+  inline BooleanType hasNoUpper() const;
 
+  /** Shifts forward type and status of all constraints/bounds by a given
+   *  offset. This offset has to lie within the range [0,n/2] and has to
+   *  be an integer divisor of the total number of constraints/bounds n.
+   *  Type and status of the first \<offset\> constraints/bounds is thrown away,
+   *  type and status of the last \<offset\> constraints/bounds is doubled,
+   *  e.g. for offset = 2: \n
+   *  shift( {c/b1,c/b2,c/b3,c/b4,c/b5,c/b6} ) = {c/b3,c/b4,c/b5,c/b6,c/b5,c/b6}
+   *	\return SUCCESSFUL_RETURN \n
+        RET_INDEX_OUT_OF_BOUNDS \n
+        RET_INVALID_ARGUMENTS \n
+        RET_SHIFTING_FAILED */
+  virtual returnValue shift(
+    int_t offset /**< Shift offset within the range [0,n/2] and integer divisor of n. */
+    ) = 0;
 
-		/** Sets status of lower (constraints') bounds. */
-		inline void setNoLower(	BooleanType _status		/**< Status of lower (constraints') bounds. */
-								);
+  /** Rotates forward type and status of all constraints/bounds by a given
+   *  offset. This offset has to lie within the range [0,n].
+   *  Example for offset = 2: \n
+   *  rotate( {c/b1,c/b2,c/b3,c/b4,c/b5,c/b6} ) = {c/b3,c/b4,c/b5,c/b6,c/b1,c/b2}
+   *	\return SUCCESSFUL_RETURN \n
+        RET_INDEX_OUT_OF_BOUNDS \n
+        RET_ROTATING_FAILED */
+  virtual returnValue rotate(int_t offset /**< Rotation offset within the range [0,n]. */
+    ) = 0;
 
-		/** Sets status of upper (constraints') bounds. */
-		inline void setNoUpper(	BooleanType _status		/**< Status of upper (constraints') bounds. */
-								);
+  /*
+   *	PROTECTED MEMBER FUNCTIONS
+   */
+protected:
+  /** Frees all allocated memory.
+   *  \return SUCCESSFUL_RETURN */
+  returnValue clear();
 
+  /** Copies all members from given rhs object.
+   *  \return SUCCESSFUL_RETURN */
+  returnValue copy(const SubjectTo & rhs /**< Rhs object. */
+  );
 
-		/** Returns status of lower (constraints') bounds.
-		 *	\return BT_TRUE if there is no lower (constraints') bound on any variable. */
-		inline BooleanType hasNoLower( ) const;
+  /** Adds the index of a new constraint or bound to index set.
+   *	\return SUCCESSFUL_RETURN \n
+        RET_ADDINDEX_FAILED \n
+        RET_INVALID_ARGUMENTS */
+  returnValue addIndex(
+    Indexlist * const indexlist, /**< Index list to which the new index shall be added. */
+    int_t newnumber,             /**< Number of new constraint or bound. */
+    SubjectToStatus newstatus    /**< Status of new constraint or bound. */
+  );
 
-		/** Returns status of upper bounds.
-		 *	\return BT_TRUE if there is no upper (constraints') bound on any variable. */
-		inline BooleanType hasNoUpper( ) const;
+  /** Removes the index of a constraint or bound from index set.
+   *	\return SUCCESSFUL_RETURN \n
+        RET_REMOVEINDEX_FAILED \n
+        RET_INVALID_ARGUMENTS */
+  returnValue removeIndex(
+    Indexlist * const indexlist, /**< Index list from which the new index shall be removed. */
+    int_t removenumber           /**< Number of constraint or bound to be removed. */
+  );
 
+  /** Swaps the indices of two constraints or bounds within the index set.
+   *	\return SUCCESSFUL_RETURN \n
+        RET_SWAPINDEX_FAILED \n
+        RET_INVALID_ARGUMENTS */
+  returnValue swapIndex(
+    Indexlist * const indexlist, /**< Index list in which the indices shold be swapped. */
+    int_t number1,               /**< Number of first constraint or bound. */
+    int_t number2                /**< Number of second constraint or bound. */
+  );
 
-		/** Shifts forward type and status of all constraints/bounds by a given
-		 *  offset. This offset has to lie within the range [0,n/2] and has to
-		 *  be an integer divisor of the total number of constraints/bounds n.
-		 *  Type and status of the first \<offset\> constraints/bounds is thrown away,
-		 *  type and status of the last \<offset\> constraints/bounds is doubled,
-		 *  e.g. for offset = 2: \n
-		 *  shift( {c/b1,c/b2,c/b3,c/b4,c/b5,c/b6} ) = {c/b3,c/b4,c/b5,c/b6,c/b5,c/b6}
-		 *	\return SUCCESSFUL_RETURN \n
-		 			RET_INDEX_OUT_OF_BOUNDS \n
-		 			RET_INVALID_ARGUMENTS \n
-		 			RET_SHIFTING_FAILED */
-		virtual returnValue shift(	int_t offset	/**< Shift offset within the range [0,n/2] and integer divisor of n. */
-									) = 0;
+  /*
+   *	PROTECTED MEMBER VARIABLES
+   */
+protected:
+  int_t n; /**< Total number of constraints/bounds. */
 
-		/** Rotates forward type and status of all constraints/bounds by a given
-		 *  offset. This offset has to lie within the range [0,n].
-		 *  Example for offset = 2: \n
-		 *  rotate( {c/b1,c/b2,c/b3,c/b4,c/b5,c/b6} ) = {c/b3,c/b4,c/b5,c/b6,c/b1,c/b2}
-		 *	\return SUCCESSFUL_RETURN \n
-		 			RET_INDEX_OUT_OF_BOUNDS \n
-		 			RET_ROTATING_FAILED */
-		virtual returnValue rotate(	int_t offset	/**< Rotation offset within the range [0,n]. */
-									) = 0;
+  SubjectToType * type;     /**< Type of constraints/bounds. */
+  SubjectToStatus * status; /**< Status of constraints/bounds. */
 
-
-	/*
-	 *	PROTECTED MEMBER FUNCTIONS
-	 */
-	protected:
-		/** Frees all allocated memory.
-		 *  \return SUCCESSFUL_RETURN */
-		returnValue clear( );
-		
-		/** Copies all members from given rhs object.
-		 *  \return SUCCESSFUL_RETURN */
-		returnValue copy(	const SubjectTo& rhs	/**< Rhs object. */
-							);
-
-
-		/** Adds the index of a new constraint or bound to index set.
-		 *	\return SUCCESSFUL_RETURN \n
-		 			RET_ADDINDEX_FAILED \n
-					RET_INVALID_ARGUMENTS */
-		returnValue addIndex(	Indexlist* const indexlist,	/**< Index list to which the new index shall be added. */
-								int_t newnumber,			/**< Number of new constraint or bound. */
-								SubjectToStatus newstatus	/**< Status of new constraint or bound. */
-								);
-
-		/** Removes the index of a constraint or bound from index set.
-		 *	\return SUCCESSFUL_RETURN \n
-		 			RET_REMOVEINDEX_FAILED \n
-					RET_INVALID_ARGUMENTS */
-		returnValue removeIndex(	Indexlist* const indexlist,	/**< Index list from which the new index shall be removed. */
-									int_t removenumber			/**< Number of constraint or bound to be removed. */
-									);
-
-		/** Swaps the indices of two constraints or bounds within the index set.
-		 *	\return SUCCESSFUL_RETURN \n
-		 			RET_SWAPINDEX_FAILED \n
-					RET_INVALID_ARGUMENTS */
-		returnValue swapIndex(	Indexlist* const indexlist,	/**< Index list in which the indices shold be swapped. */
-								int_t number1,				/**< Number of first constraint or bound. */
-								int_t number2				/**< Number of second constraint or bound. */
-								);
-
-
-	/*
-	 *	PROTECTED MEMBER VARIABLES
-	 */
-	protected:
-		int_t n;					/**< Total number of constraints/bounds. */
-
-		SubjectToType* type; 		/**< Type of constraints/bounds. */
-		SubjectToStatus* status;	/**< Status of constraints/bounds. */
-
-		BooleanType noLower;	 	/**< This flag indicates if there is no lower bound on any variable. */
-		BooleanType noUpper;	 	/**< This flag indicates if there is no upper bound on any variable. */
+  BooleanType noLower; /**< This flag indicates if there is no lower bound on any variable. */
+  BooleanType noUpper; /**< This flag indicates if there is no upper bound on any variable. */
 };
-
 
 END_NAMESPACE_QPOASES
 
 #include <qpOASES/SubjectTo.ipp>
 
-#endif	/* QPOASES_SUBJECTTO_HPP */
-
+#endif /* QPOASES_SUBJECTTO_HPP */
 
 /*
  *	end of file
