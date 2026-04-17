@@ -22,42 +22,24 @@ struct PacketHeader
   // 包头构造函数
   // ？？？
   PacketHeader(PacketTypeEnum p_type, uint8_t _data_len)
-    : start1()
-    , start2()
-    , from()
-    , to()
-    , packet_type(static_cast<uint8_t>(p_type))
-    ,
+  : start1(), start2(), from(), to(), packet_type(static_cast<uint8_t>(p_type)),
     // data_len = 传入长度 - 包头大小，表示仅数据长度
-    data_len(_data_len - sizeof(PacketHeader))
-    , checksum(0)
+    data_len(_data_len - sizeof(PacketHeader)), checksum(0)
   {
   }
 
   //   设置目标类型
   // STM32 or Radar
-  void setTo(const ArmEnum _to)
-  {
-    to = static_cast<int>(_to);
-  }
+  void setTo(const ArmEnum _to) { to = static_cast<int>(_to); }
 
   //   设置数据长度
-  void setDataLen(uint8_t _data_len)
-  {
-    data_len = _data_len;
-  }
+  void setDataLen(uint8_t _data_len) { data_len = _data_len; }
 
   //   报文类型
-  PacketTypeEnum type() const
-  {
-    return PacketTypeEnum(packet_type);
-  }
+  PacketTypeEnum type() const { return PacketTypeEnum(packet_type); }
 
   //   校验数据起始位 0xa5 0x5a
-  bool check() const
-  {
-    return (start1 == uint8_t(0xa5)) && (start2 == uint8_t(0x5a));
-  }
+  bool check() const { return (start1 == uint8_t(0xa5)) && (start2 == uint8_t(0x5a)); }
 };
 
 #pragma pack(pop)
@@ -66,21 +48,19 @@ struct PacketHeader
 //  __data 待校验数据指针
 //  __len  数据长度（字节数）
 
-static inline uint16_t calChecksum(const char* __data, const size_t __len)
+static inline uint16_t calChecksum(const char * __data, const size_t __len)
 {
   uint16_t my_checksum = 0;
-  const char* ptr = __data;
+  const char * ptr = __data;
   // 以2个字节为单位累加求和
-  for(size_t i = 0; i < __len / 2; i++)
-  {
+  for (size_t i = 0; i < __len / 2; i++) {
     // 将当前2字节数据强制转换为uint16_t，累加
-    my_checksum += *((uint16_t*)ptr);
+    my_checksum += *((uint16_t *)ptr);
     ptr += 2;
     // 可选调试输出：printf("check %d:%x ",i,my_checksum);
   }
   // 若长度为奇数，最后单字节加到校验和
-  if(__len & 0x01)
-  {
+  if (__len & 0x01) {
     uint16_t tmp = uint16_t(__data[__len - 1]);
     my_checksum += tmp;
   }
@@ -90,7 +70,7 @@ static inline uint16_t calChecksum(const char* __data, const size_t __len)
 }
 
 // 校验函数指针类型定义，用于提供校验回调
-using cal_checksum_cb = uint16_t (*)(const char* data, const size_t data_len);
+using cal_checksum_cb = uint16_t (*)(const char * data, const size_t data_len);
 /**
  * @brief 将数据和包头打包成完整的报文字节流
  *
@@ -104,18 +84,18 @@ using cal_checksum_cb = uint16_t (*)(const char* data, const size_t data_len);
  *     2) 动态分配一块内存，连续存放包头和数据区
  *     3) 复制包头和数据内容进去返回
  */
-static inline char* packet(PacketHeader* packet_header, const char* data, cal_checksum_cb cb = nullptr)
+static inline char * packet(PacketHeader * packet_header, const char * data, cal_checksum_cb cb = nullptr)
 {
-  if(cb == nullptr)
+  if (cb == nullptr)
     cb = calChecksum;
 
   // 计算校验和，校验范围含包头和数据区
   packet_header->checksum = cb(data, packet_header->data_len + sizeof(PacketHeader));
 
   // 动态分配内存，空间足够包头和数据部分
-  char* ptr = new char[sizeof(PacketHeader) + packet_header->data_len];
+  char * ptr = new char[sizeof(PacketHeader) + packet_header->data_len];
 
-  char* d = ptr;
+  char * d = ptr;
   // 复制包头数据（含校验码）
   memcpy(d, packet_header, sizeof(PacketHeader));
   d += sizeof(PacketHeader);
@@ -138,7 +118,7 @@ static inline char* packet(PacketHeader* packet_header, const char* data, cal_ch
  *     1) 先强制转换指针为包头，做包长度和起始符校验
  *     2) 从尾部读取包内校验和，与重新计算出来的校验和对比
  */
-static inline bool check(const char* data, const size_t data_len, cal_checksum_cb cb = nullptr)
+static inline bool check(const char * data, const size_t data_len, cal_checksum_cb cb = nullptr)
 {
   // // 将字节流解释为包头结构体指针，方便访问字段
   // // static uint16_t dummy_checksum = 0;
@@ -146,7 +126,8 @@ static inline bool check(const char* data, const size_t data_len, cal_checksum_c
   // if(((int)header->data_len) != (data_len - sizeof(PacketHeader)))
   // {
   //   // 数据长度不匹配，丢弃
-  //   std::cout << "[COM] Warning: Data length incorrect, expected " << std::dec << (int)header->data_len << ", got "
+  //   std::cout << "[COM] Warning: Data length incorrect, expected " << std::dec << (int)header->data_len
+  //   << ", got "
   //             << std::dec << (data_len - sizeof(PacketHeader)) << std::endl;
   //   return false;
   // }
@@ -188,7 +169,7 @@ static inline bool check(const char* data, const size_t data_len, cal_checksum_c
 
   // last_checksum = my_checksum;
   // return true;
- 
+
   (void)data;
   (void)data_len;
   (void)cb;

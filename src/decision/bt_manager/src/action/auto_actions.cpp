@@ -1,92 +1,88 @@
 #include "bt_manager/action/auto_actions.hpp"
 #include "bt_manager/blackboard.hpp"
+#include "bt_manager/utils/area.hpp"
 #include "bt_manager/utils/nav_zone.hpp"
+#include <algorithm>
 #include <array>
-#include <string>
-#include <cmath>
 #include <chrono>
+#include <cmath>
 #include <limits>
+#include <string>
 using namespace color_text;
-namespace Sentry_BT
+namespace Sentry_BT {
+
+// ------------------- SetCoordinate -------------------
+SetCoordinate::SetCoordinate(const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
 {
+}
 
-  // ------------------- SetCoordinate -------------------
-  SetCoordinate::SetCoordinate(const std::string& name, const BT::NodeConfiguration& config)
-    : BT::SyncActionNode(name, config)
-  {
+BT::PortsList SetCoordinate::providedPorts()
+{
+  return {
+    BT::InputPort<int>("goal")  // 全局导航点索引
+  };
+}
+
+BT::NodeStatus SetCoordinate::tick()
+{
+  auto goal_index = getInput<int>("goal");
+
+  if (goal_index.value() < 0 || goal_index.value() >= static_cast<int>(nav_points.size())) {
+    return BT::NodeStatus::FAILURE;
   }
 
-  BT::PortsList SetCoordinate::providedPorts()
-  {
-    return {
-        BT::InputPort<int>("goal")  // 全局导航点索引
-    };
+  static const std::array<std::string, 5> goal_names = {
+    "HOME", "BONUS", "OUTPOST", "OWN_FORT", "ENEMY_FORT"};
+  Sentry_BT::Point2D point = nav_points[goal_index.value()];
+
+  auto blackboard = config().blackboard;
+  blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
+  blackboard->set("nav_goal", point);
+  static int last_goal_index = -1;
+  if (goal_index.value() != last_goal_index) {
+    std::cout << GREEN << "Set navigation goal to " << goal_names[goal_index.value()] << ": (" << point.x
+              << ", " << point.y << ")" << RESET << std::endl;
+    last_goal_index = goal_index.value();
   }
+  return BT::NodeStatus::SUCCESS;
+}
 
-  BT::NodeStatus SetCoordinate::tick()
-  {
-    auto goal_index = getInput<int>("goal");
+// ------------------- SetTargetCoordinate -------------------
+SetTargetCoordinate::SetTargetCoordinate(const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
 
-    if(goal_index.value() < 0 || goal_index.value() >= static_cast<int>(nav_points.size()))
-    {
-      return BT::NodeStatus::FAILURE;
-    }
+BT::PortsList SetTargetCoordinate::providedPorts()
+{
+  return {BT::InputPort<geometry_msgs::msg::Pose>("target_coordinate")};
+}
 
-    static const std::array<std::string, 3> goal_names = {"HOME", "BONUS", "OUTPOST"};
-    Sentry_BT::Point2D point = nav_points[goal_index.value()];
+BT::NodeStatus SetTargetCoordinate::tick()
+{
+  auto blackboard = config().blackboard;
+  blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
+  auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
+  Sentry_BT::Point2D point;  //最终目标点
+  //获取当前位置
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
 
-    auto blackboard = config().blackboard;
-    blackboard->set("nav_goal", point);
-    static int last_goal_index = -1;
-    if(goal_index.value() != last_goal_index)
-    {
-      std::cout << GREEN << "Set navigation goal to " << goal_names[goal_index.value()] << ": (" << point.x << ", "
-                << point.y << ")" << RESET << std::endl;
-      last_goal_index = goal_index.value();
-    }
-    return BT::NodeStatus::SUCCESS;
-  }
+  // 提取坐标
+  double current_x = current_pose.position.x;
+  double current_y = current_pose.position.y;
+  double target_x = target_pose.position.x;
+  double target_y = target_pose.position.y;
+  //适当漂移，留出攻击距离
+  double dx = target_x - current_x;
+  double dy = target_y - current_y;
+  double distance = std::sqrt(dx * dx + dy * dy);
 
-  // ------------------- SetTargetCoordinate -------------------
-  SetTargetCoordinate::SetTargetCoordinate(const std::string& name, const BT::NodeConfiguration& config)
-    : BT::SyncActionNode(name, config)
-  {
-  }
+  const double ATTACK_DISTANCE = 0.3;  // 攻击距离
 
-  BT::PortsList SetTargetCoordinate::providedPorts()
-  {
-    return {BT::InputPort<geometry_msgs::msg::Pose>("target_coordinate")};
-  }
+  int guidance_case = -1;  // 0: approach, 1: backoff, 2: overlap-backoff
 
-  BT::NodeStatus SetTargetCoordinate::tick()
-  {
-    auto blackboard = config().blackboard;
-    auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
-    Sentry_BT::Point2D point;//最终目标点
-    //获取当前位置
-    std::shared_ptr<ros_interface> ros_iface;
-    geometry_msgs::msg::Pose current_pose;
-    ros_iface = blackboard->get<std::shared_ptr<ros_interface>>("ros_interface");
-    if(!ros_iface){
-      return BT::NodeStatus::FAILURE;
-    }
-    current_pose = ros_iface->getCurrentPose();
-
-    // 提取坐标
-    double current_x = current_pose.position.x;
-    double current_y = current_pose.position.y;
-    double target_x = target_pose.position.x;
-    double target_y = target_pose.position.y;
-    //适当漂移，留出攻击距离
-    double dx = target_x - current_x;
-    double dy = target_y - current_y;
-    double distance = std::sqrt(dx*dx + dy*dy);
-
-    const double ATTACK_DISTANCE = 0.3; // 攻击距离
-
-    int guidance_case = -1; // 0: approach, 1: backoff, 2: overlap-backoff
-
-    if (distance > ATTACK_DISTANCE) {
+  if (distance > ATTACK_DISTANCE) {
     // 距离大于30cm，在线段上取离目标点ATTACK_DISTANCE的点
     double scale = 1.0 - ATTACK_DISTANCE / distance;
     point.x = current_x + dx * scale;
@@ -94,7 +90,7 @@ namespace Sentry_BT
     guidance_case = 0;
   } else {
     // 距离小于等于30cm，沿着两点连线方向后退30cm
-    if (distance > 0.001) { // 避免除零
+    if (distance > 0.001) {  // 避免除零
       double ux = dx / distance;
       double uy = dy / distance;
       point.x = current_x - ux * ATTACK_DISTANCE;
@@ -108,156 +104,198 @@ namespace Sentry_BT
     }
   }
 
-    static int last_guidance_case = -1;
-    if(guidance_case != last_guidance_case)
-    {
-      if(guidance_case == 0)
-      {
-        std::cout << YELLOW << "距离(" << distance << "m)大于30cm,沿连线方向前进到距离目标点30cm位置"
-                  << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET
-                  << std::endl;
+  static int last_guidance_case = -1;
+  if (guidance_case != last_guidance_case) {
+    if (guidance_case == 0) {
+      std::cout << YELLOW << "距离(" << distance << "m)大于30cm,沿连线方向前进到距离目标点30cm位置"
+                << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
+    } else if (guidance_case == 1) {
+      std::cout << YELLOW << "距离(" << distance << "m)小于等于30cm,沿连线方向后退30cm"
+                << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
+    } else if (guidance_case == 2) {
+      std::cout << YELLOW << "当前位置与目标点重合,向y轴负方向后退30cm"
+                << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
+    }
+    last_guidance_case = guidance_case;
+  }
+
+  Sentry_BT::Point2D old_goal;
+  bool has_old_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal", old_goal);
+  static bool last_rate_limited = false;
+
+  if (has_old_goal) {
+    double diff_x = point.x - old_goal.x;
+    double diff_y = point.y - old_goal.y;
+    double diff_distance = std::sqrt(diff_x * diff_x + diff_y * diff_y);
+
+    // 如果新目标点跟老目标点的差距小于 0.5 米，就不更新
+    if (diff_distance < 0.5) {
+      if (!last_rate_limited) {
+        std::cout << WHITE << "Target update skipped by 0.5m limiter" << RESET << std::endl;
       }
-      else if(guidance_case == 1)
-      {
-        std::cout << YELLOW << "距离(" << distance << "m)小于等于30cm,沿连线方向后退30cm"
-                  << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
-      }
-      else if(guidance_case == 2)
-      {
-        std::cout << YELLOW << "当前位置与目标点重合,向y轴负方向后退30cm"
-                  << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
-      }
-      last_guidance_case = guidance_case;
+      last_rate_limited = true;
+      return BT::NodeStatus::SUCCESS;  // 直接返回成功，放过底层
     }
-
-    Sentry_BT::Point2D old_goal;
-    bool has_old_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal", old_goal);
-    static bool last_rate_limited = false;
-    
-    if (has_old_goal) {
-      double diff_x = point.x - old_goal.x;
-      double diff_y = point.y - old_goal.y;
-      double diff_distance = std::sqrt(diff_x*diff_x + diff_y*diff_y);
-      
-      // 如果新目标点跟老目标点的差距小于 0.5 米，就不更新
-      if (diff_distance < 0.5) {
-        if(!last_rate_limited)
-        {
-          std::cout << WHITE << "Target update skipped by 0.5m limiter" << RESET << std::endl;
-        }
-        last_rate_limited = true;
-        return BT::NodeStatus::SUCCESS; // 直接返回成功，放过底层
-      }
-    }
-    last_rate_limited = false;
-
-    // 将目标点设置到黑板
-    blackboard->set("nav_goal", point);
-    std::cout << GREEN << "Set target pose to: (" << point.x << ", " << point.y << ")"
-              << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
-    return BT::NodeStatus::SUCCESS;
   }
-  
-  // ------------------- SelectPatrolPoint -------------------
-  SelectPatrolPoint::SelectPatrolPoint(const std::string& name, const BT::NodeConfiguration& config)
-    : BT::SyncActionNode(name, config)
-  {
+  last_rate_limited = false;
+
+  // 将目标点设置到黑板
+  blackboard->set("nav_goal", point);
+  std::cout << GREEN << "Set target pose to: (" << point.x << ", " << point.y << ")"
+            << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
+  return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- SetManualOverrideGoal -------------------
+SetManualOverrideGoal::SetManualOverrideGoal(const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
+
+BT::PortsList SetManualOverrideGoal::providedPorts()
+{
+  return {};
+}
+
+BT::NodeStatus SetManualOverrideGoal::tick()
+{
+  auto blackboard = config().blackboard;
+  const bool goal_valid = blackboard->get<bool>("manual_override_goal_valid");
+  if (!goal_valid) {
+    return BT::NodeStatus::FAILURE;
   }
 
-  BT::PortsList SelectPatrolPoint::providedPorts()
-  {
-    return {};
+  const auto manual_goal = blackboard->get<Sentry_BT::Point2D>("manual_override_goal");
+  blackboard->set("nav_goal", manual_goal);
+  blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::MANUAL));
+
+  static Sentry_BT::Point2D last_goal;
+  static bool has_last_goal = false;
+  const bool goal_changed =
+    !has_last_goal || std::hypot(manual_goal.x - last_goal.x, manual_goal.y - last_goal.y) > 0.01;
+  if (goal_changed) {
+    std::cout << CYAN << "Set manual override goal to (" << manual_goal.x << ", " << manual_goal.y << ")"
+              << RESET << std::endl;
+    last_goal = manual_goal;
+    has_last_goal = true;
   }
 
-  BT::NodeStatus SelectPatrolPoint::tick()
-  {
-    auto blackboard = config().blackboard;
+  return BT::NodeStatus::SUCCESS;
+}
 
-    // 获取当前巡逻索引
-    int current_index = 0;
-    if(auto index = blackboard->get<int>("patrol_index"))
-    {
-      current_index = index;
-    }
-    else
-    {
-      blackboard->set("patrol_index", current_index);
-    }
+// ------------------- SelectPatrolPoint -------------------
+SelectPatrolPoint::SelectPatrolPoint(const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
 
-    std::vector<Sentry_BT::PatrolPoint> patrol_points = Sentry_BT::patrol_points_normal;
+BT::PortsList SelectPatrolPoint::providedPorts()
+{
+  return {};
+}
 
-    // 检查索引有效性
-    if(current_index >= static_cast<int>(patrol_points.size()))
-    {
-      current_index = 0;
-      blackboard->set("patrol_index", current_index);
-    }
+BT::NodeStatus SelectPatrolPoint::tick()
+{
+  auto blackboard = config().blackboard;
+  blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
 
-    Sentry_BT::Point2D selected_point = patrol_points[current_index].position;
-
-    int next_index = (current_index + 1) % patrol_points.size();
-    blackboard->set("patrol_index", next_index);
-    blackboard->set("nav_goal", selected_point);
-    blackboard->set<int>("current_mode", Sentry_BT::NavMode::PATROL);
-
-    static int last_logged_index = -1;
-    if(current_index != last_logged_index)
-    {
-      std::cout << GREEN << "Selected patrol point " << current_index << ": (" << selected_point.x << ", "
-                << selected_point.y << ")" << RESET << std::endl;
-      last_logged_index = current_index;
-    }
-
-    return BT::NodeStatus::SUCCESS;
+  // 获取当前巡逻索引
+  int current_index = 0;
+  if (auto index = blackboard->get<int>("patrol_index")) {
+    current_index = index;
+  } else {
+    blackboard->set("patrol_index", current_index);
   }
 
-  // ------------------- Wait -------------------
-  Wait::Wait(const std::string& name, const BT::NodeConfiguration& config)
-    : BT::StatefulActionNode(name, config)
-    , wait_time_(0)
-    , start_time_(std::chrono::system_clock::now())
-  {
+  TacticalMode tactical_mode = TacticalMode::BALANCED;
+  blackboard->get<TacticalMode>("tactical_mode", tactical_mode);
+  std::vector<Sentry_BT::PatrolPoint> patrol_points = Sentry_BT::patrol_points_normal;
+  const auto patrol_it = tactical_patrol_map.find(tactical_mode);
+  if (patrol_it != tactical_patrol_map.end() && !patrol_it->second.empty()) {
+    patrol_points = patrol_it->second;
   }
 
-  BT::PortsList Wait::providedPorts()
-  {
-    return {BT::InputPort<int>("milliseconds")};
+  // 检查索引有效性
+  if (current_index >= static_cast<int>(patrol_points.size())) {
+    current_index = 0;
+    blackboard->set("patrol_index", current_index);
   }
 
-  BT::NodeStatus Wait::onStart()
-  {
-    auto blackboard = config().blackboard;
-    auto patrol_index = blackboard->get<int>("patrol_index");
-    auto wait_time = patrol_points_normal[patrol_index].duration_ms;
-    if(!wait_time)
-    {
-      auto time = getInput<int>("milliseconds");
-      wait_time = time.value();
-    }
+  Sentry_BT::Point2D selected_point = patrol_points[current_index].position;
 
-    static int last_wait_time = -1;
-    if(wait_time != last_wait_time)
-    {
-      std::cout << GREEN << "Waiting for " << wait_time << " milliseconds" << RESET << std::endl;
-      last_wait_time = wait_time;
-    }
+  int next_index = (current_index + 1) % patrol_points.size();
+  blackboard->set("patrol_index", next_index);
+  blackboard->set("nav_goal", selected_point);
+  blackboard->set<int>("current_mode", Sentry_BT::NavMode::PATROL);
 
-    wait_time_ = wait_time;
-    start_time_ = std::chrono::system_clock::now();
+  static int last_logged_index = -1;
+  if (current_index != last_logged_index) {
+    std::cout << GREEN << "Selected patrol point " << current_index << ": (" << selected_point.x << ", "
+              << selected_point.y << ")" << RESET << std::endl;
+    last_logged_index = current_index;
+  }
+
+  return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- Wait -------------------
+Wait::Wait(const std::string & name, const BT::NodeConfiguration & config)
+: BT::StatefulActionNode(name, config), wait_time_(0), start_time_(std::chrono::system_clock::now())
+{
+}
+
+BT::PortsList Wait::providedPorts()
+{
+  return {BT::InputPort<int>("milliseconds")};
+}
+
+BT::NodeStatus Wait::onStart()
+{
+  auto blackboard = config().blackboard;
+  auto patrol_index = blackboard->get<int>("patrol_index");
+  TacticalMode tactical_mode = TacticalMode::BALANCED;
+  blackboard->get<TacticalMode>("tactical_mode", tactical_mode);
+  auto patrol_list_it = tactical_patrol_map.find(tactical_mode);
+  const auto & patrol_list =
+    (patrol_list_it != tactical_patrol_map.end() && !patrol_list_it->second.empty())
+      ? patrol_list_it->second
+      : patrol_points_normal;
+
+  if (patrol_index >= static_cast<int>(patrol_list.size())) {
+    patrol_index = 0;
+  }
+  auto wait_time = patrol_list[patrol_index].duration_ms;
+  if (!wait_time) {
+    auto time = getInput<int>("milliseconds");
+    wait_time = time.value();
+  }
+
+  static int last_wait_time = -1;
+  if (wait_time != last_wait_time) {
+    std::cout << GREEN << "Waiting for " << wait_time << " milliseconds" << RESET << std::endl;
+    last_wait_time = wait_time;
+  }
+
+  wait_time_ = wait_time;
+  start_time_ = std::chrono::system_clock::now();
+  return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus Wait::onRunning()
+{
+  auto now = std::chrono::system_clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_).count();
+  if (elapsed < wait_time_) {
     return BT::NodeStatus::RUNNING;
   }
+  return BT::NodeStatus::SUCCESS;
+}
 
-  BT::NodeStatus Wait::onRunning()
-  {
-    auto now = std::chrono::system_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_).count();
-    if(elapsed < wait_time_)
-    {
-      return BT::NodeStatus::RUNNING;
-    }
-    return BT::NodeStatus::SUCCESS;
-  }
+void Wait::onHalted()
+{
+}
 
+<<<<<<< HEAD
   void Wait::onHalted()
   {
   }
@@ -266,6 +304,12 @@ namespace Sentry_BT
 DirectVelocityControl::DirectVelocityControl(const std::string& name, const BT::NodeConfiguration& config)
     : BT::StatefulActionNode(name, config)
 { 
+=======
+// -------------------- DirectVelocityControl ---------------------------
+DirectVelocityControl::DirectVelocityControl(const std::string & name, const BT::NodeConfiguration & config)
+: BT::StatefulActionNode(name, config)
+{
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
   linear_y_ = 0.0;
   angular_z_ = 0.0;
   timeout_ = 0.0;
@@ -275,25 +319,40 @@ DirectVelocityControl::DirectVelocityControl(const std::string& name, const BT::
 
 BT::PortsList DirectVelocityControl::providedPorts()
 {
+<<<<<<< HEAD
   return {
     BT::InputPort<double>("linear_y", 0.5, "前进速度 m/s"),
     BT::InputPort<double>("angular_z", 0.0, "转向速度 rad/s"), 
     BT::InputPort<double>("timeout", 5.0, "超时时间（秒）"),
   };
+=======
+  return {BT::InputPort<double>("linear_y", 0.5, "前进速度 m/s"),
+    BT::InputPort<double>("angular_z", 0.0, "转向速度 rad/s"),
+    BT::InputPort<double>("duration", 2.0, "持续时间秒")};
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
 }
 
 BT::NodeStatus DirectVelocityControl::onStart()
 {
-  auto ros_iface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
+  auto blackboard = config().blackboard;
 
   // 1. 获取参数
   auto linear_y = getInput<double>("linear_y");
+<<<<<<< HEAD
   auto angular_z = getInput<double>("angular_z"); 
   auto timeout = getInput<double>("timeout");
 
   if (!linear_y || !angular_z || !timeout) {
     std::cerr << "参数缺失: linear_y 或 angular_z 或 timeout 或 area" << std::endl;
     return BT::NodeStatus::FAILURE; 
+=======
+  auto angular_z = getInput<double>("angular_z");
+  auto duration = getInput<double>("duration");
+
+  if (!linear_y || !duration) {
+    std::cerr << "参数缺失: linear_y 或 duration" << std::endl;
+    return BT::NodeStatus::FAILURE;  // 参数缺失
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
   }
 
   // 2. 存储参数
@@ -309,34 +368,53 @@ BT::NodeStatus DirectVelocityControl::onStart()
 
   static double last_linear_y = std::numeric_limits<double>::quiet_NaN();
   static double last_angular_z = std::numeric_limits<double>::quiet_NaN();
+<<<<<<< HEAD
   static double last_timeout = std::numeric_limits<double>::quiet_NaN();
   if(linear_y_ != last_linear_y || angular_z_ != last_angular_z || timeout_ != last_timeout)
   {
     std::cout << MAGENTA << "DirectVelocityControl start: linear_y=" << linear_y_ << ", angular_z=" << angular_z_
               << ", timeout=" << timeout_ << "s" << RESET << std::endl;
+=======
+  static double last_duration = std::numeric_limits<double>::quiet_NaN();
+  if (linear_y_ != last_linear_y || angular_z_ != last_angular_z || duration_ != last_duration) {
+    std::cout << MAGENTA << "DirectVelocityControl start: linear_y=" << linear_y_
+              << ", angular_z=" << angular_z_ << ", duration=" << duration_ << "s" << RESET << std::endl;
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
     last_linear_y = linear_y_;
     last_angular_z = angular_z_;
     last_timeout = timeout_;
   }
 
   // 3. 记录开始时间
+  auto ros_iface = blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
   start_time_ = ros_iface->now();
   last_pub_time_ = rclcpp::Time(0, 0, ros_iface->get_clock()->get_clock_type());
 
+<<<<<<< HEAD
   // 4. 发布停止指令，确保从静止开始
   ros_iface->publishCmdVel(0.0, 0.0);
+=======
+  // 4. reset cmd_vel command on blackboard
+  blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
 
   return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus DirectVelocityControl::onRunning()
 {
+<<<<<<< HEAD
   auto blackboard = config().blackboard;
   auto ros_iface = blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
+=======
+  auto ros_iface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
+  auto blackboard = config().blackboard;
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
   // 计算经过的时间
   auto current_time = ros_iface->now();
   auto elapsed = (current_time - start_time_).seconds();
 
+<<<<<<< HEAD
   if (elapsed >= timeout_) {
     ros_iface->publishCmdVel(0.0, 0.0);
     std::cout << YELLOW << "DirectVelocityControl: 超时退出 (" << timeout_ << "s)" << RESET << std::endl;
@@ -357,6 +435,25 @@ BT::NodeStatus DirectVelocityControl::onRunning()
   // 发布速度
   if ((current_time - last_pub_time_).seconds() >= 0.05) {
     ros_iface->publishCmdVel(linear_y_, angular_z_);
+=======
+  if (elapsed < 0.1) {
+    blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
+    return BT::NodeStatus::RUNNING;
+  }
+
+  // 检查是否超时
+  if (elapsed >= duration_) {
+    blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  // publish by writing to blackboard, ros_interface owns IO
+  if ((current_time - last_pub_time_).seconds() >= 0.05) {  // 20Hz发布频率
+    geometry_msgs::msg::Twist cmd_vel;
+    cmd_vel.linear.y = linear_y_;
+    cmd_vel.angular.z = angular_z_;
+    blackboard->set("cmd_vel", cmd_vel);
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
     last_pub_time_ = current_time;
   }
 
@@ -365,47 +462,123 @@ BT::NodeStatus DirectVelocityControl::onRunning()
 
 void DirectVelocityControl::onHalted()
 {
-  auto ros_iface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
-  // 被中断时立即停止
-  ros_iface->publishCmdVel(0.0, 0.0);
+  config().blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
 }
 
 // ------------------- SetStairsPosition -------------------
-SetStairsPosition::SetStairsPosition(const std::string& name, const BT::NodeConfiguration& config)
-    : BT::SyncActionNode(name, config)
-{}
+SetStairsPosition::SetStairsPosition(const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
 
 BT::PortsList SetStairsPosition::providedPorts()
 {
-  return {}; 
+  return {};
 }
 
 BT::NodeStatus SetStairsPosition::tick()
 {
   auto blackboard = config().blackboard;
-  
+
   // 创建 Sentry_BT::Point2D 类型的固定目标点
   Sentry_BT::Point2D goal_point;
+<<<<<<< HEAD
   goal_point.x = 9.0;  
   goal_point.y = 0.5;  
+=======
+  goal_point.x = 9.5;
+  goal_point.y = 1.5;
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
 
   blackboard->set("nav_goal", goal_point);
-  
+
+  return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- DescendStairsAction -------------------
+DescendStairsAction::DescendStairsAction(const std::string & name, const BT::NodeConfiguration & config)
+: BT::StatefulActionNode(name, config)
+{
+}
+
+BT::PortsList DescendStairsAction::providedPorts()
+{
+  return {BT::InputPort<double>("linear_y", 0.8, "Linear velocity y"),
+    BT::InputPort<double>("angular_z", 0.0, "Angular velocity z")};
+}
+
+BT::NodeStatus DescendStairsAction::onStart()
+{
+  return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus DescendStairsAction::onRunning()
+{
+  auto blackboard = config().blackboard;
+  const auto pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const bool in_stairs = stairs_zone.contains({pose.position.x, pose.position.y, 0.0});
+  if (!in_stairs) {
+    blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  geometry_msgs::msg::Twist cmd_vel;
+  cmd_vel.linear.y = getInput<double>("linear_y").value_or(0.8);
+  cmd_vel.angular.z = getInput<double>("angular_z").value_or(0.0);
+  blackboard->set("cmd_vel", cmd_vel);
+  return BT::NodeStatus::RUNNING;
+}
+
+void DescendStairsAction::onHalted()
+{
+  config().blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
+}
+
+// ------------------- AccumulateAmmoPurchase -------------------
+AccumulateAmmoPurchase::AccumulateAmmoPurchase(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
+
+BT::PortsList AccumulateAmmoPurchase::providedPorts()
+{
+  return {BT::InputPort<int>("step", 30, "Minimum ammo purchase step")};
+}
+
+BT::NodeStatus AccumulateAmmoPurchase::tick()
+{
+  auto blackboard = config().blackboard;
+  const int step = getInput<int>("step").value_or(30);
+  const int ammo = blackboard->get<int>("bullets_remaining");
+  int total = blackboard->get<int>("ammo_purchase_total");
+
+  const int shortage = std::max(0, 100 - ammo);
+  const int request = std::max(step, shortage);
+  total += request;
+  blackboard->set("ammo_purchase_request", request);
+  blackboard->set("ammo_purchase_total", total);
+
+  static int last_total = -1;
+  if (total != last_total) {
+    std::cout << CYAN << "AccumulateAmmoPurchase => request=" << request << ", total=" << total << RESET
+              << std::endl;
+    last_total = total;
+  }
   return BT::NodeStatus::SUCCESS;
 }
 
 // ------------------- ChangeMapAction -------------------
-ChangeMapAction::ChangeMapAction(const std::string& name, const BT::NodeConfiguration& config)
-    : BT::SyncActionNode(name, config)
-{}
+ChangeMapAction::ChangeMapAction(const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
 
 BT::PortsList ChangeMapAction::providedPorts()
 {
-  return {
-      BT::InputPort<std::string>("map_dir", "Directory containing map files"),
-      BT::InputPort<std::string>("pcd_dir", "Directory containing ESDF PCD files"),
-      BT::InputPort<std::string>("map_name", "Base name of the map files (without extensions)")
-  };
+  return {BT::InputPort<std::string>("map_dir", "Directory containing map files"),
+    BT::InputPort<std::string>("pcd_dir", "Directory containing ESDF PCD files"),
+    BT::InputPort<std::string>("map_name", "Base name of the map files (without extensions)")};
 }
 
 BT::NodeStatus ChangeMapAction::tick()
@@ -445,9 +618,10 @@ BT::NodeStatus ChangeMapAction::tick()
   return BT::NodeStatus::SUCCESS;
 }
 // ------------------- ControlThroughTunnel -------------------
-ControlThroughTunnel::ControlThroughTunnel(const std::string& name, const BT::NodeConfiguration& config)
-    : BT::StatefulActionNode(name, config)
-{}
+ControlThroughTunnel::ControlThroughTunnel(const std::string & name, const BT::NodeConfiguration & config)
+: BT::StatefulActionNode(name, config)
+{
+}
 
 BT::PortsList ControlThroughTunnel::providedPorts()
 {
@@ -472,21 +646,21 @@ BT::NodeStatus ControlThroughTunnel::onStart()
     return BT::NodeStatus::FAILURE;
   }
   auto params = get_params_future.get();
-  for (const auto& param : params) {
+  for (const auto & param : params) {
     if (param.get_name() == "FollowPath.use_small_gyro_mode") {
       initial_small_gyoro_ = param.as_bool();
     } else if (param.get_name() == "FollowPath.enable_yaw_opt") {
       initial_yaw_opt_ = param.as_bool();
     }
   }
-  auto set_param_future = parameters_client_->set_parameters({
-    rclcpp::Parameter("FollowPath.use_small_gyro_mode", false),
-    rclcpp::Parameter("FollowPath.enable_yaw_opt", true)});
+  auto set_param_future =
+    parameters_client_->set_parameters({rclcpp::Parameter("FollowPath.use_small_gyro_mode", false),
+      rclcpp::Parameter("FollowPath.enable_yaw_opt", true)});
   if (set_param_future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
     std::cerr << "Failed to set parameters within timeout." << std::endl;
     return BT::NodeStatus::FAILURE;
   }
-  //last_pub_time_ = ros_iface->now();
+  // last_pub_time_ = ros_iface->now();
   return BT::NodeStatus::RUNNING;
 }
 
@@ -494,16 +668,15 @@ BT::NodeStatus ControlThroughTunnel::onRunning()
 {
   auto blackboard = config().blackboard;
   auto ros_iface = blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
-  if(!ros_iface){
+  if (!ros_iface) {
     return BT::NodeStatus::FAILURE;
   }
   is_through_tunnel_ = blackboard->get<bool>("through_tunnel");
   RCLCPP_INFO(ros_iface->get_logger(), "is_through_tunnel: %s", is_through_tunnel_ ? "true" : "false");
-  if(!is_through_tunnel_)
-  {
-    auto set_param_future = parameters_client_->set_parameters({
-      rclcpp::Parameter("FollowPath.use_small_gyro_mode", initial_small_gyoro_),
-      rclcpp::Parameter("FollowPath.enable_yaw_opt", initial_yaw_opt_)});
+  if (!is_through_tunnel_) {
+    auto set_param_future = parameters_client_->set_parameters(
+      {rclcpp::Parameter("FollowPath.use_small_gyro_mode", initial_small_gyoro_),
+        rclcpp::Parameter("FollowPath.enable_yaw_opt", initial_yaw_opt_)});
     if (set_param_future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready) {
       std::cerr << "Failed to reset parameters within timeout." << std::endl;
       return BT::NodeStatus::FAILURE;
@@ -512,7 +685,8 @@ BT::NodeStatus ControlThroughTunnel::onRunning()
   }
   auto current_orientation = ros_iface->getCurrentPose().orientation;
   // 将四元数转换为欧拉角
-  tf2::Quaternion quat(current_orientation.x, current_orientation.y, current_orientation.z, current_orientation.w);
+  tf2::Quaternion quat(
+    current_orientation.x, current_orientation.y, current_orientation.z, current_orientation.w);
   double roll, pitch, yaw;
   tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
   current_yaw_ = yaw;
@@ -538,18 +712,16 @@ BT::NodeStatus ControlThroughTunnel::onRunning()
   //     vel.angular.z = wz;
   //     rclcpp::Time now = ros_iface->now();
   //     if ((now - last_pub_time_).seconds() >= 0.05) { // 20Hz发布频率
-  //       ros_iface->publishCmdVel(vel);
   //       last_pub_time_ = now;
   //     }
   //   }
   // }
-  int lifter_pose = blackboard->get<int>("lifter_pos_now");
-  if (lifter_pose == 1 && !lifter_ready_)
-  {
+  LifterPos lifter_pose = blackboard->get<LifterPos>("lifter_current_pos");
+  if (lifter_pose == LifterPos::BOTTOM && !lifter_ready_) {
     std::cout << GREEN << "Lifter is ready." << RESET << std::endl;
     lifter_ready_ = true;
   }
-  return BT::NodeStatus::RUNNING;   
+  return BT::NodeStatus::RUNNING;
 }
 
 bool ControlThroughTunnel::wait_param_service()
@@ -562,7 +734,7 @@ bool ControlThroughTunnel::wait_param_service()
     }
     std::cout << "Service not available, waiting again..." << std::endl;
     time_count++;
-    if(time_count > 2) {
+    if (time_count > 2) {
       std::cerr << "Service not available after waiting for 5 seconds. Exiting." << std::endl;
       return false;
     }
@@ -579,8 +751,9 @@ bool ControlThroughTunnel::wait_param_available()
       return false;
     }
     std::cout << "Parameters not available, waiting again..." << std::endl;
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time);
-    if(elapsed > std::chrono::milliseconds(200)) {
+    auto elapsed =
+      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time);
+    if (elapsed > std::chrono::milliseconds(200)) {
       std::cerr << "Parameters not available after waiting. Exiting." << std::endl;
       return false;
     }
@@ -596,13 +769,13 @@ bool ControlThroughTunnel::has_params(std::vector<std::string> param_names)
     return false;
   }
   auto parameters = list_future.get();
-  for (const auto& param : parameters) {
+  for (const auto & param : parameters) {
     if (param.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET) {
       std::cerr << "Parameter " << param.get_name() << " is not set." << std::endl;
       return false;
     }
   }
-  return true; // 所有参数都可用
+  return true;  // 所有参数都可用
 }
 
 void ControlThroughTunnel::onHalted()

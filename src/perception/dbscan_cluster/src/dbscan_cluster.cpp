@@ -13,8 +13,7 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/search/kdtree.h>
 
-namespace DBSCANCluster
-{
+namespace DBSCANCluster {
 
 void DBSCANClusterAlg::configure(const ClusterConfig & config)
 {
@@ -22,8 +21,7 @@ void DBSCANClusterAlg::configure(const ClusterConfig & config)
 }
 
 void DBSCANClusterAlg::processCloud(
-  const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud,
-  std::vector<Detected_Obj> & obj_list) const
+  const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud, std::vector<Detected_Obj> & obj_list) const
 {
   obj_list.clear();
   if (!in_cloud || in_cloud->empty()) {
@@ -55,8 +53,7 @@ void DBSCANClusterAlg::processCloud(
 }
 
 void DBSCANClusterAlg::clusterByDistance(
-  const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud,
-  std::vector<Detected_Obj> & obj_list) const
+  const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud, std::vector<Detected_Obj> & obj_list) const
 {
   if (!in_cloud || in_cloud->empty()) {
     return;
@@ -79,8 +76,7 @@ void DBSCANClusterAlg::clusterByDistance(
   clusterSegment(near_cloud, config_.cluster_tolerance, obj_list);
 }
 
-void DBSCANClusterAlg::clusterSegment(
-  const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud,
+void DBSCANClusterAlg::clusterSegment(const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud,
   float max_cluster_distance,
   std::vector<Detected_Obj> & obj_list) const
 {
@@ -105,13 +101,10 @@ void DBSCANClusterAlg::clusterSegment(
   std::vector<int> labels(cloud_2d->size(), kUnclassified);
 
   auto region_query = [&](int query_idx, std::vector<int> & neighbors) {
-      std::vector<float> neighbor_sq_dists;
-      tree->radiusSearch(
-        cloud_2d->points[static_cast<size_t>(query_idx)],
-        max_cluster_distance,
-        neighbors,
-        neighbor_sq_dists);
-    };
+    std::vector<float> neighbor_sq_dists;
+    tree->radiusSearch(
+      cloud_2d->points[static_cast<size_t>(query_idx)], max_cluster_distance, neighbors, neighbor_sq_dists);
+  };
 
   int cluster_id = 0;
   for (size_t i = 0; i < cloud_2d->size(); ++i) {
@@ -156,10 +149,8 @@ void DBSCANClusterAlg::clusterSegment(
         }
       }
 
-      if (
-        labels[static_cast<size_t>(current_idx)] == kUnclassified ||
-        labels[static_cast<size_t>(current_idx)] == kNoise)
-      {
+      if (labels[static_cast<size_t>(current_idx)] == kUnclassified ||
+          labels[static_cast<size_t>(current_idx)] == kNoise) {
         labels[static_cast<size_t>(current_idx)] = cluster_id;
       }
     }
@@ -176,10 +167,8 @@ void DBSCANClusterAlg::clusterSegment(
 
   for (const auto & cluster_kv : clustered_indices) {
     const std::vector<int> & cluster_idx = cluster_kv.second;
-    if (
-      static_cast<int>(cluster_idx.size()) < config_.min_cluster_size ||
-      static_cast<int>(cluster_idx.size()) > config_.max_cluster_size)
-    {
+    if (static_cast<int>(cluster_idx.size()) < config_.min_cluster_size ||
+        static_cast<int>(cluster_idx.size()) > config_.max_cluster_size) {
       continue;
     }
 
@@ -270,11 +259,9 @@ void DBSCANClusterAlg::clusterSegment(
     const float box_length = obj.size.x();
     const float box_width = obj.size.y();
     const float box_height = obj.size.z();
-    if (
-      box_length > config_.max_valid_size || box_width > config_.max_valid_size ||
-      box_height > config_.max_valid_size || box_length < config_.min_valid_size ||
-      box_width < config_.min_valid_size || box_height < config_.min_valid_size)
-    {
+    if (box_length > config_.max_valid_size || box_width > config_.max_valid_size ||
+        box_height > config_.max_valid_size || box_length < config_.min_valid_size ||
+        box_width < config_.min_valid_size || box_height < config_.min_valid_size) {
       continue;
     }
 
