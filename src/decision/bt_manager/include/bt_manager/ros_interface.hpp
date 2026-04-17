@@ -13,6 +13,7 @@
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 
 #include <mutex>
 
@@ -50,8 +51,10 @@ private:
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub;
 
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr area_marker_pub;
 
   rclcpp::TimerBase::SharedPtr timer_;
+  rclcpp::TimerBase::SharedPtr area_marker_timer_;
   std::shared_ptr<Blackboard> blackboard_;
   std::shared_ptr<ParamManager> param_manager_;
 
@@ -66,6 +69,7 @@ private:
   void sentryOfflineCallback(const ros_interfaces::msg::SentryInfoOffline::SharedPtr msg);
   void sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOnline::SharedPtr msg);
   void manualOverrideCallback(const geometry_msgs::msg::PointStamped::SharedPtr msg);
+  void publishAreaMarkers();
 
 public:
   ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr);
