@@ -105,7 +105,7 @@ namespace Sentry_BT
     }
 
     try {
-      target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
+      target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pros_iface->now() - last_time_ose");
     } catch(...) {
       if(last_condition_met)
       {
@@ -243,8 +243,8 @@ BT::NodeStatus CheckInStairsZone::tick()
 
   double x = current_pose.position.x;
   double y = current_pose.position.y;
-
-  bool in_stairs_zone = (x > 3.2 && x < 6.0 && y > -6.4 && y < -5.3);
+  std::cout<<"current_pose: (" << x << ", " << y << ")" << std::endl;
+  bool in_stairs_zone = (x > 8.0 && x < 10.2 && y > 0.0 && y < 2.2); 
 
   static bool last_in_stairs_zone = false;
   if(in_stairs_zone != last_in_stairs_zone)
@@ -254,7 +254,7 @@ BT::NodeStatus CheckInStairsZone::tick()
               << ", pos=(" << x << ", " << y << ")" << RESET << std::endl;
     last_in_stairs_zone = in_stairs_zone;
   }
-
+  std::cout<<"CheckInStairsZone: " << (in_stairs_zone ? "IN_ZONE" : "OUT_OF_ZONE") << std::endl;
   return in_stairs_zone ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
@@ -273,16 +273,20 @@ BT::PortsList CheckWillThroughTunnel::providedPorts()
 BT::NodeStatus CheckWillThroughTunnel::tick()
 {
   auto blackboard = config().blackboard;
+  auto ros_iface = blackboard->get<std::shared_ptr<ros_interface>>("ros_interface");
   bool will_through_tunnel = false;
   auto lifter_current_pos = blackboard->get<int>("lifter_current_pos");
   will_through_tunnel = blackboard->get<bool>("through_tunnel");
   static bool last_state_ = !will_through_tunnel;
-  if (last_state_ != will_through_tunnel)
+  static rclcpp::Time last_time_ = ros_iface->now();
+  auto dur = ros_iface->now() - last_time_;
+  if (last_state_ != will_through_tunnel || dur.seconds() >= 0.5)
   {
     std::cout << WHITE << "CheckWillThroughTunnel => "
             << (will_through_tunnel ? "WILL_THROUGH_TUNNEL" : "WILL_NOT_THROUGH_TUNNEL")
             << RESET << std::endl;
     last_state_ = will_through_tunnel;
+    last_time_ = ros_iface->now();
   }
   
   if (will_through_tunnel) {
