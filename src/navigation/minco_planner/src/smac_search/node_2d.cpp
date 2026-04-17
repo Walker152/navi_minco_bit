@@ -15,13 +15,11 @@
 
 #include "smac_search/node_2d.hpp"
 
-#include <vector>
 #include <limits>
+#include <vector>
 
-namespace minco_planner
-{
-namespace smac
-{
+namespace minco_planner {
+namespace smac {
 
 // defining static member for all instance to share
 std::vector<int> Node2D::_neighbors_grid_offsets;
@@ -29,11 +27,8 @@ float Node2D::cost_travel_multiplier = 2.0;
 unsigned int Node2D::_size_x = 0;
 
 Node2D::Node2D(const uint64_t index)
-: parent(nullptr),
-  _cell_cost(std::numeric_limits<float>::quiet_NaN()),
-  _accumulated_cost(std::numeric_limits<float>::max()),
-  _index(index),
-  _in_collision(false)
+: parent(nullptr), _cell_cost(std::numeric_limits<float>::quiet_NaN()),
+  _accumulated_cost(std::numeric_limits<float>::max()), _index(index), _in_collision(false)
 {
 }
 
@@ -48,9 +43,7 @@ void Node2D::reset()
   _accumulated_cost = std::numeric_limits<float>::max();
 }
 
-bool Node2D::isNodeValid(
-  const bool & traverse_unknown,
-  GridCollisionChecker * collision_checker)
+bool Node2D::isNodeValid(const bool & traverse_unknown, GridCollisionChecker * collision_checker)
 {
   // Already found, we can return the result
   if (!std::isnan(_cell_cost)) {
@@ -80,9 +73,7 @@ float Node2D::getTraversalCost(const NodePtr & child)
   return 1.0 + cost_travel_multiplier * normalized_cost;
 }
 
-float Node2D::getHeuristicCost(
-  const Coordinates & node_coords,
-  const CoordinateVector & goals_coords)
+float Node2D::getHeuristicCost(const Coordinates & node_coords, const CoordinateVector & goals_coords)
 {
   // Using Moore distance as it more accurately represents the distances
   // even a Van Neumann neighborhood robot can navigate.
@@ -91,8 +82,7 @@ float Node2D::getHeuristicCost(
   return std::sqrt(dx * dx + dy * dy);
 }
 
-void Node2D::initMotionModel(
-  const MotionModel & motion_model,
+void Node2D::initMotionModel(const MotionModel & motion_model,
   unsigned int & x_size_uint,
   unsigned int & /*size_y*/,
   unsigned int & /*num_angle_quantization*/,
@@ -105,13 +95,11 @@ void Node2D::initMotionModel(
   int x_size = static_cast<int>(x_size_uint);
   cost_travel_multiplier = search_info.cost_penalty;
   _size_x = x_size_uint;
-  _neighbors_grid_offsets = {-1, +1, -x_size, +x_size, -x_size - 1,
-    -x_size + 1, +x_size - 1, +x_size + 1};
+  _neighbors_grid_offsets = {-1, +1, -x_size, +x_size, -x_size - 1, -x_size + 1, +x_size - 1, +x_size + 1};
 }
 
 void Node2D::getNeighbors(
-  std::function<bool(const uint64_t &,
-  minco_planner::smac::Node2D * &)> & NeighborGetter,
+  std::function<bool(const uint64_t &, minco_planner::smac::Node2D *&)> & NeighborGetter,
   GridCollisionChecker * collision_checker,
   const bool & traverse_unknown,
   const uint64_t & iter,
@@ -149,8 +137,7 @@ bool Node2D::backtracePath(CoordinateVector & path)
   NodePtr current_node = this;
 
   while (current_node->parent) {
-    path.push_back(
-      Node2D::getCoords(current_node->getIndex()));
+    path.push_back(Node2D::getCoords(current_node->getIndex()));
     current_node = current_node->parent;
   }
 

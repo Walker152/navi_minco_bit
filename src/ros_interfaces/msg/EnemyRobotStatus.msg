@@ -10,4 +10,4 @@ uint16 robot_hp            # 机器人血量
 uint16 allowed_projectile  # 允许发射的弹丸数量，单位发
 
 # 机器人位置信息
-geometry_msgs/Point position  # 位置坐标
+geometry_msgs/Pose position  # 位置坐标

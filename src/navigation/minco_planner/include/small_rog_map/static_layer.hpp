@@ -6,8 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace small_rog_map
-{
+namespace small_rog_map {
 
 class StaticLayer
 {

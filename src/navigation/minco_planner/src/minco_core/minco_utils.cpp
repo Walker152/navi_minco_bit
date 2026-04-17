@@ -9,12 +9,7 @@
 namespace minco_planner::utils {
 
 double getDistFromTrapezoid(
-  double t,
-  double total_length,
-  double a_ref,
-  double v_peak,
-  double t_acc,
-  double t_flat)
+  double t, double total_length, double a_ref, double v_peak, double t_acc, double t_flat)
 {
   if (!(std::isfinite(t) && std::isfinite(total_length) && std::isfinite(a_ref) && std::isfinite(v_peak) &&
         std::isfinite(t_acc) && std::isfinite(t_flat))) {
@@ -57,9 +52,7 @@ double getDistFromTrapezoid(
 }
 
 Eigen::Vector3d interpolateByArcLength(
-  const std::vector<Eigen::Vector3d> & path,
-  const std::vector<double> & accumulated_dist,
-  double s)
+  const std::vector<Eigen::Vector3d> & path, const std::vector<double> & accumulated_dist, double s)
 {
   if (path.empty()) {
     return Eigen::Vector3d::Zero();
@@ -89,8 +82,7 @@ Eigen::Vector3d interpolateByArcLength(
   return path[idx0] + ratio * (path[idx1] - path[idx0]);
 }
 
-void publishOptimizedTrajectory(
-  const traj_opt::Trajectory & opt_traj,
+void publishOptimizedTrajectory(const traj_opt::Trajectory & opt_traj,
   const traj_opt::Trajectory & yaw_traj,
   const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
   uint32_t & trajectory_id_counter,
@@ -152,8 +144,7 @@ void publishOptimizedTrajectory(
   pub->publish(traj_msg);
 }
 
-void publishBackupTrajectory(
-  const traj_opt::Trajectory & backup_traj,
+void publishBackupTrajectory(const traj_opt::Trajectory & backup_traj,
   const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
   uint32_t & trajectory_id_counter,
   const std_msgs::msg::Header & header,
@@ -224,22 +215,21 @@ void publishBackupTrajectory(
   pub->publish(traj_msg);
 }
 
-void publishEscapeCommand(
-  const geometry_msgs::msg::PoseStamped & current_pose,
+void publishEscapeCommand(const geometry_msgs::msg::PoseStamped & current_pose,
   const Eigen::Vector2d & escape_vel,
   const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
   uint32_t & trajectory_id_counter,
   const std_msgs::msg::Header & header)
 {
-  const double escape_duration = 0.5;  // seconds
+  // const double escape_duration = 0.5;  // seconds
   // 1. 构造空间伪轨迹 (平滑匀加速脱困曲线)
   // 多项式定义: p(t) = c0*t^5 + c1*t^4 + c2*t^3 + c3*t^2 + c4*t + c5
   traj_opt::Trajectory escape_traj;
   Eigen::MatrixXd cMat(3, 6);
   cMat.setZero();
   // 第 5 列 (c5) -> 常数项 (t^0): 设定起点为机器人的当前位置
-  cMat(0, 5) = current_pose.pose.position.x + escape_vel.x() * escape_duration;
-  cMat(1, 5) = current_pose.pose.position.y + escape_vel.y() * escape_duration;
+  cMat(0, 5) = current_pose.pose.position.x;
+  cMat(1, 5) = current_pose.pose.position.y;
   cMat(2, 5) = 0.0;
 
   // 第 4 列 (c4) -> 一次项 (t^1): 初始速度强制为 0，防止 QP 求解器因无限加速度崩溃 (Error 36)
@@ -257,9 +247,7 @@ void publishEscapeCommand(
   yMat.setZero();
 
   const auto & q = current_pose.pose.orientation;
-  double yaw = std::atan2(
-    2.0 * (q.w * q.z + q.x * q.y),
-    1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+  double yaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
 
   // 第 5 列 (c5) -> 常数项 (t^0): 锁定当前偏航角
   yMat(0, 5) = yaw;
@@ -268,12 +256,10 @@ void publishEscapeCommand(
   yaw_traj.start_WT = escape_traj.start_WT;
 
   // 3. 下发
-  publishOptimizedTrajectory(
-    escape_traj, yaw_traj, pub, trajectory_id_counter, header, 10, 0.05);
+  publishOptimizedTrajectory(escape_traj, yaw_traj, pub, trajectory_id_counter, header, 10, 0.05);
 }
 
-std::vector<Eigen::Vector3d> getSparseWaypoints(
-  const std::vector<Eigen::Vector3d> & path,
+std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3d> & path,
   double max_vel,
   double max_acc,
   const std::function<bool(const Eigen::Vector3d &, const Eigen::Vector3d &)> & is_line_free)
@@ -395,8 +381,10 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(
   };
 
   // 3) Build Ideal Indices by time-uniform sampling in trapezoid time, then s(t)->raw index.
-  int n_segments = static_cast<int>(std::ceil(t_total / 0.25));
-  n_segments = std::max(4, std::min(6, n_segments));
+  const double desired_spatial_res = 0.4;
+  const int n_segments_spatial = static_cast<int>(std::ceil(total_length / desired_spatial_res));
+  const int n_segments_time = static_cast<int>(std::ceil(t_total / 0.25));
+  const int n_segments = std::max(4, std::max(n_segments_spatial, n_segments_time));
   const double dt = t_total / static_cast<double>(n_segments);
 
   std::vector<size_t> target_indices;
@@ -478,7 +466,8 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(
   return sparse;
 }
 
-bool isLineFree(nav2_costmap_2d::Costmap2D * costmap, const Eigen::Vector3d & p1, const Eigen::Vector3d & p2)
+bool isLineFree(
+  nav2_costmap_2d::Costmap2D * costmap, const Eigen::Vector3d & p1, const Eigen::Vector3d & p2)
 {
   if (!costmap) {
     return true;
@@ -503,7 +492,12 @@ bool isLineFree(nav2_costmap_2d::Costmap2D * costmap, const Eigen::Vector3d & p1
   return true;
 }
 
-bool worldToMap(nav2_costmap_2d::Costmap2D * costmap, const rclcpp::Logger & logger, double wx, double wy, unsigned int & mx, unsigned int & my)
+bool worldToMap(nav2_costmap_2d::Costmap2D * costmap,
+  const rclcpp::Logger & logger,
+  double wx,
+  double wy,
+  unsigned int & mx,
+  unsigned int & my)
 {
   if (!costmap) {
     RCLCPP_DEBUG(logger, "worldToMap: costmap is null");
@@ -511,8 +505,7 @@ bool worldToMap(nav2_costmap_2d::Costmap2D * costmap, const rclcpp::Logger & log
   }
 
   if (wx < costmap->getOriginX() || wy < costmap->getOriginY()) {
-    RCLCPP_DEBUG(
-      logger,
+    RCLCPP_DEBUG(logger,
       "worldToMap: Position (%.2f, %.2f) is before origin (%.2f, %.2f)",
       wx,
       wy,
@@ -525,8 +518,7 @@ bool worldToMap(nav2_costmap_2d::Costmap2D * costmap, const rclcpp::Logger & log
   double dy = (wy - costmap->getOriginY()) / costmap->getResolution();
 
   if (dx < 0.0 || dy < 0.0) {
-    RCLCPP_DEBUG(
-      logger, "worldToMap: Computed cell coordinates (%.2f, %.2f) are negative", dx, dy);
+    RCLCPP_DEBUG(logger, "worldToMap: Computed cell coordinates (%.2f, %.2f) are negative", dx, dy);
     return false;
   }
 
@@ -535,8 +527,7 @@ bool worldToMap(nav2_costmap_2d::Costmap2D * costmap, const rclcpp::Logger & log
 
   if (mx_int < 0 || my_int < 0 || mx_int >= static_cast<int>(costmap->getSizeInCellsX()) ||
       my_int >= static_cast<int>(costmap->getSizeInCellsY())) {
-    RCLCPP_DEBUG(
-      logger,
+    RCLCPP_DEBUG(logger,
       "worldToMap: Cell coordinates (%d, %d) are out of bounds [0, %u) x [0, %u)",
       mx_int,
       my_int,

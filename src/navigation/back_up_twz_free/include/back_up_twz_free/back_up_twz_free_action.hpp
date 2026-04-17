@@ -18,17 +18,15 @@
 #include <memory>
 #include <string>
 
-#include "rclcpp/rclcpp.hpp"
 #include "nav2_behaviors/plugins/drive_on_heading.hpp"
 #include "nav2_msgs/action/back_up.hpp"
 #include "nav2_msgs/srv/get_costmap.hpp"
-#include "visualization_msgs/msg/marker_array.hpp" 
+#include "rclcpp/rclcpp.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
 
 using BackUpAction = nav2_msgs::action::BackUp;
 
-
-namespace nav2_behaviors
-{
+namespace nav2_behaviors {
 class BackUpTwzFree : public DriveOnHeading<nav2_msgs::action::BackUp>
 {
 public:
@@ -39,7 +37,7 @@ protected:
   void onConfigure() override;
 
 private:
-  // client to get local costmap  
+  // client to get local costmap
   rclcpp::Client<nav2_msgs::srv::GetCostmap>::SharedPtr costmap_client_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
   std::string service_name_;
@@ -53,6 +51,6 @@ private:
 
   // nav_msgs::msg::Odometry::SharedPtr odom_;
 };
-}
+}  // namespace nav2_behaviors
 
 #endif  // BEHAVIORS_EXT__PLUGINS__BACK_UP_HPP_

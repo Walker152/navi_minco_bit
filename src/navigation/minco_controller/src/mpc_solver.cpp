@@ -1,19 +1,17 @@
 #include "minco_controller/mpc_solver.hpp"
 
-#include <iostream>
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <limits>
 #include <vector>
 
-#include <qpOASES.hpp>
 #include "color_text.hpp"
+#include <qpOASES.hpp>
 
-namespace minco_controller
-{
+namespace minco_controller {
 
-MpcSolver::MpcSolver(const MPCConfig & config)
-: config_(config)
+MpcSolver::MpcSolver(const MPCConfig & config) : config_(config)
 {
 }
 
@@ -22,7 +20,8 @@ void MpcSolver::setConfig(const MPCConfig & config)
   config_ = config;
 }
 
-void MpcSolver::buildStepModel(double /*yaw_ref*/, Eigen::Matrix3d & A, Eigen::Matrix<double, 3, 3> & B) const
+void MpcSolver::buildStepModel(
+  double /*yaw_ref*/, Eigen::Matrix3d & A, Eigen::Matrix<double, 3, 3> & B) const
 {
   A.setIdentity();
 
@@ -33,8 +32,7 @@ void MpcSolver::buildStepModel(double /*yaw_ref*/, Eigen::Matrix3d & A, Eigen::M
   B(2, 2) = config_.dt;
 }
 
-bool MpcSolver::buildCondensedQP(
-  const State & curr,
+bool MpcSolver::buildCondensedQP(const State & curr,
   const std::vector<ReferencePoint> & ref_traj,
   Eigen::MatrixXd & H,
   Eigen::VectorXd & g,
@@ -60,7 +58,7 @@ bool MpcSolver::buildCondensedQP(
   const int nX = nx * N;
 
   // 堆叠状态：X = [x1..xN, y1..yN, yaw1..yawN]
-  // X = [x1,y1,yaw1, x2,y2,yaw2, ..., xN,yN,yawN]^T 
+  // X = [x1,y1,yaw1, x2,y2,yaw2, ..., xN,yN,yawN]^T
   // X = A_hat * x0 + B_hat * U
   Eigen::MatrixXd A_hat = Eigen::MatrixXd::Zero(nX, nx);
   Eigen::MatrixXd B_hat = Eigen::MatrixXd::Zero(nX, nU);
@@ -110,8 +108,7 @@ bool MpcSolver::buildCondensedQP(
   }
 
   // Q_bar / R_bar (对角块)
-  Eigen::MatrixXd Q_bar = Eigen::MatrixXd::Zero(nX, 
-    nX);
+  Eigen::MatrixXd Q_bar = Eigen::MatrixXd::Zero(nX, nX);
   Eigen::MatrixXd R_bar = Eigen::MatrixXd::Zero(nU, nU);
   for (int i = 0; i < N; ++i) {
     Q_bar.block<3, 3>(i * nx, i * nx) = config_.Q.asDiagonal();
@@ -173,13 +170,19 @@ bool MpcSolver::buildCondensedQP(
         // v(-1) 使用当前时刻真实全局速度作为已知常数，转移到 bounds：
         // a_min*dt <= v0 - v_curr_global <= a_max*dt
         const double last = (axis == 0 ? last_vx : (axis == 1 ? last_vy : last_w));
-        lbA(row) = (axis == 0 ? config_.ax_min : (axis == 1 ? config_.ay_min : config_.alpha_min)) * config_.dt + last;
-        ubA(row) = (axis == 0 ? config_.ax_max : (axis == 1 ? config_.ay_max : config_.alpha_max)) * config_.dt + last;
+        lbA(row) =
+          (axis == 0 ? config_.ax_min : (axis == 1 ? config_.ay_min : config_.alpha_min)) * config_.dt +
+          last;
+        ubA(row) =
+          (axis == 0 ? config_.ax_max : (axis == 1 ? config_.ay_max : config_.alpha_max)) * config_.dt +
+          last;
       } else {
         const int col_prev = (k - 1) * 3 + axis;
         A_con(row, col_prev) = -1.0;
-        lbA(row) = (axis == 0 ? config_.ax_min : (axis == 1 ? config_.ay_min : config_.alpha_min)) * config_.dt;
-        ubA(row) = (axis == 0 ? config_.ax_max : (axis == 1 ? config_.ay_max : config_.alpha_max)) * config_.dt;
+        lbA(row) =
+          (axis == 0 ? config_.ax_min : (axis == 1 ? config_.ay_min : config_.alpha_min)) * config_.dt;
+        ubA(row) =
+          (axis == 0 ? config_.ax_max : (axis == 1 ? config_.ay_max : config_.alpha_max)) * config_.dt;
       }
     }
   }
@@ -187,7 +190,10 @@ bool MpcSolver::buildCondensedQP(
   return true;
 }
 
-bool MpcSolver::solve(const State & curr, const std::vector<ReferencePoint> & ref_traj, Control & out_u, std::vector<State> * out_pred)
+bool MpcSolver::solve(const State & curr,
+  const std::vector<ReferencePoint> & ref_traj,
+  Control & out_u,
+  std::vector<State> * out_pred)
 {
   const int N = config_.horizon;
   if (N <= 0) {
@@ -265,18 +271,18 @@ bool MpcSolver::solve(const State & curr, const std::vector<ReferencePoint> & re
   qp.setOptions(options);
 
   qpOASES::int_t nWSR = static_cast<qpOASES::int_t>(config_.max_working_set_recalculations);
-  const qpOASES::returnValue ret = qp.init(
-    H_qp.data(), g_qp.data(), A_ptr,
-    lb_qp.data(), ub_qp.data(), lbA_ptr, ubA_ptr,
-    nWSR);
+  const qpOASES::returnValue ret =
+    qp.init(H_qp.data(), g_qp.data(), A_ptr, lb_qp.data(), ub_qp.data(), lbA_ptr, ubA_ptr, nWSR);
 
   if (ret != qpOASES::SUCCESSFUL_RETURN) {
     if (ret == qpOASES::RET_MAX_NWSR_REACHED) {
-      std::cout << color_text::RED << "[MpcSolver] qpOASES Max NWSR Reached!" << color_text::RESET << std::endl;
+      std::cout << color_text::RED << "[MpcSolver] qpOASES Max NWSR Reached!" << color_text::RESET
+                << std::endl;
     } else if (ret == qpOASES::RET_INIT_FAILED_INFEASIBILITY) {
       std::cout << color_text::RED << "[MpcSolver] qpOASES Infeasible!" << color_text::RESET << std::endl;
     } else {
-      std::cout << color_text::RED << "[MpcSolver] qpOASES Error Code: " << static_cast<int>(ret) << color_text::RESET << std::endl;
+      std::cout << color_text::RED << "[MpcSolver] qpOASES Error Code: " << static_cast<int>(ret)
+                << color_text::RESET << std::endl;
     }
     return false;
   }
@@ -291,14 +297,14 @@ bool MpcSolver::solve(const State & curr, const std::vector<ReferencePoint> & re
     out_pred->push_back(curr);
 
     State s = curr;
-    Eigen::Matrix3d A; // Identity inside buildStepModel
+    Eigen::Matrix3d A;  // Identity inside buildStepModel
     Eigen::Matrix<double, 3, 3> B;
 
     for (int i = 0; i < N; ++i) {
       const double ux = static_cast<double>(xOpt[static_cast<size_t>(3 * i + 0)]);
       const double uy = static_cast<double>(xOpt[static_cast<size_t>(3 * i + 1)]);
       const double uw = static_cast<double>(xOpt[static_cast<size_t>(3 * i + 2)]);
-      
+
       // 使用 QP 构建时的线性化点 (reference yaw) 进行推演
       buildStepModel(ref_traj[i].yaw, A, B);
 
@@ -315,9 +321,7 @@ bool MpcSolver::solve(const State & curr, const std::vector<ReferencePoint> & re
 
   // 取第一个控制量 u0 (global)
   const Eigen::Vector3d u0_global(
-    static_cast<double>(xOpt[0]),
-    static_cast<double>(xOpt[1]),
-    static_cast<double>(xOpt[2]));
+    static_cast<double>(xOpt[0]), static_cast<double>(xOpt[1]), static_cast<double>(xOpt[2]));
 
   // 记录上一帧全局速度，用于平滑加速度
   last_u_global_ = u0_global;

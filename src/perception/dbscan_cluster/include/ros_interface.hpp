@@ -1,10 +1,10 @@
 #pragma once
 
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/point_cloud2.hpp>
 #include <geometry_msgs/msg/pose_array.hpp>
+#include <rclcpp/rclcpp.hpp>
 #include <ros_interfaces/msg/dynamic_obstacle.hpp>
 #include <ros_interfaces/msg/dynamic_obstacle_array.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
 #include <tf2_ros/buffer.h>
@@ -13,8 +13,7 @@
 #include "dbscan_cluster.hpp"
 #include "kalman_tracker.hpp"
 
-namespace DBSCANCluster
-{
+namespace DBSCANCluster {
 
 struct VisionTarget
 {
@@ -46,7 +45,7 @@ private:
 
   rclcpp::Time last_stamp_{0, 0, RCL_ROS_TIME};
   bool has_last_stamp_ = false;
-  
+
   std::vector<VisionTarget> latest_vision_targets_;
   std::mutex vision_mutex_;
 };
