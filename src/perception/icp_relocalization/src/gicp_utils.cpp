@@ -1,25 +1,23 @@
 #include "gicp_utils.hpp"
 
-#include <cmath>
-#include <iostream>
+#include "color_text.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "pcl/common/transforms.h"
 #include "pcl/filters/crop_box.h"
 #include "pcl/filters/passthrough.h"
 #include "pcl/filters/voxel_grid.h"
 #include "pcl_conversions/pcl_conversions.h"
-#include "color_text.hpp"
+#include <cmath>
+#include <iostream>
 
-namespace icp_relocalization::gicp_utils
-{
+namespace icp_relocalization::gicp_utils {
 
-void publishCurrentTransform(const std::shared_ptr<tf2_ros::TransformBroadcaster>& tf_broadcaster,
-                             const std::string& map_frame,
-                             const Eigen::Matrix4f& map_to_camera_init,
-                             const rclcpp::Time& stamp)
+void publishCurrentTransform(const std::shared_ptr<tf2_ros::TransformBroadcaster> & tf_broadcaster,
+  const std::string & map_frame,
+  const Eigen::Matrix4f & map_to_camera_init,
+  const rclcpp::Time & stamp)
 {
-  if(!tf_broadcaster)
-  {
+  if (!tf_broadcaster) {
     return;
   }
 
@@ -43,14 +41,13 @@ void publishCurrentTransform(const std::shared_ptr<tf2_ros::TransformBroadcaster
   tf_broadcaster->sendTransform(t);
 }
 
-void publishStaticTf(const std::shared_ptr<tf2_ros::StaticTransformBroadcaster>& static_tf_broadcaster,
-                     const std::string& map_frame,
-                     const std::string& cloud_frame_id,
-                     const Eigen::Matrix4f& map_to_camera_init,
-                     const rclcpp::Time& stamp)
+void publishStaticTf(const std::shared_ptr<tf2_ros::StaticTransformBroadcaster> & static_tf_broadcaster,
+  const std::string & map_frame,
+  const std::string & cloud_frame_id,
+  const Eigen::Matrix4f & map_to_camera_init,
+  const rclcpp::Time & stamp)
 {
-  if(!static_tf_broadcaster || cloud_frame_id.empty())
-  {
+  if (!static_tf_broadcaster || cloud_frame_id.empty()) {
     return;
   }
 
@@ -71,25 +68,23 @@ void publishStaticTf(const std::shared_ptr<tf2_ros::StaticTransformBroadcaster>&
   t.transform.rotation.w = tf_quat.w();
 
   static_tf_broadcaster->sendTransform(t);
-  std::cout << color_text::GREEN << "[GICP] Published static TF: "
-            << map_frame << " -> " << cloud_frame_id << color_text::RESET << std::endl;
+  std::cout << color_text::GREEN << "[GICP] Published static TF: " << map_frame << " -> " << cloud_frame_id
+            << color_text::RESET << std::endl;
 }
 
-void publishVisualization(const PointCloud::Ptr& cloud,
-                          const rclcpp::Time& stamp,
-                          bool visualization_en,
-                          bool gicp_initialized,
-                          const std::string& map_frame,
-                          const Eigen::Matrix4f& map_to_camera_init,
-                          const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr& aligned_cloud_pub)
+void publishVisualization(const PointCloud::Ptr & cloud,
+  const rclcpp::Time & stamp,
+  bool visualization_en,
+  bool gicp_initialized,
+  const std::string & map_frame,
+  const Eigen::Matrix4f & map_to_camera_init,
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & aligned_cloud_pub)
 {
-  if(!visualization_en || !cloud)
-  {
+  if (!visualization_en || !cloud) {
     return;
   }
 
-  if(aligned_cloud_pub && aligned_cloud_pub->get_subscription_count() > 0 && gicp_initialized)
-  {
+  if (aligned_cloud_pub && aligned_cloud_pub->get_subscription_count() > 0 && gicp_initialized) {
     PointCloud::Ptr aligned_cloud(new PointCloud());
     pcl::transformPointCloud(*cloud, *aligned_cloud, map_to_camera_init);
 
@@ -101,9 +96,8 @@ void publishVisualization(const PointCloud::Ptr& cloud,
   }
 }
 
-void printEvaluation(const Eigen::Matrix4f& initial_guess,
-                     const Eigen::Matrix4f& final_transformation,
-                     double time_ms)
+void printEvaluation(
+  const Eigen::Matrix4f & initial_guess, const Eigen::Matrix4f & final_transformation, double time_ms)
 {
   float init_x = initial_guess(0, 3);
   float init_y = initial_guess(1, 3);
@@ -118,31 +112,30 @@ void printEvaluation(const Eigen::Matrix4f& initial_guess,
   float dyaw = final_yaw - init_yaw;
 
   const double PI = 3.14159265358979323846;
-  while(dyaw > PI) dyaw -= 2 * PI;
-  while(dyaw < -PI) dyaw += 2 * PI;
+  while (dyaw > PI)
+    dyaw -= 2 * PI;
+  while (dyaw < -PI)
+    dyaw += 2 * PI;
 
-  std::cout << color_text::GREEN
-            << "[GICP Eval] Time: " << time_ms << " ms"
+  std::cout << color_text::GREEN << "[GICP Eval] Time: " << time_ms << " ms"
             << " | Init[x=" << init_x << ", y=" << init_y << ", yaw=" << init_yaw << "]"
             << " | Final[x=" << final_x << ", y=" << final_y << ", yaw=" << final_yaw << "]"
-            << " | Dev[dx=" << dx << ", dy=" << dy << ", dyaw=" << dyaw << "]"
-            << color_text::RESET << std::endl;
+            << " | Dev[dx=" << dx << ", dy=" << dy << ", dyaw=" << dyaw << "]" << color_text::RESET
+            << std::endl;
 }
 
 void publishTargetCroppedDebug(bool visualization_en,
-                               const std::string& map_frame,
-                               const rclcpp::Time& stamp,
-                               const GicpFilter* gicp_filter,
-                               const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr& pub_target_cropped)
+  const std::string & map_frame,
+  const rclcpp::Time & stamp,
+  const GicpFilter * gicp_filter,
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_target_cropped)
 {
-  if(!visualization_en || !pub_target_cropped || !gicp_filter)
-  {
+  if (!visualization_en || !pub_target_cropped || !gicp_filter) {
     return;
   }
 
   PointCloud::Ptr target_cropped = gicp_filter->getCurrentLocalMapCloud();
-  if(!target_cropped || target_cropped->empty())
-  {
+  if (!target_cropped || target_cropped->empty()) {
     return;
   }
 
@@ -154,29 +147,27 @@ void publishTargetCroppedDebug(bool visualization_en,
 }
 
 void publishSourceCroppedDebug(bool visualization_en,
-                               const GicpFilter::Options& gicp_options,
-                               const std::string& map_frame,
-                               const PointCloud::Ptr& source,
-                               const Eigen::Matrix4f& initial_guess,
-                               const rclcpp::Time& stamp,
-                               const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr& pub_source_cropped)
+  const GicpFilter::Options & gicp_options,
+  const std::string & map_frame,
+  const PointCloud::Ptr & source,
+  const Eigen::Matrix4f & initial_guess,
+  const rclcpp::Time & stamp,
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_source_cropped)
 {
-  if(!visualization_en || !pub_source_cropped || !source || source->empty())
-  {
+  if (!visualization_en || !pub_source_cropped || !source || source->empty()) {
     return;
   }
 
   PointCloud::Ptr source_voxel(new PointCloud());
   pcl::VoxelGrid<pcl::PointXYZ> vg;
   vg.setLeafSize(gicp_options.source_voxel_leaf_size,
-                 gicp_options.source_voxel_leaf_size,
-                 gicp_options.source_voxel_leaf_size);
+    gicp_options.source_voxel_leaf_size,
+    gicp_options.source_voxel_leaf_size);
   vg.setInputCloud(source);
   vg.filter(*source_voxel);
 
   PointCloud::Ptr source_height(new PointCloud(*source_voxel));
-  if(gicp_options.height_filter_enabled)
-  {
+  if (gicp_options.height_filter_enabled) {
     pcl::PassThrough<pcl::PointXYZ> pass;
     pass.setInputCloud(source_voxel);
     pass.setFilterFieldName("z");
@@ -186,24 +177,22 @@ void publishSourceCroppedDebug(bool visualization_en,
   }
 
   PointCloud::Ptr source_cropped(new PointCloud(*source_height));
-  if(gicp_options.source_crop_enabled)
-  {
+  if (gicp_options.source_crop_enabled) {
     pcl::CropBox<pcl::PointXYZ> source_crop;
     source_crop.setInputCloud(source_height);
     source_crop.setMin(Eigen::Vector4f(static_cast<float>(gicp_options.source_crop_min_x),
-                                       static_cast<float>(gicp_options.source_crop_min_y),
-                                       static_cast<float>(gicp_options.source_crop_min_z),
-                                       1.0f));
+      static_cast<float>(gicp_options.source_crop_min_y),
+      static_cast<float>(gicp_options.source_crop_min_z),
+      1.0f));
     source_crop.setMax(Eigen::Vector4f(static_cast<float>(gicp_options.source_crop_max_x),
-                                       static_cast<float>(gicp_options.source_crop_max_y),
-                                       static_cast<float>(gicp_options.source_crop_max_z),
-                                       1.0f));
+      static_cast<float>(gicp_options.source_crop_max_y),
+      static_cast<float>(gicp_options.source_crop_max_z),
+      1.0f));
     source_cropped = std::make_shared<PointCloud>();
     source_crop.filter(*source_cropped);
   }
 
-  if(!source_cropped || source_cropped->empty())
-  {
+  if (!source_cropped || source_cropped->empty()) {
     return;
   }
 

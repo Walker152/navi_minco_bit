@@ -21,7 +21,6 @@
  *
  */
 
-
 /**
  *	\file interfaces/simulink/qpOASES_simulink_utils.cpp
  *	\author Hans Joachim Ferreau
@@ -37,84 +36,76 @@
 #include <qpOASES.hpp>
 #endif
 
-
 USING_NAMESPACE_QPOASES
-
 
 /*
  *	i s N a N
  */
-BooleanType isNaN( real_t val )
+BooleanType isNaN(real_t val)
 {
-	if ( (( val <= 0.0 ) || ( val >= 0.0 )) == 0 )
-		return BT_TRUE;
-	else
-		return BT_FALSE;
+  if (((val <= 0.0) || (val >= 0.0)) == 0)
+    return BT_TRUE;
+  else
+    return BT_FALSE;
 }
-
 
 /*
  *	r e m o v e N a N s
  */
-returnValue removeNaNs( real_t* const data, unsigned int dim )
+returnValue removeNaNs(real_t * const data, unsigned int dim)
 {
-	unsigned int i;
+  unsigned int i;
 
-	if ( data == 0 )
-		return RET_INVALID_ARGUMENTS;
+  if (data == 0)
+    return RET_INVALID_ARGUMENTS;
 
-	for ( i=0; i<dim; ++i )
-		if ( isNaN(data[i]) == BT_TRUE )
-			data[i] = INFTY;
+  for (i = 0; i < dim; ++i)
+    if (isNaN(data[i]) == BT_TRUE)
+      data[i] = INFTY;
 
-	return SUCCESSFUL_RETURN;
+  return SUCCESSFUL_RETURN;
 }
-
 
 /*
  *	r e m o v e I n f s
  */
-returnValue removeInfs( real_t* const data, unsigned int dim )
+returnValue removeInfs(real_t * const data, unsigned int dim)
 {
-	unsigned int i;
+  unsigned int i;
 
-	if ( data == 0 )
-		return RET_INVALID_ARGUMENTS;
+  if (data == 0)
+    return RET_INVALID_ARGUMENTS;
 
-	for ( i=0; i<dim; ++i )
-	{
-		if ( data[i] < -INFTY )
-			data[i] = -INFTY;
+  for (i = 0; i < dim; ++i) {
+    if (data[i] < -INFTY)
+      data[i] = -INFTY;
 
-		if ( data[i] > INFTY )
-			data[i] = INFTY;
-	}
+    if (data[i] > INFTY)
+      data[i] = INFTY;
+  }
 
-	return SUCCESSFUL_RETURN;
+  return SUCCESSFUL_RETURN;
 }
-
-
 
 /*
  *	c o n v e r t F o r t r a n T o C
  */
-returnValue convertFortranToC( const real_t* const M_for, int nV, int nC, real_t* const M )
+returnValue convertFortranToC(const real_t * const M_for, int nV, int nC, real_t * const M)
 {
-	int i,j;
+  int i, j;
 
-	if ( ( M_for == 0 ) || ( M == 0 ) )
-		return RET_INVALID_ARGUMENTS;
+  if ((M_for == 0) || (M == 0))
+    return RET_INVALID_ARGUMENTS;
 
-	if ( ( nV < 0 ) || ( nC < 0 ) )
-		return RET_INVALID_ARGUMENTS;
+  if ((nV < 0) || (nC < 0))
+    return RET_INVALID_ARGUMENTS;
 
-	for ( i=0; i<nC; ++i )
-		for ( j=0; j<nV; ++j )
-			M[i*nV + j] = M_for[j*nC + i];
+  for (i = 0; i < nC; ++i)
+    for (j = 0; j < nV; ++j)
+      M[i * nV + j] = M_for[j * nC + i];
 
-	return SUCCESSFUL_RETURN;
+  return SUCCESSFUL_RETURN;
 }
-
 
 /*
  *	end of file

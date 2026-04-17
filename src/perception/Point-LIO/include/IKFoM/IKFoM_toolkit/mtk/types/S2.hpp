@@ -1,7 +1,8 @@
 // This is a NEW implementation of the algorithm described in the
 // following paper:
-//    C. Hertzberg,  R.  Wagner,  U.  Frese,  and  L.  Schroder.  Integratinggeneric   sensor   fusion   algorithms   with   sound   state   representationsthrough  encapsulation  of  manifolds.
-//    CoRR,  vol.  abs/1107.1119,  2011.[Online]. Available: http://arxiv.org/abs/1107.1119
+//    C. Hertzberg,  R.  Wagner,  U.  Frese,  and  L.  Schroder.  Integratinggeneric   sensor   fusion
+//    algorithms   with   sound   state   representationsthrough  encapsulation  of  manifolds. CoRR,  vol.
+//    abs/1107.1119,  2011.[Online]. Available: http://arxiv.org/abs/1107.1119
 
 /*
  *  Copyright (c) 2019--2023, The University of Hong Kong
@@ -81,37 +82,43 @@
 #include "SOn.hpp"
 #include "vect.hpp"
 
-namespace MTK
-{
+namespace MTK {
 
 /**
- * Manifold representation of @f$ S^2 @f$. 
+ * Manifold representation of @f$ S^2 @f$.
  * Used for unit vectors on the sphere or directions in 3D.
- * 
+ *
  * @todo add conversions from/to polar angles?
  */
-template <class _scalar = double, int den = 1, int num = 1, int S2_typ = 3>
-struct S2
+template <class _scalar = double, int den = 1, int num = 1, int S2_typ = 3> struct S2
 {
   typedef _scalar scalar;
   typedef vect<3, scalar> vect_type;
   typedef SO3<scalar> SO3_type;
   typedef typename vect_type::base vec3;
   scalar length = scalar(den) / scalar(num);
-  enum { DOF = 2, TYP = 1, DIM = 3 };
+  enum
+  {
+    DOF = 2,
+    TYP = 1,
+    DIM = 3
+  };
 
-  //private:
+  // private:
   /**
-	 * Unit vector on the sphere, or vector pointing in a direction
-	 */
+   * Unit vector on the sphere, or vector pointing in a direction
+   */
   vect_type vec;
 
 public:
   S2()
   {
-    if (S2_typ == 3) vec = length * vec3(0, 0, std::sqrt(1));
-    if (S2_typ == 2) vec = length * vec3(0, std::sqrt(1), 0);
-    if (S2_typ == 1) vec = length * vec3(std::sqrt(1), 0, 0);
+    if (S2_typ == 3)
+      vec = length * vec3(0, 0, std::sqrt(1));
+    if (S2_typ == 2)
+      vec = length * vec3(0, std::sqrt(1), 0);
+    if (S2_typ == 1)
+      vec = length * vec3(std::sqrt(1), 0, 0);
   }
   S2(const scalar & x, const scalar & y, const scalar & z) : vec(vec3(x, y, z))
   {
@@ -164,10 +171,7 @@ public:
   }
 
   void hat(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
-  void Jacob_right_inv(Eigen::VectorXd & v, Eigen::MatrixXd & res)
-  {
-    std::cout << "wrong idx" << '\n';
-  }
+  void Jacob_right_inv(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
   void Jacob_right(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
 
   void S2_hat(Eigen::Matrix<scalar, 3, 3> & res)
@@ -182,8 +186,8 @@ public:
     if (S2_typ == 3) {
       if (vec[2] + length > tolerance<scalar>()) {
         res << length - vec[0] * vec[0] / (length + vec[2]), -vec[0] * vec[1] / (length + vec[2]),
-          -vec[0] * vec[1] / (length + vec[2]), length - vec[1] * vec[1] / (length + vec[2]),
-          -vec[0], -vec[1];
+          -vec[0] * vec[1] / (length + vec[2]), length - vec[1] * vec[1] / (length + vec[2]), -vec[0],
+          -vec[1];
         res /= length;
       } else {
         res = Eigen::Matrix<scalar, 3, 2>::Zero();
@@ -192,9 +196,8 @@ public:
       }
     } else if (S2_typ == 2) {
       if (vec[1] + length > tolerance<scalar>()) {
-        res << length - vec[0] * vec[0] / (length + vec[1]), -vec[0] * vec[2] / (length + vec[1]),
-          -vec[0], -vec[2], -vec[0] * vec[2] / (length + vec[1]),
-          length - vec[2] * vec[2] / (length + vec[1]);
+        res << length - vec[0] * vec[0] / (length + vec[1]), -vec[0] * vec[2] / (length + vec[1]), -vec[0],
+          -vec[2], -vec[0] * vec[2] / (length + vec[1]), length - vec[2] * vec[2] / (length + vec[1]);
         res /= length;
       } else {
         res = Eigen::Matrix<scalar, 3, 2>::Zero();
@@ -225,11 +228,11 @@ public:
         scalar v_cos = vec.transpose() * subtrahend.vec;
 
         res = Bx.transpose() * (std::atan2(v_sin, v_cos) / v_sin * MTK::hat(vec) +
-                                MTK::hat(vec) * subtrahend.vec *
-                                  ((-v_cos / v_sin / v_sin / length / length / length / length +
-                                    std::atan2(v_sin, v_cos) / v_sin / v_sin / v_sin) *
-                                     subtrahend.vec.transpose() * MTK::hat(vec) * MTK::hat(vec) -
-                                   vec.transpose() / length / length / length / length));
+                                 MTK::hat(vec) * subtrahend.vec *
+                                   ((-v_cos / v_sin / v_sin / length / length / length / length +
+                                      std::atan2(v_sin, v_cos) / v_sin / v_sin / v_sin) *
+                                       subtrahend.vec.transpose() * MTK::hat(vec) * MTK::hat(vec) -
+                                     vec.transpose() / length / length / length / length));
       } else {
         res = 1 / length / length * Bx.transpose() * MTK::hat(vec);
       }
@@ -281,7 +284,8 @@ public:
   }
   friend std::istream & operator>>(std::istream & is, S2<scalar, den, num, S2_typ> & vec)
   {
-    for (int i = 0; i < 3; ++i) is >> vec.vec[i];
+    for (int i = 0; i < 3; ++i)
+      is >> vec.vec[i];
     vec.vec.normalize();
     vec.vec = vec.vec * vec.length;
     return is;

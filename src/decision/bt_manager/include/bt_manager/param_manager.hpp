@@ -5,23 +5,20 @@
 #include <string>
 #include <vector>
 
-#include <rclcpp/rclcpp.hpp>
 #include <rclcpp/parameter_client.hpp>
+#include <rclcpp/rclcpp.hpp>
 
 #include <nav2_msgs/srv/load_map.hpp>
 
-namespace Sentry_BT
-{
+namespace Sentry_BT {
 
 class ParamManager
 {
 public:
   explicit ParamManager(
-    const rclcpp::Node::SharedPtr & node,
-    const std::string & planner_server_name = "/planner_server");
+    const rclcpp::Node::SharedPtr & node, const std::string & planner_server_name = "/planner_server");
 
-  bool changeMapAndPcd(
-    const std::string & yaml_path,
+  bool changeMapAndPcd(const std::string & yaml_path,
     const std::string & pcd_path,
     const std::string & planner_plugin_name = "MincoPlanner");
 

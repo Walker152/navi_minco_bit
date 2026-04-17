@@ -7,8 +7,7 @@
 
 #include "data_types.hpp"
 
-namespace DBSCANCluster
-{
+namespace DBSCANCluster {
 
 struct ClusterConfig
 {
@@ -31,16 +30,13 @@ public:
 
   void configure(const ClusterConfig & config);
   void processCloud(
-    const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud,
-    std::vector<Detected_Obj> & obj_list) const;
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud, std::vector<Detected_Obj> & obj_list) const;
 
 private:
   void clusterByDistance(
-    const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud,
-    std::vector<Detected_Obj> & obj_list) const;
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud, std::vector<Detected_Obj> & obj_list) const;
 
-  void clusterSegment(
-    const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud,
+  void clusterSegment(const pcl::PointCloud<pcl::PointXYZ>::Ptr & in_cloud,
     float max_cluster_distance,
     std::vector<Detected_Obj> & obj_list) const;
 

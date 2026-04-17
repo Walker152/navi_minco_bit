@@ -70,11 +70,14 @@ cmake_args=(
 )
 
 serial_packages=(
+	ros_interfaces
 	livox_ros_driver2
 	rog_map
 	icp_relocalization
 	point_lio
 	dbscan_cluster
+	communication
+	bt_manager
 )
 
 echo "[build] Stage 1/2: build critical packages one-by-one"

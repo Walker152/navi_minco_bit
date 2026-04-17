@@ -22,7 +22,11 @@ def generate_launch_description():
         # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmul2026.yaml'))
         # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmuc2026_back.yaml'))
         #  'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/room.yaml'))
+<<<<<<< HEAD
         'map', default=os.path.join(DreamChaser_dir, 'maps', 'first_floor/222.yaml'))
+=======
+        'map', default=os.path.join(DreamChaser_dir, 'maps', 'first_floor/first_floor.yaml'))
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
     nav2_param_path = launch.substitutions.LaunchConfiguration(
         'params_file', default=os.path.join(DreamChaser_dir, 'params', 'sentry1.yaml'))
 
@@ -34,8 +38,14 @@ def generate_launch_description():
             name='static_tf_map_to_camera_init',
             # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
             # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
+<<<<<<< HEAD
             # arguments=['6.5', '3.8', '0', '0', '0', '0', 'map', 'camera_init'],
             arguments=['0', '0', '0', '0', '0', '0', 'map', 'camera_init'],
+=======
+            # arguments=['8', '5', '0', '0', '0', '0', 'map', 'camera_init'],
+            arguments=['10.8', '4.07', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['10', '4.5', '0', '0', '0', '0', 'map', 'camera_init'],
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
             # arguments=['9', '6.0', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
@@ -47,6 +57,7 @@ def generate_launch_description():
         #     arguments=['0', '0', '0', '0', '0', '0', 'camera_init', 'body'],
         #     output='screen'),
 
+<<<<<<< HEAD
         # # 静态TF: body -> base_link
         # launch_ros.actions.Node(
         #     package='tf2_ros',
@@ -54,6 +65,15 @@ def generate_launch_description():
         #     name='static_tf_body_to_base_link',
         #     arguments=['0', '0.15', '0', '0', '0', '0', 'body', 'base_link'],
         #     output='screen'),
+=======
+        # 静态TF: body -> base_link
+        launch_ros.actions.Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='static_tf_body_to_base_link',
+            arguments=['0', '-0.20', '0', '0', '0', '0', 'body', 'base_link'],
+            output='screen'),
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
         # 声明新的 Launch 参数
         launch.actions.DeclareLaunchArgument('use_sim_time', default_value=use_sim_time,
                                              description='Use simulation (Gazebo) clock if true'),

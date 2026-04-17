@@ -18,22 +18,19 @@
 #include <memory>
 #include <vector>
 
-#include "nav2_costmap_2d/footprint_collision_checker.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
-#include "smac_search/constants.hpp"
+#include "nav2_costmap_2d/footprint_collision_checker.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "smac_search/constants.hpp"
 
-namespace minco_planner
-{
-namespace smac
-{
+namespace minco_planner {
+namespace smac {
 
 /**
  * @class minco_planner::smac::GridCollisionChecker
  * @brief A costmap grid collision checker
  */
-class GridCollisionChecker
-  : public nav2_costmap_2d::FootprintCollisionChecker<nav2_costmap_2d::Costmap2D *>
+class GridCollisionChecker : public nav2_costmap_2d::FootprintCollisionChecker<nav2_costmap_2d::Costmap2D *>
 {
 public:
   /**
@@ -44,8 +41,7 @@ public:
    * @param node Node to extract clock and logger from
    * orientations for to speed up collision checking
    */
-  GridCollisionChecker(
-    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap,
+  GridCollisionChecker(std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap,
     unsigned int num_quantizations,
     rclcpp_lifecycle::LifecycleNode::SharedPtr node);
 
@@ -54,8 +50,7 @@ public:
    * @param footprint The footprint to collision check against
    * @param radius Whether or not the footprint is a circle and use radius collision checking
    */
-  void setFootprint(
-    const nav2_costmap_2d::Footprint & footprint,
+  void setFootprint(const nav2_costmap_2d::Footprint & footprint,
     const bool & radius,
     const double & possible_collision_cost);
 
@@ -67,11 +62,7 @@ public:
    * @param traverse_unknown Whether or not to traverse in unknown space
    * @return boolean if in collision or not.
    */
-  bool inCollision(
-    const float & x,
-    const float & y,
-    const float & theta,
-    const bool & traverse_unknown);
+  bool inCollision(const float & x, const float & y, const float & theta, const bool & traverse_unknown);
 
   /**
    * @brief Check if in collision with costmap and footprint at pose
@@ -79,9 +70,7 @@ public:
    * @param traverse_unknown Whether or not to traverse in unknown space
    * @return boolean if in collision or not.
    */
-  bool inCollision(
-    const unsigned int & i,
-    const bool & traverse_unknown);
+  bool inCollision(const unsigned int & i, const bool & traverse_unknown);
 
   /**
    * @brief Get cost at footprint pose in costmap
