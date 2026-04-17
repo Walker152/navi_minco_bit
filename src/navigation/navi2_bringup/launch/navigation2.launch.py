@@ -18,11 +18,11 @@ def generate_launch_description():
         'use_sim_time', default='False')
     
     map_yaml_path = launch.substitutions.LaunchConfiguration(
-        'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmuc2026.yaml'))
+        # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmuc2026.yaml'))
         # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmul2026.yaml'))
         # 'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/rmuc2026_back.yaml'))
         #  'map', default=os.path.join(DreamChaser_dir, 'maps', '2026/room.yaml'))
-        # 'map', default=os.path.join(DreamChaser_dir, 'maps', 'first_floor/first_floor.yaml'))
+        'map', default=os.path.join(DreamChaser_dir, 'maps', 'first_floor/222.yaml'))
     nav2_param_path = launch.substitutions.LaunchConfiguration(
         'params_file', default=os.path.join(DreamChaser_dir, 'params', 'sentry1.yaml'))
 
@@ -33,9 +33,9 @@ def generate_launch_description():
             executable='static_transform_publisher',
             name='static_tf_map_to_camera_init',
             # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
-            arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
+            # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['6.5', '3.8', '0', '0', '0', '0', 'map', 'camera_init'],
-            # arguments=['12', '4.5', '0', '0', '0', '0', 'map', 'camera_init'],
+            arguments=['0', '0', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['9', '6.0', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
@@ -70,7 +70,7 @@ def generate_launch_description():
                 'map': map_yaml_path,
                 'use_sim_time': use_sim_time,
                 'params_file': nav2_param_path,
-                'log_level': 'warn'}.items(),
+                'log_level': 'error'}.items(),
         ),       
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
@@ -80,7 +80,7 @@ def generate_launch_description():
                 'map': map_yaml_path,
                 'use_sim_time': use_sim_time,
                 'params_file': nav2_param_path,
-                'log_level': 'warn'}.items(),
+                'log_level': 'error'}.items(),
         ),      
         launch_ros.actions.Node(
             package='rviz2',
