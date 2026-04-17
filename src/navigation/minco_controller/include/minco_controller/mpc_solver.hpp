@@ -6,8 +6,7 @@
 
 #include "minco_controller/mpc_types.hpp"
 
-namespace minco_controller
-{
+namespace minco_controller {
 
 // 纯 C++ MPC 求解器：不依赖 ROS，仅依赖 Eigen 与 qpOASES。
 class MpcSolver
@@ -23,13 +22,13 @@ public:
   // @param out_u 输出控制 (map)
   // @param out_pred (可选) 输出预测轨迹
   // @return 是否求解成功
-  bool solve(const State & curr, const std::vector<ReferencePoint> & ref_traj, Control & out_u, std::vector<State> * out_pred = nullptr);
+  bool solve(const State & curr,
+    const std::vector<ReferencePoint> & ref_traj,
+    Control & out_u,
+    std::vector<State> * out_pred = nullptr);
 
-  Eigen::Vector3d getLastControl() const
-  {
-    return last_u_global_;
-  }
-  
+  Eigen::Vector3d getLastControl() const { return last_u_global_; }
+
 private:
   // 构建离散线性模型：x_{k+1} = A x_k + B_k u_k
   // 状态为 [x,y,yaw]，控制变量 u_k 为 map/global 系 [vx, vy, omega]
@@ -37,8 +36,7 @@ private:
 
   // 组装 MPC 的 condensed QP：0.5*U^T H U + g^T U
   // 其中 U 堆叠了 horizon 个控制量 [vx, vy, omega] (map/global)
-  bool buildCondensedQP(
-    const State & curr,
+  bool buildCondensedQP(const State & curr,
     const std::vector<ReferencePoint> & ref_traj,
     Eigen::MatrixXd & H,
     Eigen::VectorXd & g,
