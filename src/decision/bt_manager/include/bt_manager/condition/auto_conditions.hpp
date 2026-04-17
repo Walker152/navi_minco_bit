@@ -57,5 +57,6 @@ public:
   BT::NodeStatus tick() override;
 private:
   static bool last_state_;
+  static rclcpp::Time last_time_;
 };
 }  // namespace Sentry_BT

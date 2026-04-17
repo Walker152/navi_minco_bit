@@ -1,6 +1,7 @@
 ## !/bin/bash
 cd ~/2025-sentry-navi
 source ./install/setup.bash
+source ./install/pclfilter/share/pclfilter/local_setup.bash
 
 # # MID360 
 gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_MID360_launch.py; exec bash"
@@ -8,7 +9,9 @@ gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_MID360_launch.py; e
 
 # # SLAM
 gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py; exec bash"
-# sleep 1
+sleep 1
+
+gnome-terminal -- bash -c "ros2 launch pclfilter depth_cluster.launch.py; exec bash"
 
 # Navigation2
 gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"
