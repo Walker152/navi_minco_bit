@@ -21,7 +21,6 @@
  *
  */
 
-
 /**
  *	\file src/SubjectTo.cpp
  *	\author Hans Joachim Ferreau, Andreas Potschka, Christian Kirches
@@ -32,108 +31,93 @@
  *	constraints and bounds within a QProblem.
  */
 
-
 #include <qpOASES/SubjectTo.hpp>
 
-
 BEGIN_NAMESPACE_QPOASES
-
 
 /*****************************************************************************
  *  P U B L I C                                                              *
  *****************************************************************************/
 
+/*
+ *	S u b j e c t T o
+ */
+SubjectTo::SubjectTo()
+{
+  type = 0;
+  status = 0;
+
+  init();
+}
 
 /*
  *	S u b j e c t T o
  */
-SubjectTo::SubjectTo( )
+SubjectTo::SubjectTo(int_t _n)
 {
-	type   = 0;
-	status = 0;
+  type = 0;
+  status = 0;
 
-	init( );
+  init(_n);
 }
-
 
 /*
  *	S u b j e c t T o
  */
-SubjectTo::SubjectTo( int_t _n )
+SubjectTo::SubjectTo(const SubjectTo & rhs)
 {
-	type   = 0;
-	status = 0;
-
-	init( _n );
+  copy(rhs);
 }
-
-
-/*
- *	S u b j e c t T o
- */
-SubjectTo::SubjectTo( const SubjectTo& rhs )
-{
-	copy( rhs );
-}
-
 
 /*
  *	~ S u b j e c t T o
  */
-SubjectTo::~SubjectTo( )
+SubjectTo::~SubjectTo()
 {
-	clear( );
+  clear();
 }
-
 
 /*
  *	o p e r a t o r =
  */
-SubjectTo& SubjectTo::operator=( const SubjectTo& rhs )
+SubjectTo & SubjectTo::operator=(const SubjectTo & rhs)
 {
-	if ( this != &rhs )
-	{
-		clear( );
-		copy( rhs );
-	}
+  if (this != &rhs) {
+    clear();
+    copy(rhs);
+  }
 
-	return *this;
+  return *this;
 }
-
 
 /*
  *	i n i t
  */
-returnValue SubjectTo::init(	int_t _n
-								)
+returnValue SubjectTo::init(int_t _n)
 {
-	int_t i;
+  int_t i;
 
-	if ( _n < 0 )
-		return THROWERROR( RET_INVALID_ARGUMENTS );
+  if (_n < 0)
+    return THROWERROR(RET_INVALID_ARGUMENTS);
 
-	clear( );
+  clear();
 
-	n = _n;
-	noLower = BT_TRUE;
-	noUpper = BT_TRUE;
+  n = _n;
+  noLower = BT_TRUE;
+  noUpper = BT_TRUE;
 
-	if ( n > 0 )
-	{
-		type   = new SubjectToType[n];
-		status = new SubjectToStatus[n];
+  if (n > 0) {
+    type = new SubjectToType[n];
+    status = new SubjectToStatus[n];
 
-		for( i=0; i<n; ++i )
-		{
-			type[i]   = ST_UNKNOWN;
-			status[i] = ST_UNDEFINED;
-		}
-	}
+    for (i = 0; i < n; ++i) {
+      type[i] = ST_UNKNOWN;
+      status[i] = ST_UNDEFINED;
+    }
+  }
 
-	return SUCCESSFUL_RETURN;
+  return SUCCESSFUL_RETURN;
 }
-
-
 
 /*****************************************************************************
  *  P R O T E C T E D                                                        *
@@ -142,147 +126,117 @@ returnValue SubjectTo::init(	int_t _n
 /*
  *	c l e a r
  */
-returnValue SubjectTo::clear( )
+returnValue SubjectTo::clear()
 {
-	if ( type != 0 )
-	{
-		delete[] type;
-		type = 0;
-	}
+  if (type != 0) {
+    delete[] type;
+    type = 0;
+  }
 
-	if ( status != 0 )
-	{
-		delete[] status;
-		status = 0;
-	}
+  if (status != 0) {
+    delete[] status;
+    status = 0;
+  }
 
-	return SUCCESSFUL_RETURN;
+  return SUCCESSFUL_RETURN;
 }
-
 
 /*
  *	c o p y
  */
-returnValue SubjectTo::copy(	const SubjectTo& rhs
-								)
+returnValue SubjectTo::copy(const SubjectTo & rhs)
 {
-	int_t i;
+  int_t i;
 
-	n = rhs.n;
-	noLower = rhs.noLower;
-	noUpper = rhs.noUpper;
+  n = rhs.n;
+  noLower = rhs.noLower;
+  noUpper = rhs.noUpper;
 
-	if ( rhs.n != 0 )
-	{
-		type   = new SubjectToType[n];
-		status = new SubjectToStatus[n];
+  if (rhs.n != 0) {
+    type = new SubjectToType[n];
+    status = new SubjectToStatus[n];
 
-		for( i=0; i<n; ++i )
-		{
-			type[i]   = rhs.type[i];
-			status[i] = rhs.status[i];
-		}
-	}
-	else
-	{
-		type   = 0;
-		status = 0;
-	}
+    for (i = 0; i < n; ++i) {
+      type[i] = rhs.type[i];
+      status[i] = rhs.status[i];
+    }
+  } else {
+    type = 0;
+    status = 0;
+  }
 
-	return SUCCESSFUL_RETURN;
+  return SUCCESSFUL_RETURN;
 }
-
 
 /*
  *	a d d I n d e x
  */
-returnValue SubjectTo::addIndex(	Indexlist* const indexlist,
-									int_t newnumber, SubjectToStatus newstatus
-									)
+returnValue SubjectTo::addIndex(Indexlist * const indexlist, int_t newnumber, SubjectToStatus newstatus)
 {
-	if ( status != 0 )
-	{
-		/* consistency check */
-		if ( status[newnumber] == newstatus )
-			return THROWERROR( RET_INDEX_ALREADY_OF_DESIRED_STATUS );
+  if (status != 0) {
+    /* consistency check */
+    if (status[newnumber] == newstatus)
+      return THROWERROR(RET_INDEX_ALREADY_OF_DESIRED_STATUS);
 
-		status[newnumber] = newstatus;
-	}
-	else
-		return THROWERROR( RET_ADDINDEX_FAILED );
+    status[newnumber] = newstatus;
+  } else
+    return THROWERROR(RET_ADDINDEX_FAILED);
 
-	if ( indexlist != 0 )
-	{
-		if ( indexlist->addNumber( newnumber ) == RET_INDEXLIST_EXCEEDS_MAX_LENGTH )
-			return THROWERROR( RET_ADDINDEX_FAILED );
-	}
-	else
-		return THROWERROR( RET_INVALID_ARGUMENTS );
+  if (indexlist != 0) {
+    if (indexlist->addNumber(newnumber) == RET_INDEXLIST_EXCEEDS_MAX_LENGTH)
+      return THROWERROR(RET_ADDINDEX_FAILED);
+  } else
+    return THROWERROR(RET_INVALID_ARGUMENTS);
 
-	return SUCCESSFUL_RETURN;
+  return SUCCESSFUL_RETURN;
 }
-
 
 /*
  *	r e m o v e I n d e x
  */
-returnValue SubjectTo::removeIndex(	Indexlist* const indexlist,
-									int_t removenumber
-									)
+returnValue SubjectTo::removeIndex(Indexlist * const indexlist, int_t removenumber)
 {
-	if ( status != 0 )
-		status[removenumber] = ST_UNDEFINED;
-	else
-		return THROWERROR( RET_REMOVEINDEX_FAILED );
+  if (status != 0)
+    status[removenumber] = ST_UNDEFINED;
+  else
+    return THROWERROR(RET_REMOVEINDEX_FAILED);
 
-	if ( indexlist != 0 )
-	{
-		if ( indexlist->removeNumber( removenumber ) != SUCCESSFUL_RETURN )
-			return THROWERROR( RET_REMOVEINDEX_FAILED );
-	}
-	else
-		return THROWERROR( RET_INVALID_ARGUMENTS );
+  if (indexlist != 0) {
+    if (indexlist->removeNumber(removenumber) != SUCCESSFUL_RETURN)
+      return THROWERROR(RET_REMOVEINDEX_FAILED);
+  } else
+    return THROWERROR(RET_INVALID_ARGUMENTS);
 
-	return SUCCESSFUL_RETURN;
+  return SUCCESSFUL_RETURN;
 }
-
 
 /*
  *	s w a p I n d e x
  */
-returnValue SubjectTo::swapIndex(	Indexlist* const indexlist,
-									int_t number1, int_t number2
-									)
+returnValue SubjectTo::swapIndex(Indexlist * const indexlist, int_t number1, int_t number2)
 {
-	/* consistency checks */
-	if ( status != 0 )
-	{
-		if ( status[number1] != status[number2] )
-			return THROWERROR( RET_SWAPINDEX_FAILED );
-	}
-	else
-		return THROWERROR( RET_SWAPINDEX_FAILED );
+  /* consistency checks */
+  if (status != 0) {
+    if (status[number1] != status[number2])
+      return THROWERROR(RET_SWAPINDEX_FAILED);
+  } else
+    return THROWERROR(RET_SWAPINDEX_FAILED);
 
-	if ( number1 == number2 )
-	{
-		THROWWARNING( RET_NOTHING_TO_DO );
-		return SUCCESSFUL_RETURN;
-	}
+  if (number1 == number2) {
+    THROWWARNING(RET_NOTHING_TO_DO);
+    return SUCCESSFUL_RETURN;
+  }
 
-	if ( indexlist != 0 )
-	{
-		if ( indexlist->swapNumbers( number1,number2 ) != SUCCESSFUL_RETURN )
-			return THROWERROR( RET_SWAPINDEX_FAILED );
-	}
-	else
-		return THROWERROR( RET_INVALID_ARGUMENTS );
+  if (indexlist != 0) {
+    if (indexlist->swapNumbers(number1, number2) != SUCCESSFUL_RETURN)
+      return THROWERROR(RET_SWAPINDEX_FAILED);
+  } else
+    return THROWERROR(RET_INVALID_ARGUMENTS);
 
-	return SUCCESSFUL_RETURN;
+  return SUCCESSFUL_RETURN;
 }
 
-
 END_NAMESPACE_QPOASES
-
 
 /*
  *	end of file

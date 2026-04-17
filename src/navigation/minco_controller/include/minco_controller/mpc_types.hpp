@@ -4,8 +4,7 @@
 
 #include <Eigen/Core>
 
-namespace minco_controller
-{
+namespace minco_controller {
 
 // 状态：全局系 (map) 下的位姿
 struct State
@@ -30,10 +29,10 @@ struct Control
 // 参考点：来自 Minco 轨迹的高精度前馈信息
 struct ReferencePoint
 {
-  Eigen::Vector2d pos{0.0, 0.0};        // map系位置
-  Eigen::Vector2d vel{0.0, 0.0};        // map系速度(前馈)
-  double yaw{0.0};                      // 参考航向
-  double yaw_rate{0.0};                 // 参考角速度(前馈)
+  Eigen::Vector2d pos{0.0, 0.0};  // map系位置
+  Eigen::Vector2d vel{0.0, 0.0};  // map系速度(前馈)
+  double yaw{0.0};                // 参考航向
+  double yaw_rate{0.0};           // 参考角速度(前馈)
 };
 
 // MPC 配置

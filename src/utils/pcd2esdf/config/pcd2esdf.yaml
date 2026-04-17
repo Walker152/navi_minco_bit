@@ -1,11 +1,19 @@
 pgm2esdf_generator:
   ros__parameters:
+<<<<<<< HEAD
     map_yaml: "src/navigation/navi2_bringup/maps/first_floor/222.yaml"
+=======
+    map_yaml: "src/navigation/navi2_bringup/maps/first_floor/first_floor.yaml"
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
     # map_yaml: "src/navigation/navi2_bringup/maps/2026/room.yaml"
     # map_yaml: "src/navigation/navi2_bringup/maps/2026/rmul2026.yaml"
     # map_yaml: "src/navigation/navi2_bringup/maps/2026/rmuc2026.yaml"
     # map_yaml: "src/navigation/navi2_bringup/maps/2026/rmuc2026_back.yaml"
+<<<<<<< HEAD
     output_pcd: "src/utils/pcd2esdf/maps/222_esdf.pcd"
+=======
+    output_pcd: "src/utils/pcd2esdf/maps/first_floor_esdf.pcd"
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
     # output_pcd: "src/utils/pcd2esdf/maps/room_esdf.pcd"
     # output_pcd: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
     # output_pcd: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"

@@ -21,7 +21,6 @@
  *
  */
 
-
 /**
  *	\file testing/cpp/test_exampleLP.cpp
  *	\author Hans Joachim Ferreau
@@ -31,84 +30,77 @@
  *	Very simple example for solving a LP sequence using qpOASES.
  */
 
-
-
 #include <qpOASES.hpp>
 #include <qpOASES/UnitTesting.hpp>
 
-
 /** Example for qpOASES main function solving LPs. */
-int main( )
+int main()
 {
-	USING_NAMESPACE_QPOASES
+  USING_NAMESPACE_QPOASES
 
-	real_t tol = 1e-14;
+  real_t tol = 1e-14;
 
-	/* Setup data of first LP. */
-	real_t A[1*2] = { 1.0, 1.0 };
-	real_t g[2] = { 1.5, 1.0 };
-	real_t lb[2] = { 0.5, -2.0 };
-	real_t ub[2] = { 5.0, 2.0 };
-	real_t lbA[1] = { -1.0 };
-	real_t ubA[1] = { 2.0 };
+  /* Setup data of first LP. */
+  real_t A[1 * 2] = {1.0, 1.0};
+  real_t g[2] = {1.5, 1.0};
+  real_t lb[2] = {0.5, -2.0};
+  real_t ub[2] = {5.0, 2.0};
+  real_t lbA[1] = {-1.0};
+  real_t ubA[1] = {2.0};
 
-	/* Setup data of second LP. */
-	real_t g_new[2] = { 1.0, 1.5 };
-	real_t lb_new[2] = { 0.0, -1.0 };
-	real_t ub_new[2] = { 5.0, -0.5 };
-	real_t lbA_new[1] = { -2.0 };
-	real_t ubA_new[1] = { 1.0 };
+  /* Setup data of second LP. */
+  real_t g_new[2] = {1.0, 1.5};
+  real_t lb_new[2] = {0.0, -1.0};
+  real_t ub_new[2] = {5.0, -0.5};
+  real_t lbA_new[1] = {-2.0};
+  real_t ubA_new[1] = {1.0};
 
+  /* Setting up QProblem object with zero Hessian matrix. */
+  QProblem example(2, 1, HST_ZERO);
 
-	/* Setting up QProblem object with zero Hessian matrix. */
-	QProblem example( 2,1,HST_ZERO );
+  Options options;
+  /*options.setToMPC();*/
+  example.setOptions(options);
 
-	Options options;
- 	/*options.setToMPC();*/
-	example.setOptions( options );
+  /* Solve first LP. */
+  int_t nWSR = 10;
+  example.init(0, g, A, lb, ub, lbA, ubA, nWSR, 0);
 
-	/* Solve first LP. */
-	int_t nWSR = 10;
-	example.init( 0,g,A,lb,ub,lbA,ubA, nWSR,0 );
+  real_t xOpt[2];
+  real_t yOpt[2 + 1];
+  example.getPrimalSolution(xOpt);
+  example.getDualSolution(yOpt);
 
-	real_t xOpt[2];
-	real_t yOpt[2+1];
-	example.getPrimalSolution( xOpt );
-	example.getDualSolution( yOpt );
+  /* Compute KKT tolerances */
+  real_t stat, feas, cmpl;
+  SolutionAnalysis analyzer;
+  printf("%d\n", example.getHessianType());
 
-	/* Compute KKT tolerances */
-	real_t stat, feas, cmpl;
-	SolutionAnalysis analyzer;
-	printf( "%d\n",example.getHessianType() );
+  analyzer.getKktViolation(&example, &stat, &feas, &cmpl);
+  printf("stat = %e\nfeas = %e\ncmpl = %e\n", stat, feas, cmpl);
 
-	analyzer.getKktViolation( &example, &stat,&feas,&cmpl );
-	printf( "stat = %e\nfeas = %e\ncmpl = %e\n", stat,feas,cmpl );
+  QPOASES_TEST_FOR_TOL(stat, tol);
+  QPOASES_TEST_FOR_TOL(feas, tol);
+  QPOASES_TEST_FOR_TOL(cmpl, tol);
 
-	QPOASES_TEST_FOR_TOL( stat,tol );
-	QPOASES_TEST_FOR_TOL( feas,tol );
-	QPOASES_TEST_FOR_TOL( cmpl,tol );
+  /* Solve second LP. */
+  nWSR = 10;
+  example.hotstart(g_new, lb_new, ub_new, lbA_new, ubA_new, nWSR, 0);
 
+  /* Get and print solution of second LP. */
+  example.getPrimalSolution(xOpt);
+  example.getDualSolution(yOpt);
+  printf("\nxOpt = [ %e, %e ];  objVal = %e\n\n", xOpt[0], xOpt[1], example.getObjVal());
 
-	/* Solve second LP. */
-	nWSR = 10;
-	example.hotstart( g_new,lb_new,ub_new,lbA_new,ubA_new, nWSR,0 );
+  analyzer.getKktViolation(&example, &stat, &feas, &cmpl);
+  printf("stat = %e\nfeas = %e\ncmpl = %e\n", stat, feas, cmpl);
 
+  QPOASES_TEST_FOR_TOL(stat, tol);
+  QPOASES_TEST_FOR_TOL(feas, tol);
+  QPOASES_TEST_FOR_TOL(cmpl, tol);
 
-	/* Get and print solution of second LP. */
-	example.getPrimalSolution( xOpt );
-	example.getDualSolution( yOpt );
-	printf( "\nxOpt = [ %e, %e ];  objVal = %e\n\n", xOpt[0],xOpt[1],example.getObjVal() );
-
-	analyzer.getKktViolation( &example, &stat,&feas,&cmpl );
-	printf( "stat = %e\nfeas = %e\ncmpl = %e\n", stat,feas,cmpl );
-
-	QPOASES_TEST_FOR_TOL( stat,tol );
-	QPOASES_TEST_FOR_TOL( feas,tol );
-	QPOASES_TEST_FOR_TOL( cmpl,tol );
-
-	return TEST_PASSED;
+  return TEST_PASSED;
 }
-
 
 /*
  *	end of file

@@ -6,8 +6,7 @@
 
 #include <Eigen/Geometry>
 
-namespace DBSCANCluster
-{
+namespace DBSCANCluster {
 
 void KalmanTracker::configure(const TrackerConfig & config)
 {
@@ -77,36 +76,38 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
   std::vector<std::tuple<float, int, int>> candidates;
   candidates.reserve(current_objects.size() * std::max<size_t>(prev_track_count, 1));
 
-  auto compute_bbox_iou_2d = [](const Eigen::Vector2f & center_a, const Eigen::Vector3f & size_a,
-                               const Eigen::Vector2f & center_b, const Eigen::Vector3f & size_b) {
-      const float a_half_x = 0.5f * std::max(0.01f, size_a.x());
-      const float a_half_y = 0.5f * std::max(0.01f, size_a.y());
-      const float b_half_x = 0.5f * std::max(0.01f, size_b.x());
-      const float b_half_y = 0.5f * std::max(0.01f, size_b.y());
+  auto compute_bbox_iou_2d = [](const Eigen::Vector2f & center_a,
+                               const Eigen::Vector3f & size_a,
+                               const Eigen::Vector2f & center_b,
+                               const Eigen::Vector3f & size_b) {
+    const float a_half_x = 0.5f * std::max(0.01f, size_a.x());
+    const float a_half_y = 0.5f * std::max(0.01f, size_a.y());
+    const float b_half_x = 0.5f * std::max(0.01f, size_b.x());
+    const float b_half_y = 0.5f * std::max(0.01f, size_b.y());
 
-      const float a_min_x = center_a.x() - a_half_x;
-      const float a_max_x = center_a.x() + a_half_x;
-      const float a_min_y = center_a.y() - a_half_y;
-      const float a_max_y = center_a.y() + a_half_y;
+    const float a_min_x = center_a.x() - a_half_x;
+    const float a_max_x = center_a.x() + a_half_x;
+    const float a_min_y = center_a.y() - a_half_y;
+    const float a_max_y = center_a.y() + a_half_y;
 
-      const float b_min_x = center_b.x() - b_half_x;
-      const float b_max_x = center_b.x() + b_half_x;
-      const float b_min_y = center_b.y() - b_half_y;
-      const float b_max_y = center_b.y() + b_half_y;
+    const float b_min_x = center_b.x() - b_half_x;
+    const float b_max_x = center_b.x() + b_half_x;
+    const float b_min_y = center_b.y() - b_half_y;
+    const float b_max_y = center_b.y() + b_half_y;
 
-      const float inter_w = std::max(0.0f, std::min(a_max_x, b_max_x) - std::max(a_min_x, b_min_x));
-      const float inter_h = std::max(0.0f, std::min(a_max_y, b_max_y) - std::max(a_min_y, b_min_y));
-      const float inter_area = inter_w * inter_h;
+    const float inter_w = std::max(0.0f, std::min(a_max_x, b_max_x) - std::max(a_min_x, b_min_x));
+    const float inter_h = std::max(0.0f, std::min(a_max_y, b_max_y) - std::max(a_min_y, b_min_y));
+    const float inter_area = inter_w * inter_h;
 
-      const float area_a = (a_max_x - a_min_x) * (a_max_y - a_min_y);
-      const float area_b = (b_max_x - b_min_x) * (b_max_y - b_min_y);
-      const float union_area = area_a + area_b - inter_area;
+    const float area_a = (a_max_x - a_min_x) * (a_max_y - a_min_y);
+    const float area_b = (b_max_x - b_min_x) * (b_max_y - b_min_y);
+    const float union_area = area_a + area_b - inter_area;
 
-      if (union_area <= 1e-6f) {
-        return 0.0f;
-      }
-      return inter_area / union_area;
-    };
+    if (union_area <= 1e-6f) {
+      return 0.0f;
+    }
+    return inter_area / union_area;
+  };
 
   for (size_t obj_idx = 0; obj_idx < current_objects.size(); ++obj_idx) {
     const Eigen::Vector2f z(current_objects[obj_idx].centroid.x(), current_objects[obj_idx].centroid.y());
@@ -117,9 +118,10 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
       }
 
       const float spatial_cost = dist / std::max(1e-3f, config_.match_distance_threshold);
-      const float iou = compute_bbox_iou_2d(
-        z, current_objects[obj_idx].size,
-        tracked_objects_[trk_idx].position, tracked_objects_[trk_idx].size);
+      const float iou = compute_bbox_iou_2d(z,
+        current_objects[obj_idx].size,
+        tracked_objects_[trk_idx].position,
+        tracked_objects_[trk_idx].size);
       const float shape_cost = 1.0f - std::clamp(iou, 0.0f, 1.0f);
       const float association_cost = spatial_w * spatial_cost + shape_w * shape_cost;
 
@@ -127,8 +129,9 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
     }
   }
 
-  std::sort(candidates.begin(), candidates.end(),
-    [](const auto & a, const auto & b) { return std::get<0>(a) < std::get<0>(b); });
+  std::sort(candidates.begin(), candidates.end(), [](const auto & a, const auto & b) {
+    return std::get<0>(a) < std::get<0>(b);
+  });
 
   std::vector<bool> object_assigned(current_objects.size(), false);
   std::vector<bool> track_assigned(prev_track_count, false);
@@ -164,7 +167,7 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
 
       track.state = track.state + K4 * innovation4;
       track.covariance = (Eigen::Matrix<float, 6, 6>::Identity() - K4 * H4) * track.covariance;
-      
+
       track.dynamic_match_frames = config_.class_confirm_frames;
       track.dynamic_confirmed = true;
     } else {
@@ -189,14 +192,16 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
 
     // --- 1. PCA 边长 90度 防翻转对齐 ---
     if (track.size.squaredNorm() > 1e-6f) {
-      float diff_no_swap = std::abs(obj.size.x() - track.size.x()) + std::abs(obj.size.y() - track.size.y());
+      float diff_no_swap =
+        std::abs(obj.size.x() - track.size.x()) + std::abs(obj.size.y() - track.size.y());
       float diff_swap = std::abs(obj.size.x() - track.size.y()) + std::abs(obj.size.y() - track.size.x());
 
       // 如果交换长宽后与历史尺寸更匹配，说明 PCA 发生了 90 度主轴跳变
       if (diff_swap < diff_no_swap) {
         std::swap(obj.size.x(), obj.size.y());
         // 补偿 90 度旋转，以对齐历史坐标系
-        Eigen::Quaternionf rot90(Eigen::AngleAxisf(static_cast<float>(M_PI) / 2.0f, Eigen::Vector3f::UnitZ()));
+        Eigen::Quaternionf rot90(
+          Eigen::AngleAxisf(static_cast<float>(M_PI) / 2.0f, Eigen::Vector3f::UnitZ()));
         obj.orientation = obj.orientation * rot90;
       }
     }
@@ -219,9 +224,9 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
 
     // --- 3. 漏桶算法 (Leaky Bucket)：防闪烁与防滞后 ---
     if (obj.speed > config_.dynamic_speed_threshold) {
-      track.dynamic_match_frames += 2; // 移动时：+2 快速增加信任 (彻底解决滞后)
+      track.dynamic_match_frames += 2;  // 移动时：+2 快速增加信任 (彻底解决滞后)
     } else if (obj.speed < config_.dynamic_speed_threshold * 0.5f) {
-      track.dynamic_match_frames -= 1; // 停止/跳变时：-1 缓慢扣除信任 (彻底解决单帧跳变引起的闪烁)
+      track.dynamic_match_frames -= 1;  // 停止/跳变时：-1 缓慢扣除信任 (彻底解决单帧跳变引起的闪烁)
     }
 
     // 将计数器限制在 0 到 confirm_frames * 3 之间（设置上限防止溢出）
@@ -250,10 +255,8 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
 
     TrackedObject new_track;
     new_track.id = next_track_id_++;
-    new_track.state <<
-      current_objects[obj_idx].centroid.x(), current_objects[obj_idx].centroid.y(),
-      0.0f, 0.0f,
-      0.0f, 0.0f;
+    new_track.state << current_objects[obj_idx].centroid.x(), current_objects[obj_idx].centroid.y(), 0.0f,
+      0.0f, 0.0f, 0.0f;
     new_track.position = new_track.state.head<2>();
     new_track.covariance = Eigen::Matrix<float, 6, 6>::Identity();
     new_track.covariance(2, 2) = 4.0f;
@@ -301,15 +304,17 @@ void KalmanTracker::update(std::vector<Detected_Obj> & current_objects, float dt
     predicted_obj.orientation = track.orientation;
     predicted_obj.vx = track.state(2);
     predicted_obj.vy = track.state(3);
-    predicted_obj.speed = std::sqrt(predicted_obj.vx * predicted_obj.vx + predicted_obj.vy * predicted_obj.vy);
+    predicted_obj.speed =
+      std::sqrt(predicted_obj.vx * predicted_obj.vx + predicted_obj.vy * predicted_obj.vy);
     predicted_obj.dynamic_confirmed = track.dynamic_confirmed;
     current_objects.push_back(predicted_obj);
   }
 
-  tracked_objects_.erase(
-    std::remove_if(
-      tracked_objects_.begin(), tracked_objects_.end(),
-      [this](const TrackedObject & t) { return t.missed_frames > config_.max_missed_frames; }),
+  tracked_objects_.erase(std::remove_if(tracked_objects_.begin(),
+                           tracked_objects_.end(),
+                           [this](const TrackedObject & t) {
+                             return t.missed_frames > config_.max_missed_frames;
+                           }),
     tracked_objects_.end());
 }
 

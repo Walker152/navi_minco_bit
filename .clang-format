@@ -4,11 +4,31 @@ BasedOnStyle: LLVM
 
 # 缩进设置
 IndentWidth: 2
+ContinuationIndentWidth: 2
 TabWidth: 2
 UseTab: Never
 
 # 大括号风格
-BreakBeforeBraces: Allman
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: true
+  AfterControlStatement: Never
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: false
+  AfterObjCDeclaration: true
+  AfterStruct: true
+  AfterUnion: true
+  AfterExternBlock: true
+  BeforeCatch: false
+  BeforeElse: false
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
 Cpp11BracedListStyle: true
 
 # 访问修饰符
@@ -16,21 +36,25 @@ AccessModifierOffset: -2
 IndentAccessModifiers: false
 
 # 命名空间
-NamespaceIndentation: All
+NamespaceIndentation: None
 
 # 函数和构造函数
-BreakConstructorInitializers: BeforeComma
-ConstructorInitializerIndentWidth: 2
-AllowShortFunctionsOnASingleLine: Empty
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerIndentWidth: 0
+PackConstructorInitializers: BinPack
+AllowShortFunctionsOnASingleLine: InlineOnly
 AlwaysBreakAfterReturnType: None
+
+# Lambda
+AllowShortLambdasOnASingleLine: None
 
 # 参数和参数列表
 BinPackParameters: false
 BinPackArguments: false
-AlignAfterOpenBracket: Align
+AlignAfterOpenBracket: DontAlign
 
 # 行长度
-ColumnLimit: 120
+ColumnLimit: 108
 
 # 预处理与宏格式
 IndentPPDirectives: None        # 让 #ifndef / #define 不增加缩进，保持原样
@@ -38,10 +62,13 @@ IndentPPDirectives: None        # 让 #ifndef / #define 不增加缩进，保持
 PPIndentWidth: 0                # 与 IndentPPDirectives: None 配合，宽度为 0
 
 # 空格设置
-SpaceBeforeParens: Never
+SpaceBeforeParens: ControlStatements
 SpaceAfterCStyleCast: false
 SpaceBeforeAssignmentOperators: true
 SpaceInEmptyParentheses: false
+
+# 返回类型换行惩罚（尽量保持“返回类型 + 函数名”同一行）
+PenaltyReturnTypeOnItsOwnLine: 1000000
 
 # 注释
 ReflowComments: true
@@ -59,8 +86,8 @@ KeepEmptyLinesAtTheStartOfBlocks: false
 MaxEmptyLinesToKeep: 1
 
 # 指针和引用对齐
-PointerAlignment: Left
-ReferenceAlignment: Left
+PointerAlignment: Middle
+ReferenceAlignment: Middle
 
 # 初始化列表
 BreakBeforeInheritanceComma: true
