@@ -84,7 +84,11 @@ Visualization Manager:
           Value: true
         camera_init:
           Value: true
+        gimbal:
+          Value: true
         map:
+          Value: true
+        minimap:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -94,10 +98,12 @@ Visualization Manager:
       Tree:
         map:
           camera_init:
-            base_link:
-              {}
             body:
-              {}
+              base_link:
+                gimbal:
+                  {}
+          minimap:
+            {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -359,7 +365,7 @@ Visualization Manager:
           Enabled: true
           Name: RecoverGoal
           Namespaces:
-            recover_goal: true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -701,7 +707,7 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 1.6992617845535278
+          Max Intensity: 3
           Min Color: 0; 0; 0
           Min Intensity: 0
           Name: Local ESDF
@@ -735,7 +741,7 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 2.25
+          Max Intensity: 2.52685546875
           Min Color: 0; 0; 0
           Min Intensity: 0
           Name: GlobalESDF
@@ -806,13 +812,26 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        "": true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /waypoints
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: MarkerArray
+      Namespaces:
+        sentry_area_box: true
+        sentry_area_label: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /sentry/area_markers
       Value: true
   Enabled: true
   Global Options:
@@ -859,25 +878,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 14.718356132507324
+      Distance: 31.003250122070312
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 6.646575927734375
-        Y: 4.593322277069092
-        Z: -10.966233253479004
+        X: 12.957711219787598
+        Y: 5.7336039543151855
+        Z: -10.299609184265137
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.4747965335845947
+      Pitch: 1.4297964572906494
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 3.073599338531494
+      Yaw: 2.9785990715026855
     Saved: ~
 Window Geometry:
   Displays:
