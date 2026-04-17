@@ -17,6 +17,7 @@
 
 #include "nav2_util/node_utils.hpp"
 
+#include "tf2/LinearMath/Matrix3x3.h"
 #include "tf2/utils.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
@@ -89,6 +90,8 @@ void MincoMpcController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPt
   nav2_util::declare_parameter_if_not_declared(node, name + ".map_frame", rclcpp::ParameterValue("map"));
   nav2_util::declare_parameter_if_not_declared(node, name + ".lidar_offset_x", rclcpp::ParameterValue(0.0));
   nav2_util::declare_parameter_if_not_declared(node, name + ".lidar_offset_y", rclcpp::ParameterValue(0.0));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".lidar_roll_offset", rclcpp::ParameterValue(0.0));
 
   double dt = 0.05;
   double lookahead_time = 0.5;
@@ -133,6 +136,7 @@ void MincoMpcController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPt
   node->get_parameter(name + ".map_frame", map_frame_);
   node->get_parameter(name + ".lidar_offset_x", lidar_offset_x_);
   node->get_parameter(name + ".lidar_offset_y", lidar_offset_y_);
+  node->get_parameter(name + ".lidar_roll_offset", lidar_roll_offset_);
 
   solver_ = std::make_unique<MpcSolver>(mpc_config_);
 
@@ -154,7 +158,7 @@ void MincoMpcController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPt
 
   RCLCPP_INFO(logger_,
     "%s: MincoMpcController configured (dt=%.3f, lookahead_time=%.3f, deadzone=%.3f, delay_comp=%.3f, "
-    "small_gyro=%s, fixed_wz=%.3f, lidar_offset_x=%.3f, lidar_offset_y=%.3f)",
+    "small_gyro=%s, fixed_wz=%.3f, lidar_offset_x=%.3f, lidar_offset_y=%.3f, lidar_roll_offset=%.3f)",
     name_.c_str(),
     dt,
     lookahead_time,
@@ -163,7 +167,8 @@ void MincoMpcController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPt
     use_small_gyro_mode_ ? "true" : "false",
     fixed_wz_,
     lidar_offset_x_,
-    lidar_offset_y_);
+    lidar_offset_y_,
+    lidar_roll_offset_);
 }
 
 void MincoMpcController::compensateLeverArm(double v_lidar_x,
@@ -523,6 +528,49 @@ bool MincoMpcController::buildReferenceFromOptPath(
   return true;
 }
 
+void MincoMpcController::applyGravityCompensation(
+  const nav_msgs::msg::Odometry::SharedPtr & odom, double & vx, double & vy)
+{
+  if (!odom || std::hypot(vx, vy) < 0.01) {
+    return;
+  }
+
+  tf2::Quaternion q;
+  tf2::fromMsg(odom->pose.pose.orientation, q);
+
+  double roll = 0.0;
+  double pitch = 0.0;
+  double yaw = 0.0;
+  tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+
+  const double true_roll = roll - lidar_roll_offset_;
+  constexpr double angle_threshold = 0.05;
+  constexpr double k_gravity_x = 0.8;
+  constexpr double k_gravity_y = 1.0;
+
+  double body_comp_x = 0.0;
+  double body_comp_y = 0.0;
+  if (std::abs(pitch) > angle_threshold) {
+    body_comp_x = k_gravity_x * std::sin(pitch);
+  }
+  if (std::abs(true_roll) > angle_threshold) {
+    body_comp_y = k_gravity_y * std::sin(true_roll);
+  }
+
+  if (body_comp_x == 0.0 && body_comp_y == 0.0) {
+    return;
+  }
+
+  const double global_comp_x = body_comp_x * std::cos(yaw) - body_comp_y * std::sin(yaw);
+  const double global_comp_y = body_comp_x * std::sin(yaw) + body_comp_y * std::cos(yaw);
+
+  vx += global_comp_x;
+  vy += global_comp_y;
+
+  vx = std::clamp(vx, mpc_config_.vx_min, mpc_config_.vx_max);
+  vy = std::clamp(vy, mpc_config_.vy_min, mpc_config_.vy_max);
+}
+
 geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   const geometry_msgs::msg::PoseStamped & pose,
   const geometry_msgs::msg::Twist & velocity,
@@ -722,6 +770,8 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     vx = 0.0;
     vy = 0.0;
   }
+
+  applyGravityCompensation(latest_odom, vx, vy);
 
   cmd.twist.linear.x = vx;
   cmd.twist.linear.y = vy;

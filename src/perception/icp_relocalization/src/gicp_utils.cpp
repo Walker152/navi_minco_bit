@@ -7,10 +7,93 @@
 #include "pcl/filters/passthrough.h"
 #include "pcl/filters/voxel_grid.h"
 #include "pcl_conversions/pcl_conversions.h"
+#include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
 
 namespace icp_relocalization::gicp_utils {
+
+namespace {
+
+PointCloud::Ptr removeNonFinitePoints(const PointCloud::Ptr & cloud)
+{
+  if (!cloud || cloud->empty()) {
+    return std::make_shared<PointCloud>();
+  }
+
+  PointCloud::Ptr filtered(new PointCloud());
+  filtered->reserve(cloud->size());
+  for (const auto & p : cloud->points) {
+    if (std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z)) {
+      filtered->points.push_back(p);
+    }
+  }
+
+  filtered->width = static_cast<std::uint32_t>(filtered->points.size());
+  filtered->height = 1;
+  filtered->is_dense = true;
+  return filtered;
+}
+
+double computeSafeLeafSize(const PointCloud::Ptr & cloud, double requested_leaf)
+{
+  constexpr double kMinLeaf = 1.0e-4;
+  constexpr double kCellLimit = static_cast<double>(std::numeric_limits<int>::max()) * 0.5;
+
+  double safe_leaf = std::max(requested_leaf, kMinLeaf);
+  if (!cloud || cloud->empty()) {
+    return safe_leaf;
+  }
+
+  float min_x = std::numeric_limits<float>::infinity();
+  float min_y = std::numeric_limits<float>::infinity();
+  float min_z = std::numeric_limits<float>::infinity();
+  float max_x = -std::numeric_limits<float>::infinity();
+  float max_y = -std::numeric_limits<float>::infinity();
+  float max_z = -std::numeric_limits<float>::infinity();
+
+  for (const auto & p : cloud->points) {
+    if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z)) {
+      continue;
+    }
+    min_x = std::min(min_x, p.x);
+    min_y = std::min(min_y, p.y);
+    min_z = std::min(min_z, p.z);
+    max_x = std::max(max_x, p.x);
+    max_y = std::max(max_y, p.y);
+    max_z = std::max(max_z, p.z);
+  }
+
+  if (!std::isfinite(min_x) || !std::isfinite(max_x) || !std::isfinite(min_y) || !std::isfinite(max_y) ||
+      !std::isfinite(min_z) || !std::isfinite(max_z)) {
+    return safe_leaf;
+  }
+
+  const double span_x = static_cast<double>(max_x) - static_cast<double>(min_x);
+  const double span_y = static_cast<double>(max_y) - static_cast<double>(min_y);
+  const double span_z = static_cast<double>(max_z) - static_cast<double>(min_z);
+  const double max_span = std::max({span_x, span_y, span_z, 0.0});
+
+  if (max_span <= 0.0 || !std::isfinite(max_span)) {
+    return safe_leaf;
+  }
+
+  const double min_leaf_axis = max_span / kCellLimit;
+  const double min_leaf_xy = std::sqrt(std::max(0.0, (span_x * span_y) / kCellLimit));
+  const double min_leaf_xz = std::sqrt(std::max(0.0, (span_x * span_z) / kCellLimit));
+  const double min_leaf_yz = std::sqrt(std::max(0.0, (span_y * span_z) / kCellLimit));
+  const double min_leaf_xyz = std::cbrt(std::max(0.0, (span_x * span_y * span_z) / kCellLimit));
+
+  safe_leaf = std::max({safe_leaf, min_leaf_axis, min_leaf_xy, min_leaf_xz, min_leaf_yz, min_leaf_xyz});
+  if (!std::isfinite(safe_leaf)) {
+    safe_leaf = std::max(requested_leaf, kMinLeaf);
+  }
+
+  return safe_leaf;
+}
+
+}  // namespace
 
 void publishCurrentTransform(const std::shared_ptr<tf2_ros::TransformBroadcaster> & tf_broadcaster,
   const std::string & map_frame,
@@ -158,12 +241,17 @@ void publishSourceCroppedDebug(bool visualization_en,
     return;
   }
 
+  PointCloud::Ptr source_finite = removeNonFinitePoints(source);
+  if (!source_finite || source_finite->empty()) {
+    return;
+  }
+
+  const double safe_leaf = computeSafeLeafSize(source_finite, gicp_options.source_voxel_leaf_size);
+
   PointCloud::Ptr source_voxel(new PointCloud());
   pcl::VoxelGrid<pcl::PointXYZ> vg;
-  vg.setLeafSize(gicp_options.source_voxel_leaf_size,
-    gicp_options.source_voxel_leaf_size,
-    gicp_options.source_voxel_leaf_size);
-  vg.setInputCloud(source);
+  vg.setLeafSize(safe_leaf, safe_leaf, safe_leaf);
+  vg.setInputCloud(source_finite);
   vg.filter(*source_voxel);
 
   PointCloud::Ptr source_height(new PointCloud(*source_voxel));

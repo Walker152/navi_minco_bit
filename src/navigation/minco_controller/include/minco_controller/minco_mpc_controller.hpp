@@ -46,6 +46,9 @@ public:
     const geometry_msgs::msg::Twist & velocity,
     nav2_core::GoalChecker * goal_checker) override;
 
+  void applyGravityCompensation(
+    const nav_msgs::msg::Odometry::SharedPtr & odom, double & vx, double & vy);
+
   void setPlan(const nav_msgs::msg::Path & path) override;
 
   void setSpeedLimit(const double & speed_limit, const bool & percentage) override;
@@ -153,6 +156,7 @@ private:
   double control_delay_compensation_{0.25};
   double lidar_offset_x_{0.0};
   double lidar_offset_y_{0.0};
+  double lidar_roll_offset_ = 0.0;
   bool use_small_gyro_mode_{true};
 };
 
