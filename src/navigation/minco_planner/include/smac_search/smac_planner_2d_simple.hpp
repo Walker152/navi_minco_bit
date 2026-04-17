@@ -29,15 +29,12 @@
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 
-namespace small_rog_map
-{
+namespace small_rog_map {
 class HybridESDFMap;
 }  // namespace small_rog_map
 
-namespace minco_planner
-{
-namespace smac
-{
+namespace minco_planner {
+namespace smac {
 
 /**
  * @class minco_planner::smac::SmacPlanner2DSimple
@@ -49,9 +46,7 @@ public:
   struct Coordinates
   {
     Coordinates() = default;
-    Coordinates(float x_in, float y_in)
-    : x(x_in), y(y_in)
-    {}
+    Coordinates(float x_in, float y_in) : x(x_in), y(y_in) {}
 
     float x{0.0f};
     float y{0.0f};
@@ -63,7 +58,7 @@ public:
   {
     uint64_t index{0u};
     float f_score{0.0f};
-    bool operator>(const NodeMin & other) const {return f_score > other.f_score;}
+    bool operator>(const NodeMin & other) const { return f_score > other.f_score; }
   };
 
   /**
@@ -81,8 +76,7 @@ public:
    * @param node Lifecycle node
    * @param costmap_ros Costmap ROS wrapper
    */
-  void configure(
-    rclcpp_lifecycle::LifecycleNode::SharedPtr node,
+  void configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros);
 
   /**
@@ -91,8 +85,7 @@ public:
    * @param costmap_ros Costmap ROS wrapper
    * @param param_prefix Prefix for parameters, e.g. "<plugin_name>." (can be empty)
    */
-  void configure(
-    rclcpp_lifecycle::LifecycleNode::SharedPtr node,
+  void configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
     const std::string & param_prefix);
 
@@ -118,8 +111,7 @@ public:
    * @param cancel_checker Function to check if planning should be canceled
    * @return true if path found
    */
-  bool createPath(
-    const unsigned int & start_x,
+  bool createPath(const unsigned int & start_x,
     const unsigned int & start_y,
     const unsigned int & goal_x,
     const unsigned int & goal_y,
@@ -132,10 +124,7 @@ public:
    * @param max_iterations Maximum iterations
    * @param tolerance Tolerance for goal reaching
    */
-  void setParameters(
-    bool allow_unknown,
-    int max_iterations,
-    float tolerance);
+  void setParameters(bool allow_unknown, int max_iterations, float tolerance);
 
 private:
   void ensureSearchBuffers();
@@ -154,7 +143,7 @@ private:
   bool allow_unknown_;
   int max_iterations_;
   float tolerance_;
-  
+
   // Costmap
   nav2_costmap_2d::Costmap2D * costmap_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
@@ -184,7 +173,7 @@ private:
   // Per-planning-iteration cache to avoid allocations in the search loop.
   std::vector<float> esdf_cost_cache_;
   std::vector<uint32_t> esdf_cost_cache_id_;
-  
+
   // Search info
   SearchInfo search_info_;
   MotionModel motion_model_;

@@ -31,78 +31,71 @@
 #define CEREAL_TYPES_STD_VARIANT_HPP_
 
 #include "cereal/cereal.hpp"
-#include <variant>
 #include <cstdint>
+#include <variant>
 
-namespace cereal
+namespace cereal {
+namespace variant_detail {
+//! @internal
+template <class Archive> struct variant_save_visitor
 {
-  namespace variant_detail
-  {
-    //! @internal
-    template <class Archive>
-    struct variant_save_visitor
-    {
-      variant_save_visitor(Archive & ar_) : ar(ar_) {}
+  variant_save_visitor(Archive & ar_) : ar(ar_) {}
 
-      template<class T>
-        void operator()(T const & value) const
-        {
-          ar( CEREAL_NVP_("data", value) );
-        }
+  template <class T> void operator()(T const & value) const { ar(CEREAL_NVP_("data", value)); }
 
-      Archive & ar;
-    };
+  Archive & ar;
+};
 
-    //! @internal
-    template<int N, class Variant, class Archive>
-    typename std::enable_if<N == std::variant_size_v<Variant>, void>::type
-    load_variant(Archive & /*ar*/, int /*target*/, Variant & /*variant*/)
-    {
-      throw ::cereal::Exception("Error traversing variant during load");
-    }
-    //! @internal
-    template<int N, class Variant, class Archive>
-    typename std::enable_if<N < std::variant_size_v<Variant>, void>::type
-    load_variant(Archive & ar, int target, Variant & variant)
-    {
-      if(N == target)
-      {
-        variant.template emplace<N>();
-        ar( CEREAL_NVP_("data", std::get<N>(variant)) );
-      }
-      else
-        load_variant<N+1>(ar, target, variant);
-    }
+//! @internal
+template <int N, class Variant, class Archive>
+typename std::enable_if<N == std::variant_size_v<Variant>, void>::type load_variant(
+  Archive & /*ar*/, int /*target*/, Variant & /*variant*/)
+{
+  throw ::cereal::Exception("Error traversing variant during load");
+}
+//! @internal
+template <int N, class Variant, class Archive>
+  typename std::enable_if <
+  N<std::variant_size_v<Variant>, void>::type load_variant(Archive & ar, int target, Variant & variant)
+{
+  if (N == target) {
+    variant.template emplace<N>();
+    ar(CEREAL_NVP_("data", std::get<N>(variant)));
+  } else
+    load_variant<N + 1>(ar, target, variant);
+}
 
-  } // namespace variant_detail
+}  // namespace variant_detail
 
-  //! Saving for std::variant
-  template <class Archive, typename VariantType1, typename... VariantTypes> inline
-  void CEREAL_SAVE_FUNCTION_NAME( Archive & ar, std::variant<VariantType1, VariantTypes...> const & variant )
-  {
-    std::int32_t index = static_cast<std::int32_t>(variant.index());
-    ar( CEREAL_NVP_("index", index) );
-    variant_detail::variant_save_visitor<Archive> visitor(ar);
-    std::visit(visitor, variant);
-  }
+//! Saving for std::variant
+template <class Archive, typename VariantType1, typename... VariantTypes>
+inline void CEREAL_SAVE_FUNCTION_NAME(
+  Archive & ar, std::variant<VariantType1, VariantTypes...> const & variant)
+{
+  std::int32_t index = static_cast<std::int32_t>(variant.index());
+  ar(CEREAL_NVP_("index", index));
+  variant_detail::variant_save_visitor<Archive> visitor(ar);
+  std::visit(visitor, variant);
+}
 
-  //! Loading for std::variant
-  template <class Archive, typename... VariantTypes> inline
-  void CEREAL_LOAD_FUNCTION_NAME( Archive & ar, std::variant<VariantTypes...> & variant )
-  {
-    using variant_t = typename std::variant<VariantTypes...>;
+//! Loading for std::variant
+template <class Archive, typename... VariantTypes>
+inline void CEREAL_LOAD_FUNCTION_NAME(Archive & ar, std::variant<VariantTypes...> & variant)
+{
+  using variant_t = typename std::variant<VariantTypes...>;
 
-    std::int32_t index;
-    ar( CEREAL_NVP_("index", index) );
-    if(index >= static_cast<std::int32_t>(std::variant_size_v<variant_t>))
-      throw Exception("Invalid 'index' selector when deserializing std::variant");
+  std::int32_t index;
+  ar(CEREAL_NVP_("index", index));
+  if (index >= static_cast<std::int32_t>(std::variant_size_v<variant_t>))
+    throw Exception("Invalid 'index' selector when deserializing std::variant");
 
-    variant_detail::load_variant<0>(ar, index, variant);
-  }
+  variant_detail::load_variant<0>(ar, index, variant);
+}
 
-  //! Serializing a std::monostate
-  template <class Archive>
-  void CEREAL_SERIALIZE_FUNCTION_NAME( Archive &, std::monostate const & ) {}
-} // namespace cereal
+//! Serializing a std::monostate
+template <class Archive> void CEREAL_SERIALIZE_FUNCTION_NAME(Archive &, std::monostate const &)
+{
+}
+}  // namespace cereal
 
-#endif // CEREAL_TYPES_STD_VARIANT_HPP_
+#endif  // CEREAL_TYPES_STD_VARIANT_HPP_

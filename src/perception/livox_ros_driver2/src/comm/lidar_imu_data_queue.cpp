@@ -26,7 +26,8 @@
 
 namespace livox_ros {
 
-void LidarImuDataQueue::Push(ImuData* imu_data) {
+void LidarImuDataQueue::Push(ImuData * imu_data)
+{
   ImuData data;
   data.lidar_type = imu_data->lidar_type;
   data.handle = imu_data->handle;
@@ -44,7 +45,8 @@ void LidarImuDataQueue::Push(ImuData* imu_data) {
   imu_data_queue_.push_back(std::move(data));
 }
 
-bool LidarImuDataQueue::Pop(ImuData& imu_data) {
+bool LidarImuDataQueue::Pop(ImuData & imu_data)
+{
   std::lock_guard<std::mutex> lock(mutex_);
   if (imu_data_queue_.empty()) {
     return false;
@@ -54,12 +56,14 @@ bool LidarImuDataQueue::Pop(ImuData& imu_data) {
   return true;
 }
 
-bool LidarImuDataQueue::Empty() {
+bool LidarImuDataQueue::Empty()
+{
   std::lock_guard<std::mutex> lock(mutex_);
   return imu_data_queue_.empty();
 }
 
-void LidarImuDataQueue::Clear() {
+void LidarImuDataQueue::Clear()
+{
   std::list<ImuData> tmp_imu_data_queue;
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -67,4 +71,4 @@ void LidarImuDataQueue::Clear() {
   }
 }
 
-} // namespace livox_ros
+}  // namespace livox_ros
