@@ -262,13 +262,13 @@ namespace Sentry_BT
   {
   }
 
-  // -------------------- DirectVelocityControl ---------------------------
+   // -------------------- DirectVelocityControl ---------------------------
 DirectVelocityControl::DirectVelocityControl(const std::string& name, const BT::NodeConfiguration& config)
     : BT::StatefulActionNode(name, config)
 { 
   linear_y_ = 0.0;
   angular_z_ = 0.0;
-  duration_ = 0.0;
+  timeout_ = 0.0;
   start_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
   last_pub_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
 }
@@ -278,7 +278,7 @@ BT::PortsList DirectVelocityControl::providedPorts()
   return {
     BT::InputPort<double>("linear_y", 0.5, "前进速度 m/s"),
     BT::InputPort<double>("angular_z", 0.0, "转向速度 rad/s"), 
-    BT::InputPort<double>("duration", 2.0, "持续时间秒")
+    BT::InputPort<double>("timeout", 5.0, "超时时间（秒）"),
   };
 }
 
@@ -289,65 +289,76 @@ BT::NodeStatus DirectVelocityControl::onStart()
   // 1. 获取参数
   auto linear_y = getInput<double>("linear_y");
   auto angular_z = getInput<double>("angular_z"); 
-  auto duration = getInput<double>("duration");
-  
-  if (!linear_y || !duration) {
-    std::cerr << "参数缺失: linear_y 或 duration" << std::endl;
-    return BT::NodeStatus::FAILURE; // 参数缺失
+  auto timeout = getInput<double>("timeout");
+
+  if (!linear_y || !angular_z || !timeout) {
+    std::cerr << "参数缺失: linear_y 或 angular_z 或 timeout 或 area" << std::endl;
+    return BT::NodeStatus::FAILURE; 
   }
-  
+
   // 2. 存储参数
   linear_y_ = linear_y.value();
   angular_z_ = angular_z.value_or(0.0);
-  duration_ = duration.value();
+  timeout_ = timeout.value();              
+
+  //确认区域是否正确
+  std::cout << "Internal area set: [(" 
+            << internal_area_.top_left.x << "," << internal_area_.top_left.y 
+            << "), (" << internal_area_.bottom_right.x << "," << internal_area_.bottom_right.y 
+            << ")]" << std::endl;
 
   static double last_linear_y = std::numeric_limits<double>::quiet_NaN();
   static double last_angular_z = std::numeric_limits<double>::quiet_NaN();
-  static double last_duration = std::numeric_limits<double>::quiet_NaN();
-  if(linear_y_ != last_linear_y || angular_z_ != last_angular_z || duration_ != last_duration)
+  static double last_timeout = std::numeric_limits<double>::quiet_NaN();
+  if(linear_y_ != last_linear_y || angular_z_ != last_angular_z || timeout_ != last_timeout)
   {
     std::cout << MAGENTA << "DirectVelocityControl start: linear_y=" << linear_y_ << ", angular_z=" << angular_z_
-              << ", duration=" << duration_ << "s" << RESET << std::endl;
+              << ", timeout=" << timeout_ << "s" << RESET << std::endl;
     last_linear_y = linear_y_;
     last_angular_z = angular_z_;
-    last_duration = duration_;
+    last_timeout = timeout_;
   }
-  
+
   // 3. 记录开始时间
   start_time_ = ros_iface->now();
   last_pub_time_ = rclcpp::Time(0, 0, ros_iface->get_clock()->get_clock_type());
-  
+
   // 4. 发布停止指令，确保从静止开始
   ros_iface->publishCmdVel(0.0, 0.0);
-  
+
   return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus DirectVelocityControl::onRunning()
 {
-  auto ros_iface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
+  auto blackboard = config().blackboard;
+  auto ros_iface = blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
   // 计算经过的时间
   auto current_time = ros_iface->now();
   auto elapsed = (current_time - start_time_).seconds();
 
-  if(elapsed < 0.1)
-  {
+  if (elapsed >= timeout_) {
     ros_iface->publishCmdVel(0.0, 0.0);
-    return BT::NodeStatus::RUNNING;
-  }
-  
-  // 检查是否超时
-  if (elapsed >= duration_) {
-    // 时间到，发布停止指令
-    ros_iface->publishCmdVel(0.0, 0.0);
+    std::cout << YELLOW << "DirectVelocityControl: 超时退出 (" << timeout_ << "s)" << RESET << std::endl;
     return BT::NodeStatus::SUCCESS;
   }
-  
-  // 发布速度指令
-  if ((current_time - last_pub_time_).seconds() >= 0.05) { // 20Hz发布频率
+
+
+  auto current_pose = ros_iface->getCurrentPose();
+  Point2D current_point = {current_pose.position.x, current_pose.position.y, 0};
+  if (!internal_area_.contains(current_point)) {
+     // 已离开区域，停止并成功
+    ros_iface->publishCmdVel(0.0, 0.0);
+    std::cout << GREEN << "DirectVelocityControl: 已离开指定区域，停止控制" << RESET << std::endl;
+    return BT::NodeStatus::SUCCESS;
+  }
+
+
+  // 发布速度
+  if ((current_time - last_pub_time_).seconds() >= 0.05) {
     ros_iface->publishCmdVel(linear_y_, angular_z_);
     last_pub_time_ = current_time;
-    }
+  }
 
   return BT::NodeStatus::RUNNING;
 }
@@ -375,8 +386,8 @@ BT::NodeStatus SetStairsPosition::tick()
   
   // 创建 Sentry_BT::Point2D 类型的固定目标点
   Sentry_BT::Point2D goal_point;
-  goal_point.x = 9.5;  
-  goal_point.y = 1.5;  
+  goal_point.x = 9.0;  
+  goal_point.y = 0.5;  
 
   blackboard->set("nav_goal", goal_point);
   
@@ -598,4 +609,63 @@ void ControlThroughTunnel::onHalted()
 {
   return;
 }
+
+// ------------------- WaitForNoAlliesInStairsArea -------------------
+WaitForNoAlliesInStairsArea::WaitForNoAlliesInStairsArea(const std::string& name, const BT::NodeConfiguration& config)
+  : BT::StatefulActionNode(name, config)
+{
+  stairs_bottom_area_ = Area_Square(Point2D(7.0, 4.0), Point2D(10.0, 2.0)); 
+}
+
+BT::PortsList WaitForNoAlliesInStairsArea::providedPorts()
+{
+  return {}; 
+}
+
+BT::NodeStatus WaitForNoAlliesInStairsArea::onStart()
+{
+  std::cout << RED << "Waiting for no allies in stairs area..." << RESET << std::endl;
+  auto blackboard = config().blackboard;
+  ros_iface_ = blackboard->get<std::shared_ptr<ros_interface>>("ros_interface");
+  if (!ros_iface_) {
+    std::cerr << "WaitForNoAlliesInStairsArea: ros_interface unavailable" << std::endl;
+    return BT::NodeStatus::FAILURE;
+  }
+  return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus WaitForNoAlliesInStairsArea::onRunning()
+{
+  auto blackboard = config().blackboard;
+
+  // 1. 获取队友信息
+  std::vector<AllyRobotInfo> allies_info;
+  try {
+    allies_info = blackboard->get<std::vector<AllyRobotInfo>>("allies_info");
+  } catch (...) {
+    std::cerr << "未能从黑板获取队友信息" << std::endl;
+    return BT::NodeStatus::FAILURE;
+  }
+
+  // 2. 检查每个队友是否在区域内
+  bool any_ally_in_area = false;
+  for (const auto& ally : allies_info) {
+    Point2D ally_pos = {ally.position.x, ally.position.y}; // 假设position是geometry_msgs/Point
+    if (stairs_bottom_area_.contains(ally_pos)) {
+      any_ally_in_area = true;
+      break;
+    }
+  }
+
+  if (any_ally_in_area) {
+    // 还有队友在，继续等待
+    return BT::NodeStatus::RUNNING;
+  } else {
+    // 没有队友，可以继续
+    return BT::NodeStatus::SUCCESS;
+  }
+}
+
+void WaitForNoAlliesInStairsArea::onHalted()
+{}
 }  // namespace Sentry_BT

@@ -69,9 +69,10 @@ public:
 private:
   double linear_y_;
   double angular_z_;
-  double duration_;
+  double timeout_;
   rclcpp::Time start_time_;
   rclcpp::Time last_pub_time_;
+  Area_Square internal_area_{ Point2D(8.5, 3.0), Point2D(10.0, 0.0) }; 
 };
 
 //设定固定位置节点
@@ -114,5 +115,20 @@ private:
   bool wait_param_available();
   bool has_params(std::vector<std::string> param_names);
   rclcpp::AsyncParametersClient::SharedPtr parameters_client_;
+};
+
+//等待台阶下可能的队友
+class WaitForNoAlliesInStairsArea : public BT::StatefulActionNode
+{
+public:
+  WaitForNoAlliesInStairsArea(const std::string& name, const BT::NodeConfiguration& config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus onStart() override;
+  BT::NodeStatus onRunning() override;
+  void onHalted() override;
+
+private:
+  Area_Square stairs_bottom_area_; // 台阶下区域
+  std::shared_ptr<ros_interface> ros_iface_;
 };
 }  // namespace Sentry_BT
