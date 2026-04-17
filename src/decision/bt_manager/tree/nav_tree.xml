@@ -1,27 +1,29 @@
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <ReactiveSequence name="SentryMainLogic">
-      <ReactiveSequence name="BlackboardTest">
+      <!-- <ReactiveSequence name="BlackboardTest">
         <BlackboardTestNode name="BlackboardTestNode" />
-      </ReactiveSequence> -->
+      </ReactiveSequence>  -->
 
       <!-- 导航策略 -->
       <ReactiveFallback name="NavigationStrategies">
-        <!-- <Sequence name="StairsEvacuation">
+        <Sequence name="StairsEvacuation">
           <CheckRetreatCondition name="CheckRetreatCondition" health_threshold="50" recovery_threshold="80"/>
           <CheckInStairsZone name="CheckInStairsZone"/>
           <SetStairsPosition name="SetStairsPosition"/>
           <NavigateToPoseAction name="PublishPreStairsGoal"/>
+          <WaitForNoAlliesInStairsArea name="WaitClearStairsBottom"/>
           <DirectVelocityControl name="DescendStairs"
-                                linear_y="2.0"
-                                angular_z="0.0"
-                                duration="1.5"/>
+                         linear_y="2.0"
+                         angular_z="0.0"
+                         timeout="5.0"/>
+
           <DirectVelocityControl name="StopAfterStairs"
-                                linear_y="0.0"
-                                angular_z="0.0"
-                                duration="0.5"/>
+                         linear_y="0.0"
+                         angular_z="0.0"
+                         timeout="0.5"/>
         </Sequence>
-         -->
+        
 
         <!-- 紧急撤退,优先级最高 -->
         <ReactiveSequence name="EmergencyRetreat">
@@ -42,6 +44,9 @@
           <ReactiveSequence name="OutpostResponse">
             <CheckOutpostRemained name="CheckOutpostRemained" />
             <SetCoordinate name="SetResponseCoordinate" goal="2" />
+            <ForceSuccess>
+              <CheckWillThroughTunnel name="CheckWillThroughTunnel" />
+            </ForceSuccess>
             <NavigateToPoseAction name="PublishResponseGoal" />
           </ReactiveSequence>
         </ReactiveFallback>
@@ -55,11 +60,11 @@
 
           <ReactiveFallback name="OffensiveStrategies">
             <!-- 追击模式，在区域内自动追击 -->
-            <ReactiveSequence name="TargetPursuit">
+            <!-- <ReactiveSequence name="TargetPursuit">
               <CheckTargetLocked name="CheckTargetLocked" />
               <SetTargetCoordinate name="SetTargetCoordinate" />
               <NavigateToPoseAction name="PublishPursuitGoal" />
-            </ReactiveSequence>
+            </ReactiveSequence> -->
 
             <!-- 普通巡逻模式 -->
             <Sequence name="RegularPatrol">

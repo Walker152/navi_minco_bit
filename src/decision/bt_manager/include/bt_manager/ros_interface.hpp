@@ -30,6 +30,7 @@
 #include "bt_manager/param_manager.hpp"
 #include "bt_manager/utils/tf_utils.hpp"
 #include "bt_manager/utils/nav_zone.hpp"
+#include "bt_manager/utils/color_text.hpp"
 namespace Sentry_BT
 {
   class ros_interface : public rclcpp::Node
@@ -52,6 +53,7 @@ namespace Sentry_BT
     rclcpp::TimerBase::SharedPtr timer_;
     std::shared_ptr<Blackboard> blackboard_;
     std::shared_ptr<ParamManager> param_manager_;
+    ros_interfaces::msg::MpcPositionCommand::SharedPtr mpc_path_;
 
     geometry_msgs::msg::Pose current_pose_;
     mutable std::mutex current_pose_mutex_;

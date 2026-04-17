@@ -51,16 +51,19 @@ namespace Sentry_BT
                                                                   [this](const nav_msgs::msg::Odometry::SharedPtr msg)
                                                                   {
                                                                     // 更新当前位置
-                                                                    std::lock_guard<std::mutex> lock(current_pose_mutex_);
+                                                                    // std::lock_guard<std::mutex> lock(current_pose_mutex_);
                                                                     current_pose_ = msg->pose.pose;
+                                                                    std::cout<< color_text::BLUE << "current_pose_:(" << current_pose_.position.x << "," << current_pose_.position.y << ")" << color_text::RESET << std::endl;
                                                                   }); 
             
       // 订阅MPC轨迹指令
     mpc_cmd_sub = this->create_subscription<ros_interfaces::msg::MpcPositionCommand>(
         "/opt_path", 1, [this](const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg)
         {
-          //std::cout << "Received MPC command with horizon: " << msg->mpc_horizon << std::endl;
-          blackboard_->set("through_tunnel", isTroughTunnel(msg, Point2D{9.46, 2.65}, Point2D{10.40, 1.80}));
+          std::cout << color_text::YELLOW << "Received MPC command with horizon: " << msg->mpc_horizon << color_text::RESET << std::endl;
+          mpc_path_ = msg;
+          blackboard_->set("through_tunnel", isTroughTunnel(mpc_path_, Point2D{9.46, 2.65, 0.0}, Point2D{10.40, 1.80, 0.0}));
+          // std::cout << "set through_tunnel blackboard = " << blackboard_->get<bool>("through_tunnel") << std::endl;
         });
     // 订阅外部速度指令
     cmd_vel_sub = this->create_subscription<geometry_msgs::msg::Twist>(
@@ -102,13 +105,15 @@ namespace Sentry_BT
 
   geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
   {
-    std::lock_guard<std::mutex> lock(current_pose_mutex_);
+    // std::lock_guard<std::mutex> lock(current_pose_mutex_);
     auto transforme_utils = std::make_shared<Sentry_BT::TransformUtils>();
     geometry_msgs::msg::Pose transformed_pose;
     if(transforme_utils->transformPoseToMap(current_pose_, transformed_pose, "camera_init"))
-    {      
+    {    
+      std::cout << "getcurrentpose:transformed_pose:(" << transformed_pose.position.x << "," << transformed_pose.position.y << ")" << std::endl;  
       return transformed_pose;
     }
+    std::cout << "getcurrentpose:current_pose_:(" << current_pose_.position.x << "," << current_pose_.position.y << ")" << std::endl;
     return current_pose_;
   }
 
@@ -347,6 +352,7 @@ namespace Sentry_BT
     bool flag1 = isTroughZone(msg, inflated_zone);
     bool flag2 = isTroughZone(msg, Area_Square{tunnel_entry, tunnel_exit});
     bool flag3 = inflated_zone.contains(point_of_robot);
+    // std::cout << "flag1 = " << flag1 << std::endl << "flag2 = " << flag2 << std::endl;
     if (flag1)
     {
       // std::cout << "MPC trajectory is close to tunnel zone." << std::endl;
