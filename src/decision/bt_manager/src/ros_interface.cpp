@@ -118,7 +118,6 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto cmd_vel = blackboard_->get<geometry_msgs::msg::Twist>("cmd_vel");
     cmd_vel_pub->publish(cmd_vel);
   });
-  // std::cout << "成功初始化" << std::endl;
 }
 
 geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
@@ -184,9 +183,6 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   // 提取bit 25-26：己方堡垒增益点的占领状态
   uint8_t fort_occupation_status = (event_code >> 25) & 0x3;
   blackboard_->set<int>("fort_occupation_status", static_cast<int>(fort_occupation_status));
-
-  // 可以存储原始event_code以备后用
-  blackboard_->set<uint32_t>("event_code_raw", event_code);
 }
 
 // 新增：雷达信息回调函数
