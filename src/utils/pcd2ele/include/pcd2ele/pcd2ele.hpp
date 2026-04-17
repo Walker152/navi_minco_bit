@@ -1,13 +1,12 @@
 #ifndef PCD2ELE_HPP
 #define PCD2ELE_HPP
 
-#include <rclcpp/rclcpp.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <nav_msgs/msg/occupancy_grid.hpp>
+#include <rclcpp/rclcpp.hpp>
 
-namespace pcd2ele
-{
+namespace pcd2ele {
 class PCD2ELE : public rclcpp::Node
 {
 public:
@@ -18,8 +17,9 @@ private:
   void declareParameters();
   void getParameters();
   void process();
-  void dilateMap(std::vector<double>& elevation_grid, int width, int height);
-  void saveMap(const std::vector<double>& elevation_grid, int width, int height, double min_z, double max_z);
+  void dilateMap(std::vector<double> & elevation_grid, int width, int height);
+  void saveMap(
+    const std::vector<double> & elevation_grid, int width, int height, double min_z, double max_z);
 
   // Parameters
   std::string pcd_file_path_;

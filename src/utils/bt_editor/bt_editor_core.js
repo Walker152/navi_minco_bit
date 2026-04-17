@@ -56,9 +56,9 @@
             CheckInStairsZone: { label: 'CheckStairsZone', group: 'rm_cond', baseType: 'CONDITION', color: '#10b981', icon: 'AlertCircle', desc: '检查是否处于台阶区' },
             CheckOutpostRemained: { label: 'CheckOutpost', group: 'rm_cond', baseType: 'CONDITION', color: '#10b981', icon: 'AlertCircle', desc: '检查前哨站是否健在' },
             CheckTargetLocked: { label: 'CheckTarget', group: 'rm_cond', baseType: 'CONDITION', color: '#10b981', icon: 'Crosshair', desc: '视觉锁敌判断(含防抖)' },
-            CheckDPCondition: { label: 'CheckDPCondition', group: 'rm_cond', baseType: 'CONDITION', color: '#10b981', icon: 'Shield', desc: '判断是否需防御姿态(濒死)' },
-            CheckAPCondition: { label: 'CheckAPCondition', group: 'rm_cond', baseType: 'CONDITION', color: '#10b981', icon: 'Crosshair', desc: '判断是否需进攻姿态(接敌)' },
-            CheckMPCondition: { label: 'CheckMPCondition', group: 'rm_cond', baseType: 'CONDITION', color: '#10b981', icon: 'Activity', desc: '判断是否需移动姿态(兜底)' },
+            CheckAttackStanceCondition: { label: 'CheckAttackStanceCondition', group: 'rm_cond', baseType: 'CONDITION', color: '#10b981', icon: 'Crosshair', desc: '攻击姿态判定(含热量与前哨站)' },
+            CheckMoveStanceCondition: { label: 'CheckMoveStanceCondition', group: 'rm_cond', baseType: 'CONDITION', color: '#10b981', icon: 'Activity', desc: '移动姿态严格准入判定' },
+            CheckDefendStanceCondition: { label: 'CheckDefendStanceCondition', group: 'rm_cond', baseType: 'CONDITION', color: '#10b981', icon: 'Shield', desc: '防御姿态判定(含追踪归防御与兜底)' },
             
             // Generic fallback
             Action: { label: 'Action', group: 'generic', baseType: 'ACTION', color: '#3b82f6', icon: 'Activity', desc: '通用动作' },

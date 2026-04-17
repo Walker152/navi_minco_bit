@@ -1,7 +1,8 @@
 // This is an advanced implementation of the algorithm described in the
 // following paper:
-//    C. Hertzberg,  R.  Wagner,  U.  Frese,  and  L.  Schroder.  Integratinggeneric   sensor   fusion   algorithms   with   sound   state   representationsthrough  encapsulation  of  manifolds.
-//    CoRR,  vol.  abs/1107.1119,  2011.[Online]. Available: http://arxiv.org/abs/1107.1119
+//    C. Hertzberg,  R.  Wagner,  U.  Frese,  and  L.  Schroder.  Integratinggeneric   sensor   fusion
+//    algorithms   with   sound   state   representationsthrough  encapsulation  of  manifolds. CoRR,  vol.
+//    abs/1107.1119,  2011.[Online]. Available: http://arxiv.org/abs/1107.1119
 
 /*
  *  Copyright (c) 2019--2023, The University of Hong Kong
@@ -73,7 +74,7 @@
 /**
  * @file mtk/types/vect.hpp
  * @brief Basic vectors interpreted as manifolds.
- * 
+ *
  * This file also implements a simple wrapper for matrices, for arbitrary scalars
  * and for positive scalars.
  */
@@ -86,25 +87,29 @@
 
 #include "../src/vectview.hpp"
 
-namespace MTK
-{
+namespace MTK {
 
 static const Eigen::IOFormat IO_no_spaces(
   Eigen::StreamPrecision, Eigen::DontAlignCols, ",", ",", "", "", "[", "]");
 
 /**
  * A simple vector class.
- * Implementation is basically a wrapper around Eigen::Matrix with manifold 
+ * Implementation is basically a wrapper around Eigen::Matrix with manifold
  * requirements added.
  */
 template <int D = 3, class _scalar = double, int _Options = Eigen::AutoAlign>
 struct vect : public Eigen::Matrix<_scalar, D, 1, _Options>
 {
   typedef Eigen::Matrix<_scalar, D, 1, _Options> base;
-  enum { DOF = D, DIM = D, TYP = 0 };
+  enum
+  {
+    DOF = D,
+    DIM = D,
+    TYP = 0
+  };
   typedef _scalar scalar;
 
-  //using base::operator=;
+  // using base::operator=;
 
   /** Standard constructor. Sets all values to zero. */
   vect(const base & src = base::Zero()) : base(src) {}
@@ -119,18 +124,12 @@ struct vect : public Eigen::Matrix<_scalar, D, 1, _Options>
   vect(const scalar * src, int size = DOF) : base(base::Map(src, size)) {}
 
   void boxplus(MTK::vectview<const scalar, D> vec, scalar scale = 1) { *this += scale * vec; }
-  void boxminus(MTK::vectview<scalar, D> res, const vect<D, scalar> & other) const
-  {
-    res = *this - other;
-  }
+  void boxminus(MTK::vectview<scalar, D> res, const vect<D, scalar> & other) const { res = *this - other; }
 
   void oplus(MTK::vectview<const scalar, D> vec, scalar scale = 1) { *this += scale * vec; }
 
   void hat(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
-  void Jacob_right_inv(Eigen::VectorXd & v, Eigen::MatrixXd & res)
-  {
-    std::cout << "wrong idx" << '\n';
-  }
+  void Jacob_right_inv(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
   void Jacob_right(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
 
   void S2_hat(Eigen::Matrix<scalar, 3, 3> & res) { res = Eigen::Matrix<scalar, 3, 3>::Zero(); }
@@ -152,7 +151,8 @@ struct vect : public Eigen::Matrix<_scalar, D, 1, _Options>
   friend std::ostream & operator<<(std::ostream & os, const vect<D, scalar, _Options> & v)
   {
     // Eigen sometimes messes with the streams flags, so output manually:
-    for (int i = 0; i < DOF; ++i) os << v(i) << " ";
+    for (int i = 0; i < DOF; ++i)
+      os << v(i) << " ";
     return os;
   }
   friend std::istream & operator>>(std::istream & is, vect<D, scalar, _Options> & v)
@@ -160,20 +160,20 @@ struct vect : public Eigen::Matrix<_scalar, D, 1, _Options>
     char term = 0;
     is >> std::ws;  // skip whitespace
     switch (is.peek()) {
-      case '(':
-        term = ')';
-        is.ignore(1);
-        break;
-      case '[':
-        term = ']';
-        is.ignore(1);
-        break;
-      case '{':
-        term = '}';
-        is.ignore(1);
-        break;
-      default:
-        break;
+    case '(':
+      term = ')';
+      is.ignore(1);
+      break;
+    case '[':
+      term = ']';
+      is.ignore(1);
+      break;
+    case '{':
+      term = '}';
+      is.ignore(1);
+      break;
+    default:
+      break;
     }
     if (D == Eigen::Dynamic) {
       assert(term != 0 && "Dynamic vectors must be embraced");
@@ -182,7 +182,8 @@ struct vect : public Eigen::Matrix<_scalar, D, 1, _Options>
         scalar x;
         is >> x;
         temp.push_back(x);
-        if (is.peek() == ',') is.ignore(1);
+        if (is.peek() == ',')
+          is.ignore(1);
       }
       v = vect::Map(temp.data(), temp.size());
     } else
@@ -203,26 +204,22 @@ struct vect : public Eigen::Matrix<_scalar, D, 1, _Options>
     return is;
   }
 
-  template <int dim>
-  vectview<scalar, dim> tail()
+  template <int dim> vectview<scalar, dim> tail()
   {
     BOOST_STATIC_ASSERT(0 < dim && dim <= DOF);
     return base::template tail<dim>();
   }
-  template <int dim>
-  vectview<const scalar, dim> tail() const
+  template <int dim> vectview<const scalar, dim> tail() const
   {
     BOOST_STATIC_ASSERT(0 < dim && dim <= DOF);
     return base::template tail<dim>();
   }
-  template <int dim>
-  vectview<scalar, dim> head()
+  template <int dim> vectview<scalar, dim> head()
   {
     BOOST_STATIC_ASSERT(0 < dim && dim <= DOF);
     return base::template head<dim>();
   }
-  template <int dim>
-  vectview<const scalar, dim> head() const
+  template <int dim> vectview<const scalar, dim> head() const
   {
     BOOST_STATIC_ASSERT(0 < dim && dim <= DOF);
     return base::template head<dim>();
@@ -231,15 +228,19 @@ struct vect : public Eigen::Matrix<_scalar, D, 1, _Options>
 
 /**
  * A simple matrix class.
- * Implementation is basically a wrapper around Eigen::Matrix with manifold 
+ * Implementation is basically a wrapper around Eigen::Matrix with manifold
  * requirements added, i.e., matrix is viewed as a plain vector for that.
  */
-template <
-  int M, int N, class _scalar = double, int _Options = Eigen::Matrix<_scalar, M, N>::Options>
+template <int M, int N, class _scalar = double, int _Options = Eigen::Matrix<_scalar, M, N>::Options>
 struct matrix : public Eigen::Matrix<_scalar, M, N, _Options>
 {
   typedef Eigen::Matrix<_scalar, M, N, _Options> base;
-  enum { DOF = M * N, TYP = 4, DIM = 0 };
+  enum
+  {
+    DOF = M * N,
+    TYP = 4,
+    DIM = 0
+  };
   typedef _scalar scalar;
 
   using base::operator=;
@@ -266,10 +267,7 @@ struct matrix : public Eigen::Matrix<_scalar, M, N, _Options>
   }
 
   void hat(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
-  void Jacob_right_inv(Eigen::VectorXd & v, Eigen::MatrixXd & res)
-  {
-    std::cout << "wrong idx" << '\n';
-  }
+  void Jacob_right_inv(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
   void Jacob_right(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
 
   void S2_hat(Eigen::Matrix<scalar, 3, 3> & res) { res = Eigen::Matrix<scalar, 3, 3>::Zero(); }
@@ -312,10 +310,14 @@ struct matrix : public Eigen::Matrix<_scalar, M, N, _Options>
 /**
  * A simple scalar type.
  */
-template <class _scalar = double>
-struct Scalar
+template <class _scalar = double> struct Scalar
 {
-  enum { DOF = 1, TYP = 5, DIM = 0 };
+  enum
+  {
+    DOF = 1,
+    TYP = 5,
+    DIM = 0
+  };
   typedef _scalar scalar;
 
   scalar value;
@@ -348,16 +350,10 @@ struct Scalar
   void oplus(MTK::vectview<const scalar, DOF> vec, scalar scale = 1) { value += scale * vec[0]; }
 
   void boxplus(MTK::vectview<const scalar, DOF> vec, scalar scale = 1) { value += scale * vec[0]; }
-  void boxminus(MTK::vectview<scalar, DOF> res, const Scalar & other) const
-  {
-    res[0] = *this - other;
-  }
+  void boxminus(MTK::vectview<scalar, DOF> res, const Scalar & other) const { res[0] = *this - other; }
 
   void hat(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
-  void Jacob_right_inv(Eigen::VectorXd & v, Eigen::MatrixXd & res)
-  {
-    std::cout << "wrong idx" << '\n';
-  }
+  void Jacob_right_inv(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
   void Jacob_right(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
 };
 
@@ -365,10 +361,14 @@ struct Scalar
  * Positive scalars.
  * Boxplus is implemented using multiplication by @f$x\boxplus\delta = x\cdot\exp(\delta) @f$.
  */
-template <class _scalar = double>
-struct PositiveScalar
+template <class _scalar = double> struct PositiveScalar
 {
-  enum { DOF = 1, TYP = 6, DIM = 0 };
+  enum
+  {
+    DOF = 1,
+    TYP = 6,
+    DIM = 0
+  };
   typedef _scalar scalar;
 
   scalar value;
@@ -391,16 +391,10 @@ struct PositiveScalar
     res[0] = std::log(*this / other);
   }
 
-  void oplus(MTK::vectview<const scalar, DOF> vec, scalar scale = 1)
-  {
-    value *= std::exp(scale * vec[0]);
-  }
+  void oplus(MTK::vectview<const scalar, DOF> vec, scalar scale = 1) { value *= std::exp(scale * vec[0]); }
 
   void hat(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
-  void Jacob_right_inv(Eigen::VectorXd & v, Eigen::MatrixXd & res)
-  {
-    std::cout << "wrong idx" << '\n';
-  }
+  void Jacob_right_inv(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
   void Jacob_right(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
 
   void S2_hat(Eigen::Matrix<scalar, 3, 3> & res) { res = Eigen::Matrix<scalar, 3, 3>::Zero(); }
@@ -427,10 +421,14 @@ struct PositiveScalar
   }
 };
 
-template <class _scalar = double>
-struct Complex : public std::complex<_scalar>
+template <class _scalar = double> struct Complex : public std::complex<_scalar>
 {
-  enum { DOF = 2, TYP = 7, DIM = 0 };
+  enum
+  {
+    DOF = 2,
+    TYP = 7,
+    DIM = 0
+  };
   typedef _scalar scalar;
 
   typedef std::complex<scalar> Base;
@@ -438,10 +436,7 @@ struct Complex : public std::complex<_scalar>
   Complex(const Base & value) : Base(value) {}
   Complex(const scalar & re = 0.0, const scalar & im = 0.0) : Base(re, im) {}
   Complex(const MTK::vectview<const scalar, 2> & in) : Base(in[0], in[1]) {}
-  template <class Derived>
-  Complex(const Eigen::DenseBase<Derived> & in) : Base(in[0], in[1])
-  {
-  }
+  template <class Derived> Complex(const Eigen::DenseBase<Derived> & in) : Base(in[0], in[1]) {}
 
   void boxplus(MTK::vectview<const scalar, DOF> vec, scalar scale = 1)
   {
@@ -457,10 +452,7 @@ struct Complex : public std::complex<_scalar>
   void S2_hat(Eigen::Matrix<scalar, 3, 3> & res) { res = Eigen::Matrix<scalar, 3, 3>::Zero(); }
 
   void hat(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
-  void Jacob_right_inv(Eigen::VectorXd & v, Eigen::MatrixXd & res)
-  {
-    std::cout << "wrong idx" << '\n';
-  }
+  void Jacob_right_inv(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
   void Jacob_right(Eigen::VectorXd & v, Eigen::MatrixXd & res) { std::cout << "wrong idx" << '\n'; }
 
   void oplus(MTK::vectview<const scalar, DOF> vec, scalar scale = 1)
@@ -497,11 +489,9 @@ struct Complex : public std::complex<_scalar>
   }
 };
 
-namespace internal
-{
+namespace internal {
 
-template <int dim, class Scalar, int Options>
-struct UnalignedType<vect<dim, Scalar, Options> >
+template <int dim, class Scalar, int Options> struct UnalignedType<vect<dim, Scalar, Options>>
 {
   typedef vect<dim, Scalar, Options | Eigen::DontAlign> type;
 };

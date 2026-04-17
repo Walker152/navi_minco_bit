@@ -5,11 +5,9 @@
 #include <limits>
 #include <stdexcept>
 
-namespace small_rog_map
-{
+namespace small_rog_map {
 
-namespace
-{
+namespace {
 constexpr double kInf = 1.0e20;
 
 inline bool isValidSize(int width, int height)
@@ -18,10 +16,7 @@ inline bool isValidSize(int width, int height)
 }
 
 inline void computeEDT1DNoAlloc(
-  const std::vector<double> & f,
-  std::vector<double> & d,
-  std::vector<int> & v,
-  std::vector<double> & z)
+  const std::vector<double> & f, std::vector<double> & d, std::vector<int> & v, std::vector<double> & z)
 {
   const int n = static_cast<int>(f.size());
   std::fill(d.begin(), d.end(), kInf);
@@ -46,7 +41,7 @@ inline void computeEDT1DNoAlloc(
         s = kInf;
       } else {
         s = ((fq + static_cast<double>(q * q)) - (fp + static_cast<double>(p * p))) /
-          (2.0 * static_cast<double>(q - p));
+            (2.0 * static_cast<double>(q - p));
       }
 
       if (k <= 0 || s > z[static_cast<size_t>(k)]) {
@@ -101,7 +96,7 @@ void ESDFUtils::computeEDT1D(const std::vector<double> & f, std::vector<double> 
         s = kInf;
       } else {
         s = ((fq + static_cast<double>(q * q)) - (fp + static_cast<double>(p * p))) /
-          (2.0 * static_cast<double>(q - p));
+            (2.0 * static_cast<double>(q - p));
       }
 
       if (k <= 0 || s > z[static_cast<size_t>(k)]) {
@@ -128,10 +123,7 @@ void ESDFUtils::computeEDT1D(const std::vector<double> & f, std::vector<double> 
 }
 
 void ESDFUtils::computeEDT2D(
-  int width,
-  int height,
-  const std::vector<uint8_t> & occupancy_01,
-  std::vector<double> & dist_sq_out)
+  int width, int height, const std::vector<uint8_t> & occupancy_01, std::vector<double> & dist_sq_out)
 {
   if (!isValidSize(width, height)) {
     throw std::invalid_argument("ESDFUtils::computeEDT2D: invalid width/height");
@@ -145,7 +137,7 @@ void ESDFUtils::computeEDT2D(
   std::vector<double> tmp(expected, kInf);
 
 #ifdef _OPENMP
-  #pragma omp parallel
+#pragma omp parallel
 #endif
   {
     std::vector<double> f_row(static_cast<size_t>(width));
@@ -154,7 +146,7 @@ void ESDFUtils::computeEDT2D(
     std::vector<double> z_row(static_cast<size_t>(width) + 1);
 
 #ifdef _OPENMP
-    #pragma omp for
+#pragma omp for
 #endif
     for (int y = 0; y < height; ++y) {
       const size_t row_base = static_cast<size_t>(y) * static_cast<size_t>(width);
@@ -173,7 +165,7 @@ void ESDFUtils::computeEDT2D(
   dist_sq_out.assign(expected, kInf);
 
 #ifdef _OPENMP
-  #pragma omp parallel
+#pragma omp parallel
 #endif
   {
     std::vector<double> f_col(static_cast<size_t>(height));
@@ -182,15 +174,17 @@ void ESDFUtils::computeEDT2D(
     std::vector<double> z_col(static_cast<size_t>(height) + 1);
 
 #ifdef _OPENMP
-    #pragma omp for
+#pragma omp for
 #endif
     for (int x = 0; x < width; ++x) {
       for (int y = 0; y < height; ++y) {
-        f_col[static_cast<size_t>(y)] = tmp[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)];
+        f_col[static_cast<size_t>(y)] =
+          tmp[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)];
       }
       computeEDT1DNoAlloc(f_col, d_col, v_col, z_col);
       for (int y = 0; y < height; ++y) {
-        dist_sq_out[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] = d_col[static_cast<size_t>(y)];
+        dist_sq_out[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] =
+          d_col[static_cast<size_t>(y)];
       }
     }
   }
