@@ -33,12 +33,12 @@
         <ForceSuccess>
           <CheckWillThroughTunnel name="CheckWillThroughTunnelForOwnFort" />
         </ForceSuccess>
-        <ForceSuccess>
+        <!-- <ForceSuccess>
           <ReactiveSequence name="AmmoBuyFlow">
             <CheckAmmoLow name="CheckAmmoLow" ammo_threshold="100" />
             <AccumulateAmmoPurchase name="AccumulateAmmoPurchase" step="30" />
           </ReactiveSequence>
-        </ForceSuccess>
+        </ForceSuccess> -->
       </ReactiveSequence>
 
       <ReactiveSequence name="Priority2SpecialResponse">
