@@ -178,7 +178,7 @@ local_costmap:
         observation_sources: mid360
         mid360:
           data_type: PointCloud2
-          topic: /cloud_registered
+          topic: /cloud_registered_filtered
           marking: true
           clearing: true
           obstacle_range: 8.0
@@ -317,7 +317,7 @@ planner_server:
         integral_res: 16
         opt_accuracy: 0.0001
         print_optimizer_log: false
-        penalty_weight_time: 25.0
+        penalty_weight_time: 30.0
         penalty_weight_pos: 100000.0
         penalty_weight_vel: 2000.0
         penalty_weight_acc: 2000.0
@@ -331,10 +331,10 @@ planner_server:
         search_step: 0.05
         escape_speed: 0.4
       static_esdf:
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/room_esdf.pcd"
-        # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_back_esdf.pcd"
         esdf_resolution: 0.05
         dynamic_esdf_size: 8.0
