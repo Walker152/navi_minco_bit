@@ -199,7 +199,7 @@ def main():
     OUTPUT_PCD = "src/navigation/navi2_bringup/maps/pcd/2026rmuc_trans.pcd"
     
     # 平移参数 (单位: 米)
-    TX = -0.15
+    TX = -0.30
     TY = -0.6
     TZ = 0.0
     
