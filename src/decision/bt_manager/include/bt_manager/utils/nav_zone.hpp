@@ -173,12 +173,6 @@ inline std::vector<PatrolPoint> patrol_points_normal = {
   // {{5.6, 6.0, 0.0}, 5000},
   // {{4.5, 5.1, 0.0}, 5000},
   // {{5.5, 3.5, 0.0}, 5000}
-
-  // for rmul
-  // {{7.2, 5.3, 0.0}, 5000},
-  // {{6.4, 4.4, 0.0}, 5000},
-  // {{5.5, 5.3, 0.0}, 5000}
-  // {{7.3, 4.5, 0.0}, 5000}
 };
 
 inline std::vector<PatrolPoint> patrol_points_attack = {
@@ -189,11 +183,6 @@ inline std::vector<PatrolPoint> patrol_points_attack = {
   // {4.5, 5.1, 0.0},
   // {5.5, 3.5, 0.0}
 
-  // for rmul
-  // {7.2, 5.3, 0.0},
-  // {6.4, 4.4, 0.0},
-  // {5.5, 5.3, 0.0}
-  // {7.3, 4.5, 0.0}
 };
 
 inline std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};

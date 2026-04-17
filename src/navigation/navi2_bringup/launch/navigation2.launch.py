@@ -40,6 +40,16 @@ def generate_launch_description():
             # arguments=['9', '6.0', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
+        # 静态TF: map -> minimap
+        launch_ros.actions.Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='static_tf_map_to_minimap',
+            # 红方使用全0，蓝方使用28,12
+            # arguments=['0', '0', '0', '0', '0', '0', 'map', 'minimap'],
+            arguments=['28', '15', '0', '3.14', '0', '0', 'map', 'minimap'],
+            output='screen'),
+
         # 静态TF: camera_init -> body
         launch_ros.actions.Node(
             package='tf2_ros',
