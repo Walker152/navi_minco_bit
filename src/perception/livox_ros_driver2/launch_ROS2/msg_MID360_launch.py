@@ -12,9 +12,14 @@ publish_freq  = 10.0 # freqency of publish, 5.0, 10.0, 20.0, 50.0, etc.
 output_type   = 0
 frame_id      = 'livox_frame'
 lvx_file_path = '/home/livox/livox_test.lvx'
+<<<<<<< HEAD
 # cmdline_bd_code = '47MDLC20020096'# 原变形哨上的代码配置
 cmdline_bd_code = '47MDLC40020122'
 # cmdline_bd_code = '.47MDM590020035'
+=======
+# cmdline_bd_code = 'livox0000000001'
+cmdline_bd_code = '47MDLC20020096'
+>>>>>>> 705c8d4ea8491f6e900210f3036d623167021a69
 
 cur_path = os.path.split(os.path.realpath(__file__))[0] + '/'
 cur_config_path = cur_path + '../config'

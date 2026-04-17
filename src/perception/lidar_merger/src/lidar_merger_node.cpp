@@ -13,10 +13,12 @@
 
 using namespace std::placeholders;
 
-LidarMergerNode::LidarMergerNode() : LidarMergerNode(rclcpp::NodeOptions()) {}
+LidarMergerNode::LidarMergerNode() : LidarMergerNode(rclcpp::NodeOptions())
+{
+}
 
-LidarMergerNode::LidarMergerNode(const rclcpp::NodeOptions & options)
-: Node("lidar_merger_node", options) {
+LidarMergerNode::LidarMergerNode(const rclcpp::NodeOptions & options) : Node("lidar_merger_node", options)
+{
   this->declare_parameter<std::string>("front_topic", "/livox/lidar_192_168_1_10");
   this->declare_parameter<std::string>("back_topic", "/livox/lidar_192_168_1_12");
   this->declare_parameter<std::string>("merged_topic", "/livox/lidar_merged");
@@ -24,9 +26,7 @@ LidarMergerNode::LidarMergerNode(const rclcpp::NodeOptions & options)
   this->declare_parameter<int>("qos_depth", 10);
   this->declare_parameter<bool>("best_effort", true);
   this->declare_parameter<int>("sync_queue_size", 20);
-  this->declare_parameter(
-    "extrinsic_back_to_front",
-    std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
+  this->declare_parameter("extrinsic_back_to_front", std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
 
   loadParams();
   loadExtrinsics();
@@ -51,11 +51,15 @@ LidarMergerNode::LidarMergerNode(const rclcpp::NodeOptions & options)
   RCLCPP_INFO(this->get_logger(), "back_topic:  %s", back_topic_.c_str());
   RCLCPP_INFO(this->get_logger(), "merged_topic:%s", merged_topic_.c_str());
   RCLCPP_INFO(this->get_logger(), "merged_frame_id: %s", merged_frame_id_.c_str());
-  RCLCPP_INFO(this->get_logger(), "qos_depth=%d best_effort=%s sync_queue_size=%d",
-    qos_depth_, best_effort_ ? "true" : "false", sync_queue_size_);
+  RCLCPP_INFO(this->get_logger(),
+    "qos_depth=%d best_effort=%s sync_queue_size=%d",
+    qos_depth_,
+    best_effort_ ? "true" : "false",
+    sync_queue_size_);
 }
 
-void LidarMergerNode::loadParams() {
+void LidarMergerNode::loadParams()
+{
   front_topic_ = this->get_parameter("front_topic").as_string();
   back_topic_ = this->get_parameter("back_topic").as_string();
   merged_topic_ = this->get_parameter("merged_topic").as_string();
@@ -77,11 +81,11 @@ void LidarMergerNode::loadParams() {
   }
 }
 
-void LidarMergerNode::loadExtrinsics() {
+void LidarMergerNode::loadExtrinsics()
+{
   extrinsic_back_to_front_ = this->get_parameter("extrinsic_back_to_front").as_double_array();
   if (extrinsic_back_to_front_.size() != 6) {
-    RCLCPP_ERROR(
-      this->get_logger(),
+    RCLCPP_ERROR(this->get_logger(),
       "参数 extrinsic_back_to_front 期望长度为 6，但实际为 %zu。将使用单位外参。",
       extrinsic_back_to_front_.size());
     T_front_back_ = Eigen::Matrix4f::Identity();
@@ -100,15 +104,19 @@ void LidarMergerNode::loadExtrinsics() {
 
   T_front_back_ = t.matrix();
 
-  RCLCPP_INFO(
-    this->get_logger(),
+  RCLCPP_INFO(this->get_logger(),
     "已加载外参 back->front: [%.3f %.3f %.3f %.3f %.3f %.3f]",
-    p[0], p[1], p[2], p[3], p[4], p[5]);
+    p[0],
+    p[1],
+    p[2],
+    p[3],
+    p[4],
+    p[5]);
 }
 
 livox_ros_driver2::msg::CustomPoint LidarMergerNode::transformPoint(
-  const livox_ros_driver2::msg::CustomPoint & pt_in,
-  const Eigen::Matrix4f & T) {
+  const livox_ros_driver2::msg::CustomPoint & pt_in, const Eigen::Matrix4f & T)
+{
   livox_ros_driver2::msg::CustomPoint pt_out = pt_in;
 
   const Eigen::Vector3f p_in(pt_in.x, pt_in.y, pt_in.z);
@@ -121,9 +129,9 @@ livox_ros_driver2::msg::CustomPoint LidarMergerNode::transformPoint(
   return pt_out;
 }
 
-void LidarMergerNode::syncCallback(
-  const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr & msg_front,
-  const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr & msg_back) {
+void LidarMergerNode::syncCallback(const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr & msg_front,
+  const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr & msg_back)
+{
   livox_ros_driver2::msg::CustomMsg msg_merged;
 
   msg_merged.header = msg_front->header;

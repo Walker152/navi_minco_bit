@@ -21,8 +21,8 @@ struct RotationMatrix
   RotationMatrix()
   {
     // 初始化为单位矩阵
-    for(int i = 0; i < 3; ++i)
-      for(int j = 0; j < 3; ++j)
+    for (int i = 0; i < 3; ++i)
+      for (int j = 0; j < 3; ++j)
         data[i][j] = (i == j) ? 1.0f : 0.0f;
   }
 
@@ -52,7 +52,7 @@ struct RotationMatrix
   }
 
   // 旋转点
-  void rotate(float& x, float& y, float& z) const
+  void rotate(float & x, float & y, float & z) const
   {
     float tx = data[0][0] * x + data[0][1] * y + data[0][2] * z;
     float ty = data[1][0] * x + data[1][1] * y + data[1][2] * z;
@@ -66,8 +66,7 @@ struct RotationMatrix
 class LivoxToPointCloud2 : public rclcpp::Node
 {
 public:
-  LivoxToPointCloud2()
-    : Node("livox_to_pointcloud2")
+  LivoxToPointCloud2() : Node("livox_to_pointcloud2")
   {
     // 声明参数
     this->declare_parameter<std::string>("input_topic", "/livox/lidar");
@@ -125,9 +124,9 @@ public:
 
     // 创建订阅者和发布者
     sub_ = this->create_subscription<livox_ros_driver2::msg::CustomMsg>(
-        input_topic,
-        queue_size,
-        [this](const livox_ros_driver2::msg::CustomMsg::SharedPtr msg) { livoxCallback(msg); });
+      input_topic, queue_size, [this](const livox_ros_driver2::msg::CustomMsg::SharedPtr msg) {
+        livoxCallback(msg);
+      });
 
     pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(output_topic, queue_size);
     // 发布点云ID
@@ -135,12 +134,14 @@ public:
     // 打印
     RCLCPP_INFO(this->get_logger(), "  Input topic: %s", input_topic.c_str());
     RCLCPP_INFO(this->get_logger(), "  Output topic: %s", output_topic.c_str());
-    RCLCPP_INFO(
-        this->get_logger(), "  Translation: [%.3f, %.3f, %.3f] m", translation_x_, translation_y_, translation_z_);
+    RCLCPP_INFO(this->get_logger(),
+      "  Translation: [%.3f, %.3f, %.3f] m",
+      translation_x_,
+      translation_y_,
+      translation_z_);
     RCLCPP_INFO(this->get_logger(), "  Rotation (RPY): [%.3f, %.3f, %.3f] rad", roll, pitch, yaw);
     RCLCPP_INFO(this->get_logger(), "  Crop enabled: %s", enable_crop_ ? "YES" : "NO");
-    if(enable_crop_)
-    {
+    if (enable_crop_) {
       RCLCPP_INFO(this->get_logger(), "    X: [%.2f, %.2f] m", crop_x_min_, crop_x_max_);
       RCLCPP_INFO(this->get_logger(), "    Y: [%.2f, %.2f] m", crop_y_min_, crop_y_max_);
       RCLCPP_INFO(this->get_logger(), "    Z: [%.2f, %.2f] m", crop_z_min_, crop_z_max_);
@@ -186,8 +187,7 @@ private:
     const size_t point_num = msg->points.size();
     auto receive_time = this->now();
     // 快速返回空点云
-    if(point_num == 0) [[unlikely]]
-    {
+    if (point_num == 0) [[unlikely]] {
       return;
     }
 
@@ -196,9 +196,8 @@ private:
     temp_buffer.reserve(point_num);
 
     // 批量转换、变换和裁剪数据
-    for(size_t i = 0; i < point_num; ++i)
-    {
-      const auto& src = msg->points[i];
+    for (size_t i = 0; i < point_num; ++i) {
+      const auto & src = msg->points[i];
 
       float x = src.x;
       float y = src.y;
@@ -211,11 +210,9 @@ private:
       z += translation_z_;
 
       // 裁剪检查
-      if(enable_crop_)
-      {
-        if(x < crop_x_min_ || x > crop_x_max_ || y < crop_y_min_ || y > crop_y_max_ || z < crop_z_min_ ||
-           z > crop_z_max_)
-        {
+      if (enable_crop_) {
+        if (x < crop_x_min_ || x > crop_x_max_ || y < crop_y_min_ || y > crop_y_max_ || z < crop_z_min_ ||
+            z > crop_z_max_) {
           continue;  // 跳过范围外的点
         }
       }
@@ -237,8 +234,7 @@ private:
     cloud_msg_->data.resize(output_point_num * sizeof(PointXYZI));
 
     // 拷贝到输出消息
-    if(output_point_num > 0)
-    {
+    if (output_point_num > 0) {
       std::memcpy(cloud_msg_->data.data(), temp_buffer.data(), output_point_num * sizeof(PointXYZI));
     }
 
@@ -247,7 +243,8 @@ private:
     cloud_msg_->header.frame_id = frame_id_;
     pub_->publish(*cloud_msg_);
     auto publish_time = this->now();
-    // std::cout << "Transform time: " << (publish_time.seconds() - receive_time.seconds()) * 1000 << " ms" << std::endl
+    // std::cout << "Transform time: " << (publish_time.seconds() - receive_time.seconds()) * 1000 << " ms"
+    // << std::endl
     //           << "Input points: " << point_num << ", Output points: " << output_point_num << std::endl;
   }
 
@@ -269,7 +266,7 @@ private:
   std::string frame_id_;
 };
 
-int main(int argc, char** argv)
+int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
 

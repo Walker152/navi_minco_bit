@@ -1,20 +1,18 @@
 #include "pcd2ele/pcd2ele.hpp"
 
-#include <pcl/io/pcd_io.h>
+#include <pcl/common/common.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/radius_outlier_removal.h>
-#include <pcl/common/common.h>
+#include <pcl/io/pcd_io.h>
 
-#include <fstream>
-#include <limits>
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
+#include <limits>
 
-namespace pcd2ele
-{
+namespace pcd2ele {
 
-PCD2ELE::PCD2ELE(const rclcpp::NodeOptions & options)
-: Node("pcd2ele_node", options)
+PCD2ELE::PCD2ELE(const rclcpp::NodeOptions & options) : Node("pcd2ele_node", options)
 {
   declareParameters();
   getParameters();
@@ -75,8 +73,14 @@ void PCD2ELE::process()
   // Display initial coordinate system info (Bounds)
   pcl::PointXYZ min_pt, max_pt;
   pcl::getMinMax3D(*cloud_, min_pt, max_pt);
-  RCLCPP_INFO(get_logger(), "Original Cloud Bounds: X[%.2f, %.2f], Y[%.2f, %.2f], Z[%.2f, %.2f]",
-              min_pt.x, max_pt.x, min_pt.y, max_pt.y, min_pt.z, max_pt.z);
+  RCLCPP_INFO(get_logger(),
+    "Original Cloud Bounds: X[%.2f, %.2f], Y[%.2f, %.2f], Z[%.2f, %.2f]",
+    min_pt.x,
+    max_pt.x,
+    min_pt.y,
+    max_pt.y,
+    min_pt.z,
+    max_pt.z);
 
   // PassThrough Filter
   if (use_pass_through_filter_) {
@@ -105,17 +109,23 @@ void PCD2ELE::process()
 
   // Re-calculate bounds after filtering
   pcl::getMinMax3D(*cloud_, min_pt, max_pt);
-  RCLCPP_INFO(get_logger(), "Filtered Cloud Bounds: X[%.2f, %.2f], Y[%.2f, %.2f], Z[%.2f, %.2f]",
-              min_pt.x, max_pt.x, min_pt.y, max_pt.y, min_pt.z, max_pt.z);
+  RCLCPP_INFO(get_logger(),
+    "Filtered Cloud Bounds: X[%.2f, %.2f], Y[%.2f, %.2f], Z[%.2f, %.2f]",
+    min_pt.x,
+    max_pt.x,
+    min_pt.y,
+    max_pt.y,
+    min_pt.z,
+    max_pt.z);
 
   // Create Elevation Grid
   int width = std::ceil((max_pt.x - min_pt.x) / resolution_);
   int height = std::ceil((max_pt.y - min_pt.y) / resolution_);
-  
+
   // Use a vector to store max z in each cell. Initialize with lowest possible double.
   std::vector<double> elevation_grid(width * height, -std::numeric_limits<double>::infinity());
 
-  for (const auto& pt : cloud_->points) {
+  for (const auto & pt : cloud_->points) {
     int x_idx = std::floor((pt.x - min_pt.x) / resolution_);
     int y_idx = std::floor((pt.y - min_pt.y) / resolution_);
 
@@ -127,8 +137,13 @@ void PCD2ELE::process()
     }
   }
 
-  RCLCPP_INFO(get_logger(), "PGM Map Info: Origin[%.2f, %.2f], Resolution[%.2f], Size[%d, %d]",
-              min_pt.x, min_pt.y, resolution_, width, height);
+  RCLCPP_INFO(get_logger(),
+    "PGM Map Info: Origin[%.2f, %.2f], Resolution[%.2f], Size[%d, %d]",
+    min_pt.x,
+    min_pt.y,
+    resolution_,
+    width,
+    height);
 
   if (use_dilation_) {
     dilateMap(elevation_grid, width, height);
@@ -137,7 +152,7 @@ void PCD2ELE::process()
   saveMap(elevation_grid, width, height, min_pt.z, max_pt.z);
 }
 
-void PCD2ELE::dilateMap(std::vector<double>& elevation_grid, int width, int height)
+void PCD2ELE::dilateMap(std::vector<double> & elevation_grid, int width, int height)
 {
   std::vector<double> dilated_grid = elevation_grid;
   int radius = dilation_radius_;
@@ -168,7 +183,8 @@ void PCD2ELE::dilateMap(std::vector<double>& elevation_grid, int width, int heig
   RCLCPP_INFO(get_logger(), "Dilated map with radius %d", radius);
 }
 
-void PCD2ELE::saveMap(const std::vector<double>& elevation_grid, int width, int height, double min_z, double max_z)
+void PCD2ELE::saveMap(
+  const std::vector<double> & elevation_grid, int width, int height, double min_z, double max_z)
 {
   // Create output directory if it doesn't exist
   std::filesystem::path output_dir(output_folder_);
@@ -190,18 +206,20 @@ void PCD2ELE::saveMap(const std::vector<double>& elevation_grid, int width, int 
 
   pgm_file << "P5\n" << width << " " << height << "\n255\n";
 
-  // We need to flip Y because PGM stores top-to-bottom, but map coordinate usually implies bottom-to-top (y increases upwards)
-  // Standard map_server loads PGM such that (0,0) is bottom-left if we don't flip?
+  // We need to flip Y because PGM stores top-to-bottom, but map coordinate usually implies bottom-to-top (y
+  // increases upwards) Standard map_server loads PGM such that (0,0) is bottom-left if we don't flip?
   // Actually, map_server reads image: (0,0) is top-left.
   // But the map origin in YAML is the position of the bottom-left pixel.
-  // So we should write the image such that the bottom row of the map corresponds to the last row of the image (or first row if we flip).
-  // Let's write it so that index 0 (bottom-left in our grid logic) corresponds to the bottom-left pixel in the image.
-  // PGM stores top row first. So we should write the last row of our grid (max y) first.
-  
+  // So we should write the image such that the bottom row of the map corresponds to the last row of the
+  // image (or first row if we flip). Let's write it so that index 0 (bottom-left in our grid logic)
+  // corresponds to the bottom-left pixel in the image. PGM stores top row first. So we should write the
+  // last row of our grid (max y) first.
+
   std::vector<unsigned char> pgm_data(width * height);
-  
+
   double range = max_z - min_z;
-  if (range <= 0) range = 1.0; // Avoid division by zero
+  if (range <= 0)
+    range = 1.0;  // Avoid division by zero
 
   for (int y = height - 1; y >= 0; --y) {
     for (int x = 0; x < width; ++x) {
@@ -213,7 +231,7 @@ void PCD2ELE::saveMap(const std::vector<double>& elevation_grid, int width, int 
         // 0 is lowest, 255 is highest
         val = static_cast<unsigned char>(255.0 * (z - min_z) / range);
       } else {
-        // Empty cell. What value? 
+        // Empty cell. What value?
         // If we want it to be "unknown", maybe 0? Or 128?
         // Let's use 0 for now.
         val = 0;
@@ -238,11 +256,11 @@ void PCD2ELE::saveMap(const std::vector<double>& elevation_grid, int width, int 
   // I'll assume the caller passed the correct min_z/max_z, but I need min_x/min_y for the origin.
   // I'll modify the function signature in the next step or just fix it now.
   // I'll assume I can get them from the cloud if I didn't clear it, but I should pass them.
-  
+
   // Let's fix the function signature in the .cpp file content I'm writing.
   // But I already defined it in .hpp without min_x, min_y.
   // I should update .hpp as well or just use the cloud_ member to get min_x/min_y again (it's fast).
-  
+
   pcl::PointXYZ min_pt_c, max_pt_c;
   pcl::getMinMax3D(*cloud_, min_pt_c, max_pt_c);
 
