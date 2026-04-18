@@ -30,11 +30,22 @@ GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions & options)
   alignment_frequency_ = this->declare_parameter<double>("alignment_frequency", 1.0);
   tf_publish_frequency_ = this->declare_parameter<double>("tf_publish_frequency", 10.0);
   accumulate_frames_ = this->declare_parameter<int>("accumulate_frames", 5);
-  overlap_threshold_ = this->declare_parameter<double>("overlap_threshold", 0.75);
+  score_threshold_ = this->declare_parameter<double>("gicp.score_threshold", 0.5);
   converged_count_threshold_ = this->declare_parameter<int>("converged_count_threshold", 5);
   enable_continuous_relocalization_ =
     this->declare_parameter<bool>("enable_continuous_relocalization", false);
   max_tracking_lost_count_ = this->declare_parameter<int>("max_tracking_lost_count", 3);
+  max_translation_jump_ =
+    this->declare_parameter<double>("continuous_relocalization.max_translation_jump", 1.0);
+  max_yaw_jump_ = this->declare_parameter<double>("continuous_relocalization.max_yaw_jump", 0.35);
+
+  if (!(std::isfinite(max_translation_jump_) && max_translation_jump_ > 0.0)) {
+    max_translation_jump_ = 1.0;
+  }
+  if (!(std::isfinite(max_yaw_jump_) && max_yaw_jump_ > 0.0)) {
+    max_yaw_jump_ = 0.35;
+  }
+
   std::string target_pcd_file = this->declare_parameter<std::string>("target_pcd_file", "map.pcd");
 
   // Map Offset Parameters
@@ -110,7 +121,7 @@ GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions & options)
   std::cout << color_text::BLUE << "[GICP] Relocalization initialized: mode=" << mode_str
             << ", map_frame=" << map_frame_ << ", source_topic=" << source_cloud_topic_
             << ", alignment_hz=" << alignment_frequency_ << ", tf_hz=" << tf_publish_frequency_
-            << ", accumulate_frames=" << accumulate_frames_ << ", overlap_threshold=" << overlap_threshold_
+            << ", accumulate_frames=" << accumulate_frames_ << ", score_threshold=" << score_threshold_
             << ", target_pcd=" << target_pcd_file << color_text::RESET << std::endl;
   std::cout << color_text::BLUE << "[GICP] Timeout config: " << timeout_seconds_ << " s, default_pose=["
             << default_pose_on_timeout_[0] << ", " << default_pose_on_timeout_[1] << ", "
@@ -515,10 +526,9 @@ void GicpRosInterface::runFSM()
 
     auto result = gicp_filter_->initialAlign(current_source_cloud_);
 
-    if (result.converged && result.overlap_ratio > overlap_threshold_) {
-      std::cout << color_text::GREEN
-                << "[GICP] Initial alignment accepted: overlap=" << result.overlap_ratio * 100.0
-                << "% (threshold=" << overlap_threshold_ * 100.0 << "%)" << color_text::RESET << std::endl;
+    if (result.converged && std::isfinite(result.score) && result.score < score_threshold_) {
+      std::cout << color_text::GREEN << "[GICP] Initial alignment accepted: score=" << result.score
+                << " (threshold=" << score_threshold_ << ")" << color_text::RESET << std::endl;
 
       // GICP 计算的是 Source(camera_init) -> Target(map) 的变换
       map_to_camera_init_ = result.final_transformation;
@@ -530,8 +540,8 @@ void GicpRosInterface::runFSM()
     } else {
       std::cout << color_text::YELLOW
                 << "[GICP] Initial alignment rejected: converged=" << (result.converged ? "true" : "false")
-                << ", overlap=" << result.overlap_ratio * 100.0 << "% (required>"
-                << overlap_threshold_ * 100.0 << "%). Retrying..." << color_text::RESET << std::endl;
+                << ", score=" << result.score << " (required<" << score_threshold_ << "). Retrying..."
+                << color_text::RESET << std::endl;
       state_ = State::UNINITIALIZED;
     }
     break;
@@ -552,11 +562,11 @@ void GicpRosInterface::runFSM()
     auto end_time = std::chrono::high_resolution_clock::now();
     double time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
 
-    if (result.converged && result.overlap_ratio > overlap_threshold_) {
+    if (result.converged && std::isfinite(result.score) && result.score < score_threshold_) {
       gicp_utils::printEvaluation(initial_guess, result.final_transformation, time_ms);
 
-      std::cout << color_text::GREEN << "[GICP] Converged: overlap=" << result.overlap_ratio * 100.0
-                << "% (threshold=" << overlap_threshold_ * 100.0 << "%)" << color_text::RESET << std::endl;
+      std::cout << color_text::GREEN << "[GICP] Converged: score=" << result.score
+                << " (threshold=" << score_threshold_ << ")" << color_text::RESET << std::endl;
 
       map_to_camera_init_ = result.final_transformation;
 
@@ -586,8 +596,8 @@ void GicpRosInterface::runFSM()
     } else {
       std::cout << color_text::YELLOW
                 << "[GICP] Rejected: converged=" << (result.converged ? "true" : "false")
-                << ", overlap=" << result.overlap_ratio * 100.0 << "% (required>"
-                << overlap_threshold_ * 100.0 << "%). Resetting count." << color_text::RESET << std::endl;
+                << ", score=" << result.score << " (required<" << score_threshold_ << "). Resetting count."
+                << color_text::RESET << std::endl;
       converged_count_ = 0;
       state_ = State::UNINITIALIZED;
       gicp_initialized_ = false;
@@ -599,26 +609,40 @@ void GicpRosInterface::runFSM()
       break;
     }
 
-    Eigen::Matrix4f current_odom = Eigen::Matrix4f::Identity();
-    {
-      std::lock_guard<std::mutex> lock(odom_mtx_);
-      current_odom = latest_odom_pose_;
-    }
-
-    Eigen::Matrix4f initial_guess = map_to_camera_init_ * current_odom;
+    Eigen::Matrix4f initial_guess = map_to_camera_init_;
     auto result = gicp_filter_->align(current_source_cloud_, initial_guess);
 
-    if (result.converged && result.overlap_ratio > overlap_threshold_) {
-      map_to_camera_init_ = result.final_transformation * current_odom.inverse();
-      tracking_lost_count_ = 0;
+    if (result.converged && std::isfinite(result.score) && result.score < score_threshold_) {
+      const Eigen::Matrix4f prev = map_to_camera_init_;
+      const Eigen::Matrix4f candidate = result.final_transformation;
+
+      const double dx = static_cast<double>(candidate(0, 3) - prev(0, 3));
+      const double dy = static_cast<double>(candidate(1, 3) - prev(1, 3));
+      const double trans_jump = std::hypot(dx, dy);
+
+      const double prev_yaw = std::atan2(static_cast<double>(prev(1, 0)), static_cast<double>(prev(0, 0)));
+      const double cand_yaw =
+        std::atan2(static_cast<double>(candidate(1, 0)), static_cast<double>(candidate(0, 0)));
+      const double yaw_jump = std::atan2(std::sin(cand_yaw - prev_yaw), std::cos(cand_yaw - prev_yaw));
+
+      if (trans_jump <= max_translation_jump_ && std::abs(yaw_jump) <= max_yaw_jump_) {
+        map_to_camera_init_ = candidate;
+        tracking_lost_count_ = 0;
+      } else {
+        std::cout << color_text::YELLOW << "[GICP] Reject large jump in LOCALIZED: dxy=" << trans_jump
+                  << "m (limit=" << max_translation_jump_ << "), dyaw=" << yaw_jump
+                  << "rad (limit=" << max_yaw_jump_ << ")" << color_text::RESET << std::endl;
+        tracking_lost_count_++;
+      }
     } else {
       tracking_lost_count_++;
-      if (tracking_lost_count_ >= max_tracking_lost_count_) {
-        std::cerr << color_text::RED << "[GICP] Tracking lost reached threshold, fallback to UNINITIALIZED."
-                  << color_text::RESET << std::endl;
-        state_ = State::UNINITIALIZED;
-        gicp_initialized_ = false;
-      }
+    }
+
+    if (tracking_lost_count_ >= max_tracking_lost_count_) {
+      std::cerr << color_text::RED << "[GICP] Tracking lost reached threshold, fallback to UNINITIALIZED."
+                << color_text::RESET << std::endl;
+      state_ = State::UNINITIALIZED;
+      gicp_initialized_ = false;
     }
     break;
   }

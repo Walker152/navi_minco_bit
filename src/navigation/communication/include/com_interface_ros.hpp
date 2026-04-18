@@ -1,6 +1,8 @@
 #pragma once
 
 #include <atomic>
+#include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -11,14 +13,19 @@
 #include <std_msgs/msg/detail/bool__struct.hpp>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <nav_msgs/msg/path.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Transform.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 #include "ros_interfaces/msg/ally_robot_status.hpp"
 #include "ros_interfaces/msg/behavior.hpp"
@@ -203,6 +210,13 @@ private:
         odomCB(msg);
       },
       sub_opt);
+    astar_path_sub_ = create_subscription<nav_msgs::msg::Path>(
+      "/astar_path_vis",
+      rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
+      [this](nav_msgs::msg::Path::ConstSharedPtr msg) {
+        astarPathCB(msg);
+      },
+      sub_opt);
     outpost_msg_sub_ = create_subscription<std_msgs::msg::Bool>(
       "/sentry/outpost_status",
       1,
@@ -227,6 +241,11 @@ private:
     online_info_pub_ = create_publisher<ros_interfaces::msg::SentryInfoOnline>("/sentry/online_info", 10);
     team_info_pub_ = create_publisher<ros_interfaces::msg::TeamInformation>("/sentry/team_info", 10);
     radar_info_pub_ = create_publisher<ros_interfaces::msg::RadarInfo>("/sentry/radar_info", 10);
+
+    map_frame_ = this->declare_parameter<std::string>("global_path.map_frame", "map");
+    minimap_frame_ = this->declare_parameter<std::string>("global_path.minimap_frame", "minimap");
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
     com_timer_ = this->create_wall_timer(
       std::chrono::milliseconds(3), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
@@ -322,7 +341,125 @@ private:
         last_send_time = now_time;
       }
     }
+
+    GlobalPath global_path;
+    {
+      std::lock_guard<std::mutex> lk(path_mutex_);
+      global_path = pending_global_path_;
+    }
+
+    auto path_flag = Communication::send2stm32<GlobalPath>(global_path);
+    if (path_flag == 0) {
+      LOG_DEBUG_BLOCK(std::string(CYAN) + "[COM][GlobalPath] ",
+        NV(global_path.start_x),
+        NV(global_path.start_y),
+        NV(static_cast<int>(global_path.delta_x[1])),
+        NV(static_cast<int>(global_path.delta_y[1])),
+        NV(static_cast<int>(global_path.delta_x[48])),
+        NV(static_cast<int>(global_path.delta_y[48])));
+    }
   }
+
+  static void mapToMinimapPoint(
+    const tf2::Transform & tf_map_to_minimap, const double map_x, const double map_y, int32_t & mini_x, int32_t & mini_y)
+  {
+    const tf2::Vector3 p_map(map_x, map_y, 0.0);
+    const tf2::Vector3 p_minimap = tf_map_to_minimap * p_map;
+    mini_x = static_cast<int32_t>(std::lround(p_minimap.x()));
+    mini_y = static_cast<int32_t>(std::lround(p_minimap.y()));
+  }
+
+  GlobalPath buildGlobalPathPacket(const nav_msgs::msg::Path & path)
+  {
+    GlobalPath out{};
+    constexpr size_t kSampleNum = 49;
+
+    std::array<double, kSampleNum> sample_x{};
+    std::array<double, kSampleNum> sample_y{};
+
+    const size_t n = path.poses.size();
+    if (n == 1) {
+      const double x = path.poses.front().pose.position.x;
+      const double y = path.poses.front().pose.position.y;
+      sample_x.fill(x);
+      sample_y.fill(y);
+    } else {
+      std::vector<double> s(n, 0.0);
+      for (size_t i = 1; i < n; ++i) {
+        const double x0 = path.poses[i - 1].pose.position.x;
+        const double y0 = path.poses[i - 1].pose.position.y;
+        const double x1 = path.poses[i].pose.position.x;
+        const double y1 = path.poses[i].pose.position.y;
+        s[i] = s[i - 1] + std::hypot(x1 - x0, y1 - y0);
+      }
+
+      const double total_len = s.back();
+      if (total_len <= 1e-6) {
+        const double x = path.poses.front().pose.position.x;
+        const double y = path.poses.front().pose.position.y;
+        sample_x.fill(x);
+        sample_y.fill(y);
+      } else {
+        for (size_t k = 0; k < kSampleNum; ++k) {
+          const double target = total_len * static_cast<double>(k) / static_cast<double>(kSampleNum - 1);
+          auto it = std::lower_bound(s.begin(), s.end(), target);
+          if (it == s.begin()) {
+            sample_x[k] = path.poses.front().pose.position.x;
+            sample_y[k] = path.poses.front().pose.position.y;
+            continue;
+          }
+          if (it == s.end()) {
+            sample_x[k] = path.poses.back().pose.position.x;
+            sample_y[k] = path.poses.back().pose.position.y;
+            continue;
+          }
+
+          const size_t idx = static_cast<size_t>(std::distance(s.begin(), it));
+          const double seg_s0 = s[idx - 1];
+          const double seg_s1 = s[idx];
+          const double seg_len = seg_s1 - seg_s0;
+          const double ratio = (seg_len > 1e-9) ? ((target - seg_s0) / seg_len) : 0.0;
+
+          const double x0 = path.poses[idx - 1].pose.position.x;
+          const double y0 = path.poses[idx - 1].pose.position.y;
+          const double x1 = path.poses[idx].pose.position.x;
+          const double y1 = path.poses[idx].pose.position.y;
+          sample_x[k] = x0 + (x1 - x0) * ratio;
+          sample_y[k] = y0 + (y1 - y0) * ratio;
+        }
+      }
+    }
+
+    const auto tf_stamped = tf_buffer_->lookupTransform(minimap_frame_, map_frame_, tf2::TimePointZero);
+    tf2::Transform tf_map_to_minimap;
+    tf2::fromMsg(tf_stamped.transform, tf_map_to_minimap);
+
+    std::array<int32_t, kSampleNum> mini_x{};
+    std::array<int32_t, kSampleNum> mini_y{};
+    for (size_t i = 0; i < kSampleNum; ++i) {
+      mapToMinimapPoint(tf_map_to_minimap, sample_x[i], sample_y[i], mini_x[i], mini_y[i]);
+    }
+
+    out.start_x = static_cast<uint16_t>(mini_x[0]);
+    out.start_y = static_cast<uint16_t>(mini_y[0]);
+    out.delta_x[0] = 0;
+    out.delta_y[0] = 0;
+    for (size_t i = 1; i < kSampleNum; ++i) {
+      const long dx = static_cast<long>(mini_x[i] - mini_x[i - 1]);
+      const long dy = static_cast<long>(mini_y[i] - mini_y[i - 1]);
+      out.delta_x[i] = static_cast<int8_t>(dx);
+      out.delta_y[i] = static_cast<int8_t>(dy);
+    }
+    return out;
+  }
+
+  void astarPathCB(const nav_msgs::msg::Path::ConstSharedPtr & pathPtr)
+  {
+    GlobalPath packet = buildGlobalPathPacket(*pathPtr);
+    std::lock_guard<std::mutex> lk(path_mutex_);
+    pending_global_path_ = packet;
+  }
+
   void sendChassisCtrlCB(const geometry_msgs::msg::Twist::ConstSharedPtr & velPtr)
   {
     std::lock_guard<std::mutex> lk(state_mutex_);
@@ -338,6 +475,7 @@ private:
   // Subscriptions
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr chassis_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr astar_path_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr outpost_msg_sub_;
   rclcpp::Subscription<ros_interfaces::msg::Behavior>::SharedPtr behavior_sub_;
 
@@ -359,6 +497,16 @@ private:
 
   // Shared state mutex
   std::mutex state_mutex_;
+  std::mutex path_mutex_;
+
+  // Latest global path packet cache
+  GlobalPath pending_global_path_{};
+
+  // TF query for map -> minimap transform
+  std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+  std::string map_frame_{"map"};
+  std::string minimap_frame_{"minimap"};
 
   // State
   geometry_msgs::msg::Twist cmd_vel_;

@@ -107,6 +107,8 @@ private:
   bool enable_continuous_relocalization_;  // 低频重定位功能开关
   int tracking_lost_count_ = 0;            // 连续追踪丢失计数
   int max_tracking_lost_count_;            // 最大允许跟丢次数
+  double max_translation_jump_ = 1.0;      // 连续更新允许的最大平移跳变(m)
+  double max_yaw_jump_ = 0.35;             // 连续更新允许的最大航向跳变(rad)
 
   Eigen::Matrix4f latest_odom_pose_ = Eigen::Matrix4f::Identity();
   std::mutex odom_mtx_;
@@ -121,7 +123,7 @@ private:
   double alignment_frequency_;        // 地图对齐(GICP)低频执行频率
   Mode mode_ = Mode::MULTI_GUESS;     // 重定位模式
   int accumulate_frames_;             // 参与配准的累积帧数
-  double overlap_threshold_ = 0.75;   // 重叠率阈值
+  double score_threshold_ = 20;       // small_gicp score阈值（越小越好）
   int converged_count_threshold_;     // 收敛次数阈值
   int converged_count_ = 0;           // 当前收敛次数
   std::vector<double> initial_pose_;  // 初始位姿猜测 [x, y, z, roll, pitch, yaw]
