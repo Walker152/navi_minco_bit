@@ -6,6 +6,8 @@
 #include "small_gicp/registration/reduction_omp.hpp"
 #include "small_gicp/util/downsampling_omp.hpp"
 #include <Eigen/Core>
+#include <cstddef>
+#include <limits>
 #include <memory>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
@@ -74,7 +76,9 @@ public:
   struct Result
   {
     bool converged = false;
+    double score = std::numeric_limits<double>::infinity();
     double overlap_ratio = 0.0;
+    std::size_t num_inliers = 0;
     Eigen::Matrix4f final_transformation = Eigen::Matrix4f::Identity();
   };
 
