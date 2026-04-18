@@ -26,8 +26,14 @@
         <!-- <ForceSuccess>
           <ReactiveSequence name="StairsDescentFlow">
             <CheckInStairsZone name="CheckInStairsZone" />
+            <SetStairsPosition name="SetStairsPosition" />
             <CheckNoAllyBelowStairs name="CheckNoAllyBelowStairs" />
-            <DescendStairsAction name="DescendStairsAction" linear_y="0.8" angular_z="0.0" />
+            <DescendStairsAction name="DescendStairsAction" linear_y="2.0"
+                         angular_z="0.0"
+                         timeout="5.0" />
+            <DescendStairsAction name="DescendStairsAction" linear_y="0.0"
+                         angular_z="0.0"
+                         timeout="0.5" />
           </ReactiveSequence>
         </ForceSuccess> -->
         <ForceSuccess>
