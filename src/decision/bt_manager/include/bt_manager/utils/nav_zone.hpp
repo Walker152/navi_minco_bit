@@ -122,9 +122,9 @@ typedef enum _NavGoal
 
 typedef enum _SentryStance
 {
-  MOVE = 0,
   ATTACK = 1,
-  DEFEND = 2
+  DEFEND = 2,
+  MOVE = 3
 } SentryStance;
 
 typedef enum _ControlMode
@@ -187,7 +187,7 @@ inline std::vector<PatrolPoint> patrol_points_attack = {
 
 inline std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};
 inline std::vector<std::string> mode_names = {"PATROL", "TRACING", "RETREAT", "RESPONSE", "MANUAL"};
-inline std::vector<std::string> stance_names = {"MOVE", "ATTACK", "DEFEND"};
+inline std::vector<std::string> stance_names = {"ATTACK", "DEFEND", "MOVE"};
 
 struct AllyRobotInfo
 {

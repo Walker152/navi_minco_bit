@@ -95,6 +95,7 @@ public:
   bool consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out);
   void cancelGoal();
   Eigen::Vector3d getCurrentSpeed() const;
+  double getCurrentYawFromOdom() const;
 
   // Query ESDF distance at the given position.
   double getEsdfDistance(const Eigen::Vector3d & pos) const;
@@ -122,7 +123,9 @@ private:
   PlanningState determinePlanningState(
     const geometry_msgs::msg::Pose & start_pose, const std::vector<Eigen::Vector3d> & new_path);
 
-  void prepareColdStart(const geometry_msgs::msg::Pose & start_pose, Eigen::Matrix3d & start_state);
+  void prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
+    Eigen::Matrix3d & start_state,
+    const std::vector<Eigen::Vector3d> & sparse_path);
 
   void prepareHotStart(
     const geometry_msgs::msg::Pose & start_pose, double t_dur, Eigen::Matrix3d & start_state);
