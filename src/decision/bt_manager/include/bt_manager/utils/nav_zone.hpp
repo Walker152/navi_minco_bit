@@ -172,8 +172,7 @@ inline std::vector<PatrolPoint> patrol_points_normal = {
   // for test
   {{10.2, 6.8, 0.0}, 5000},
   {{12.6, 2.0, 0.0}, 5000},
-  {{10.1, 2.6, 0.0}, 5000}
-};
+  {{10.1, 2.6, 0.0}, 5000}};
 
 inline std::vector<PatrolPoint> patrol_points_attack = {
   // {{16.0, 12.0, 0.0}, 5000}, {{17.3, 7.9, 0.0}, 5000}, {{15.3, 3.8, 0.0}, 6000}
