@@ -94,14 +94,15 @@ public:
     }
 
     setActionGoal(nav_goal);
-    last_goal_ = nav_goal;
-    has_last_goal_ = true;
-    nav_start_time_ = std::chrono::steady_clock::now();
 
-    int current_mode = -1;
-    blackboard->get<int>("current_mode", current_mode);
-    std::cout << GREEN << "[NavigateToPoseAction:" << name() << "] send initial goal=(" << nav_goal.x
-              << ", " << nav_goal.y << "), mode=" << current_mode << RESET << std::endl;
+    if (isGoalChanged(nav_goal)) {
+      last_goal_ = nav_goal;
+      has_last_goal_ = true;
+      nav_start_time_ = std::chrono::steady_clock::now();
+
+      std::cout << GREEN << "[NavigateToPoseAction:" << name() << "] send initial goal=(" << nav_goal.x
+                << ", " << nav_goal.y << ")"<< RESET << std::endl;
+    }
   }
 
   void on_wait_for_result(
@@ -141,10 +142,8 @@ public:
       has_last_goal_ = true;
       nav_start_time_ = std::chrono::steady_clock::now();
 
-      int current_mode = -1;
-      blackboard->get<int>("current_mode", current_mode);
       std::cout << GREEN << "[NavigateToPoseAction:" << name() << "] preempt goal=(" << nav_goal.x << ", "
-                << nav_goal.y << "), mode=" << current_mode << RESET << std::endl;
+                << nav_goal.y << ")" << RESET << std::endl;
     }
   }
 
