@@ -203,10 +203,8 @@ GicpFilter::Result GicpFilter::initialAlign(const PointCloud::Ptr & source_cloud
     return result;
   }
 
-  pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
-  kdtree.setInputCloud(local_map_cloud_);
-
-  double best_overlap_ratio = 0.0;
+  double best_error = std::numeric_limits<double>::infinity();
+  std::size_t best_num_inliers = 0;
   Eigen::Matrix4f best_pose = Eigen::Matrix4f::Identity();
   bool best_converged = false;
 
@@ -232,31 +230,9 @@ GicpFilter::Result GicpFilter::initialAlign(const PointCloud::Ptr & source_cloud
               continue;
             }
 
-            PointCloud::Ptr transformed_source(new PointCloud());
-            pcl::transformPointCloud(
-              *source_cropped, *transformed_source, reg_result.T_target_source.matrix().cast<float>());
-
-            if (!transformed_source || transformed_source->empty()) {
-              continue;
-            }
-
-            std::vector<int> nearest_indices(1);
-            std::vector<float> nearest_dist_sq(1);
-            size_t inlier_count = 0;
-
-            for (const auto & point : transformed_source->points) {
-              if (kdtree.nearestKSearch(point, 1, nearest_indices, nearest_dist_sq) > 0 &&
-                  nearest_dist_sq[0] < 0.25f)  // 放宽内点判定距离 (0.5m)
-              {
-                ++inlier_count;
-              }
-            }
-
-            const double overlap_ratio =
-              static_cast<double>(inlier_count) / static_cast<double>(transformed_source->points.size());
-
-            if (overlap_ratio > best_overlap_ratio) {
-              best_overlap_ratio = overlap_ratio;
+            if (std::isfinite(reg_result.error) && reg_result.error < best_error) {
+              best_error = reg_result.error;
+              best_num_inliers = reg_result.num_inliers;
               best_pose = reg_result.T_target_source.matrix().cast<float>();
               best_converged = true;
             }
@@ -268,7 +244,8 @@ GicpFilter::Result GicpFilter::initialAlign(const PointCloud::Ptr & source_cloud
 
   Result result;
   result.converged = best_converged;
-  result.overlap_ratio = best_overlap_ratio;
+  result.score = best_error;
+  result.num_inliers = best_num_inliers;
   result.final_transformation = best_pose;
   return result;
 }
@@ -330,6 +307,8 @@ GicpFilter::Result GicpFilter::align(
   // 整理结果
   Result result;
   result.converged = small_gicp_result.converged;
+  result.score = small_gicp_result.error;
+  result.num_inliers = small_gicp_result.num_inliers;
   result.final_transformation = small_gicp_result.T_target_source.matrix().cast<float>();
 
   if (small_gicp_result.converged && local_map_cloud_ && !local_map_cloud_->empty()) {
