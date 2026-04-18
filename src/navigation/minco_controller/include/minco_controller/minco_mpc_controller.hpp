@@ -46,8 +46,7 @@ public:
     const geometry_msgs::msg::Twist & velocity,
     nav2_core::GoalChecker * goal_checker) override;
 
-  void applyGravityCompensation(
-    const nav_msgs::msg::Odometry::SharedPtr & odom, double & vx, double & vy);
+  void applyGravityCompensation(const nav_msgs::msg::Odometry::SharedPtr & odom, double & vx, double & vy);
 
   void setPlan(const nav_msgs::msg::Path & path) override;
 

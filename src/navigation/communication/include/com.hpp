@@ -116,4 +116,9 @@ template <> struct PacketTraits<ChassisTarget>
   static constexpr uint8_t packet_type = static_cast<uint8_t>(ENUM_PACKET_NAV_DATA);
 };
 
+template <> struct PacketTraits<GlobalPath>
+{
+  static constexpr uint8_t packet_type = static_cast<uint8_t>(ENUM_PACKET_GLOBAL_PATH);
+};
+
 }  // namespace ns_com
