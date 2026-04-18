@@ -2,26 +2,36 @@ gicp_relocalization_node:
   ros__parameters:
     # General Configuration
     mode: "initial_guess" # Options: "multi_guess", "initial_guess"
-    target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/2026rmuc_trans.pcd"
+    target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/2026rmuc.pcd"
     # target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/111.pcd"
     # target_pcd_file: "src/navigation/navi2_bringup/maps/hotel.pcd"
     # target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/2026rmul.pcd"
     map_frame: "map"
     visualization_en: true
-    source_cloud_topic: "/livox/stdpc"
-    alignment_frequency: 1.0
+    source_cloud_topic: "/cloud_registered_dense"
+    alignment_frequency: 5.0
     accumulate_frames: 3
     tf_publish_frequency: 30.0
-    # Convergence Criteria
-    overlap_threshold: 0.65
+    # Convergence Criteria (small_gicp score, lower is better)
+    gicp:
+      score_threshold: 100.0
+      target_voxel_leaf_size: 0.05
+      source_voxel_leaf_size: 0.05
+      max_correspondence_distance: 0.5
+      max_iterations: 100
+      transformation_epsilon: 0.01
+      euclidean_fitness_epsilon: 0.01
     converged_count_threshold: 2
 
     # Continuous low-frequency relocalization
     enable_continuous_relocalization: true
     max_tracking_lost_count: 3
+    continuous_relocalization:
+      max_translation_jump: 0.3  # meter
+      max_yaw_jump: 0.1         # rad
 
     timeout_seconds: 5.0  # 超时时间（秒）
-    default_pose_on_timeout: [6.0, 3.4, 0.0, 0.0, 0.0, 0.0]  # 超时后发布的默认位姿
+    default_pose_on_timeout: [6.8, 4.0, 0.0, 0.0, 0.0, 0.0]  # 超时后发布的默认位姿
     
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
     initial_pose: [12.0, 4.5, 0.0, 0.0, 0.0, 0.0]
@@ -50,12 +60,3 @@ gicp_relocalization_node:
       max_y: 3.0
       min_z: -0.5
       max_z: 2.5
-
-    # GICP Parameters
-    gicp:
-      target_voxel_leaf_size: 0.05
-      source_voxel_leaf_size: 0.05
-      max_correspondence_distance: 0.5
-      max_iterations: 100
-      transformation_epsilon: 0.001
-      euclidean_fitness_epsilon: 0.001
