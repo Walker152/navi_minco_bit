@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <iostream>
 #include <memory>
@@ -148,6 +149,7 @@ public:
     msg.lifter_current_pos = in.lifter_current_pos;
     msg.is_transformable = in.is_transformable;
     msg.transform_state = in.transform_state;
+    transform_state = in.transform_state;
     msg.header.stamp = now();
     offline_info_pub_->publish(msg);
   }
@@ -205,6 +207,7 @@ private:
       "/sentry/outpost_status",
       1,
       [this](std_msgs::msg::Bool::ConstSharedPtr msg) {
+        std::lock_guard<std::mutex> lk(state_mutex_);
         outpost_msg_ = *msg;
       },
       sub_opt);
@@ -212,6 +215,7 @@ private:
       "/sentry/behaivor_send",
       1,
       [this](ros_interfaces::msg::Behavior::ConstSharedPtr msg) {
+        std::lock_guard<std::mutex> lk(state_mutex_);
         behavior_ = *msg;
       },
       sub_opt);
@@ -225,7 +229,7 @@ private:
     radar_info_pub_ = create_publisher<ros_interfaces::msg::RadarInfo>("/sentry/radar_info", 10);
 
     com_timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(1), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
+      std::chrono::milliseconds(3), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
     RCLCPP_INFO(this->get_logger(), "ComInterfaceRos initialized");
   }
 
@@ -234,7 +238,6 @@ private:
     float vx_mps = 0.0f;
     float vy_mps = 0.0f;
     float vw_rpm = 0.0f;
-    float gimbal_yaw = 0.0f;
     uint8_t desire_stance = 0;
     uint8_t desire_lifter_pos = 0;
     // uint8_t control_mode = 0;
@@ -255,16 +258,17 @@ private:
       desire_stance = behavior_.desired_stance;  // 之前写死了，现作修改
       // desire_lifter_pos = behavior_.desire_lifter_pos; // 之前写死了，现作修改
       desire_lifter_pos = behavior_.desire_lifter_pos;  // 变形哨升降头暂时不可用
-      std::cout << "desired_stance: " << static_cast<int>(desire_stance)
-                << ", desired_lifter_pos: " << static_cast<int>(desire_lifter_pos) << std::endl;
       // control_mode = behavior_.control_mode;
       // use_gyro_mode = behavior_.use_gyro_mode;
       // gyro_vel = behavior_.gyro_vel;
-
+      
       // if (use_gyro_mode) {
       //   vw_rpm = gyro_vel;
       // }
-
+      if(transform_state >= 0.9f) {
+        vx_mps *= 1.2;
+        vy_mps *= 1.2;
+      }
       outpost_msg = outpost_msg_.data;
       odom_x = odom_.pose.pose.position.x;
       odom_y = odom_.pose.pose.position.y;
@@ -359,6 +363,7 @@ private:
   // State
   geometry_msgs::msg::Twist cmd_vel_;
   nav_msgs::msg::Odometry odom_;
+  float transform_state = 0.0f;
 };
 
 }  // namespace ns_com
