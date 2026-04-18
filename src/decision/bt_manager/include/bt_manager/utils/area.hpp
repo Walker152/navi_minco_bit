@@ -16,7 +16,7 @@ namespace Sentry_BT {
 // for test
 inline Area_Square transform_zone{Point2D{12.7, 7.3}, Point2D{10.0, 3.3}};  // 假设这是隧道区域的坐标范围
 inline Area_Square tunnel_zone{Point2D{12.5, 6.3}, Point2D{11.5, 4.8}};  // 假设这是隧道区域的坐标范围
-inline Area_Square stairs_zone{Point2D{9.4, 1.8}, Point2D{8.0, 0.2}};  // 假设这是楼梯区域的坐标范围
+inline Area_Square stairs_zone{Point2D{11.6, 7.3}, Point2D{10.5, 6.0}};  // 假设这是楼梯区域的坐标范围
 inline Area_Square stairs_lower_safe_zone{Point2D{11.6, 6.0}, Point2D{10.5, 4.4}};
 inline Area_Square target_feasible_zone{Point2D{15.5, 6.9}, Point2D{5.4, 0.7}};
 inline Area_Square highland_zone{Point2D{11.0, 7.0}, Point2D{5.8, 6.4}};
