@@ -292,104 +292,7 @@ BT::NodeStatus Wait::onRunning()
 }
 
 void Wait::onHalted()
-{
-}
-
-// -------------------- DirectVelocityControl ---------------------------
-DirectVelocityControl::DirectVelocityControl(const std::string & name, const BT::NodeConfiguration & config)
-: BT::StatefulActionNode(name, config)
-{
-  linear_y_ = 0.0;
-  angular_z_ = 0.0;
-  duration_ = 0.0;
-  start_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
-  last_pub_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
-}
-
-BT::PortsList DirectVelocityControl::providedPorts()
-{
-  return {BT::InputPort<double>("linear_y", 0.5, "前进速度 m/s"),
-    BT::InputPort<double>("angular_z", 0.0, "转向速度 rad/s"),
-    BT::InputPort<double>("duration", 2.0, "持续时间秒")};
-}
-
-BT::NodeStatus DirectVelocityControl::onStart()
-{
-  auto blackboard = config().blackboard;
-
-  // 1. 获取参数
-  auto linear_y = getInput<double>("linear_y");
-  auto angular_z = getInput<double>("angular_z");
-  auto duration = getInput<double>("duration");
-
-  if (!linear_y || !duration) {
-    std::cerr << "参数缺失: linear_y 或 duration" << std::endl;
-    return BT::NodeStatus::FAILURE;  // 参数缺失
-  }
-
-  // 2. 存储参数
-  linear_y_ = linear_y.value();
-  angular_z_ = angular_z.value_or(0.0);
-  duration_ = duration.value();
-
-  static double last_linear_y = std::numeric_limits<double>::quiet_NaN();
-  static double last_angular_z = std::numeric_limits<double>::quiet_NaN();
-  static double last_duration = std::numeric_limits<double>::quiet_NaN();
-  if (linear_y_ != last_linear_y || angular_z_ != last_angular_z || duration_ != last_duration) {
-    std::cout << MAGENTA << "DirectVelocityControl start: linear_y=" << linear_y_
-              << ", angular_z=" << angular_z_ << ", duration=" << duration_ << "s" << RESET << std::endl;
-    last_linear_y = linear_y_;
-    last_angular_z = angular_z_;
-    last_duration = duration_;
-  }
-
-  // 3. 记录开始时间
-  auto ros_iface = blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
-  start_time_ = ros_iface->now();
-  last_pub_time_ = rclcpp::Time(0, 0, ros_iface->get_clock()->get_clock_type());
-
-  // 4. reset cmd_vel command on blackboard
-  blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
-
-  return BT::NodeStatus::RUNNING;
-}
-
-BT::NodeStatus DirectVelocityControl::onRunning()
-{
-  auto ros_iface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
-  auto blackboard = config().blackboard;
-  // 计算经过的时间
-  auto current_time = ros_iface->now();
-  auto elapsed = (current_time - start_time_).seconds();
-
-  if (elapsed < 0.1) {
-    blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
-    return BT::NodeStatus::RUNNING;
-  }
-
-  // 检查是否超时
-  if (elapsed >= duration_) {
-    blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
-    return BT::NodeStatus::SUCCESS;
-  }
-
-  // publish by writing to blackboard, ros_interface owns IO
-  if ((current_time - last_pub_time_).seconds() >= 0.05) {  // 20Hz发布频率
-    geometry_msgs::msg::Twist cmd_vel;
-    cmd_vel.linear.y = linear_y_;
-    cmd_vel.angular.z = angular_z_;
-    blackboard->set("cmd_vel", cmd_vel);
-    last_pub_time_ = current_time;
-  }
-
-  return BT::NodeStatus::RUNNING;
-}
-
-void DirectVelocityControl::onHalted()
-{
-  config().blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
-}
-
+{}
 // ------------------- SetStairsPosition -------------------
 SetStairsPosition::SetStairsPosition(const std::string & name, const BT::NodeConfiguration & config)
 : BT::SyncActionNode(name, config)
@@ -408,7 +311,7 @@ BT::NodeStatus SetStairsPosition::tick()
   // 创建 Sentry_BT::Point2D 类型的固定目标点
   Sentry_BT::Point2D goal_point;
   goal_point.x = 9.5;
-  goal_point.y = 1.5;
+  goal_point.y = 1.0;
 
   blackboard->set("nav_goal", goal_point);
 
@@ -419,22 +322,37 @@ BT::NodeStatus SetStairsPosition::tick()
 DescendStairsAction::DescendStairsAction(const std::string & name, const BT::NodeConfiguration & config)
 : BT::StatefulActionNode(name, config)
 {
+  timeout_ = 0.0;
+  start_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
 }
 
 BT::PortsList DescendStairsAction::providedPorts()
 {
-  return {BT::InputPort<double>("linear_y", 0.8, "Linear velocity y"),
-    BT::InputPort<double>("angular_z", 0.0, "Angular velocity z")};
+  return {BT::InputPort<double>("linear_y", 2.0, "Linear velocity y"),
+    BT::InputPort<double>("angular_z", 0.0, "Angular velocity z"),
+    BT::InputPort<double>("timeout", 5.0, "Timeout in seconds")
+  };
 }
 
 BT::NodeStatus DescendStairsAction::onStart()
 {
+  auto ros_interface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
+  start_time_ = ros_interface->now();
   return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus DescendStairsAction::onRunning()
 {
   auto blackboard = config().blackboard;
+  //超时退出
+  timeout_ = getInput<double>("timeout").value_or(5.0);
+  auto ros_interface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
+  auto current_time = ros_interface->now();
+  if ((current_time - start_time_).seconds() > timeout_) {
+    std::cout << RED << "DescendStairsAction timed out after " << timeout_ << " seconds" << RESET << std::endl;
+    blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
+    return BT::NodeStatus::SUCCESS;
+  }
   const auto pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const bool in_stairs = stairs_zone.contains({pose.position.x, pose.position.y, 0.0});
   if (!in_stairs) {
@@ -443,7 +361,7 @@ BT::NodeStatus DescendStairsAction::onRunning()
   }
 
   geometry_msgs::msg::Twist cmd_vel;
-  cmd_vel.linear.y = getInput<double>("linear_y").value_or(0.8);
+  cmd_vel.linear.y = getInput<double>("linear_y").value_or(2.0);
   cmd_vel.angular.z = getInput<double>("angular_z").value_or(0.0);
   blackboard->set("cmd_vel", cmd_vel);
   return BT::NodeStatus::RUNNING;
