@@ -9,6 +9,7 @@ Panels:
         - /TF1/Tree1
         - /Global Planner1
         - /ESDF1
+        - /BehaviorAreas1
       Splitter Ratio: 0.5833333134651184
     Tree Height: 515
   - Class: rviz_common/Selection
@@ -98,10 +99,11 @@ Visualization Manager:
       Tree:
         map:
           camera_init:
+            base_link:
+              gimbal:
+                {}
             body:
-              base_link:
-                gimbal:
-                  {}
+              {}
           minimap:
             {}
       Update Interval: 0
@@ -365,7 +367,7 @@ Visualization Manager:
           Enabled: true
           Name: RecoverGoal
           Namespaces:
-            {}
+            recover_goal: true
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -789,7 +791,7 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 153
+      Max Intensity: 157
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: PointCloud2
@@ -822,7 +824,7 @@ Visualization Manager:
       Value: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
-      Name: MarkerArray
+      Name: BehaviorAreas
       Namespaces:
         sentry_area_box: true
         sentry_area_label: true
@@ -878,7 +880,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 31.003250122070312
+      Distance: 29.25566864013672
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -893,10 +895,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.4297964572906494
+      Pitch: 1.4947963953018188
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 2.9785990715026855
+      Yaw: 3.278599977493286
     Saved: ~
 Window Geometry:
   Displays:
