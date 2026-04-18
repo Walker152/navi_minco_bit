@@ -217,6 +217,7 @@ void publishBackupTrajectory(const traj_opt::Trajectory & backup_traj,
 
 void publishEscapeCommand(const geometry_msgs::msg::PoseStamped & current_pose,
   const Eigen::Vector2d & escape_vel,
+  double current_yaw,
   const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
   uint32_t & trajectory_id_counter,
   const std_msgs::msg::Header & header)
@@ -246,11 +247,8 @@ void publishEscapeCommand(const geometry_msgs::msg::PoseStamped & current_pose,
   Eigen::MatrixXd yMat(3, 6);
   yMat.setZero();
 
-  const auto & q = current_pose.pose.orientation;
-  double yaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
-
   // 第 5 列 (c5) -> 常数项 (t^0): 锁定当前偏航角
-  yMat(0, 5) = yaw;
+  yMat(0, 5) = current_yaw;
 
   yaw_traj.emplace_back(0.5, yMat);
   yaw_traj.start_WT = escape_traj.start_WT;
