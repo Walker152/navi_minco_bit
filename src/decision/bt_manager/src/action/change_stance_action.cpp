@@ -21,8 +21,8 @@ BT::NodeStatus ChangeStance::tick()
 {
   auto stance_to_string = [](Sentry_BT::SentryStance stance) -> std::string {
     const auto index = static_cast<size_t>(stance);
-    if (index < stance_names.size()) {
-      return stance_names[index];
+    if (index >= 1 && index <= stance_names.size()) {
+      return stance_names[index - 1];
     }
     return "UNKNOWN(" + std::to_string(static_cast<int>(stance)) + ")";
   };
