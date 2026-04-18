@@ -384,9 +384,16 @@ BT::PortsList CheckWillThroughTunnel::providedPorts()
 BT::NodeStatus CheckWillThroughTunnel::tick()
 {
   auto blackboard = config().blackboard;
-  bool will_through_tunnel = false;
   auto lifter_current_pos = blackboard->get<LifterPos>("lifter_current_pos");
-  will_through_tunnel = blackboard->get<bool>("through_tunnel");
+  const bool through_tunnel = blackboard->get<bool>("through_tunnel");
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const bool in_transform_zone =
+    transform_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
+
+  // Once already transformed in transform zone, keep lifter at bottom until leaving this zone.
+  const bool keep_bottom_locked = in_transform_zone && (lifter_current_pos == LifterPos::BOTTOM);
+  const bool will_through_tunnel = through_tunnel || keep_bottom_locked;
+
   static bool last_state_ = !will_through_tunnel;
   if (last_state_ != will_through_tunnel) {
     std::cout << WHITE << "CheckWillThroughTunnel => "
