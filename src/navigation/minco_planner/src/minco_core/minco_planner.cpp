@@ -22,6 +22,8 @@
 #include "nav2_costmap_2d/cost_values.hpp"
 #include "nav2_util/node_utils.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "tf2/LinearMath/Matrix3x3.h"
+#include "tf2/LinearMath/Quaternion.h"
 #include "tf2/exceptions.h"
 
 // Project
@@ -546,7 +548,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
       }
     }
   } else {
-    prepareColdStart(current_pose.pose, start_state);
+    prepareColdStart(current_pose.pose, start_state, sparse_path);
     // Avoid reusing stale warm-start guesses.
     minco_optimizer_->setInitPsAndTs(vec_Vec3f{}, VecDf{});
   }
@@ -765,8 +767,42 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   if (start_state.col(1).head<2>().norm() > 1e-3) {
     fallback_yaw = std::atan2(start_state.col(1).y(), start_state.col(1).x());
   } else {
-    const auto & q = current_pose.pose.orientation;
-    fallback_yaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+    fallback_yaw = getCurrentYawFromOdom();
+  }
+
+  // Slope-aware short-horizon yaw lock based on real odometry attitude.
+  double pitch = 0.0;
+  {
+    std::lock_guard<std::mutex> lk(odom_mutex_);
+    if (has_latest_odom_) {
+      const auto & odom_q = latest_odom_.pose.pose.orientation;
+      const tf2::Quaternion q(odom_q.x, odom_q.y, odom_q.z, odom_q.w);
+      double roll = 0.0;
+      double yaw = 0.0;
+      tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+    }
+  }
+
+  constexpr double slope_threshold = 0.1;
+  if (std::abs(pitch) > slope_threshold && sparse_path.size() >= 2) {
+    const Eigen::Vector2d local_dir = (sparse_path[1] - sparse_path[0]).head<2>();
+    if (local_dir.norm() > 1e-6) {
+      goal_yaw = std::atan2(local_dir.y(), local_dir.x());
+    }
+  } else {
+    // Flat ground: keep using local lookahead endpoint / terminal tangent yaw.
+    if (!sparse_path.empty()) {
+      Eigen::Vector2d local_goal_dir = (sparse_path.back() - start_state.col(0)).head<2>();
+      if (local_goal_dir.norm() > 1e-6) {
+        goal_yaw = std::atan2(local_goal_dir.y(), local_goal_dir.x());
+      } else if (sparse_path.size() >= 2) {
+        const Eigen::Vector2d tail_dir =
+          (sparse_path.back() - sparse_path[sparse_path.size() - 2]).head<2>();
+        if (tail_dir.norm() > 1e-6) {
+          goal_yaw = std::atan2(tail_dir.y(), tail_dir.x());
+        }
+      }
+    }
   }
 
   traj_opt::Trajectory yaw_traj;
@@ -1078,19 +1114,48 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
   return PlanningState::HOT_START;
 }
 
-void MincoPlanner::prepareColdStart(
-  const geometry_msgs::msg::Pose & start_pose, Eigen::Matrix3d & start_state)
+void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
+  Eigen::Matrix3d & start_state,
+  const std::vector<Eigen::Vector3d> & sparse_path)
 {
   start_state.setZero();
   start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
-  // if (has_last_traj_) {
-  //   double now = rclcpp::Clock().now().seconds();
-  //   double t_dur = now - last_traj_.start_WT;
-  //   if (t_dur > 0 && t_dur < last_traj_.getTotalDuration()) {
-  //     start_state.col(1) = 0.5 * last_traj_.getVel(t_dur);
-  //   }
-  // }
-  start_state.col(1) = getCurrentSpeed();
+
+  Eigen::Vector3d real_speed = getCurrentSpeed();
+
+  bool has_valid_odom = false;
+  geometry_msgs::msg::Quaternion odom_q;
+  {
+    std::lock_guard<std::mutex> lk(odom_mutex_);
+    has_valid_odom = has_latest_odom_;
+    if (has_valid_odom) {
+      odom_q = latest_odom_.pose.pose.orientation;
+    }
+  }
+
+  constexpr double slope_threshold = 0.1;
+  if (has_valid_odom && sparse_path.size() >= 2) {
+    const tf2::Quaternion q(odom_q.x, odom_q.y, odom_q.z, odom_q.w);
+    double roll = 0.0;
+    double pitch = 0.0;
+    double yaw = 0.0;
+    tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+
+    if (std::abs(pitch) > slope_threshold) {
+      Eigen::Vector2d local_dir = (sparse_path[1] - sparse_path[0]).head<2>();
+      const double norm = local_dir.norm();
+      if (norm > 1e-6) {
+        local_dir /= norm;
+        constexpr double min_climb_speed = 1.5;
+        if (std::hypot(real_speed.x(), real_speed.y()) < min_climb_speed) {
+          real_speed.x() = local_dir.x() * min_climb_speed;
+          real_speed.y() = local_dir.y() * min_climb_speed;
+        }
+      }
+    }
+  }
+
+  start_state.col(1) = real_speed;
 }
 
 void MincoPlanner::prepareHotStart(
@@ -1109,6 +1174,8 @@ bool MincoPlanner::optimizeYaw(const Eigen::Matrix3d & start_state,
   const geometry_msgs::msg::Pose & current_pose,
   double goal_yaw)
 {
+  (void)current_pose;
+
   if (!yaw_opt_) {
     return false;
   }
@@ -1140,8 +1207,7 @@ bool MincoPlanner::optimizeYaw(const Eigen::Matrix3d & start_state,
     if (start_state.col(1).head<2>().norm() > 1e-3) {
       init_yaw_state(0) = std::atan2(start_state.col(1).y(), start_state.col(1).x());
     } else {
-      const auto & q = current_pose.orientation;
-      init_yaw_state(0) = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+      init_yaw_state(0) = getCurrentYawFromOdom();
     }
     init_yaw_state(1) = 0.0;
   }
@@ -1315,7 +1381,7 @@ void MincoPlanner::publishEmergencyStop(const geometry_msgs::msg::PoseStamped & 
   header_msg.stamp = rclcpp::Clock().now();
 
   Eigen::Matrix3d start_state;
-  prepareColdStart(current_pose.pose, start_state);
+  prepareColdStart(current_pose.pose, start_state, std::vector<Eigen::Vector3d>{});
   std::lock_guard<std::mutex> lock(mutex_);
   if (has_last_traj_) {
     const double t_dur = nowSeconds() - last_traj_.start_WT;
@@ -1326,8 +1392,7 @@ void MincoPlanner::publishEmergencyStop(const geometry_msgs::msg::PoseStamped & 
     }
   }
 
-  const auto & q = current_pose.pose.orientation;
-  double current_yaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+  const double current_yaw = getCurrentYawFromOdom();
   traj_opt::Trajectory backup_traj = generateBackupTraj(start_state);
   utils::publishBackupTrajectory(
     backup_traj, opt_path_pub_, opt_trajectory_id_, header_msg, 20, 0.1, current_yaw);
@@ -1444,6 +1509,22 @@ Eigen::Vector3d MincoPlanner::getCurrentSpeed() const
   return Eigen::Vector3d::Zero();
 }
 
+double MincoPlanner::getCurrentYawFromOdom() const
+{
+  std::lock_guard<std::mutex> lk(odom_mutex_);
+  if (!has_latest_odom_) {
+    return 0.0;
+  }
+
+  const auto & q = latest_odom_.pose.pose.orientation;
+  const tf2::Quaternion tf_q(q.x, q.y, q.z, q.w);
+  double roll = 0.0;
+  double pitch = 0.0;
+  double yaw = 0.0;
+  tf2::Matrix3x3(tf_q).getRPY(roll, pitch, yaw);
+  return std::isfinite(yaw) ? yaw : 0.0;
+}
+
 bool MincoPlanner::isTrajectoryTimeExpired(double now_s) const
 {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -1475,7 +1556,9 @@ void MincoPlanner::publishEscapeCommand(
   std_msgs::msg::Header header_msg;
   header_msg.frame_id = global_frame_;
   header_msg.stamp = rclcpp::Clock().now();
-  utils::publishEscapeCommand(current_pose, escape_vel, opt_path_pub_, opt_trajectory_id_, header_msg);
+  const double current_yaw = getCurrentYawFromOdom();
+  utils::publishEscapeCommand(
+    current_pose, escape_vel, current_yaw, opt_path_pub_, opt_trajectory_id_, header_msg);
 }
 
 void MincoPlanner::clearRecoveryDebugVisualization()

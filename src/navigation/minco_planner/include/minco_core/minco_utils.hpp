@@ -73,6 +73,7 @@ void publishBackupTrajectory(const traj_opt::Trajectory & backup_traj,
 // --- Escape Command Publishing ---
 void publishEscapeCommand(const geometry_msgs::msg::PoseStamped & current_pose,
   const Eigen::Vector2d & escape_vel,
+  double current_yaw,
   const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
   uint32_t & trajectory_id_counter,
   const std_msgs::msg::Header & header);
