@@ -49,7 +49,6 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<SetCoordinate>("SetCoordinate");
   factory_.registerNodeType<ChangeMapAction>("ChangeMapAction");
   factory_.registerNodeType<Wait>("Wait");
-  factory_.registerNodeType<DirectVelocityControl>("DirectVelocityControl");
   factory_.registerNodeType<SetStairsPosition>("SetStairsPosition");
   factory_.registerNodeType<DescendStairsAction>("DescendStairsAction");
   factory_.registerNodeType<AccumulateAmmoPurchase>("AccumulateAmmoPurchase");
