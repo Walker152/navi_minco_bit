@@ -277,6 +277,8 @@ void GicpRosInterface::relocalizeServiceCallback(
   mode_ = Mode::MULTI_GUESS;
   state_ = State::UNINITIALIZED;
   converged_count_ = 0;
+  has_localized_once_ = false;
+  has_last_successful_pose_ = false;
   current_accumulated_frames_ = 0;
   if (accumulated_cloud_)
     accumulated_cloud_->clear();
@@ -443,7 +445,7 @@ void GicpRosInterface::visualizationTimerCallback()
 void GicpRosInterface::runFSM()
 {
   // 检查当前状态是否正在进行重定位
-  if (state_ == State::INITIALIZING || state_ == State::CONVERGING) {
+  if ((state_ == State::INITIALIZING || state_ == State::CONVERGING) && !has_localized_once_) {
     auto now = std::chrono::steady_clock::now();  // 获取当前时间
     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - reloc_start_time_)
                      .count();  // 计算时间差（秒）
@@ -563,6 +565,33 @@ void GicpRosInterface::runFSM()
     double time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
 
     if (result.converged && std::isfinite(result.score) && result.score < score_threshold_) {
+      if (has_localized_once_ && has_last_successful_pose_) {
+        const Eigen::Matrix4f prev = last_successful_pose_;
+        const Eigen::Matrix4f candidate = result.final_transformation;
+
+        const double dx = static_cast<double>(candidate(0, 3) - prev(0, 3));
+        const double dy = static_cast<double>(candidate(1, 3) - prev(1, 3));
+        const double trans_jump = std::hypot(dx, dy);
+
+        const double prev_yaw =
+          std::atan2(static_cast<double>(prev(1, 0)), static_cast<double>(prev(0, 0)));
+        const double cand_yaw =
+          std::atan2(static_cast<double>(candidate(1, 0)), static_cast<double>(candidate(0, 0)));
+        const double yaw_jump =
+          std::atan2(std::sin(cand_yaw - prev_yaw), std::cos(cand_yaw - prev_yaw));
+
+        if (trans_jump > max_translation_jump_ || std::abs(yaw_jump) > max_yaw_jump_) {
+          std::cout << color_text::YELLOW
+                    << "[GICP] Reject in CONVERGING due to jump from last successful pose: dxy="
+                    << trans_jump << "m (limit=" << max_translation_jump_ << "), dyaw=" << yaw_jump
+                    << "rad (limit=" << max_yaw_jump_ << ")" << color_text::RESET << std::endl;
+          converged_count_ = 0;
+          state_ = State::UNINITIALIZED;
+          gicp_initialized_ = false;
+          break;
+        }
+      }
+
       gicp_utils::printEvaluation(initial_guess, result.final_transformation, time_ms);
 
       std::cout << color_text::GREEN << "[GICP] Converged: score=" << result.score
@@ -575,6 +604,9 @@ void GicpRosInterface::runFSM()
         std::cout << color_text::GREEN << "[GICP] Localization confirmed after " << converged_count_
                   << " consecutive convergences" << color_text::RESET << std::endl;
         state_ = State::LOCALIZED;
+        has_localized_once_ = true;
+        has_last_successful_pose_ = true;
+        last_successful_pose_ = map_to_camera_init_;
 
         // Publish TF immediately, then keep periodic publish by tf timer
         gicp_utils::publishCurrentTransform(tf_broadcaster_, map_frame_, map_to_camera_init_, this->now());
@@ -613,7 +645,8 @@ void GicpRosInterface::runFSM()
     auto result = gicp_filter_->align(current_source_cloud_, initial_guess);
 
     if (result.converged && std::isfinite(result.score) && result.score < score_threshold_) {
-      const Eigen::Matrix4f prev = map_to_camera_init_;
+      const Eigen::Matrix4f prev =
+        has_last_successful_pose_ ? last_successful_pose_ : map_to_camera_init_;
       const Eigen::Matrix4f candidate = result.final_transformation;
 
       const double dx = static_cast<double>(candidate(0, 3) - prev(0, 3));
@@ -627,6 +660,8 @@ void GicpRosInterface::runFSM()
 
       if (trans_jump <= max_translation_jump_ && std::abs(yaw_jump) <= max_yaw_jump_) {
         map_to_camera_init_ = candidate;
+        has_last_successful_pose_ = true;
+        last_successful_pose_ = candidate;
         tracking_lost_count_ = 0;
       } else {
         std::cout << color_text::YELLOW << "[GICP] Reject large jump in LOCALIZED: dxy=" << trans_jump
