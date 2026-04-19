@@ -109,6 +109,8 @@ private:
   int max_tracking_lost_count_;            // 最大允许跟丢次数
   double max_translation_jump_ = 1.0;      // 连续更新允许的最大平移跳变(m)
   double max_yaw_jump_ = 0.35;             // 连续更新允许的最大航向跳变(rad)
+  bool has_last_successful_pose_ = false;  // 是否已有成功发布并确认的位姿
+  Eigen::Matrix4f last_successful_pose_ = Eigen::Matrix4f::Identity();
 
   Eigen::Matrix4f latest_odom_pose_ = Eigen::Matrix4f::Identity();
   std::mutex odom_mtx_;
@@ -126,6 +128,7 @@ private:
   double score_threshold_ = 20;       // small_gicp score阈值（越小越好）
   int converged_count_threshold_;     // 收敛次数阈值
   int converged_count_ = 0;           // 当前收敛次数
+  bool has_localized_once_ = false;   // 是否曾经成功进入LOCALIZED
   std::vector<double> initial_pose_;  // 初始位姿猜测 [x, y, z, roll, pitch, yaw]
 
   std::chrono::duration<double> fsm_period_{1.0};

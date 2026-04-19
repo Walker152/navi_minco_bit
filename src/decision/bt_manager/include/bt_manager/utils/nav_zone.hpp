@@ -152,9 +152,9 @@ inline std::vector<Point2D> nav_points = {
   // for test
   {6.7, 3.9, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
-  {7.0, 6.7, 0.0},  // OUTPOST
-  {7.0, 6.7, 0.0},  // OWN_FORT
-  {7.0, 6.7, 0.0}   // ENEMY_FORT
+  {11.0, 6.7, 0.0},  // OUTPOST
+  {11.0, 6.7, 0.0},  // OWN_FORT
+  {11.0, 6.7, 0.0}   // ENEMY_FORT
   // for rmul
   // {1.2, 7.2, 0.0},  //HOME
   // {6.4, 4.4, 0.0},  // BONUS
@@ -172,7 +172,8 @@ inline std::vector<PatrolPoint> patrol_points_normal = {
   // for test
   {{10.2, 6.8, 0.0}, 5000},
   {{12.6, 2.0, 0.0}, 5000},
-  {{10.1, 2.6, 0.0}, 5000}};
+  {{10.1, 2.6, 0.0}, 5000}
+  };
 
 inline std::vector<PatrolPoint> patrol_points_attack = {
   // {{16.0, 12.0, 0.0}, 5000}, {{17.3, 7.9, 0.0}, 5000}, {{15.3, 3.8, 0.0}, 6000}

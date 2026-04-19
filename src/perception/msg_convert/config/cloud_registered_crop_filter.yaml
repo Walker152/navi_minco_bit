@@ -12,5 +12,5 @@ cloud_registered_crop_filter:
       z: 0.0
     box_size:
       x: 2.0
-      y: 1.0
+      y: 2.0
       z: 0.8
