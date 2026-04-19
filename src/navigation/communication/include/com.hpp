@@ -63,9 +63,9 @@ public:
   static void init();
 
   // 发送底盘目标数据包到STM32
-  template <typename T> static int send2stm32(const T & data_packet)
+  template <typename T> static int send2stm32(const T & data_packet, const PacketTypeEnum packet_type)
   {
-    PacketHeader header(ENUM_PACKET_NAV_DATA, sizeof(PacketHeader) + sizeof(T));
+    PacketHeader header(packet_type, sizeof(PacketHeader) + sizeof(T));
     header.packet_type = static_cast<uint8_t>(PacketTraits<T>::packet_type);
     header.start1 = 0xa5;
     header.start2 = 0x5a;
@@ -116,9 +116,14 @@ template <> struct PacketTraits<ChassisTarget>
   static constexpr uint8_t packet_type = static_cast<uint8_t>(ENUM_PACKET_NAV_DATA);
 };
 
-template <> struct PacketTraits<GlobalPath>
+template <> struct PacketTraits<GlobalPathX>
 {
-  static constexpr uint8_t packet_type = static_cast<uint8_t>(ENUM_PACKET_GLOBAL_PATH);
+  static constexpr uint8_t packet_type = static_cast<uint8_t>(ENUM_PACKET_GLOBAL_PATH_X);
+};
+
+template <> struct PacketTraits<GlobalPathY>
+{
+  static constexpr uint8_t packet_type = static_cast<uint8_t>(ENUM_PACKET_GLOBAL_PATH_Y);
 };
 
 }  // namespace ns_com
