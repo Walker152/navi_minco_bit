@@ -12,7 +12,6 @@
 #include <ros_interfaces/msg/detail/behavior__struct.hpp>
 #include <std_msgs/msg/detail/bool__struct.hpp>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include <geometry_msgs/msg/twist.hpp>
@@ -249,6 +248,8 @@ private:
 
     com_timer_ = this->create_wall_timer(
       std::chrono::milliseconds(3), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
+    path_timer_ = this->create_wall_timer(
+      std::chrono::milliseconds(1000), std::bind(&ComInterfaceRos::sendGlobalPathLoop, this), comm_cb_group_);
     RCLCPP_INFO(this->get_logger(), "ComInterfaceRos initialized");
   }
 
@@ -284,7 +285,7 @@ private:
       // if (use_gyro_mode) {
       //   vw_rpm = gyro_vel;
       // }
-      if(transform_state >= 0.9f) {
+      if(transform_state >= 0.85f) {
         vx_mps *= 1.2;
         vy_mps *= 1.2;
       }
@@ -323,7 +324,7 @@ private:
       outpost_msg,
       desire_stance,
       desire_lifter_pos);
-    auto flag = Communication::send2stm32<ChassisTarget>(target);
+    auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
     if (flag == 0) {
       static auto last_send_time = this->now();
       auto now_time = this->now();
@@ -342,48 +343,54 @@ private:
       }
     }
 
+  }
+
+  void sendGlobalPathLoop()
+  {
     GlobalPath global_path;
     {
       std::lock_guard<std::mutex> lk(path_mutex_);
       global_path = pending_global_path_;
     }
 
-    auto path_flag = Communication::send2stm32<GlobalPath>(global_path);
-    if (path_flag == 0) {
-      LOG_DEBUG_BLOCK(std::string(CYAN) + "[COM][GlobalPath] ",
-        NV(global_path.start_x),
-        NV(global_path.start_y),
-        NV(static_cast<int>(global_path.delta_x[1])),
-        NV(static_cast<int>(global_path.delta_y[1])),
-        NV(static_cast<int>(global_path.delta_x[48])),
-        NV(static_cast<int>(global_path.delta_y[48])));
+    GlobalPathX global_path_x{};
+    GlobalPathY global_path_y{};
+    global_path_x.start_x = global_path.start_x;
+    global_path_y.start_y = global_path.start_y;
+    for (size_t i = 0; i < 49; ++i) {
+      global_path_x.delta_x[i] = global_path.delta_x[i];
+      global_path_y.delta_y[i] = global_path.delta_y[i];
     }
+
+    (void)Communication::send2stm32<GlobalPathX>(global_path_x, ENUM_PACKET_GLOBAL_PATH_X);
+    (void)Communication::send2stm32<GlobalPathY>(global_path_y, ENUM_PACKET_GLOBAL_PATH_Y);
   }
 
   static void mapToMinimapPoint(
-    const tf2::Transform & tf_map_to_minimap, const double map_x, const double map_y, int32_t & mini_x, int32_t & mini_y)
+    const tf2::Transform & tf_map_to_minimap, const double map_x, const double map_y, double & mini_x, double & mini_y)
   {
     const tf2::Vector3 p_map(map_x, map_y, 0.0);
     const tf2::Vector3 p_minimap = tf_map_to_minimap * p_map;
-    mini_x = static_cast<int32_t>(std::lround(p_minimap.x()));
-    mini_y = static_cast<int32_t>(std::lround(p_minimap.y()));
+    mini_x = p_minimap.x();
+    mini_y = p_minimap.y();
   }
 
   GlobalPath buildGlobalPathPacket(const nav_msgs::msg::Path & path)
   {
     GlobalPath out{};
     constexpr size_t kSampleNum = 49;
+    constexpr double kCoordScaleDm = 10.0;  // convert meter-based coords to decimeter for protocol
 
     std::array<double, kSampleNum> sample_x{};
     std::array<double, kSampleNum> sample_y{};
 
     const size_t n = path.poses.size();
-    if (n == 1) {
-      const double x = path.poses.front().pose.position.x;
-      const double y = path.poses.front().pose.position.y;
-      sample_x.fill(x);
-      sample_y.fill(y);
-    } else {
+    size_t valid_num = 0;
+    if (n == 0) {
+      valid_num = 0;
+    } else if (n > kSampleNum) {
+      valid_num = kSampleNum;
+      // Uniformly sample along full polyline arc length.
       std::vector<double> s(n, 0.0);
       for (size_t i = 1; i < n; ++i) {
         const double x0 = path.poses[i - 1].pose.position.x;
@@ -428,27 +435,55 @@ private:
           sample_y[k] = y0 + (y1 - y0) * ratio;
         }
       }
+    } else {
+      valid_num = n;
+      // Copy all points in order; trailing packet entries remain zero.
+      for (size_t k = 0; k < n; ++k) {
+        sample_x[k] = path.poses[k].pose.position.x;
+        sample_y[k] = path.poses[k].pose.position.y;
+      }
+    }
+
+    if (valid_num == 0) {
+      return out;
     }
 
     const auto tf_stamped = tf_buffer_->lookupTransform(minimap_frame_, map_frame_, tf2::TimePointZero);
     tf2::Transform tf_map_to_minimap;
     tf2::fromMsg(tf_stamped.transform, tf_map_to_minimap);
 
-    std::array<int32_t, kSampleNum> mini_x{};
-    std::array<int32_t, kSampleNum> mini_y{};
-    for (size_t i = 0; i < kSampleNum; ++i) {
-      mapToMinimapPoint(tf_map_to_minimap, sample_x[i], sample_y[i], mini_x[i], mini_y[i]);
+    const auto to_uint16 = [](const long v) -> uint16_t {
+      return static_cast<uint16_t>(std::clamp(v, 0L, 65535L));
+    };
+    const auto to_int8 = [](const long v) -> int8_t {
+      return static_cast<int8_t>(std::clamp(v, -128L, 127L));
+    };
+
+    // Quantize absolute minimap coordinates first, then build deltas from quantized points.
+    // This avoids cumulative drift from independently rounded segment deltas.
+    std::array<long, kSampleNum> qx_dm{};
+    std::array<long, kSampleNum> qy_dm{};
+    for (size_t i = 0; i < valid_num; ++i) {
+      double mini_x = 0.0;
+      double mini_y = 0.0;
+      mapToMinimapPoint(tf_map_to_minimap, sample_x[i], sample_y[i], mini_x, mini_y);
+      qx_dm[i] = static_cast<long>(std::lround(mini_x * kCoordScaleDm));
+      qy_dm[i] = static_cast<long>(std::lround(mini_y * kCoordScaleDm));
     }
 
-    out.start_x = static_cast<uint16_t>(mini_x[0]);
-    out.start_y = static_cast<uint16_t>(mini_y[0]);
+    out.start_x = to_uint16(qx_dm[0]);
+    out.start_y = to_uint16(qy_dm[0]);
     out.delta_x[0] = 0;
     out.delta_y[0] = 0;
-    for (size_t i = 1; i < kSampleNum; ++i) {
-      const long dx = static_cast<long>(mini_x[i] - mini_x[i - 1]);
-      const long dy = static_cast<long>(mini_y[i] - mini_y[i - 1]);
-      out.delta_x[i] = static_cast<int8_t>(dx);
-      out.delta_y[i] = static_cast<int8_t>(dy);
+    for (size_t i = 1; i < valid_num; ++i) {
+      const long dx = qx_dm[i] - qx_dm[i - 1];
+      const long dy = qy_dm[i] - qy_dm[i - 1];
+      out.delta_x[i] = to_int8(dx);
+      out.delta_y[i] = to_int8(dy);
+    }
+    for (size_t i = valid_num; i < kSampleNum; ++i) {
+      out.delta_x[i] = 0;
+      out.delta_y[i] = 0;
     }
     return out;
   }
@@ -490,6 +525,7 @@ private:
 
   // Communication Timer
   rclcpp::TimerBase::SharedPtr com_timer_;
+  rclcpp::TimerBase::SharedPtr path_timer_;
 
   // Callback groups (enable concurrency with MultiThreadedExecutor)
   rclcpp::CallbackGroup::SharedPtr comm_cb_group_;
