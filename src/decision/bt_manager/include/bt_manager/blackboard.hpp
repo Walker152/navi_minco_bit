@@ -100,6 +100,7 @@ public:
     blackboard_->set("can_free_resurrect", false);     // 是否能免费复活
     blackboard_->set("can_instant_resurrect", false);  // 是否能立即复活
     blackboard_->set("instant_resurrect_cost", 0);     // 立即复活的金币成本
+    blackboard_->set<SentryStance>("current_stance", SentryStance::MOVE);  // 当前姿态
   }
 
   template <typename T> void set(const std::string & key, const T & value) { blackboard_->set(key, value); }

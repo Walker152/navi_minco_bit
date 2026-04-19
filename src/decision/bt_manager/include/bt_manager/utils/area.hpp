@@ -14,7 +14,7 @@ namespace Sentry_BT {
 // inline Area_Square enemy_defense_zone{Point2D{28.9, 12.6}, Point2D{19.4, 4.7}};
 // inline Area_Square enemy_outpost_watch_zone{Point2D{16.7, 12.5}, Point2D{14.0, 9.6}};
 // for test
-inline Area_Square transform_zone{Point2D{12.7, 7.3}, Point2D{10.0, 3.3}};  // 假设这是隧道区域的坐标范围
+inline Area_Square transform_zone{Point2D{12.7, 7.3}, Point2D{9.5, 2.9}};  // 假设这是隧道区域的坐标范围
 inline Area_Square tunnel_zone{Point2D{12.5, 6.3}, Point2D{11.5, 4.8}};  // 假设这是隧道区域的坐标范围
 inline Area_Square stairs_zone{Point2D{11.6, 7.3}, Point2D{10.5, 6.0}};  // 假设这是楼梯区域的坐标范围
 inline Area_Square stairs_lower_safe_zone{Point2D{11.6, 6.0}, Point2D{10.5, 4.4}};
