@@ -13,6 +13,37 @@
 
 namespace icp_relocalization {
 
+namespace {
+
+SmallGicpPointCloud::Ptr buildSourceSmallGicpCloud(
+  const PointCloud::Ptr & source_cloud, const double voxel_leaf_size)
+{
+  if (!source_cloud || source_cloud->empty()) {
+    return std::make_shared<SmallGicpPointCloud>();
+  }
+
+  if (voxel_leaf_size > 0.0) {
+    return small_gicp::voxelgrid_sampling_omp<PointCloud, SmallGicpPointCloud>(
+      *source_cloud, voxel_leaf_size);
+  }
+
+  SmallGicpPointCloud::Ptr source_small(new SmallGicpPointCloud());
+  source_small->points.reserve(source_cloud->points.size());
+  for (const auto & pt : source_cloud->points) {
+    pcl::PointCovariance q;
+    q.x = pt.x;
+    q.y = pt.y;
+    q.z = pt.z;
+    source_small->points.push_back(q);
+  }
+  source_small->width = static_cast<uint32_t>(source_small->points.size());
+  source_small->height = 1;
+  source_small->is_dense = source_cloud->is_dense;
+  return source_small;
+}
+
+}  // namespace
+
 PointCloud::Ptr GicpFilter::applyHeightFilter(const PointCloud::Ptr & cloud) const
 {
   if (!options_.height_filter_enabled || !cloud || cloud->empty()) {
@@ -170,8 +201,7 @@ GicpFilter::Result GicpFilter::initialAlign(const PointCloud::Ptr & source_cloud
   constexpr int kCovThreads = 8;
 
   SmallGicpPointCloud::Ptr source_small =
-    small_gicp::voxelgrid_sampling_omp<PointCloud, SmallGicpPointCloud>(
-      *source_cropped, options_.source_voxel_leaf_size);
+    buildSourceSmallGicpCloud(source_cropped, options_.source_voxel_leaf_size);
   if (!source_small || source_small->empty()) {
     Result result;
     result.converged = false;
@@ -273,8 +303,7 @@ GicpFilter::Result GicpFilter::align(
   }
 
   SmallGicpPointCloud::Ptr source_small =
-    small_gicp::voxelgrid_sampling_omp<PointCloud, SmallGicpPointCloud>(
-      *source_cropped, options_.source_voxel_leaf_size);
+    buildSourceSmallGicpCloud(source_cropped, options_.source_voxel_leaf_size);
   if (!source_small || source_small->empty()) {
     Result result;
     result.converged = false;
