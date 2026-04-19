@@ -27,7 +27,8 @@ enum PacketTypeEnum
   ENUM_PACKET_SENTRY_SERVER_DATA,  // 哨兵姿态等信息
   ENUM_PACKET_SENTRY_SELF_DATA,    // 机器人自身状态等信息
   ENUM_PACKET_RADAR,                // 雷达发送的消息
-  ENUM_PACKET_GLOBAL_PATH  // 全局路径增量点
+  ENUM_PACKET_GLOBAL_PATH_X,  // 全局路径X分包
+  ENUM_PACKET_GLOBAL_PATH_Y   // 全局路径Y分包
 };
 
 // from to 类型
@@ -79,9 +80,23 @@ struct __attribute__((packed, aligned(1))) _GlobalPath
   uint16_t start_x{};      // 起点x（minimap坐标系）
   uint16_t start_y{};      // 起点y（minimap坐标系）
   int8_t delta_x[49]{};    // x方向相对上一点增量
-  int8_t delta_y[49]{};    // y方向相对上一点增量
+  int8_t delta_y[49]{};    //  y方向相对上一点增量
 };
 using GlobalPath = struct _GlobalPath;
+
+struct __attribute__((packed, aligned(1))) _GlobalPathX
+{
+  uint16_t start_x{};    // 起点x（minimap坐标系）
+  int8_t delta_x[49]{};  // x方向相对上一点增量
+};
+using GlobalPathX = struct _GlobalPathX;
+
+struct __attribute__((packed, aligned(1))) _GlobalPathY
+{
+  uint16_t start_y{};    // 起点y（minimap坐标系）
+  int8_t delta_y[49]{};  // y方向相对上一点增量
+};
+using GlobalPathY = struct _GlobalPathY;
 
 // 2.
 struct _ChassisTarget
