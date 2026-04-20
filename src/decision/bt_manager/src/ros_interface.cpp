@@ -131,7 +131,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     auto gyro_vel = blackboard_->get<float>("gyro_vel");
     auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
     auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
-    geometry_msgs::msg::Pose outpost_in_body_frame = this->transformMapPose(createPose(nav_points[2], 0.0), "body");
+    geometry_msgs::msg::Pose outpost_in_body_frame = this->transformMapPose(createPose(nav_points[2].x, nav_points[2].y, 0.0, 0.0), "body");
     float outpost_theta_rad = std::atan2(outpost_in_body_frame.position.y, outpost_in_body_frame.position.x);
     const auto current_pose = getCurrentPose();
 
@@ -537,12 +537,12 @@ bool ros_interface::isTroughTunnel(
 
   return through_tunnel_stable;
 }
-geometry_msgs::msg::Pose ros_interface::createPose(Point2D point, float yaw_deg)
+geometry_msgs::msg::Pose ros_interface::createPose(float x, float y, float z, float yaw_deg)
 {
   geometry_msgs::msg::Pose pose;
-  pose.position.x = point.x;
-  pose.position.y = point.y;
-  pose.position.z = 0.0;
+  pose.position.x = x;
+  pose.position.y = y;
+  pose.position.z = z;
 
   // 将yaw角转换为四元数
   float yaw_rad = yaw_deg * M_PI / 180.0F;
