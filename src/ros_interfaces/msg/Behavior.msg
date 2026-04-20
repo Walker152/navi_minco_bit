@@ -17,3 +17,5 @@ uint8 LIFTER_MIDDLE=2
 
 bool is_reach_outpost_enemy
 bool is_reach_outpost_own
+float32 scan_yaw_min
+float32 scan_yaw_max
