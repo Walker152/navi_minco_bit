@@ -24,6 +24,11 @@ public:
     geometry_msgs::msg::Pose & output_pose,
     const std::string & child_frame);
 
+  // 坐标转换函数（从map系转换到body系）
+  bool transformMapPose(const geometry_msgs::msg::Pose & input_pose,
+    geometry_msgs::msg::Pose & output_pose,
+    const std::string & target_frame);
+
 private:
   void updateGimbalYaw(const std_msgs::msg::Float32::ConstSharedPtr & msg);
 
