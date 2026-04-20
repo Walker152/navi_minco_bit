@@ -129,6 +129,10 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     auto control_mode = blackboard_->get<Sentry_BT::ControlMode>("control_mode");
     auto use_gyro_mode = blackboard_->get<bool>("use_gyro_mode");
     auto gyro_vel = blackboard_->get<float>("gyro_vel");
+    auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
+    auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
+    geometry_msgs::msg::Pose outpost_in_body_frame = this->transformMapPose(createPose(nav_points[2], 0.0), "body");
+    float outpost_theta_rad = std::atan2(outpost_in_body_frame.position.y, outpost_in_body_frame.position.x);
     const auto current_pose = getCurrentPose();
 
     const bool is_reach_outpost_enemy =
@@ -148,6 +152,8 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.is_reach_outpost_enemy = is_reach_outpost_enemy;
     behavior_msg.is_reach_outpost_own = is_reach_outpost_own;
     behavior_msg.desire_lifter_pos = static_cast<uint8_t>(desired_lifter_pos);
+    behavior_msg.scan_yaw_min = yaw_min_deg + outpost_theta_rad * 180.0f / static_cast<float>(M_PI);
+    behavior_msg.scan_yaw_max = yaw_max_deg + outpost_theta_rad * 180.0f / static_cast<float>(M_PI);
     behavior_pub->publish(behavior_msg);
 
     const auto cmd_vel = blackboard_->get<geometry_msgs::msg::Twist>("cmd_vel");
@@ -180,7 +186,7 @@ void ros_interface::publishAreaMarkers()
     visualization_msgs::msg::Marker box_marker;
     box_marker.header.frame_id = "map";
     box_marker.header.stamp = now;
-    box_marker.ns = "sentry_area_box";
+    box_marker.ns = "sentry_area_box/" + cfg.name;
     box_marker.id = marker_id++;
     box_marker.type = visualization_msgs::msg::Marker::CUBE;
     box_marker.action = visualization_msgs::msg::Marker::ADD;
@@ -200,7 +206,7 @@ void ros_interface::publishAreaMarkers()
     visualization_msgs::msg::Marker text_marker;
     text_marker.header.frame_id = "map";
     text_marker.header.stamp = now;
-    text_marker.ns = "sentry_area_label";
+    text_marker.ns = "sentry_area_label/" + cfg.name;
     text_marker.id = marker_id++;
     text_marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
     text_marker.action = visualization_msgs::msg::Marker::ADD;
@@ -230,6 +236,17 @@ geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
     return transformed_pose;
   }
   return current_pose_;
+}
+
+geometry_msgs::msg::Pose ros_interface::transformMapPose(const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame)
+{
+  auto transform_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  geometry_msgs::msg::Pose output_pose;
+  if (transform_utils &&
+      transform_utils->transformMapPose(input_pose, output_pose, target_frame)) {
+    return output_pose;
+  }
+  return input_pose;
 }
 
 // 新增：全局信息回调函数
@@ -519,5 +536,21 @@ bool ros_interface::isTroughTunnel(
   //           << std::endl;
 
   return through_tunnel_stable;
+}
+geometry_msgs::msg::Pose ros_interface::createPose(Point2D point, float yaw_deg)
+{
+  geometry_msgs::msg::Pose pose;
+  pose.position.x = point.x;
+  pose.position.y = point.y;
+  pose.position.z = 0.0;
+
+  // 将yaw角转换为四元数
+  float yaw_rad = yaw_deg * M_PI / 180.0F;
+  pose.orientation.x = 0.0F;
+  pose.orientation.y = 0.0F;
+  pose.orientation.z = std::sin(yaw_rad / 2.0F);
+  pose.orientation.w = std::cos(yaw_rad / 2.0F);
+
+  return pose;
 }
 }  // namespace Sentry_BT
