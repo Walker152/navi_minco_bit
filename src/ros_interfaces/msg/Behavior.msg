@@ -14,3 +14,6 @@ uint8 desire_lifter_pos
 uint8 LIFTER_TOP=0
 uint8 LIFTER_BOTTOM=1
 uint8 LIFTER_MIDDLE=2
+
+float32 scan_yaw_min
+float32 scan_yaw_max
