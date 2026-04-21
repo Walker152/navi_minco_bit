@@ -14,11 +14,26 @@ ChangeStance::ChangeStance(const std::string & name, const BT::NodeConfiguration
 
 BT::PortsList ChangeStance::providedPorts()
 {
-  return {};
+  return {BT::InputPort<std::string>("stance", "Target stance: ATTACK/DEFEND/MOVE"),
+    BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
+    BT::InputPort<float>("gyro_vel", "Gyro speed in rpm")};
 }
 
 BT::NodeStatus ChangeStance::tick()
 {
+  auto parse_stance = [](const std::string & value) -> Sentry_BT::SentryStance {
+    if (value == "ATTACK" || value == "attack" || value == "1") {
+      return Sentry_BT::SentryStance::ATTACK;
+    }
+    if (value == "DEFEND" || value == "defend" || value == "2") {
+      return Sentry_BT::SentryStance::DEFEND;
+    }
+    if (value == "MOVE" || value == "move" || value == "3") {
+      return Sentry_BT::SentryStance::MOVE;
+    }
+    return Sentry_BT::SentryStance::DEFEND;
+  };
+
   auto stance_to_string = [](Sentry_BT::SentryStance stance) -> std::string {
     const auto index = static_cast<size_t>(stance);
     if (index >= 1 && index <= stance_names.size()) {
@@ -31,6 +46,17 @@ BT::NodeStatus ChangeStance::tick()
   Sentry_BT::SentryStance desired_stance;
   Sentry_BT::SentryStance current_stance;
   try {
+    const std::string stance_str = getInput<std::string>("stance").value_or("DEFEND");
+    blackboard->set<Sentry_BT::SentryStance>("desired_stance", parse_stance(stance_str));
+
+    const bool use_gyro =
+      getInput<bool>("use_gyro").value_or(blackboard->get<bool>("use_gyro_mode"));
+    blackboard->set("use_gyro_mode", use_gyro);
+
+    const float gyro_vel =
+      getInput<float>("gyro_vel").value_or(blackboard->get<float>("gyro_vel"));
+    blackboard->set("gyro_vel", gyro_vel);
+
     desired_stance = blackboard->get<Sentry_BT::SentryStance>("desired_stance");
     current_stance = blackboard->get<Sentry_BT::SentryStance>("current_stance");
   } catch (...) {

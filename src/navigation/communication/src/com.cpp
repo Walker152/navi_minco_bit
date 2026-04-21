@@ -142,15 +142,7 @@ void Communication::stm32_read_cb(ByteArray arr)
       }
       // std::cout << static_cast<int>(header->packet_type) << std::endl;
       switch (header->packet_type) {
-        // 校验通过
-      case ENUM_PACKET_NAV_DATA: {
-        const NavRes * nav_data = (const NavRes *)(buf + sizeof(PacketHeader));
-        auto ros_ptr = ros_if_;
-        if (ros_ptr)
-          ros_ptr->publishNav(*nav_data);
-        break;
-      }
-
+        // 校验通过，根据报文类型解析数据并发布ROS消息
       case ENUM_PACKET_ALLY_STATUS: {
         const TeamInfo * team_data = (const TeamInfo *)(buf + sizeof(PacketHeader));
         if (allow_debug) {
