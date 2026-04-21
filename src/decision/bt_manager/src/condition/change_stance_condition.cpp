@@ -2,161 +2,212 @@
 #include "bt_manager/utils/area.hpp"
 
 #include <chrono>
+#include <cmath>
+
 using namespace color_text;
+
 namespace Sentry_BT {
-// ------------------- CheckAttackStanceCondition -------------------
-CheckAttackStanceCondition::CheckAttackStanceCondition(
-  const std::string & name, const BT::NodeConfiguration & config)
-: BT::ConditionNode(name, config)
+namespace {
+inline bool compareByMode(const float lhs, const float rhs, const std::string & mode)
 {
-}
-
-BT::PortsList CheckAttackStanceCondition::providedPorts()
-{
-  return {BT::InputPort<int>("high_heat_threshold", 200, "Heat threshold to enter ATTACK"),
-    BT::InputPort<int>("low_heat_threshold", 80, "Heat threshold to release ATTACK hysteresis"),
-    BT::InputPort<float>("attack_gyro_vel", 80.0f, "Gyro rpm when ATTACK is active")};
-}
-
-BT::NodeStatus CheckAttackStanceCondition::tick()
-{
-  auto blackboard = config().blackboard;
-  try {
-    const int high_heat_threshold = getInput<int>("high_heat_threshold").value_or(200);
-    const int low_heat_threshold = getInput<int>("low_heat_threshold").value_or(80);
-    const float attack_gyro_vel = getInput<float>("attack_gyro_vel").value_or(80.0f);
-
-    const int current_heat = blackboard->get<int>("current_heat");
-    const bool outpost_msg = blackboard->get<bool>("outpost_msg");
-
-    if (!heat_attack_latched_ && current_heat > high_heat_threshold) {
-      heat_attack_latched_ = true;
-    }
-    if (heat_attack_latched_ && current_heat < low_heat_threshold) {
-      heat_attack_latched_ = false;
-    }
-
-    blackboard->set("heat_attack_latched", heat_attack_latched_);
-
-    const bool condition_met = heat_attack_latched_ || outpost_msg;
-    static bool last_condition_met = false;
-    if (condition_met != last_condition_met) {
-      std::cout << (condition_met ? GREEN : YELLOW) << "CheckAttackStanceCondition => "
-                << (condition_met ? "ATTACK enabled" : "ATTACK disabled") << RESET << std::endl;
-      last_condition_met = condition_met;
-    }
-
-    if (condition_met) {
-      blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::ATTACK);
-      blackboard->set("use_gyro_mode", true);
-      blackboard->set("gyro_vel", attack_gyro_vel);
-      return BT::NodeStatus::SUCCESS;
-    }
-  } catch (...) {
-    return BT::NodeStatus::FAILURE;
+  if (mode == "greater") {
+    return lhs > rhs;
   }
-  return BT::NodeStatus::FAILURE;
+  if (mode == "less") {
+    return lhs < rhs;
+  }
+  return false;
+}
+}  // namespace
+
+// ------------------- CheckHeat -------------------
+CheckHeat::CheckHeat(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
 }
 
-// ------------------- CheckMoveStanceCondition -------------------
-CheckMoveStanceCondition::CheckMoveStanceCondition(
+BT::PortsList CheckHeat::providedPorts()
+{
+  return {BT::InputPort<float>("threshold", 200.0f, "Heat threshold"),
+    BT::InputPort<std::string>("mode", "greater", "greater/less")};
+}
+
+BT::NodeStatus CheckHeat::tick()
+{
+  const auto blackboard = config().blackboard;
+  const float threshold = getInput<float>("threshold").value_or(200.0f);
+  const std::string mode = getInput<std::string>("mode").value_or("greater");
+
+  const int current_heat = blackboard->get<int>("current_heat");
+
+  return compareByMode(static_cast<float>(current_heat), threshold, mode) ? BT::NodeStatus::SUCCESS
+                                                                            : BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckOutpostTarget -------------------
+CheckOutpostTarget::CheckOutpostTarget(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckOutpostTarget::providedPorts()
+{
+  return {BT::InputPort<float>("goal_distance_threshold", 0.8f, "Goal close-to-outpost threshold")};
+}
+
+BT::NodeStatus CheckOutpostTarget::tick()
+{
+  const auto blackboard = config().blackboard;
+
+  int current_mode = 0;
+  geometry_msgs::msg::Pose current_pose;
+  Sentry_BT::Point2D nav_goal;
+  current_mode = blackboard->get<int>("current_mode");
+  current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  nav_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal");
+
+  const bool attacking_outpost_mode = current_mode == static_cast<int>(Sentry_BT::NavMode::RESPONSE);
+  const bool in_outpost_zone =
+    enemy_outpost_watch_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
+
+  const float dist_threshold = getInput<float>("goal_distance_threshold").value_or(0.8f);
+  const auto & outpost = nav_points[static_cast<size_t>(Sentry_BT::NavGoal::OUTPOST)];
+  const bool nav_goal_is_outpost =
+    std::hypot(nav_goal.x - outpost.x, nav_goal.y - outpost.y) <= static_cast<double>(dist_threshold);
+
+  return (attacking_outpost_mode || in_outpost_zone || nav_goal_is_outpost) ? BT::NodeStatus::SUCCESS
+                                                                              : BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckEngagedStatus -------------------
+CheckEngagedStatus::CheckEngagedStatus(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckEngagedStatus::providedPorts()
+{
+  return {BT::InputPort<bool>("expected", true, "Expected engaged status")};
+}
+
+BT::NodeStatus CheckEngagedStatus::tick()
+{
+  const auto blackboard = config().blackboard;
+  const bool expected_engaged = getInput<bool>("expected").value_or(true);
+
+  const bool is_disengaged = blackboard->get<bool>("is_disengaged");
+  const bool engaged = !is_disengaged;
+
+  return (engaged == expected_engaged) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckHealth -------------------
+CheckHealth::CheckHealth(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckHealth::providedPorts()
+{
+  return {BT::InputPort<float>("threshold", 50.0f, "Health threshold"),
+    BT::InputPort<std::string>("mode", "greater", "greater/less")};
+}
+
+BT::NodeStatus CheckHealth::tick()
+{
+  const auto blackboard = config().blackboard;
+
+  const float health = blackboard->get<float>("health");
+
+  const float threshold = getInput<float>("threshold").value_or(50.0f);
+  const std::string mode = getInput<std::string>("mode").value_or("greater");
+
+  return compareByMode(health, threshold, mode) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckTargetDistance -------------------
+CheckTargetDistance::CheckTargetDistance(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckTargetDistance::providedPorts()
+{
+  return {BT::InputPort<float>("threshold", 1.0f, "Distance threshold in meters"),
+    BT::InputPort<std::string>("mode", "greater", "greater/less")};
+}
+
+BT::NodeStatus CheckTargetDistance::tick()
+{
+  const auto blackboard = config().blackboard;
+
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
+
+  const float threshold = getInput<float>("threshold").value_or(1.0f);
+  const std::string mode = getInput<std::string>("mode").value_or("greater");
+
+  const float distance = static_cast<float>(
+    std::hypot(target_pose.position.x - current_pose.position.x, target_pose.position.y - current_pose.position.y));
+  return compareByMode(distance, threshold, mode) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckCrossZoneTransition -------------------
+CheckCrossZoneTransition::CheckCrossZoneTransition(
   const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
 {
 }
 
-BT::PortsList CheckMoveStanceCondition::providedPorts()
+BT::PortsList CheckCrossZoneTransition::providedPorts()
 {
   return {};
 }
 
-BT::NodeStatus CheckMoveStanceCondition::tick()
+BT::NodeStatus CheckCrossZoneTransition::tick()
 {
-  auto blackboard = config().blackboard;
-  try {
-    auto current_mode = blackboard->get<int>("current_mode");
-    const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-    const bool through_tunnel = blackboard->get<bool>("through_tunnel");
-    const bool in_highland =
-      highland_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
-    const bool in_own_defense =
-      own_defense_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
+  const auto blackboard = config().blackboard;
 
-    const bool need_cross_to_highland = in_own_defense && through_tunnel;
-    const bool need_go_home_supply = current_mode == static_cast<int>(Sentry_BT::NavMode::RETREAT);
-    const bool condition_met = (need_cross_to_highland || need_go_home_supply) && !in_highland;
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const auto nav_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal");
 
-    static bool last_through_tunnel = false;
-    if (through_tunnel != last_through_tunnel) {
-      std::cout << CYAN << "CheckMoveStanceCondition => through_tunnel " << (through_tunnel ? "ON" : "OFF")
-                << RESET << std::endl;
-      last_through_tunnel = through_tunnel;
-    }
+  const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
+  const Point2D goal_point{nav_goal.x, nav_goal.y, 0.0};
 
-    static bool last_condition_met = false;
-    if (condition_met != last_condition_met) {
-      std::cout << (condition_met ? GREEN : YELLOW) << "CheckMoveStanceCondition => "
-                << (condition_met ? "MOVE enabled" : "MOVE disabled") << RESET << std::endl;
-      last_condition_met = condition_met;
-    }
+  const bool current_in_highland = highland_zone.contains(current_point);
+  const bool current_in_half =
+    own_defense_zone.contains(current_point) || enemy_defense_zone.contains(current_point);
+  const bool goal_in_highland = highland_zone.contains(goal_point);
+  const bool goal_in_half = own_defense_zone.contains(goal_point) || enemy_defense_zone.contains(goal_point);
 
-    if (condition_met) {
-      blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::MOVE);
-      blackboard->set("use_gyro_mode", false);
-      blackboard->set("gyro_vel", 0.0f);
-      return BT::NodeStatus::SUCCESS;
-    }
-  } catch (...) {
-    return BT::NodeStatus::FAILURE;
-  }
-  return BT::NodeStatus::FAILURE;
+  const bool need_cross_zone = (current_in_half && goal_in_highland) || (current_in_highland && goal_in_half);
+  return need_cross_zone ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
-// ------------------- CheckDefendStanceCondition -------------------
-CheckDefendStanceCondition::CheckDefendStanceCondition(
+// ------------------- CheckCapacitorCapacity -------------------
+CheckCapacitorCapacity::CheckCapacitorCapacity(
   const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
 {
 }
 
-BT::PortsList CheckDefendStanceCondition::providedPorts()
+BT::PortsList CheckCapacitorCapacity::providedPorts()
 {
-  return {};
+  return {BT::InputPort<float>("threshold", 30.0f, "Capacitor threshold percentage"),
+    BT::InputPort<std::string>("mode", "less", "greater/less")};
 }
 
-BT::NodeStatus CheckDefendStanceCondition::tick()
+BT::NodeStatus CheckCapacitorCapacity::tick()
 {
-  auto blackboard = config().blackboard;
-  try {
-    const int current_mode = blackboard->get<int>("current_mode");
-    const bool target_valid = blackboard->get<bool>("target_valid");
-    const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-    const int fort_status = blackboard->get<int>("fort_occupation_status");
-    const bool in_fort_area =
-      own_defense_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
+  const auto blackboard = config().blackboard;
 
-    // 追踪模式统一归防御姿态；其余情况也作为默认兜底防御
-    const bool defend_reason = current_mode == static_cast<int>(Sentry_BT::NavMode::TRACING) ||
-                               target_valid || (in_fort_area && fort_status > 0);
+  const float capacitor_capacity = blackboard->get<float>("capacitor_capacity");
 
-    static int last_reason = -1;
-    int reason = defend_reason ? 1 : 0;
-    if (reason != last_reason) {
-      std::cout << (defend_reason ? RED : WHITE) << "CheckDefendStanceCondition => DEFEND"
-                << (defend_reason ? " (trace/target/fort)" : " (default)") << RESET << std::endl;
-      last_reason = reason;
-    }
+  const float threshold = getInput<float>("threshold").value_or(30.0f);
+  const std::string mode = getInput<std::string>("mode").value_or("less");
 
-    blackboard->set<Sentry_BT::SentryStance>("desired_stance", Sentry_BT::SentryStance::DEFEND);
-    blackboard->set("use_gyro_mode", true);
-    if (blackboard->get<float>("gyro_vel") <= 0.0f) {
-      blackboard->set("gyro_vel", 80.0f);
-    }
-    return BT::NodeStatus::SUCCESS;
-  } catch (...) {
-    return BT::NodeStatus::FAILURE;
-  }
-  return BT::NodeStatus::SUCCESS;
+  return compareByMode(capacitor_capacity, threshold, mode) ? BT::NodeStatus::SUCCESS
+                                                             : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckStanceRefreshRequired -------------------
@@ -196,7 +247,7 @@ BT::NodeStatus CheckStanceRefreshRequired::tick()
       refresh_pending = true;
       original_stance = current_stance;
       transient_stance = (current_stance == Sentry_BT::SentryStance::MOVE) ? Sentry_BT::SentryStance::ATTACK
-                                                                           : Sentry_BT::SentryStance::MOVE;
+                                                                            : Sentry_BT::SentryStance::MOVE;
       blackboard->set<Sentry_BT::SentryStance>("desired_stance", transient_stance);
       blackboard->set<bool>("stance_refresh_required", true);
       std::cout << YELLOW << "CheckStanceRefreshRequired => REFRESH_TRIGGERED" << RESET << std::endl;
