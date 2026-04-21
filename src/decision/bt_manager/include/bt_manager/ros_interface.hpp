@@ -19,7 +19,6 @@
 
 // Custom Messages
 #include "ros_interfaces/msg/behavior.hpp"
-#include "ros_interfaces/msg/event_status.hpp"
 #include "ros_interfaces/msg/game_info.hpp"
 #include "ros_interfaces/msg/mpc_position_command.hpp"
 #include "ros_interfaces/msg/radar_info.hpp"

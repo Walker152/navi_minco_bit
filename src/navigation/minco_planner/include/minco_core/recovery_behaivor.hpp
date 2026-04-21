@@ -21,9 +21,6 @@ public:
     int32_t fail_threshold{3};
     double cooldown_sec{2.0};
     double recovery_window_sec{1.5};
-    double search_min_dist{0.2};
-    double search_max_dist{0.5};
-    double search_step{0.05};
     double escape_speed{0.4};
   };
 
