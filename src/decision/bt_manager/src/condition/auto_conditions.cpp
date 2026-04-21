@@ -1,6 +1,7 @@
 #include "bt_manager/condition/auto_conditions.hpp"
 #include "bt_manager/blackboard.hpp"
 #include "bt_manager/ros_interface.hpp"
+#include "bt_manager/utils/area.hpp"
 #include <chrono>
 #include <cmath>
 #include <iostream>
@@ -112,24 +113,16 @@ BT::NodeStatus CheckTargetLocked::tick()
     return BT::NodeStatus::FAILURE;
   }
 
-  // rmuc
-  //  Sentry_BT::Area_Square highland_area = {{6.7, 2.0}, {13.0, -1.8}};
-  //  Sentry_BT::Area_Square enemy_outpost_area = {{8.5, 4.5}, {11.5, 2.8}};
-  //  Sentry_BT::Area_Square own_outpost_area = {{8.5, -2.7}, {11.5, -4.2}};  //待修改
-
-  TacticalMode tactical_mode = TacticalMode::BALANCED;
-  blackboard->get<TacticalMode>("tactical_mode", tactical_mode);
-
   const Sentry_BT::Point2D target_point{target_pose.position.x, target_pose.position.y, 0.0};
-  bool in_attack_area = false;
+  const auto tactical_mode = blackboard->get<TacticalMode>("tactical_mode");
+  const auto & include_areas = tracking_areas.at(tactical_mode);
 
-  if (tactical_mode == TacticalMode::OFFENSIVE) {
-    // Offensive: highland + own_defense + enemy_defense
-    in_attack_area = highland_zone.contains(target_point) || own_defense_zone.contains(target_point) ||
-                     enemy_defense_zone.contains(target_point);
-  } else {
-    // Defensive and default(BALANCED): own_defense + highland
-    in_attack_area = own_defense_zone.contains(target_point) || highland_zone.contains(target_point);
+  bool in_attack_area = false;
+  for (std::size_t i = 0; i < include_areas.size(); ++i) {
+    if (include_areas[i].contains(target_point)) {
+      in_attack_area = true;
+      break;
+    }
   }
   bool condition_met = false;
 
