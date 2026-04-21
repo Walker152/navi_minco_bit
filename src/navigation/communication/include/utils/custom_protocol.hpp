@@ -119,20 +119,17 @@ struct _ChassisTarget
   _ChassisTarget(float _vx_mps,
     float _vy_mps,
     float _vw_rpm,
-    float _current_x,
-    float _current_y,
-    float _current_yaw,
     float _current_vx,
     float _current_vy,
+    float _current_yaw,
     float _current_vw,
     bool _is_aim_outpost,
     uint8_t _desire_stance,
-    uint8_t _desire_lifter_pos,
-    uint8_t _control_mode)
-  : vx_mps(_vx_mps), vy_mps(_vy_mps), vw_rpm(_vw_rpm), current_x(_current_x), current_y(_current_y),
+    uint8_t _desire_lifter_pos)
+  : vx_mps(_vx_mps), vy_mps(_vy_mps), vw_rpm(_vw_rpm), 
     current_yaw(_current_yaw), current_vx(_current_vx), current_vy(_current_vy), current_vw(_current_vw),
     is_aim_outpost(_is_aim_outpost), desire_stance(_desire_stance),
-    desire_lifter_pos(_desire_lifter_pos), control_mode(_control_mode)
+    desire_lifter_pos(_desire_lifter_pos)
   {
   }
 };

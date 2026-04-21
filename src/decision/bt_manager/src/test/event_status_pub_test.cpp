@@ -376,7 +376,7 @@ private:
         // 隧道阶段：血量和弹量恢复，避免继续走“低血回家”语义。
         online_msg.self_health = 400;  // /4后为100
         online_msg.bullets_remaining = 300;
-        tf_anchor = getAreaCenter(Sentry_BT::tunnel_zone);
+        tf_anchor = getAreaCenter(Sentry_BT::tunnel_zone[0]);
         offline_msg.lifter_current_pos = 1;  // 模拟升降机构处于“准备过洞”状态
       }
       break;

@@ -51,7 +51,7 @@ void TransformUtils::publishDynamicTransform()
 
   const float yaw_deg = latest_gimbal_yaw_deg_.load(std::memory_order_relaxed);
   tf2::Quaternion quat;
-  quat.setRPY(-M_PI / 2, 0, -M_PI / 2 + yaw_deg / 180 * M_PI);
+  quat.setRPY(0, 0, -M_PI / 2 + yaw_deg / 180 * M_PI);
   dynamic_transform.transform.rotation = tf2::toMsg(quat);
 
   // 发布动态变换
