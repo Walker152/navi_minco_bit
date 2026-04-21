@@ -1,30 +1,6 @@
 // Corresponding header
 #include "minco_core/minco_planner.hpp"
-
-// C++ standard library
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <cstring>
-#include <functional>
-#include <iomanip>
-#include <iostream>
-#include <limits>
-#include <mutex>
-#include <sstream>
-#include <stdexcept>
-#include <utility>
-
-// Third-party
-#include <Eigen/Core>
-
-// ROS 2
-#include "nav2_costmap_2d/cost_values.hpp"
 #include "nav2_util/node_utils.hpp"
-#include "nav_msgs/msg/odometry.hpp"
-#include "tf2/LinearMath/Matrix3x3.h"
-#include "tf2/LinearMath/Quaternion.h"
-#include "tf2/exceptions.h"
 
 // Project
 #include "minco_core/minco_fsm.hpp"
@@ -217,18 +193,6 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     node, prefix + "recovery_server.recovery_window_sec", rclcpp::ParameterValue(3.0));
   node->get_parameter(
     prefix + "recovery_server.recovery_window_sec", recovery_server_config_.recovery_window_sec);
-
-  nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "recovery_server.search_min_dist", rclcpp::ParameterValue(0.2));
-  node->get_parameter(prefix + "recovery_server.search_min_dist", recovery_server_config_.search_min_dist);
-
-  nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "recovery_server.search_max_dist", rclcpp::ParameterValue(0.5));
-  node->get_parameter(prefix + "recovery_server.search_max_dist", recovery_server_config_.search_max_dist);
-
-  nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "recovery_server.search_step", rclcpp::ParameterValue(0.05));
-  node->get_parameter(prefix + "recovery_server.search_step", recovery_server_config_.search_step);
 
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "recovery_server.escape_speed", rclcpp::ParameterValue(0.4));
@@ -477,8 +441,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     global_goal.x() = latest_global_path_.back().pose.position.x;
     global_goal.y() = latest_global_path_.back().pose.position.y;
     global_goal.z() = 0.0;
-    const auto & q = latest_global_path_.back().pose.orientation;
-    goal_yaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+    goal_yaw = utils::quaternionToYaw(latest_global_path_.back().pose.orientation);
     if (!std::isfinite(goal_yaw)) {
       goal_yaw = 0.0;
     }
@@ -1515,14 +1478,7 @@ double MincoPlanner::getCurrentYawFromOdom() const
   if (!has_latest_odom_) {
     return 0.0;
   }
-
-  const auto & q = latest_odom_.pose.pose.orientation;
-  const tf2::Quaternion tf_q(q.x, q.y, q.z, q.w);
-  double roll = 0.0;
-  double pitch = 0.0;
-  double yaw = 0.0;
-  tf2::Matrix3x3(tf_q).getRPY(roll, pitch, yaw);
-  return std::isfinite(yaw) ? yaw : 0.0;
+  return utils::quaternionToYaw(latest_odom_.pose.pose.orientation);
 }
 
 bool MincoPlanner::isTrajectoryTimeExpired(double now_s) const
