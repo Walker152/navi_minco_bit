@@ -62,9 +62,13 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<ControlThroughTunnel>("ControlThroughTunnel");
 
   // stance
-  factory_.registerNodeType<CheckAttackStanceCondition>("CheckAttackStanceCondition");
-  factory_.registerNodeType<CheckMoveStanceCondition>("CheckMoveStanceCondition");
-  factory_.registerNodeType<CheckDefendStanceCondition>("CheckDefendStanceCondition");
+  factory_.registerNodeType<CheckHeat>("CheckHeat");
+  factory_.registerNodeType<CheckOutpostTarget>("CheckOutpostTarget");
+  factory_.registerNodeType<CheckEngagedStatus>("CheckEngagedStatus");
+  factory_.registerNodeType<CheckHealth>("CheckHealth");
+  factory_.registerNodeType<CheckTargetDistance>("CheckTargetDistance");
+  factory_.registerNodeType<CheckCrossZoneTransition>("CheckCrossZoneTransition");
+  factory_.registerNodeType<CheckCapacitorCapacity>("CheckCapacitorCapacity");
   factory_.registerNodeType<CheckStanceRefreshRequired>("CheckStanceRefreshRequired");
   factory_.registerNodeType<ChangeStance>("ChangeStance");
 

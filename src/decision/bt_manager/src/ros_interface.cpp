@@ -126,27 +126,25 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto current_mode = blackboard_->get<int>("current_mode");
     const auto desired_stance = blackboard_->get<Sentry_BT::SentryStance>("desired_stance");
     const auto desired_lifter_pos = blackboard_->get<Sentry_BT::LifterPos>("desired_lifter_pos");
-    auto control_mode = blackboard_->get<Sentry_BT::ControlMode>("control_mode");
-    auto use_gyro_mode = blackboard_->get<bool>("use_gyro_mode");
-    auto gyro_vel = blackboard_->get<float>("gyro_vel");
+    const auto control_mode = blackboard_->get<Sentry_BT::ControlMode>("control_mode");
+    const auto use_gyro_mode = blackboard_->get<bool>("use_gyro_mode");
+    const auto gyro_vel = blackboard_->get<float>("gyro_vel");
     const auto current_pose = getCurrentPose();
 
-    const bool is_reach_outpost_enemy =
-      current_mode == Sentry_BT::NavMode::RESPONSE && std::hypot(current_pose.position.x - nav_points[2].x,
-                                                        current_pose.position.y - nav_points[2].y) < 1.0;
+    // const bool is_reach_outpost_enemy =
+    //   current_mode == Sentry_BT::NavMode::RESPONSE && std::hypot(current_pose.position.x - nav_points[2].x,
+    //                                                     current_pose.position.y - nav_points[2].y) < 1.0;
 
-    const bool is_reach_outpost_own = std::hypot(current_pose.position.x - nav_points[0].x,
-                                        current_pose.position.y - nav_points[0].y) < 1.0;
-
-    blackboard_->set<bool>("outpost_msg", is_reach_outpost_enemy);
+    // const bool is_reach_outpost_own = std::hypot(current_pose.position.x - nav_points[0].x,
+    //                                     current_pose.position.y - nav_points[0].y) < 1.0;
 
     ros_interfaces::msg::Behavior behavior_msg;
     behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
     behavior_msg.control_mode = static_cast<uint8_t>(control_mode);
     behavior_msg.use_gyro_mode = use_gyro_mode;
     behavior_msg.gyro_vel = gyro_vel;
-    behavior_msg.is_reach_outpost_enemy = is_reach_outpost_enemy;
-    behavior_msg.is_reach_outpost_own = is_reach_outpost_own;
+    // behavior_msg.is_reach_outpost_enemy = is_reach_outpost_enemy;
+    // behavior_msg.is_reach_outpost_own = is_reach_outpost_own;
     behavior_msg.desire_lifter_pos = static_cast<uint8_t>(desired_lifter_pos);
     behavior_pub->publish(behavior_msg);
 
@@ -333,8 +331,6 @@ void ros_interface::manualOverrideCallback(const geometry_msgs::msg::PointStampe
 
   const Point2D manual_goal{manual_goal_in_map.x, manual_goal_in_map.y, 0.0};
   blackboard_->set("manual_override_goal", manual_goal);
-  blackboard_->set("manual_override_goal_valid", true);
-  blackboard_->set("manual_override_active", true);
 }
 
 // 新增：哨兵离线信息回调函数
@@ -359,7 +355,7 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
 
     target_pose_in.position.x = (msg->armor_pos.x) / 1000.0;  // 转换为米
     target_pose_in.position.y = (msg->armor_pos.y) / 1000.0;
-    target_pose_in.position.z = (msg->armor_pos.z) / 1000.0;  //?
+    target_pose_in.position.z = (msg->armor_pos.z) / 1000.0;  
     TransformPose(target_pose_in, target_pose);
 
     // Quiet logging: only print when target input/output pose changes significantly.

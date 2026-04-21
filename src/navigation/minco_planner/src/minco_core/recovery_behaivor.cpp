@@ -18,14 +18,6 @@ void RecoverServer::configure(const Config & config)
     (std::isfinite(config.recovery_window_sec) && config.recovery_window_sec > 0.0)
       ? config.recovery_window_sec
       : 0.5;
-  config_.search_min_dist =
-    (std::isfinite(config.search_min_dist) && config.search_min_dist >= 0.0) ? config.search_min_dist : 0.2;
-  config_.search_step =
-    (std::isfinite(config.search_step) && config.search_step > 1e-6) ? config.search_step : 0.05;
-  config_.search_max_dist = (std::isfinite(config.search_max_dist) &&
-                              config.search_max_dist >= config_.search_min_dist + config_.search_step)
-                              ? config.search_max_dist
-                              : (config_.search_min_dist + config_.search_step);
   config_.escape_speed =
     (std::isfinite(config.escape_speed) && config.escape_speed > 0.0) ? config.escape_speed : 0.4;
 }
@@ -166,36 +158,23 @@ bool RecoverServer::calculateEscapeVelocity(const geometry_msgs::msg::PoseStampe
 
   const double cx = current_pose.pose.position.x;
   const double cy = current_pose.pose.position.y;
+  constexpr double h = 0.05;
 
-  double max_esdf = -1e9;
-  Eigen::Vector2d best_dir(0.0, 0.0);
+  const double fx_plus = esdf_func(Eigen::Vector3d(cx + h, cy, 0.0));
+  const double fx_minus = esdf_func(Eigen::Vector3d(cx - h, cy, 0.0));
+  const double fy_plus = esdf_func(Eigen::Vector3d(cx, cy + h, 0.0));
+  const double fy_minus = esdf_func(Eigen::Vector3d(cx, cy - h, 0.0));
 
-  // 在可配置半径区间内进行多圈遍历搜索
-  for (double r = config_.search_min_dist; r <= config_.search_max_dist + 1e-5; r += config_.search_step) {
-    // 每圈探测 8 个方向 (45度间隔)
-    for (int i = 0; i < 8; ++i) {
-      double angle = i * (M_PI / 4.0);
-      Eigen::Vector2d dir(std::cos(angle), std::sin(angle));
-      // 计算当前采样点的世界坐标
-      Eigen::Vector3d sample_pt(cx + dir.x() * r, cy + dir.y() * r, 0.0);
+  const double grad_x = (fx_plus - fx_minus) / (2.0 * h);
+  const double grad_y = (fy_plus - fy_minus) / (2.0 * h);
+  Eigen::Vector2d grad(grad_x, grad_y);
 
-      // 查询该点的 ESDF 距离
-      double dist = esdf_func(sample_pt);
-      // std::cout << "Sample point: (" << sample_pt.x() << ", " << sample_pt.y() << "), ESDF: " << dist <<
-      // std::endl; 记录拥有最大 ESDF 距离（最空旷/最安全）的方向
-      if (dist > max_esdf) {
-        max_esdf = dist;
-        best_dir = dir;  // 锁存最优逃逸方向
-      }
-    }
-  }
-  // std::cout << "Max ESDF in search area: " << max_esdf << std::endl;
-  // std::cout << "Best escape direction: " << best_dir.transpose() << std::endl;
-  if (max_esdf < -10.0) {
+  const double grad_norm = grad.norm();
+  if (grad_norm < 1e-3) {
     return false;
   }
 
-  escape_vel_out = best_dir * config_.escape_speed;
+  escape_vel_out = (grad / grad_norm) * config_.escape_speed;
 
   return true;
 }
