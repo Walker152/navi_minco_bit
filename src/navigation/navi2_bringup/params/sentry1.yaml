@@ -326,9 +326,6 @@ planner_server:
         fail_threshold: 3
         cooldown_sec: 2.0
         recovery_window_sec: 3.0
-        search_min_dist: 0.3
-        search_max_dist: 0.6
-        search_step: 0.05
         escape_speed: 0.4
       static_esdf:
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
