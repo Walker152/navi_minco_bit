@@ -1,34 +1,18 @@
 #ifndef MINCO_PLANNER__MINCO_PLANNER_HPP_
 #define MINCO_PLANNER__MINCO_PLANNER_HPP_
 
-#include <atomic>
-#include <chrono>
-#include <cstdint>
-#include <functional>
-#include <memory>
-#include <mutex>
-#include <string>
-#include <vector>
+#include "minco_core/header.hpp"
 
-#include <Eigen/Core>
-
-#include "geometry_msgs/msg/point.hpp"
-#include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav2_core/global_planner.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 #include "nav2_util/lifecycle_node.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
-#include "rclcpp/rclcpp.hpp"
-
-#include "std_msgs/msg/header.hpp"
 
 #include "sensor_msgs/msg/point_cloud2.hpp"
 
 #include "visualization_msgs/msg/marker.hpp"
 
-#include "ros_interfaces/msg/mpc_position_command.hpp"
 #include "ros_interfaces/msg/position_command.hpp"
 
 #include "minco_core/astar.hpp"

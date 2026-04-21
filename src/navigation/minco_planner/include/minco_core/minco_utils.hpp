@@ -1,24 +1,7 @@
 #ifndef MINCO_PLANNER__MINCO_UTILS_HPP_
 #define MINCO_PLANNER__MINCO_UTILS_HPP_
 
-// Standard library
-#include <algorithm>
-#include <cmath>
-#include <cstdint>
-#include <functional>
-#include <vector>
-
-// Third party
-#include <Eigen/Core>
-
-// ROS2
-#include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav2_costmap_2d/costmap_2d.hpp"
-#include "rclcpp/rclcpp.hpp"
-
-// Project
-#include "ros_interfaces/msg/mpc_position_command.hpp"
-#include "std_msgs/msg/header.hpp"
+#include "minco_core/header.hpp"
 
 namespace geometry_utils {
 class Trajectory;
@@ -35,6 +18,8 @@ template <typename T> inline T clampValue(T v, T lo, T hi)
 {
   return std::min(std::max(v, lo), hi);
 }
+
+double quaternionToYaw(const geometry_msgs::msg::Quaternion & q);
 
 // === Path Geometry Utilities ===
 // --- Velocity Profile Mapping ---
