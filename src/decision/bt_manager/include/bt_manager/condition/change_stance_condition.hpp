@@ -1,33 +1,77 @@
 #pragma once
 
-#include <behaviortree_cpp_v3/condition_node.h>
-#include "bt_manager/utils/nav_zone.hpp"
 #include "bt_manager/utils/log.hpp"
+#include "bt_manager/utils/nav_zone.hpp"
+#include <behaviortree_cpp_v3/condition_node.h>
 
-namespace Sentry_BT
-{
-class CheckMPCondition : public BT::ConditionNode
+namespace Sentry_BT {
+class CheckHeat : public BT::ConditionNode
 {
 public:
-  CheckMPCondition(const std::string& name, const BT::NodeConfiguration& config);
+  CheckHeat(const std::string & name, const BT::NodeConfiguration & config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
 };
 
-class CheckAPCondition : public BT::ConditionNode
+class CheckOutpostTarget : public BT::ConditionNode
 {
 public:
-  CheckAPCondition(const std::string& name, const BT::NodeConfiguration& config);
+  CheckOutpostTarget(const std::string & name, const BT::NodeConfiguration & config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
 };
 
-class CheckDPCondition : public BT::ConditionNode
+class CheckEngagedStatus : public BT::ConditionNode
 {
 public:
-  CheckDPCondition(const std::string& name, const BT::NodeConfiguration& config);
+  CheckEngagedStatus(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckHealth : public BT::ConditionNode
+{
+public:
+  CheckHealth(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckTargetDistance : public BT::ConditionNode
+{
+public:
+  CheckTargetDistance(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckCrossZoneTransition : public BT::ConditionNode
+{
+public:
+  CheckCrossZoneTransition(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckCapacitorCapacity : public BT::ConditionNode
+{
+public:
+  CheckCapacitorCapacity(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckStanceRefreshRequired : public BT::ConditionNode
+{
+public:
+  CheckStanceRefreshRequired(const std::string & name, const BT::NodeConfiguration & config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;

@@ -1,0 +1,16 @@
+cloud_registered_crop_filter:
+  ros__parameters:
+    input_topic: /cloud_registered_dense
+    output_topic: /cloud_registered_filtered
+    queue_size: 10
+    filter_mode: transform_center   # transform_cloud | transform_center
+    remove_inside: true             # true: remove points inside box, false: keep points inside box
+    position_frame: map
+    position:
+      x: 12.0
+      y: 6.0
+      z: 0.0
+    box_size:
+      x: 2.0
+      y: 2.0
+      z: 0.8

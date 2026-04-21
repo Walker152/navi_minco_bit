@@ -24,6 +24,7 @@
 #pragma once
 
 #include <rog_map/prob_map.h>
+#include <rog_map/spatio_temporal_map.h>
 #include <rog_map/rog_map_core/common_lib.hpp>
 #include <super_utils/type_utils.hpp>
 #include <fmt/color.h>
@@ -145,7 +146,8 @@ namespace rog_map {
           const Vec3f & start_pos, Vec3f& nearest_pt, const double & max_dis) const ;
 
         RobotState robot_state_;
+                STVLConfig stvl_cfg_;
+                SpatioTemporalMap::Ptr stvl_map_;
 
-    // Elevation map pointer is owned by ProbMap (base class) as elev_map_.
     };
 }

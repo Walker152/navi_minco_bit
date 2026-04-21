@@ -10,10 +10,8 @@ cmake-build-*/
 build-*/
 .cache
 .vscode
-*.bash
 *.csv
 *.db
 *.sqlite
 *.png
 .venv/
-*.bash

@@ -8,7 +8,8 @@ Panels:
         - /TF1/Frames1
         - /TF1/Tree1
         - /Global Planner1
-        - /Controller1
+        - /ESDF1
+        - /BehaviorAreas1
       Splitter Ratio: 0.5833333134651184
     Tree Height: 515
   - Class: rviz_common/Selection
@@ -88,6 +89,8 @@ Visualization Manager:
           Value: true
         map:
           Value: true
+        minimap:
+          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
@@ -96,10 +99,13 @@ Visualization Manager:
       Tree:
         map:
           camera_init:
+            base_link:
+              gimbal:
+                {}
             body:
-              base_link:
-                gimbal:
-                  {}
+              {}
+          minimap:
+            {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -145,40 +151,6 @@ Visualization Manager:
             Reliability Policy: Reliable
             Value: /global_costmap/costmap_updates
           Use Timestamp: false
-          Value: true
-        - Alpha: 1
-          Autocompute Intensity Bounds: true
-          Autocompute Value Bounds:
-            Max Value: 10
-            Min Value: -10
-            Value: true
-          Axis: Z
-          Channel Name: intensity
-          Class: rviz_default_plugins/PointCloud2
-          Color: 255; 255; 255
-          Color Transformer: Intensity
-          Decay Time: 0
-          Enabled: true
-          Invert Rainbow: false
-          Max Color: 255; 255; 255
-          Max Intensity: 3
-          Min Color: 0; 0; 0
-          Min Intensity: 0
-          Name: Global ESDF
-          Position Transformer: XYZ
-          Selectable: true
-          Size (Pixels): 3
-          Size (m): 0.029999999329447746
-          Style: Flat Squares
-          Topic:
-            Depth: 5
-            Durability Policy: Volatile
-            Filter size: 10
-            History Policy: Keep Last
-            Reliability Policy: Reliable
-            Value: /esdf_cloud
-          Use Fixed Frame: true
-          Use rainbow: true
           Value: true
         - Alpha: 1
           Buffer Length: 1
@@ -389,6 +361,51 @@ Visualization Manager:
           Value: true
       Enabled: true
       Name: Global Planner
+    - Class: rviz_common/Group
+      Displays:
+        - Class: rviz_default_plugins/Marker
+          Enabled: true
+          Name: RecoverGoal
+          Namespaces:
+            recover_goal: true
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /recover_goal
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 26; 95; 180
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Billboards
+          Line Width: 0.029999999329447746
+          Name: RecoverPath
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /recover_path
+          Value: true
+      Enabled: true
+      Name: RecoverBehavior
     - Class: rviz_common/Group
       Displays:
         - Alpha: 0.699999988079071
@@ -675,6 +692,124 @@ Visualization Manager:
           Value: true
       Enabled: false
       Name: GICP
+    - Class: rviz_common/Group
+      Displays:
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz_default_plugins/PointCloud2
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 3
+          Min Color: 0; 0; 0
+          Min Intensity: 0
+          Name: Local ESDF
+          Position Transformer: XYZ
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.029999999329447746
+          Style: Flat Squares
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /esdf_cloud
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz_default_plugins/PointCloud2
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 2.52685546875
+          Min Color: 0; 0; 0
+          Min Intensity: 0
+          Name: GlobalESDF
+          Position Transformer: XYZ
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.029999999329447746
+          Style: Flat Squares
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /global_esdf_cloud
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+      Enabled: true
+      Name: ESDF
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: ClusteredObs
+      Namespaces:
+        {}
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /clustered_obstacles_vis
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz_default_plugins/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: Intensity
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 157
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: PointCloud2
+      Position Transformer: XYZ
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.029999999329447746
+      Style: Flat Squares
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /cloud_registered_dense
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
       Name: MarkerArray
@@ -686,6 +821,19 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /waypoints
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: BehaviorAreas
+      Namespaces:
+        sentry_area_box: true
+        sentry_area_label: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /sentry/area_markers
       Value: true
   Enabled: true
   Global Options:
@@ -732,25 +880,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 18.931583404541016
+      Distance: 29.25566864013672
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 3.587092876434326
-        Y: 4.298128128051758
-        Z: -11.526256561279297
+        X: 12.957711219787598
+        Y: 5.7336039543151855
+        Z: -10.299609184265137
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.1047966480255127
+      Pitch: 1.4947963953018188
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 4.278604030609131
+      Yaw: 3.278599977493286
     Saved: ~
 Window Geometry:
   Displays:

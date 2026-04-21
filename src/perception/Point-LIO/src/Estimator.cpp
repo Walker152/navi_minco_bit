@@ -147,7 +147,7 @@ double G_m_s2 = 9.81;
  * @details 该函数构建ESEKF预测步骤使用的过程噪声协方差矩阵Q
  *          状态向量结构 (24维)：
  *          [0-2]:   位置 (x, y, z)
- *          [3-5]:   旋转 (roll, pitch, yaw) 
+ *          [3-5]:   旋转 (roll, pitch, yaw)
  *          [6-8]:   速度 (vx, vy, vz)
  *          [9-11]:  角速度偏置 (bg_x, bg_y, bg_z)
  *          [12-14]: 加速度偏置 (ba_x, ba_y, ba_z)
@@ -158,25 +158,27 @@ Eigen::Matrix<double, 24, 24> process_noise_cov_input()
 {
   Eigen::Matrix<double, 24, 24> cov;
   cov.setZero();  // 初始化为零矩阵
-  
+
   // 设置陀螺仪噪声协方差 (旋转相关，索引3-5)
   cov.block<3, 3>(3, 3).diagonal() << gyr_cov_input, gyr_cov_input, gyr_cov_input;
-  
+
   // 设置加速度计噪声协方差 (加速度相关，索引12-14)
   cov.block<3, 3>(12, 12).diagonal() << acc_cov_input, acc_cov_input, acc_cov_input;
-  
+
   // 设置陀螺仪偏置噪声协方差 (偏置随机游走，索引15-17)
   cov.block<3, 3>(15, 15).diagonal() << b_gyr_cov, b_gyr_cov, b_gyr_cov;
-  
+
   // 设置加速度计偏置噪声协方差 (偏置随机游走，索引18-20)
   cov.block<3, 3>(18, 18).diagonal() << b_acc_cov, b_acc_cov, b_acc_cov;
-  
+
   // 以下为MTK工具包的备用实现方式（已注释）
   // MTK::setDiagonal<process_noise_input, vect3, 0>(cov, &process_noise_input::ng, gyr_cov_input);// 0.03
-  // MTK::setDiagonal<process_noise_input, vect3, 3>(cov, &process_noise_input::na, acc_cov_input); // *dt 0.01 0.01 * dt * dt 0.05
-  // MTK::setDiagonal<process_noise_input, vect3, 6>(cov, &process_noise_input::nbg, b_gyr_cov); // *dt 0.00001 0.00001 * dt *dt 0.3 //0.001 0.0001 0.01
-  // MTK::setDiagonal<process_noise_input, vect3, 9>(cov, &process_noise_input::nba, b_acc_cov);   //0.001 0.05 0.0001/out 0.01
-  
+  // MTK::setDiagonal<process_noise_input, vect3, 3>(cov, &process_noise_input::na, acc_cov_input); // *dt
+  // 0.01 0.01 * dt * dt 0.05 MTK::setDiagonal<process_noise_input, vect3, 6>(cov,
+  // &process_noise_input::nbg, b_gyr_cov); // *dt 0.00001 0.00001 * dt *dt 0.3 //0.001 0.0001 0.01
+  // MTK::setDiagonal<process_noise_input, vect3, 9>(cov, &process_noise_input::nba, b_acc_cov);   //0.001
+  // 0.05 0.0001/out 0.01
+
   return cov;
 }
 
@@ -200,22 +202,22 @@ Eigen::Matrix<double, 30, 30> process_noise_cov_output()
 {
   Eigen::Matrix<double, 30, 30> cov;
   cov.setZero();  // 初始化为零矩阵
-  
+
   // 设置速度噪声协方差 (索引12-14)
   cov.block<3, 3>(12, 12).diagonal() << vel_cov, vel_cov, vel_cov;
-  
+
   // 设置陀螺仪输出噪声协方差 (索引15-17)
   cov.block<3, 3>(15, 15).diagonal() << gyr_cov_output, gyr_cov_output, gyr_cov_output;
-  
+
   // 设置加速度计输出噪声协方差 (索引18-20)
   cov.block<3, 3>(18, 18).diagonal() << acc_cov_output, acc_cov_output, acc_cov_output;
-  
+
   // 设置陀螺仪偏置噪声协方差 (索引24-26)
   cov.block<3, 3>(24, 24).diagonal() << b_gyr_cov, b_gyr_cov, b_gyr_cov;
-  
+
   // 设置加速度计偏置噪声协方差 (索引27-29)
   cov.block<3, 3>(27, 27).diagonal() << b_acc_cov, b_acc_cov, b_acc_cov;
-  
+
   return cov;
 }
 
@@ -228,27 +230,27 @@ Eigen::Matrix<double, 30, 30> process_noise_cov_output()
  *          - 位置导数 = 速度
  *          - 姿态导数 = 角速度（去偏置后）
  *          - 速度导数 = 旋转矩阵 * (加速度 - 偏置) + 重力
- *          
+ *
  *          状态向量组成：
- *          位置(0-2), 旋转(3-5), 速度(6-8), 角速度偏置(9-11), 
+ *          位置(0-2), 旋转(3-5), 速度(6-8), 角速度偏置(9-11),
  *          加速度偏置(12-14), 重力(15-17), 其他辅助状态(18-23)
  */
 Eigen::Matrix<double, 24, 1> get_f_input(state_input & s, const input_ikfom & in)
 {
   Eigen::Matrix<double, 24, 1> res = Eigen::Matrix<double, 24, 1>::Zero();
-  
+
   // 计算去偏置后的角速度
   vect3 omega;
   in.gyro.boxminus(omega, s.bg);  // omega = gyro_meas - bias_gyro
-  
+
   // 计算惯性坐标系下的加速度
   vect3 a_inertial = s.rot * (in.acc - s.ba);  // 旋转到惯性系并去偏置
-  
+
   // 构建状态导数向量
   for (int i = 0; i < 3; i++) {
-    res(i) = s.vel[i];                          // 位置导数 = 速度
-    res(i + 3) = omega[i];                      // 姿态导数 = 角速度
-    res(i + 12) = a_inertial[i] + s.gravity[i]; // 速度导数 = 加速度 + 重力
+    res(i) = s.vel[i];                           // 位置导数 = 速度
+    res(i + 3) = omega[i];                       // 姿态导数 = 角速度
+    res(i + 12) = a_inertial[i] + s.gravity[i];  // 速度导数 = 加速度 + 重力
   }
   return res;
 }
@@ -262,22 +264,22 @@ Eigen::Matrix<double, 24, 1> get_f_input(state_input & s, const input_ikfom & in
  *          - 包含外参估计状态
  *          - 支持在线传感器标定
  *          - 更复杂的噪声模型
- *          
+ *
  *          扩展状态向量包含30个维度，涵盖位姿、速度、偏置、
  *          外参、重力等所有需要估计的参数
  */
 Eigen::Matrix<double, 30, 1> get_f_output(state_output & s, const input_ikfom & in)
 {
   Eigen::Matrix<double, 30, 1> res = Eigen::Matrix<double, 30, 1>::Zero();
-  
+
   // 计算惯性坐标系下的加速度（使用状态中的加速度）
   vect3 a_inertial = s.rot * s.acc;  // 旋转到惯性坐标系
-  
+
   // 构建扩展状态导数向量
   for (int i = 0; i < 3; i++) {
-    res(i) = s.vel[i];                          // 位置导数 = 速度
-    res(i + 3) = s.omg[i];                      // 姿态导数 = 角速度
-    res(i + 12) = a_inertial[i] + s.gravity[i]; // 速度导数 = 加速度 + 重力
+    res(i) = s.vel[i];                           // 位置导数 = 速度
+    res(i + 3) = s.omg[i];                       // 姿态导数 = 角速度
+    res(i + 12) = a_inertial[i] + s.gravity[i];  // 速度导数 = 加速度 + 重力
   }
   return res;
 }
@@ -297,31 +299,31 @@ Eigen::Matrix<double, 30, 1> get_f_output(state_output & s, const input_ikfom & 
 Eigen::Matrix<double, 24, 24> df_dx_input(state_input & s, const input_ikfom & in)
 {
   Eigen::Matrix<double, 24, 24> cov = Eigen::Matrix<double, 24, 24>::Zero();
-  
+
   // ∂位置/∂速度 = I (索引 0-2 对 12-14)
   cov.template block<3, 3>(0, 12) = Eigen::Matrix3d::Identity();
-  
+
   // 提取去偏置后的IMU测量值
   vect3 acc_;
-  in.acc.boxminus(acc_, s.ba);    // 去偏置加速度
+  in.acc.boxminus(acc_, s.ba);  // 去偏置加速度
   vect3 omega;
   in.gyro.boxminus(omega, s.bg);  // 去偏置角速度
-  
+
   // ∂速度/∂姿态 = -R * [a]× (索引 12-14 对 3-5)
   // [a]× 表示加速度的反对称矩阵（用于叉积运算）
   cov.template block<3, 3>(12, 3) = -s.rot * MTK::hat(acc_);
-  
+
   // ∂速度/∂加速度偏置 = -R (索引 12-14 对 18-20)
   cov.template block<3, 3>(12, 18) = -s.rot;
-  
+
   // ∂速度/∂重力 = I (索引 12-14 对 21-23)
   // 重力直接影响加速度的计算
   cov.template block<3, 3>(12, 21) = Eigen::Matrix3d::Identity();
-  
+
   // ∂姿态/∂角速度偏置 = -I (索引 3-5 对 15-17)
   // 角速度偏置直接影响姿态更新
   cov.template block<3, 3>(3, 15) = -Eigen::Matrix3d::Identity();
-  
+
   return cov;
 }
 
@@ -339,30 +341,31 @@ Eigen::Matrix<double, 24, 24> df_dx_input(state_input & s, const input_ikfom & i
 Eigen::Matrix<double, 30, 30> df_dx_output(state_output & s, const input_ikfom & in)
 {
   Eigen::Matrix<double, 30, 30> cov = Eigen::Matrix<double, 30, 30>::Zero();
-  
+
   // ∂位置/∂速度 = I (索引 0-2 对 12-14)
   cov.template block<3, 3>(0, 12) = Eigen::Matrix3d::Identity();
-  
+
   // ∂速度/∂姿态 = -R * [a]× (索引 12-14 对 3-5)
   // 使用状态中存储的加速度值 s.acc
   cov.template block<3, 3>(12, 3) = -s.rot * MTK::hat(s.acc);
-  
+
   // ∂速度/∂加速度 = R (索引 12-14 对 18-20)
   // 注意：这里是正号，与输入状态不同
   cov.template block<3, 3>(12, 18) = s.rot;
-  
+
   // ∂速度/∂重力 = I (索引 12-14 对 21-23)
   cov.template block<3, 3>(12, 21) = Eigen::Matrix3d::Identity();
-  
+
   // ∂姿态/∂角速度 = I (索引 3-5 对 15-17)
   // 输出状态中角速度直接作为状态变量
   cov.template block<3, 3>(3, 15) = Eigen::Matrix3d::Identity();
-  
+
   return cov;
 }
 
-void h_model_input(
-  state_input & s, Eigen::Matrix3d cov_p, Eigen::Matrix3d cov_R,
+void h_model_input(state_input & s,
+  Eigen::Matrix3d cov_p,
+  Eigen::Matrix3d cov_R,
   esekfom::dyn_share_modified<double> & ekfom_data)
 {
   bool match_in_map = false;
@@ -381,24 +384,23 @@ void h_model_input(
     {
       auto & points_near = Nearest_Points[idx + j + 1];
       ivox_->GetClosestPoint(point_world_j, points_near, NUM_MATCH_POINTS);  //
-      if ((points_near.size() <
-           NUM_MATCH_POINTS))  // || pointSearchSqDis[NUM_MATCH_POINTS - 1] > 5) // 5)
+      if ((points_near.size() < NUM_MATCH_POINTS))  // || pointSearchSqDis[NUM_MATCH_POINTS - 1] > 5) // 5)
       {
         point_selected_surf[idx + j + 1] = false;
       } else {
         point_selected_surf[idx + j + 1] = false;
         if (esti_plane(pabcd, points_near, plane_thr))  //(planeValid)
         {
-          float pd2 = fabs(
-            pabcd(0) * point_world_j.x + pabcd(1) * point_world_j.y + pabcd(2) * point_world_j.z +
-            pabcd(3));
+          float pd2 = fabs(pabcd(0) * point_world_j.x + pabcd(1) * point_world_j.y +
+                           pabcd(2) * point_world_j.z + pabcd(3));
           // V3D norm_vec;
           // M3D Rpf, pf;
           // pf = crossmat_list[idx+j+1];
           // // pf << SKEW_SYM_MATRX(p_body);
           // Rpf = s.rot * pf;
           // norm_vec << pabcd(0), pabcd(1), pabcd(2);
-          // double noise_state = norm_vec.transpose() * (cov_p+Rpf*cov_R*Rpf.transpose())  * norm_vec + sqrt(p_norm) * 0.001;
+          // double noise_state = norm_vec.transpose() * (cov_p+Rpf*cov_R*Rpf.transpose())  * norm_vec +
+          // sqrt(p_norm) * 0.001;
           // // if (p_norm > match_s * pd2 * pd2)
           // double epsilon = pd2 / sqrt(noise_state);
           // // std::cout << "check epsilon:" << epsilon << '\n';
@@ -447,14 +449,14 @@ void h_model_input(
         V3D C(s.rot.transpose() * norm_vec);
         V3D A(p_imu_crossmat * C);
         V3D B(p_crossmat * s.offset_R_L_I.transpose() * C);
-        ekfom_data.h_x.block<1, 12>(m, 0) << norm_vec(0), norm_vec(1), norm_vec(2),
-          VEC_FROM_ARRAY(A), VEC_FROM_ARRAY(B), VEC_FROM_ARRAY(C);
+        ekfom_data.h_x.block<1, 12>(m, 0) << norm_vec(0), norm_vec(1), norm_vec(2), VEC_FROM_ARRAY(A),
+          VEC_FROM_ARRAY(B), VEC_FROM_ARRAY(C);
       } else {
         M3D point_crossmat = crossmat_list[idx + j + 1];
         V3D C(s.rot.transpose() * norm_vec);  // conjugate().normalized()
         V3D A(point_crossmat * C);
-        ekfom_data.h_x.block<1, 12>(m, 0) << norm_vec(0), norm_vec(1), norm_vec(2),
-          VEC_FROM_ARRAY(A), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+        ekfom_data.h_x.block<1, 12>(m, 0) << norm_vec(0), norm_vec(1), norm_vec(2), VEC_FROM_ARRAY(A), 0.0,
+          0.0, 0.0, 0.0, 0.0, 0.0;
       }
       ekfom_data.z(m) = -norm_vec(0) * feats_down_world->points[idx + j + 1].x -
                         norm_vec(1) * feats_down_world->points[idx + j + 1].y -
@@ -467,8 +469,9 @@ void h_model_input(
   effct_feat_num += effect_num_k;
 }
 
-void h_model_output(
-  state_output & s, Eigen::Matrix3d cov_p, Eigen::Matrix3d cov_R,
+void h_model_output(state_output & s,
+  Eigen::Matrix3d cov_p,
+  Eigen::Matrix3d cov_R,
   esekfom::dyn_share_modified<double> & ekfom_data)
 {
   bool match_in_map = false;
@@ -489,24 +492,23 @@ void h_model_output(
 
       ivox_->GetClosestPoint(point_world_j, points_near, NUM_MATCH_POINTS);  //
 
-      if ((points_near.size() <
-           NUM_MATCH_POINTS))  // || pointSearchSqDis[NUM_MATCH_POINTS - 1] > 5)
+      if ((points_near.size() < NUM_MATCH_POINTS))  // || pointSearchSqDis[NUM_MATCH_POINTS - 1] > 5)
       {
         point_selected_surf[idx + j + 1] = false;
       } else {
         point_selected_surf[idx + j + 1] = false;
         if (esti_plane(pabcd, points_near, plane_thr))  //(planeValid)
         {
-          float pd2 = fabs(
-            pabcd(0) * point_world_j.x + pabcd(1) * point_world_j.y + pabcd(2) * point_world_j.z +
-            pabcd(3));
+          float pd2 = fabs(pabcd(0) * point_world_j.x + pabcd(1) * point_world_j.y +
+                           pabcd(2) * point_world_j.z + pabcd(3));
           // V3D norm_vec;
           // M3D Rpf, pf;
           // pf = crossmat_list[idx+j+1];
           // // pf << SKEW_SYM_MATRX(p_body);
           // Rpf = s.rot * pf;
           // norm_vec << pabcd(0), pabcd(1), pabcd(2);
-          // double noise_state = norm_vec.transpose() * (cov_p+Rpf*cov_R*Rpf.transpose())  * norm_vec + sqrt(p_norm) * 0.001;
+          // double noise_state = norm_vec.transpose() * (cov_p+Rpf*cov_R*Rpf.transpose())  * norm_vec +
+          // sqrt(p_norm) * 0.001;
           // // if (p_norm > match_s * pd2 * pd2)
           // double epsilon = pd2 / sqrt(noise_state);
           // double weight = 1.0; // epsilon / sqrt(epsilon * epsilon+1);
@@ -553,14 +555,14 @@ void h_model_output(
         V3D C(s.rot.transpose() * norm_vec);
         V3D A(p_imu_crossmat * C);
         V3D B(p_crossmat * s.offset_R_L_I.transpose() * C);
-        ekfom_data.h_x.block<1, 12>(m, 0) << norm_vec(0), norm_vec(1), norm_vec(2),
-          VEC_FROM_ARRAY(A), VEC_FROM_ARRAY(B), VEC_FROM_ARRAY(C);
+        ekfom_data.h_x.block<1, 12>(m, 0) << norm_vec(0), norm_vec(1), norm_vec(2), VEC_FROM_ARRAY(A),
+          VEC_FROM_ARRAY(B), VEC_FROM_ARRAY(C);
       } else {
         M3D point_crossmat = crossmat_list[idx + j + 1];
         V3D C(s.rot.transpose() * norm_vec);  // conjugate().normalized()
         V3D A(point_crossmat * C);
-        ekfom_data.h_x.block<1, 12>(m, 0) << norm_vec(0), norm_vec(1), norm_vec(2),
-          VEC_FROM_ARRAY(A), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+        ekfom_data.h_x.block<1, 12>(m, 0) << norm_vec(0), norm_vec(1), norm_vec(2), VEC_FROM_ARRAY(A), 0.0,
+          0.0, 0.0, 0.0, 0.0, 0.0;
       }
       ekfom_data.z(m) = -norm_vec(0) * feats_down_world->points[idx + j + 1].x -
                         norm_vec(1) * feats_down_world->points[idx + j + 1].y -
@@ -619,14 +621,14 @@ void h_model_IMU_output(state_output & s, esekfom::dyn_share_modified<double> & 
  * @param po 输出点（世界坐标系）
  * @details 该函数实现三级坐标变换：
  *          LiDAR坐标系 → IMU坐标系 → 世界坐标系
- *          
+ *
  *          变换公式：
  *          p_world = R_world_imu * (R_imu_lidar * p_lidar + t_imu_lidar) + t_world_imu
- *          
+ *
  *          支持两种工作模式：
  *          1. 外参在线估计模式：使用状态中的外参 (offset_R_L_I, offset_T_L_I)
  *          2. 固定外参模式：使用预设的外参 (Lidar_R_wrt_IMU, Lidar_T_wrt_IMU)
- *          
+ *
  *          根据use_imu_as_input标志选择使用输入状态或输出状态的位姿
  */
 void pointBodyToWorld(PointType const * const pi, PointType * const po)
@@ -635,25 +637,22 @@ void pointBodyToWorld(PointType const * const pi, PointType * const po)
   V3D p_body(pi->x, pi->y, pi->z);
 
   V3D p_global;
-  
-  if (extrinsic_est_en) {  // 外参在线估计模式
+
+  if (extrinsic_est_en) {     // 外参在线估计模式
     if (!use_imu_as_input) {  // 使用输出状态
       // p_world = R_world * (R_L_I * p_body + T_L_I) + t_world
-      p_global =
-        kf_output.x_.rot * (kf_output.x_.offset_R_L_I * p_body + kf_output.x_.offset_T_L_I) +
-        kf_output.x_.pos;
+      p_global = kf_output.x_.rot * (kf_output.x_.offset_R_L_I * p_body + kf_output.x_.offset_T_L_I) +
+                 kf_output.x_.pos;
     } else {  // 使用输入状态
-      p_global = kf_input.x_.rot * (kf_input.x_.offset_R_L_I * p_body + kf_input.x_.offset_T_L_I) +
-                 kf_input.x_.pos;
+      p_global =
+        kf_input.x_.rot * (kf_input.x_.offset_R_L_I * p_body + kf_input.x_.offset_T_L_I) + kf_input.x_.pos;
     }
-  } else {  // 固定外参模式
+  } else {                    // 固定外参模式
     if (!use_imu_as_input) {  // 使用输出状态的位姿
       // 使用预标定的固定外参进行变换
-      p_global = kf_output.x_.rot * (Lidar_R_wrt_IMU * p_body + Lidar_T_wrt_IMU) +
-                 kf_output.x_.pos;
+      p_global = kf_output.x_.rot * (Lidar_R_wrt_IMU * p_body + Lidar_T_wrt_IMU) + kf_output.x_.pos;
     } else {  // 使用输入状态的位姿
-      p_global = kf_input.x_.rot * (Lidar_R_wrt_IMU * p_body + Lidar_T_wrt_IMU) +
-                 kf_input.x_.pos;
+      p_global = kf_input.x_.rot * (Lidar_R_wrt_IMU * p_body + Lidar_T_wrt_IMU) + kf_input.x_.pos;
     }
   }
 

@@ -33,4 +33,4 @@
 #include "cereal/types/concepts/pair_associative_container.hpp"
 #include <map>
 
-#endif // CEREAL_TYPES_MAP_HPP_
+#endif  // CEREAL_TYPES_MAP_HPP_

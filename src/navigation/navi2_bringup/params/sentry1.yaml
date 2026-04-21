@@ -4,7 +4,7 @@ bt_navigator:
     global_frame: map
     robot_base_frame: "base_link"
     odom_topic: /aft_mapped_to_init
-    bt_loop_duration: 5 # ms
+    bt_loop_duration: 20 # ms
     # 行为树超时时间，秒
     default_server_timeout: 20
     # 毫秒
@@ -76,7 +76,7 @@ controller_server:
   ros__parameters:
     robot_base_frame: "base_link"
     use_sim_time: False
-    controller_frequency: 60.0
+    controller_frequency: 100.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.001
     min_theta_velocity_threshold: 0.001
@@ -88,8 +88,8 @@ controller_server:
     # Progress checker parameters
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
-      required_movement_radius: 0.2
-      movement_time_allowance: 100.0
+      required_movement_radius: 0.1
+      movement_time_allowance: 1000.0
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
@@ -99,15 +99,15 @@ controller_server:
     FollowPath:
       plugin: "minco_controller::MincoMpcController"
       # MPC sampling period (s) and lookahead time (s)
-      dt: 0.05
-      lookahead_time : 0.5
+      dt: 0.01
+      lookahead_time : 0.3
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.03
+      control_delay_compensation: 0.01
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
-      Q: [10.0, 10.0, 8.0]
-      R: [3.0, 3.0, 0.5]
+      Q: [4.0, 4.0, 5.0]
+      R: [1.5, 1.5, 2.0]
 
       # Velocity bounds
       vx_min: -2.5
@@ -115,8 +115,8 @@ controller_server:
       vy_min: -2.5
       vy_max: 2.5
       fixed_wz: 4.18 # rad/s, used if use_small_gyro_mode is true
-      omega_min: -2.5 
-      omega_max: 2.5
+      omega_min: -4.0 
+      omega_max: 4.0
 
       # Optional acceleration constraints
       use_acc_constraints: true
@@ -124,12 +124,13 @@ controller_server:
       ax_max: 2.5
       ay_min: -2.5
       ay_max: 2.5
-      alpha_min: -10.0
-      alpha_max: 10.0
+      alpha_min: -4.0
+      alpha_max: 4.0
 
       # Lidar extrinsic parameters
       lidar_offset_x: 0.0
-      lidar_offset_y: -0.186
+      lidar_offset_y: 0.20
+      lidar_roll_offset: -0.52
       
       # Frame settings
       odom_frame: "camera_init"
@@ -157,7 +158,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.20
+        inflation_radius: 0.25
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
@@ -177,7 +178,7 @@ local_costmap:
         observation_sources: mid360
         mid360:
           data_type: PointCloud2
-          topic: /cloud_registered_body
+          topic: /cloud_registered_filtered
           marking: true
           clearing: true
           obstacle_range: 8.0
@@ -210,7 +211,7 @@ global_costmap:
       robot_base_frame: base_link
       use_sim_time: False
       # robot_radius: 0.22
-      robot_radius: 0.25
+      robot_radius: 0.20
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "stvl_layer", "inflation_layer"]
@@ -220,7 +221,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 6.0
-        inflation_radius: 0.50
+        inflation_radius: 0.40
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
@@ -240,11 +241,11 @@ global_costmap:
         observation_sources: mid360
         mid360:
           data_type: PointCloud2
-          topic: /cloud_registered
+          topic: /cloud_registered_filtered
           marking: true
           clearing: true
           obstacle_range: 8.0
-          min_obstacle_height: 0.2
+          min_obstacle_height: 0.1
           max_obstacle_height: 0.5
           expected_update_rate: 0.0
           observation_persistence: 0.0
@@ -298,36 +299,43 @@ planner_server:
 
       smac_2d:
         use_esdf_cost: true
-        esdf_weight: 1.0
+        esdf_weight: 0.3
         esdf_decay: 0.5
-        esdf_max_cost: 1.0
+        esdf_max_cost: 0.3
 
       minco_optimizer:
         opt_freq: 20.0
         traj_goal_tolerance: 0.2
-        enable_yaw_opt: false
-        safe_dist: 0.35
+        enable_yaw_opt: true
+        safe_dist: 0.25
         lookahead_dist: 5.0  # 前视距离,用于minco部分优化
         max_velocity: 2.0
-        max_acceleration: 2.5
-        max_yaw_dot: 2.0
+        max_acceleration: 2.0
+        max_yaw_dot: 5.0
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
         opt_accuracy: 0.0001
         print_optimizer_log: false
-        penalty_weight_time: 25.0
+        penalty_weight_time: 35.0
         penalty_weight_pos: 100000.0
         penalty_weight_vel: 2000.0
         penalty_weight_acc: 2000.0
         penalty_weight_att: 300.0
+      recovery_server:
+        fail_threshold: 3
+        cooldown_sec: 2.0
+        recovery_window_sec: 3.0
+        escape_speed: 0.4
       static_esdf:
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/room_esdf.pcd"
-        # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
-        # esdf_pcd_path: "src/utils/pcd2esdf/maps/hotel_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_back_esdf.pcd"
         esdf_resolution: 0.05
+        dynamic_esdf_size: 8.0
+        dynamic_dilation_radius: 0.05
 
 smoother_server:
   ros__parameters:
@@ -344,17 +352,17 @@ behavior_server:
     costmap_topic: local_costmap/costmap_raw
     footprint_topic: local_costmap/published_footprint
     cycle_frequency: 10.0
-    behavior_plugins: ["wait", "backup"]
+    behavior_plugins: ["wait"]
     wait:
       plugin: "nav2_behaviors/Wait"
-    backup:
-      # plugin: "nav2_behaviors/BackUp"
-      plugin: "nav2_behaviors/BackUpTwzFree"
-      local_costmap_global_frame: camera_init
-      local_costmap_robot_base_frame: base_link
-      robot_radius: 0.3
-      cost_threshold: 0.0
-      visualization: true
+    # backup:
+    #   # plugin: "nav2_behaviors/BackUp"
+    #   plugin: "nav2_behaviors/BackUpTwzFree"
+    #   local_costmap_global_frame: camera_init
+    #   local_costmap_robot_base_frame: base_link
+    #   robot_radius: 0.3
+    #   cost_threshold: 0.0
+    #   visualization: true
     global_frame: map
     robot_base_frame: base_link
     transform_tolerance: 0.1
@@ -383,13 +391,13 @@ velocity_smoother:
   ros__parameters:
     enabled: False
     use_sim_time: False
-    smoothing_frequency: 20.0
+    smoothing_frequency: 100.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
-    max_velocity: [3.0, 3.0, 4.5]
-    min_velocity: [-3.0, -3.0, -4.5]
-    max_accel: [4.0, 4.0, 5.0]
-    max_decel: [-4.0, -4.0, -5.0]
+    max_velocity: [2.5, 2.5, 4.0]
+    min_velocity: [-2.5, -2.5, -4.0]
+    max_accel: [2.0, 2.0, 4.0]
+    max_decel: [-2.0, -2.0, -4.0]
     odom_topic: "aft_mapped_to_init"
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]

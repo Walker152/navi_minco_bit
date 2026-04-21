@@ -8,4 +8,4 @@ namespace ns_com {
 
 // All logic implemented in header via templates and inline methods where needed.
 
-} // namespace ns_com
+}  // namespace ns_com

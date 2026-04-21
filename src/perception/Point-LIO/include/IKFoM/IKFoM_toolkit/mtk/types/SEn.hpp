@@ -1,7 +1,8 @@
 // This is an advanced implementation of the algorithm described in the
 // following paper:
-//    C. Hertzberg,  R.  Wagner,  U.  Frese,  and  L.  Schroder.  Integratinggeneric   sensor   fusion   algorithms   with   sound   state   representationsthrough  encapsulation  of  manifolds.
-//    CoRR,  vol.  abs/1107.1119,  2011.[Online]. Available: http://arxiv.org/abs/1107.1119
+//    C. Hertzberg,  R.  Wagner,  U.  Frese,  and  L.  Schroder.  Integratinggeneric   sensor   fusion
+//    algorithms   with   sound   state   representationsthrough  encapsulation  of  manifolds. CoRR,  vol.
+//    abs/1107.1119,  2011.[Online]. Available: http://arxiv.org/abs/1107.1119
 
 /*
  *  Copyright (c) 2019--2023, The University of Hong Kong
@@ -83,20 +84,25 @@
 #include "SOn.hpp"
 #include "vect.hpp"
 
-namespace MTK
-{
+namespace MTK {
 
 /**
  * Three-dimensional orientations represented as Quaternion.
  * It is assumed that the internal Quaternion always stays normalized,
  * should this not be the case, call inherited member function @c normalize().
  */
-template <
-  class _scalar = double, int num_of_vec_plus1 = 6, int dim_of_mat = 4,
+template <class _scalar = double,
+  int num_of_vec_plus1 = 6,
+  int dim_of_mat = 4,
   int Options = Eigen::AutoAlign>
 struct SEN
 {
-  enum { DOF = num_of_vec_plus1, DIM = num_of_vec_plus1, TYP = 4 };
+  enum
+  {
+    DOF = num_of_vec_plus1,
+    DIM = num_of_vec_plus1,
+    TYP = 4
+  };
   typedef _scalar scalar;
   typedef Eigen::Matrix<scalar, dim_of_mat, dim_of_mat> base;
   typedef SO3<scalar> SO3_type;
@@ -107,30 +113,30 @@ struct SEN
   base mat;
 
   /**
-	 * Construct from real part and three imaginary parts.
-	 * Quaternion is normalized after construction.
-	 */
+   * Construct from real part and three imaginary parts.
+   * Quaternion is normalized after construction.
+   */
   // SEN(const base& src) : mat(src) {
   // 	// base::normalize();
   // }
 
   /**
-	 * Construct from Eigen::Quaternion.
-	 * @note Non-normalized input may result result in spurious behavior.
-	 */
+   * Construct from Eigen::Quaternion.
+   * @note Non-normalized input may result result in spurious behavior.
+   */
   SEN(const base & src = base::Identity()) : mat(src) {}
 
   /**
-	 * Construct from rotation matrix.
-	 * @note Invalid rotation matrices may lead to spurious behavior.
-	 */
+   * Construct from rotation matrix.
+   * @note Invalid rotation matrices may lead to spurious behavior.
+   */
   // template<class Derived>
   // SO3(const Eigen::MatrixBase<Derived>& matrix) : base(matrix) {}
 
   /**
-	 * Construct from arbitrary rotation type.
-	 * @note Invalid rotation matrices may lead to spurious behavior.
-	 */
+   * Construct from arbitrary rotation type.
+   * @note Invalid rotation matrices may lead to spurious behavior.
+   */
   // template<class Derived>
   // SO3(const Eigen::RotationBase<Derived, 3>& rotation) : base(rotation.derived()) {}
 
@@ -142,8 +148,7 @@ struct SEN
     mat = mat * delta.mat;
   }
   void boxminus(
-    MTK::vectview<scalar, DOF> res,
-    const SEN<scalar, num_of_vec_plus1, dim_of_mat, Options> & other) const
+    MTK::vectview<scalar, DOF> res, const SEN<scalar, num_of_vec_plus1, dim_of_mat, Options> & other) const
   {
     base error_mat = other.mat.inverse() * mat;
     res = log(error_mat);
@@ -169,7 +174,8 @@ struct SEN
     // return res;
   }
 
-  // void Jacob_right_inv(MTK::vectview<const scalar, DOF> vec, Eigen::Matrix<scalar, dim_of_mat, dim_of_mat> & res){
+  // void Jacob_right_inv(MTK::vectview<const scalar, DOF> vec, Eigen::Matrix<scalar, dim_of_mat,
+  // dim_of_mat> & res){
   void Jacob_right_inv(Eigen::VectorXd & vec, Eigen::MatrixXd & res)
   {
     res = Eigen::Matrix<scalar, dim_of_mat, dim_of_mat>::Zero();
@@ -193,9 +199,8 @@ struct SEN
           0.5 * hat_ro +
           (1 - norm * std::cos(norm / 2) / 2 / std::sin(norm / 2)) / norm / norm *
             (hat_ro * hat_v + hat_v * hat_ro) +
-          ((2 - norm * std::cos(norm / 2) / 2 / std::sin(norm / 2)) / 2 / norm / norm / norm /
-             norm -
-           1 / 8 / norm / norm / std::sin(norm / 2) / std::sin(norm / 2)) *
+          ((2 - norm * std::cos(norm / 2) / 2 / std::sin(norm / 2)) / 2 / norm / norm / norm / norm -
+            1 / 8 / norm / norm / std::sin(norm / 2) / std::sin(norm / 2)) *
             hat_v * (hat_ro * hat_v + hat_v * hat_ro) * hat_v;
       } else {
         res.block<3, 3>(i * 3, 0) = 0.5 * hat_ro;
@@ -204,7 +209,8 @@ struct SEN
     // return res;
   }
 
-  // void Jacob_right(MTK::vectview<const scalar, DOF> & vec, Eigen::Matrix<scalar, dim_of_mat, dim_of_mat> &res){
+  // void Jacob_right(MTK::vectview<const scalar, DOF> & vec, Eigen::Matrix<scalar, dim_of_mat, dim_of_mat>
+  // &res){
   void Jacob_right(Eigen::VectorXd & vec, Eigen::MatrixXd & res)
   {
     res = Eigen::Matrix<scalar, dim_of_mat, dim_of_mat>::Zero();
@@ -228,12 +234,11 @@ struct SEN
         res.block<3, 3>(i * 3, 0) =
           -1 * jac_v *
           (0.5 * hat_ro +
-           (1 - norm * std::cos(norm / 2) / 2 / std::sin(norm / 2)) / norm / norm *
-             (hat_ro * hat_v + hat_v * hat_ro) +
-           ((2 - norm * std::cos(norm / 2) / 2 / std::sin(norm / 2)) / 2 / norm / norm / norm /
-              norm -
-            1 / 8 / norm / norm / std::sin(norm / 2) / std::sin(norm / 2)) *
-             hat_v * (hat_ro * hat_v + hat_v * hat_ro) * hat_v) *
+            (1 - norm * std::cos(norm / 2) / 2 / std::sin(norm / 2)) / norm / norm *
+              (hat_ro * hat_v + hat_v * hat_ro) +
+            ((2 - norm * std::cos(norm / 2) / 2 / std::sin(norm / 2)) / 2 / norm / norm / norm / norm -
+              1 / 8 / norm / norm / std::sin(norm / 2) / std::sin(norm / 2)) *
+              hat_v * (hat_ro * hat_v + hat_v * hat_ro) * hat_v) *
           jac_v;
       } else {
         res.block<3, 3>(i * 3, 0) = -0.5 * jac_v * hat_ro * jac_v;
@@ -261,8 +266,7 @@ struct SEN
     res = Eigen::Matrix<scalar, 3, 2>::Zero();
   }
 
-  friend std::ostream & operator<<(
-    std::ostream & os, const SEN<scalar, DOF, dim_of_mat, Options> & q)
+  friend std::ostream & operator<<(std::ostream & os, const SEN<scalar, DOF, dim_of_mat, Options> & q)
   {
     for (int i = 0; i < dim_of_mat; i++) {
       for (int j = 0; j < dim_of_mat; j++) {
@@ -289,9 +293,9 @@ struct SEN
   //! @name Helper functions
   //{
   /**
-	 * Calculate the exponential map. In matrix terms this would correspond 
-	 * to the Rodrigues formula.
-	 */
+   * Calculate the exponential map. In matrix terms this would correspond
+   * to the Rodrigues formula.
+   */
   // FIXME vectview<> can't be constructed from every MatrixBase<>, use const Vector3x& as workaround
   //	static SO3 exp(MTK::vectview<const scalar, 3> dvec, scalar scale = 1){
   static SEN exp(const Eigen::Matrix<scalar, DOF, 1> & dvec, scalar scale = 1)
@@ -314,9 +318,9 @@ struct SEN
     return res;
   }
   /**
-	 * Calculate the inverse of @c exp.
-	 * Only guarantees that <code>exp(log(x)) == x </code>
-	 */
+   * Calculate the inverse of @c exp.
+   * Only guarantees that <code>exp(log(x)) == x </code>
+   */
   static Eigen::Matrix<scalar, DOF, 1> log(base & orient)
   {
     Eigen::Matrix<scalar, DOF, 1> res;
