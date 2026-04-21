@@ -76,4 +76,20 @@ bool TransformUtils::transformPoseToMap(const geometry_msgs::msg::Pose & input_p
   }
 }
 
+bool TransformUtils::transformMapPose(const geometry_msgs::msg::Pose & input_pose,
+  geometry_msgs::msg::Pose & output_pose,
+  const std::string & target_frame)
+{
+  try {
+    // 查找从map到target_frame的变换（非阻塞，获取最新）
+    geometry_msgs::msg::TransformStamped transform_stamped;
+    transform_stamped = tf_buffer_->lookupTransform(target_frame, "map", tf2::TimePointZero);
+
+    tf2::doTransform(input_pose, output_pose, transform_stamped);
+
+    return true;
+  } catch (const tf2::TransformException & ex) {
+    return false;
+  }
+}
 }  // namespace Sentry_BT
