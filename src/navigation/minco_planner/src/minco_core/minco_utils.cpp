@@ -1,12 +1,18 @@
 #include "minco_core/minco_utils.hpp"
 
-#include <algorithm>
-#include <cmath>
-
 #include "data_structure/base/trajectory.h"
-#include "nav2_costmap_2d/cost_values.hpp"
 
 namespace minco_planner::utils {
+
+double quaternionToYaw(const geometry_msgs::msg::Quaternion & q)
+{
+  const tf2::Quaternion tf_q(q.x, q.y, q.z, q.w);
+  double roll = 0.0;
+  double pitch = 0.0;
+  double yaw = 0.0;
+  tf2::Matrix3x3(tf_q).getRPY(roll, pitch, yaw);
+  return std::isfinite(yaw) ? yaw : 0.0;
+}
 
 double getDistFromTrapezoid(
   double t, double total_length, double a_ref, double v_peak, double t_acc, double t_flat)
