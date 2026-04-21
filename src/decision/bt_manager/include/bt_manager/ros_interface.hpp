@@ -70,11 +70,14 @@ private:
   void manualOverrideCallback(const geometry_msgs::msg::PointStamped::SharedPtr msg);
   void publishAreaMarkers();
 
+  geometry_msgs::msg::Pose createPose(float x, float y, float z, float yaw_deg);
+
 public:
   ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr);
   ~ros_interface() override = default;
 
   geometry_msgs::msg::Pose getCurrentPose() const;
+  geometry_msgs::msg::Pose transformMapPose(const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame);
   std::shared_ptr<ParamManager> getParamManager() const { return param_manager_; }
 
   bool TransformPose(const geometry_msgs::msg::Pose & input_pose, geometry_msgs::msg::Pose & output_pose);
