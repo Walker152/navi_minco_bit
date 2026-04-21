@@ -2,8 +2,8 @@ gicp_relocalization_node:
   ros__parameters:
     # General Configuration
     mode: "initial_guess" # Options: "multi_guess", "initial_guess"
-    # target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/2026rmuc.pcd"
-    target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/111.pcd"
+    target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/2026rmuc.pcd"
+    # target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/111.pcd"
     # target_pcd_file: "src/navigation/navi2_bringup/maps/hotel.pcd"
     # target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/2026rmul.pcd"
     map_frame: "map"

@@ -15,6 +15,7 @@
 #include <std_msgs/msg/string.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
+#include <array>
 #include <mutex>
 
 // Custom Messages
@@ -84,6 +85,7 @@ public:
 
   bool isTroughZone(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square & zone);
   bool isTroughTunnel(
-    const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square & tunnel_area);
+    const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg,
+    const std::array<Area_Square, 4> & tunnel_areas);
 };
 }  // namespace Sentry_BT

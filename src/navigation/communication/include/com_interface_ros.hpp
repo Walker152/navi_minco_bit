@@ -189,12 +189,9 @@ private:
     float current_vw = 0.0f;
     uint8_t desire_stance = 0;
     uint8_t desire_lifter_pos = 0;
-    uint8_t control_mode = 0;
     bool use_gyro_mode = false;
     float gyro_vel = 0.0f;
     bool is_aim_outpost = false;
-    double odom_x = 0.0;
-    double odom_y = 0.0;
     geometry_msgs::msg::Quaternion odom_q;
 
     {
@@ -206,7 +203,6 @@ private:
       // vw_rpm = 80.0f;
       desire_stance = behavior_.desired_stance;
       desire_lifter_pos = behavior_.desire_lifter_pos;
-      control_mode = behavior_.control_mode;
     //   use_gyro_mode = behavior_.use_gyro_mode;
     //   gyro_vel = behavior_.gyro_vel;
 
@@ -217,8 +213,6 @@ private:
         vx_mps *= 1.2;
         vy_mps *= 1.2;
       }
-      odom_x = odom_.pose.pose.position.x;
-      odom_y = odom_.pose.pose.position.y;
       odom_q = odom_.pose.pose.orientation;
       current_vx = odom_.twist.twist.linear.x;
       current_vy = odom_.twist.twist.linear.y;
@@ -236,16 +230,13 @@ private:
     ChassisTarget target(vx_mps,
       vy_mps,
       vw_rpm,
-      odom_x,
-      odom_y,
       current_yaw_deg,
       current_vx,
       current_vy,
       current_vw,
       is_aim_outpost,
       desire_stance,
-      desire_lifter_pos,
-      control_mode);
+      desire_lifter_pos);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
     if (flag == 0) {
       static auto last_send_time = this->now();

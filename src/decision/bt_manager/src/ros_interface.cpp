@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -19,18 +20,56 @@ struct AreaVizConfig
   std::array<float, 3> color;
 };
 
+struct PolygonVizConfig
+{
+  std::string name;
+  std::vector<Sentry_BT::Point2D> vertices;
+  std::array<float, 3> color;
+};
+
 std::vector<AreaVizConfig> getAreaVizConfigs()
 {
-  return {
+  std::vector<AreaVizConfig> configs = {
     {"transform_zone", Sentry_BT::transform_zone, {1.0F, 0.2F, 0.2F}},
-    {"tunnel_zone", Sentry_BT::tunnel_zone, {1.0F, 0.6F, 0.0F}},
+    {"tunnel_zone_0", Sentry_BT::tunnel_zone[0], {1.0F, 0.6F, 0.0F}},
+    {"tunnel_zone_1", Sentry_BT::tunnel_zone[1], {1.0F, 0.6F, 0.0F}},
+    {"tunnel_zone_2", Sentry_BT::tunnel_zone[2], {1.0F, 0.6F, 0.0F}},
+    {"tunnel_zone_3", Sentry_BT::tunnel_zone[3], {1.0F, 0.6F, 0.0F}},
     {"stairs_zone", Sentry_BT::stairs_zone, {1.0F, 1.0F, 0.2F}},
     {"stairs_lower_safe_zone", Sentry_BT::stairs_lower_safe_zone, {0.4F, 1.0F, 0.4F}},
-    {"target_feasible_zone", Sentry_BT::target_feasible_zone, {0.2F, 1.0F, 1.0F}},
     {"highland_zone", Sentry_BT::highland_zone, {0.2F, 0.6F, 1.0F}},
     {"own_defense_zone", Sentry_BT::own_defense_zone, {0.6F, 0.4F, 1.0F}},
     {"enemy_defense_zone", Sentry_BT::enemy_defense_zone, {1.0F, 0.2F, 1.0F}},
     {"enemy_outpost_watch_zone", Sentry_BT::enemy_outpost_watch_zone, {0.8F, 0.8F, 0.8F}},
+    {"full_court_zone", Sentry_BT::full_court_zone, {0.2F, 0.2F, 0.2F}},
+    {"own_base_buff_zone", Sentry_BT::own_base_buff_zone, {0.3F, 0.9F, 0.3F}},
+    {"enemy_base_buff_zone", Sentry_BT::enemy_base_buff_zone, {0.9F, 0.3F, 0.3F}},
+    {"own_outpost_buff_zone", Sentry_BT::own_outpost_buff_zone, {0.5F, 0.9F, 0.3F}},
+    {"enemy_outpost_buff_zone", Sentry_BT::enemy_outpost_buff_zone, {0.9F, 0.5F, 0.3F}},
+  };
+
+  for (const auto & mode_entry : Sentry_BT::tracking_areas) {
+    const auto mode_id = static_cast<int>(mode_entry.first);
+    for (std::size_t i = 0; i < mode_entry.second.size(); ++i) {
+      std::ostringstream name;
+      name << "tracking_mode_" << mode_id << "_" << i;
+      configs.push_back({name.str(), mode_entry.second[i], {0.95F, 0.95F, 0.95F}});
+    }
+  }
+
+  return configs;
+}
+
+std::vector<PolygonVizConfig> getPolygonVizConfigs()
+{
+  return {
+    {"own_highland_buff_zone",
+      {Sentry_BT::own_highland_buff_zone.vertices.begin(), Sentry_BT::own_highland_buff_zone.vertices.end()},
+      {0.2F, 0.8F, 1.0F}},
+    {"enemy_highland_buff_zone",
+      {Sentry_BT::enemy_highland_buff_zone.vertices.begin(),
+        Sentry_BT::enemy_highland_buff_zone.vertices.end()},
+      {1.0F, 0.4F, 0.2F}},
   };
 }
 
@@ -172,10 +211,11 @@ void ros_interface::publishAreaMarkers()
 
   visualization_msgs::msg::MarkerArray marker_array;
   const auto now = this->now();
-  const auto areas = getAreaVizConfigs();
+  const auto square_areas = getAreaVizConfigs();
+  const auto polygon_areas = getPolygonVizConfigs();
 
   int marker_id = 0;
-  for (const auto & cfg : areas) {
+  for (const auto & cfg : square_areas) {
     const double min_x = std::min(cfg.area.top_left.x, cfg.area.bottom_right.x);
     const double max_x = std::max(cfg.area.top_left.x, cfg.area.bottom_right.x);
     const double min_y = std::min(cfg.area.top_left.y, cfg.area.bottom_right.y);
@@ -211,6 +251,59 @@ void ros_interface::publishAreaMarkers()
     text_marker.pose.position.x = box_marker.pose.position.x;
     text_marker.pose.position.y = box_marker.pose.position.y;
     text_marker.pose.position.z = 0.35;
+    text_marker.pose.orientation.w = 1.0;
+    text_marker.scale.z = 0.25;
+    text_marker.color.r = cfg.color[0];
+    text_marker.color.g = cfg.color[1];
+    text_marker.color.b = cfg.color[2];
+    text_marker.color.a = 1.0F;
+    text_marker.text = cfg.name;
+    marker_array.markers.push_back(text_marker);
+  }
+
+  for (const auto & cfg : polygon_areas) {
+    if (cfg.vertices.size() < 3) {
+      continue;
+    }
+
+    visualization_msgs::msg::Marker line_marker;
+    line_marker.header.frame_id = "map";
+    line_marker.header.stamp = now;
+    line_marker.ns = "sentry_area_poly/" + cfg.name;
+    line_marker.id = marker_id++;
+    line_marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    line_marker.action = visualization_msgs::msg::Marker::ADD;
+    line_marker.pose.orientation.w = 1.0;
+    line_marker.scale.x = 0.08;
+    line_marker.color.r = cfg.color[0];
+    line_marker.color.g = cfg.color[1];
+    line_marker.color.b = cfg.color[2];
+    line_marker.color.a = 1.0F;
+
+    double center_x = 0.0;
+    double center_y = 0.0;
+    for (const auto & vertex : cfg.vertices) {
+      geometry_msgs::msg::Point p;
+      p.x = vertex.x;
+      p.y = vertex.y;
+      p.z = 0.15;
+      line_marker.points.push_back(p);
+      center_x += vertex.x;
+      center_y += vertex.y;
+    }
+    line_marker.points.push_back(line_marker.points.front());
+    marker_array.markers.push_back(line_marker);
+
+    visualization_msgs::msg::Marker text_marker;
+    text_marker.header.frame_id = "map";
+    text_marker.header.stamp = now;
+    text_marker.ns = "sentry_area_poly_label/" + cfg.name;
+    text_marker.id = marker_id++;
+    text_marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+    text_marker.action = visualization_msgs::msg::Marker::ADD;
+    text_marker.pose.position.x = center_x / static_cast<double>(cfg.vertices.size());
+    text_marker.pose.position.y = center_y / static_cast<double>(cfg.vertices.size());
+    text_marker.pose.position.z = 0.45;
     text_marker.pose.orientation.w = 1.0;
     text_marker.scale.z = 0.25;
     text_marker.color.r = cfg.color[0];
@@ -433,8 +526,15 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
 
   // 提取bit 12-13：哨兵当前姿态
   uint8_t current_stance = (sentry_info_2 >> 12) & 0x3;
-  blackboard_->set<Sentry_BT::SentryStance>(
-    "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
+  if (current_stance >= static_cast<uint8_t>(Sentry_BT::SentryStance::ATTACK) &&
+      current_stance <= static_cast<uint8_t>(Sentry_BT::SentryStance::MOVE)) {
+    blackboard_->set<Sentry_BT::SentryStance>(
+      "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
+  } else {
+    RCLCPP_WARN_THROTTLE(
+      this->get_logger(), *this->get_clock(), 2000,
+      "Invalid current_stance decoded from sentry_info_2: %u", current_stance);
+  }
 
   // 提取bit 14：己方能量机关是否能够进入正在激活状态
   bool can_activate_energy = ((sentry_info_2 >> 14) & 0x1) != 0;
@@ -503,12 +603,19 @@ bool ros_interface::isTroughZone(
 
 // 判断MPC轨迹是否穿过指定隧道区域（由入口左端点和出口右端点两个点定义）
 bool ros_interface::isTroughTunnel(
-  const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square & tunnel_area)
+  const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg,
+  const std::array<Area_Square, 4> & tunnel_areas)
 {
   const auto current_pose = getCurrentPose();
   const Point2D current_point{current_pose.position.x, current_pose.position.y};
   const bool in_transform_zone = transform_zone.contains(current_point);
-  const bool through_tunnel_now = isTroughZone(msg, tunnel_area);
+  bool through_tunnel_now = false;
+  for (const auto & zone : tunnel_areas) {
+    if (isTroughZone(msg, zone)) {
+      through_tunnel_now = true;
+      break;
+    }
+  }
   if (!msg || msg->cmds.empty()) {
     if (!in_transform_zone) {
       tunnel_detect_latched_ = false;
