@@ -15,21 +15,19 @@
 #ifndef MINCO_PLANNER__SMAC_SEARCH__NODE_2D_HPP_
 #define MINCO_PLANNER__SMAC_SEARCH__NODE_2D_HPP_
 
+#include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <stdexcept>
-#include <cstdint>
-#include <limits>
 #include <vector>
 
-#include "smac_search/types.hpp"
-#include "smac_search/constants.hpp"
 #include "smac_search/collision_checker.hpp"
+#include "smac_search/constants.hpp"
+#include "smac_search/types.hpp"
 
-namespace minco_planner
-{
-namespace smac
-{
+namespace minco_planner {
+namespace smac {
 
 /**
  * @class minco_planner::smac::Node2D
@@ -49,19 +47,11 @@ public:
   struct Coordinates
   {
     Coordinates() {}
-    Coordinates(const float & x_in, const float & y_in)
-    : x(x_in), y(y_in)
-    {}
+    Coordinates(const float & x_in, const float & y_in) : x(x_in), y(y_in) {}
 
-    inline bool operator==(const Coordinates & rhs) const
-    {
-      return this->x == rhs.x && this->y == rhs.y;
-    }
+    inline bool operator==(const Coordinates & rhs) const { return this->x == rhs.x && this->y == rhs.y; }
 
-    inline bool operator!=(const Coordinates & rhs) const
-    {
-      return !(*this == rhs);
-    }
+    inline bool operator!=(const Coordinates & rhs) const { return !(*this == rhs); }
 
     float x, y;
   };
@@ -84,19 +74,13 @@ public:
    * @param Node2D right hand side node reference
    * @return If cell indices are equal
    */
-  bool operator==(const Node2D & rhs)
-  {
-    return this->_index == rhs._index;
-  }
+  bool operator==(const Node2D & rhs) { return this->_index == rhs._index; }
 
   /**
    * @brief setting continuous coordinate search poses (in partial-cells)
    * @param Pose pose
    */
-  inline void setPose(const Coordinates & pose_in)
-  {
-    pose = pose_in;
-  }
+  inline void setPose(const Coordinates & pose_in) { pose = pose_in; }
 
   /**
    * @brief Reset method for new search
@@ -107,46 +91,31 @@ public:
    * @brief Gets the accumulated cost at this node
    * @return accumulated cost
    */
-  inline float getAccumulatedCost()
-  {
-    return _accumulated_cost;
-  }
+  inline float getAccumulatedCost() { return _accumulated_cost; }
 
   /**
    * @brief Sets the accumulated cost at this node
    * @param reference to accumulated cost
    */
-  inline void setAccumulatedCost(const float & cost_in)
-  {
-    _accumulated_cost = cost_in;
-  }
+  inline void setAccumulatedCost(const float & cost_in) { _accumulated_cost = cost_in; }
 
   /**
    * @brief Gets the costmap cost at this node
    * @return costmap cost
    */
-  inline float getCost()
-  {
-    return _cell_cost;
-  }
+  inline float getCost() { return _cell_cost; }
 
   /**
    * @brief Gets the costmap cost at this node
    * @return costmap cost
    */
-  inline void setCost(const float & cost)
-  {
-    _cell_cost = cost;
-  }
+  inline void setCost(const float & cost) { _cell_cost = cost; }
 
   /**
    * @brief Gets if cell has been visited in search
    * @param If cell was visited
    */
-  inline bool wasVisited(const uint64_t & iter) const
-  {
-    return _visited_iter == iter;
-  }
+  inline bool wasVisited(const uint64_t & iter) const { return _visited_iter == iter; }
 
   /**
    * @brief Sets if cell has been visited in search
@@ -161,37 +130,22 @@ public:
    * @brief Gets if cell is currently queued in search
    * @param If cell was queued
    */
-  inline bool isQueued(const uint64_t & iter) const
-  {
-    return _queued_iter == iter;
-  }
+  inline bool isQueued(const uint64_t & iter) const { return _queued_iter == iter; }
 
   /**
    * @brief Sets if cell is currently queued in search
    */
-  inline void queued(const uint64_t & iter)
-  {
-    _queued_iter = iter;
-  }
+  inline void queued(const uint64_t & iter) { _queued_iter = iter; }
 
   /**
    * @brief Gets cell index
    * @return Reference to cell index
    */
-  inline uint64_t getIndex()
-  {
-    return _index;
-  }
+  inline uint64_t getIndex() { return _index; }
 
-  inline uint64_t getLastSearchId() const
-  {
-    return _last_search_id;
-  }
+  inline uint64_t getLastSearchId() const { return _last_search_id; }
 
-  inline void setLastSearchId(const uint64_t id)
-  {
-    _last_search_id = id;
-  }
+  inline void setLastSearchId(const uint64_t id) { _last_search_id = id; }
 
   /**
    * @brief Check if this node is valid
@@ -218,8 +172,7 @@ public:
   static inline uint64_t getIndex(
     const unsigned int & x, const unsigned int & y, const unsigned int & width)
   {
-    return static_cast<uint64_t>(x) + static_cast<uint64_t>(y) *
-           static_cast<uint64_t>(width);
+    return static_cast<uint64_t>(x) + static_cast<uint64_t>(y) * static_cast<uint64_t>(width);
   }
 
   /**
@@ -255,9 +208,7 @@ public:
    * @param node Node index of new
    * @return Heuristic cost between the nodes
    */
-  static float getHeuristicCost(
-    const Coordinates & node_coords,
-    const CoordinateVector & goals_coords);
+  static float getHeuristicCost(const Coordinates & node_coords, const CoordinateVector & goals_coords);
 
   /**
    * @brief Initialize the neighborhood to be used in A*
@@ -268,8 +219,7 @@ public:
    * @param num_angle_quantization Number of quantizations, must be 0
    * @param search_info Search parameters, unused by 2D node
    */
-  static void initMotionModel(
-    const MotionModel & motion_model,
+  static void initMotionModel(const MotionModel & motion_model,
     unsigned int & size_x,
     unsigned int & size_y,
     unsigned int & num_angle_quantization,
@@ -283,8 +233,7 @@ public:
    * @param neighbors Vector of neighbors to be filled
    */
   void getNeighbors(
-    std::function<bool(const uint64_t &,
-    minco_planner::smac::Node2D * &)> & validity_checker,
+    std::function<bool(const uint64_t &, minco_planner::smac::Node2D *&)> & validity_checker,
     GridCollisionChecker * collision_checker,
     const bool & traverse_unknown,
     const uint64_t & iter,

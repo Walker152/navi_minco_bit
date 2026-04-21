@@ -7,8 +7,7 @@
 #include <cmath>
 #include <limits>
 
-namespace small_rog_map
-{
+namespace small_rog_map {
 
 StaticLayer::StaticLayer() = default;
 
@@ -17,11 +16,26 @@ bool StaticLayer::isValid() const
   return width_ > 1 && height_ > 1 && !dist_m_.empty() && resolution_ > 0.0;
 }
 
-int StaticLayer::width() const { return width_; }
-int StaticLayer::height() const { return height_; }
-double StaticLayer::resolution() const { return resolution_; }
-const Eigen::Vector2d & StaticLayer::origin() const { return origin_; }
-const std::vector<double> & StaticLayer::distanceBuffer() const { return dist_m_; }
+int StaticLayer::width() const
+{
+  return width_;
+}
+int StaticLayer::height() const
+{
+  return height_;
+}
+double StaticLayer::resolution() const
+{
+  return resolution_;
+}
+const Eigen::Vector2d & StaticLayer::origin() const
+{
+  return origin_;
+}
+const std::vector<double> & StaticLayer::distanceBuffer() const
+{
+  return dist_m_;
+}
 
 bool StaticLayer::loadFromPCD(const std::string & pcd_path, double resolution)
 {
@@ -109,6 +123,13 @@ void StaticLayer::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Ve
   const double d10 = dist_m_[idx10];
   const double d01 = dist_m_[idx01];
   const double d11 = dist_m_[idx11];
+
+  // 避免 0 * (-inf) 在双线性插值中产生 NaN，导致障碍附近被误判为远距离。
+  if (!std::isfinite(d00) || !std::isfinite(d10) || !std::isfinite(d01) || !std::isfinite(d11)) {
+    dist = -std::numeric_limits<double>::infinity();
+    grad.setZero();
+    return;
+  }
 
   const double lerp_y0 = (1.0 - fx) * d00 + fx * d10;
   const double lerp_y1 = (1.0 - fx) * d01 + fx * d11;

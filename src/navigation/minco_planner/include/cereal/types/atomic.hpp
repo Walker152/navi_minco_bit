@@ -30,26 +30,24 @@
 #ifndef CEREAL_TYPES_ATOMIC_HPP_
 #define CEREAL_TYPES_ATOMIC_HPP_
 
-#include <cereal/cereal.hpp>
 #include <atomic>
+#include <cereal/cereal.hpp>
 
-namespace cereal
+namespace cereal {
+//! Serializing (save) for std::atomic
+template <class Archive, class T>
+inline void CEREAL_SAVE_FUNCTION_NAME(Archive & ar, std::atomic<T> const & a)
 {
-  //! Serializing (save) for std::atomic
-  template <class Archive, class T> inline
-  void CEREAL_SAVE_FUNCTION_NAME( Archive & ar, std::atomic<T> const & a )
-  {
-    ar( CEREAL_NVP_("atomic_data", a.load()) );
-  }
+  ar(CEREAL_NVP_("atomic_data", a.load()));
+}
 
-  //! Serializing (load) for std::atomic
-  template <class Archive, class T> inline
-  void CEREAL_LOAD_FUNCTION_NAME( Archive & ar, std::atomic<T> & a )
-  {
-    T tmp;
-    ar( CEREAL_NVP_("atomic_data", tmp) );
-    a.store( tmp );
-  }
-} // namespace cereal
+//! Serializing (load) for std::atomic
+template <class Archive, class T> inline void CEREAL_LOAD_FUNCTION_NAME(Archive & ar, std::atomic<T> & a)
+{
+  T tmp;
+  ar(CEREAL_NVP_("atomic_data", tmp));
+  a.store(tmp);
+}
+}  // namespace cereal
 
-#endif // CEREAL_TYPES_ATOMIC_HPP_
+#endif  // CEREAL_TYPES_ATOMIC_HPP_

@@ -4,11 +4,9 @@
 #include <limits>
 #include <vector>
 
-namespace traj_opt
-{
+namespace traj_opt {
 
-namespace
-{
+namespace {
 
 struct Aabb
 {
@@ -65,8 +63,7 @@ inline bool insideBounds(const Aabb & b, const Eigen::Vector3d & p)
           p.z() > b.zmin + eps && p.z() < b.zmax - eps);
 }
 
-inline double raycastBox(
-  const Eigen::Vector3d & start_pos,
+inline double raycastBox(const Eigen::Vector3d & start_pos,
   const Eigen::Vector3d & direction,
   const Eigen::Vector3d & box_min,
   const Eigen::Vector3d & box_max)
@@ -78,7 +75,7 @@ inline double raycastBox(
 
   const bool inside =
     (start_pos.x() >= box_min.x() && start_pos.x() <= box_max.x() && start_pos.y() >= box_min.y() &&
-     start_pos.y() <= box_max.y() && start_pos.z() >= box_min.z() && start_pos.z() <= box_max.z());
+      start_pos.y() <= box_max.y() && start_pos.z() >= box_min.z() && start_pos.z() <= box_max.z());
   if (!inside) {
     return 0.0;
   }
@@ -120,8 +117,7 @@ inline double raycastBox(
 // t=0: P=P0, V=V0, A=A0
 // t=T: P=P_end, V=0, A=0
 // Coeff matrix follows Piece convention: [t^5 t^4 t^3 t^2 t 1]
-inline bool buildForwardStopQuintic(
-  const Eigen::Vector3d & p0,
+inline bool buildForwardStopQuintic(const Eigen::Vector3d & p0,
   const Eigen::Vector3d & v0,
   const Eigen::Vector3d & a0,
   const Eigen::Vector3d & p_end,
@@ -223,82 +219,51 @@ bool BackupTrajOpt::optimize(Trajectory & out_traj) const
   }
 
   // Compute physical braking distance
-  constexpr double a_max = 2.0;
+  constexpr double a_max = 3.0;
   const double L_phy = (v_mag > 1e-4) ? (v_mag * v_mag) / (2.0 * a_max) : 0.0;
 
   // Compute geometric free distance inside the safe box
   double L_geo = std::numeric_limits<double>::infinity();
+  Eigen::Vector3d dir = Eigen::Vector3d::Zero();
+  if (v_mag > 1e-6) {
+    dir = v0 / v_mag;
+  }
   if (has_bounds && v_mag > 1e-4) {
-    const Eigen::Vector3d dir = v0 / v_mag;
     const Eigen::Vector3d box_min(bounds.xmin, bounds.ymin, bounds.zmin);
     const Eigen::Vector3d box_max(bounds.xmax, bounds.ymax, bounds.zmax);
     const double hit = raycastBox(p0, dir, box_min, box_max);
-    L_geo = (hit > 0.0) ? hit : 0.0;
+    L_geo = (hit > 0.0) ? hit * 0.95 : 0.0;
   }
 
-  // Target distance / point.
-  double L = 0.0;
-  Eigen::Vector3d p_target = p0;
-  if (v_mag > 1e-4) {
-    const Eigen::Vector3d dir = v0 / v_mag;
-    const double L_limit = std::isfinite(L_geo) ? (L_geo * 0.95) : std::numeric_limits<double>::infinity();
-    L = std::max(0.0, std::min(L_phy, L_limit));
-    p_target = p0 + L * dir;
+  double a_brake = a_max;
+
+  if (L_phy > L_geo && L_geo > 0.05) {
+    a_brake = (v_mag * v_mag) / (2.0 * L_geo);
+    a_brake = std::min(a_brake, 8.0);
   }
 
-  // Candidate durations: {0.5, T_min, 1.5*T_min}
-  // T_min is the physical minimum stop time under max decel: T_min = ||v|| / a_max
-  double T_min = (v_mag > 1e-4) ? (v_mag / a_max) : 0.10;
-  if (!std::isfinite(T_min)) {
-    T_min = 0.10;
+  if (L_geo <= 0.05) {
+    a_brake = 8.0;
   }
 
-  std::vector<double> Ts;
-  Ts.reserve(3);
-  Ts.push_back(0.5);
-  Ts.push_back(T_min);
-  Ts.push_back(1.5 * T_min);
-  for (double & T : Ts) {
-    if (!std::isfinite(T)) {
-      T = 0.10;
-    }
-    T = std::max(0.05, std::min(2.0, T));
+  // 5. 生成恒定减速时间与加速度向量
+  double T = v_mag / a_brake;
+  T = std::max(0.05, T);  // 防止时间过短
+  Eigen::Vector3d a_final = -a_brake * dir;
+
+  // 6. 填充 MINCO 要求的 [t^5, t^4, t^3, t^2, t^1, t^0] 系数矩阵
+  // 对于匀减速运动： p(t) = p0 + v0*t + 0.5*a*t^2
+  Eigen::MatrixXd coeffMat = Eigen::MatrixXd::Zero(3, 6);
+  for (int axis = 0; axis < 3; ++axis) {
+    coeffMat(axis, 5) = p0(axis);             // c0
+    coeffMat(axis, 4) = v0(axis);             // c1
+    coeffMat(axis, 3) = 0.5 * a_final(axis);  // c2
+    // c3, c4, c5 保持为 0
   }
 
-  // If we have bounds but cannot move forward at all, reject (caller will fallback to hard stop).
-  if (has_bounds && v_mag > 1e-4 && L <= 1e-6) {
-    return false;
-  }
-
-  (void)stop_constraints_;
-
-  for (double T : Ts) {
-    Eigen::MatrixXd coeffMat;
-    if (!buildForwardStopQuintic(p0, v0, a0, p_target, T, coeffMat)) {
-      continue;
-    }
-
-    if (has_bounds) {
-      bool ok = true;
-      constexpr double kSampleDt = 0.05;
-      const int samples = std::max(10, static_cast<int>(std::ceil(T / kSampleDt)));
-      for (int i = 0; i <= samples; ++i) {
-        const double tt = (static_cast<double>(i) / samples) * T;
-        const Eigen::Vector3d p = evalPosFromCoeffMat(coeffMat, tt);
-        if (!insideBounds(bounds, p)) {
-          ok = false;
-          break;
-        }
-      }
-      if (!ok) {
-        continue;
-      }
-    }
-
-    out_traj.clear();
-    out_traj.emplace_back(T, coeffMat);
-    return true;
-  }
+  out_traj.clear();
+  out_traj.emplace_back(T, coeffMat);
+  return true;
 
   return false;
 }

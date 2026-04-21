@@ -15,12 +15,1180 @@
     <script src="https://unpkg.com/eventemitter2@6.4.9/lib/eventemitter2.min.js"></script>
     <script src="https://unpkg.com/roslib@1.3.0/build/roslib.min.js"></script>
 
-    <link rel="stylesheet" href="./bt_editor.css">
+    <style>
+        body, html { height: 100%; margin: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        @keyframes flash-green { 0% { background-color: #dcfce7; } 100% { background-color: transparent; } }
+        .animate-flash { animation: flash-green 1s ease-out; }
+        @keyframes slide-down { 0% { transform: translate(-50%, -100%); opacity: 0; } 100% { transform: translate(-50%, 0); opacity: 1; } }
+        .animate-toast { animation: slide-down 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        .resizer-col { width: 5px; cursor: col-resize; position: absolute; top: 0; bottom: 0; left: 0; z-index: 50; transition: background 0.2s; }
+        .resizer-col:hover { background: #3b82f6; }
+        .resizer-row { height: 5px; cursor: row-resize; position: absolute; top: 0; left: 0; right: 0; z-index: 50; transition: background 0.2s; }
+        .resizer-row:hover { background: #3b82f6; }
+    </style>
 </head>
 <body>
     <div id="root" class="h-full w-full"></div>
-    <script type="text/babel" src="./bt_editor_core.js"></script>
-    <script type="text/babel" src="./bt_editor_modals.js"></script>
-    <script type="text/babel" src="./bt_editor_main.js"></script>
+
+    <script type="text/babel">
+        const { useState, useCallback, useRef, useEffect } = React;
+
+        // ==========================================
+        // 1. 图标库 (Icons)
+        // ==========================================
+        const Icon = ({ path, size = 16, className, ...props }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{path}</svg>);
+        const Icons = {
+            ArrowRight: (p) => <Icon {...p} path={<><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></>} />,
+            HelpCircle: (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></>} />,
+            RefreshCw: (p) => <Icon {...p} path={<><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>} />,
+            CheckCircle: (p) => <Icon {...p} path={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>} />,
+            AlertCircle: (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>} />,
+            Activity: (p) => <Icon {...p} path={<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>} />,
+            Upload: (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>} />,
+            Download: (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>} />,
+            Trash2: (p) => <Icon {...p} path={<><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></>} />,
+            Plus: (p) => <Icon {...p} path={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>} />,
+            X: (p) => <Icon {...p} path={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} />,
+            Shield: (p) => <Icon {...p} path={<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></>} />,
+            Crosshair: (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></>} />,
+            Zap: (p) => <Icon {...p} path={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />,
+            Play: (p) => <Icon {...p} path={<polygon points="5 3 19 12 5 21 5 3"/>} />,
+            Square: (p) => <Icon {...p} path={<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>} />,
+            Database: (p) => <Icon {...p} path={<><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></>} />,
+            Wifi: (p) => <Icon {...p} path={<path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>} />,
+            WifiOff: (p) => <Icon {...p} path={<><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></>} />,
+            FileCode: (p) => <Icon {...p} path={<><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m10 13-2 2 2 2"/><path d="m14 17 2-2-2-2"/></>} />,
+            Save: (p) => <Icon {...p} path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>} />,
+            Star: (p) => <Icon {...p} path={<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>} />,
+            PanelLeft: (p) => <Icon {...p} path={<><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></>} />,
+            PanelRight: (p) => <Icon {...p} path={<><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="15" y1="3" x2="15" y2="21"/></>} />
+        };
+
+        // ==========================================
+        // 2. 节点基础定义 (Node Types Definitions)
+        // ==========================================
+        const BASE_NODE_TYPES = {
+            Sequence: { label: 'Sequence', group: 'flow', baseType: 'SEQUENCE', color: '#f59e0b', icon: 'ArrowRight', desc: '按序执行，遇失败即断' },
+            ReactiveSequence: { label: 'ReactiveSequence', group: 'flow', baseType: 'SEQUENCE', color: '#f59e0b', icon: 'RefreshCw', desc: '响应式按序执行，每Tick从头检查' },
+            Fallback: { label: 'Fallback', group: 'flow', baseType: 'FALLBACK', color: '#8b5cf6', icon: 'HelpCircle', desc: '依次尝试，遇成功即断' },
+            ReactiveFallback: { label: 'ReactiveFallback', group: 'flow', baseType: 'FALLBACK', color: '#8b5cf6', icon: 'RefreshCw', desc: '响应式尝试，高优抢占' },
+            Parallel: { label: 'Parallel', group: 'flow', baseType: 'PARALLEL', color: '#0ea5e9', icon: 'Activity', desc: '并行执行所有子节点' },
+            ForceSuccess: { label: 'ForceSuccess', group: 'decorator', baseType: 'DECORATOR', color: '#ec4899', icon: 'CheckCircle', desc: '强制子节点返回成功' },
+            ForceFailure: { label: 'ForceFailure', group: 'decorator', baseType: 'DECORATOR', color: '#ec4899', icon: 'X', desc: '强制子节点返回失败' },
+            Inverter: { label: 'Inverter', group: 'decorator', baseType: 'DECORATOR', color: '#ec4899', icon: 'RefreshCw', desc: '取反子节点结果' },
+            Timeout: { label: 'Timeout', group: 'decorator', baseType: 'DECORATOR', color: '#ec4899', icon: 'AlertCircle', desc: '超时强行打断返回失败' },
+            Repeat: { label: 'Repeat', group: 'decorator', baseType: 'DECORATOR', color: '#ec4899', icon: 'RefreshCw', desc: '重复执行子节点N次' },
+            Action: { label: 'Action (Sync)', group: 'action', baseType: 'ACTION', color: '#3b82f6', icon: 'Activity', desc: '通用同步动作(即刻返回结果)' },
+            AsyncAction: { label: 'AsyncAction', group: 'action', baseType: 'ACTION', color: '#3b82f6', icon: 'Activity', desc: '异步动作(返回RUNNING)' },
+            Condition: { label: 'Condition', group: 'condition', baseType: 'CONDITION', color: '#10b981', icon: 'AlertCircle', desc: '通用条件判断' }
+        };
+
+        const INITIAL_BLACKBOARD = [
+            { key: 'health', value: '400', type: 'float' },
+            { key: 'enemy_outpost_destroyed', value: 'false', type: 'boolean' },
+            { key: 'target_valid', value: 'false', type: 'boolean' },
+            { key: 'current_mode', value: 'PATROL', type: 'enum', optionsStr: 'PATROL,ATTACK,RETREAT' }
+        ];
+
+        const NODE_WIDTH = 180;
+        const NODE_HEIGHT = 70;
+        const CANVAS_OFFSET = 5000;
+
+        const generateId = (prefix) => `${prefix}-${Math.random().toString(36).substr(2, 9)}`;
+        const downloadFile = (filename, content) => {
+            const element = document.createElement('a');
+            element.href = URL.createObjectURL(new Blob([content], {type: 'text/plain'}));
+            element.download = filename;
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        };
+
+        // ==========================================
+        // 3. UI 子组件 (Modals & Toast)
+        // ==========================================
+        const ToastMessage = ({ message, onClose }) => {
+            useEffect(() => {
+                if (!message) return;
+                // --- Timeout 设置为 5000ms ---
+                const timer = setTimeout(onClose, 5000);
+                return () => clearTimeout(timer);
+            }, [message, onClose]);
+
+            if (!message) return null;
+            return (
+                <div className="fixed top-20 left-1/2 z-50 animate-toast" style={{ transform: 'translateX(-50%)' }}>
+                    <div className="bg-emerald-600 text-white px-6 py-4 rounded-lg shadow-xl flex items-center gap-3 border border-emerald-400">
+                        <Icons.CheckCircle size={20}/>
+                        <pre className="font-bold text-sm leading-tight whitespace-pre-wrap font-sans">{message}</pre>
+                    </div>
+                </div>
+            );
+        };
+
+        const ROSConnectionModal = ({ config, onConnect, onClose, status }) => {
+            const [url, setUrl] = useState(config.url || 'ws://localhost:9090');
+            return (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+                    <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+                        <h3 className="font-bold mb-4 text-slate-700 flex items-center gap-2"><Icons.Wifi className="text-blue-500"/> ROS2 Bridge 连接</h3>
+                        <p className="text-xs text-red-500 mb-2 font-bold">重要: 必须运行 `ros2 run rosapi rosapi_node`</p>
+                        <p className="text-xs text-gray-500 mb-4">通过 rosbridge 连接。为拉取消息结构，请务必保证上方指令已在终端运行。</p>
+                        <div className="mb-4">
+                            <label className="block text-xs text-gray-500 mb-1">WebSocket URL</label>
+                            <input className="w-full border p-2 rounded text-sm font-mono" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="ws://localhost:9090"/>
+                        </div>
+                        <div className="flex items-center gap-2 mb-4 text-sm">
+                            状态: <span className={status === 'Connected' ? 'text-green-600 font-bold' : status === 'Error' ? 'text-red-600 font-bold' : 'text-gray-500'}>{status}</span>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={onClose} className="px-3 py-1 text-sm text-gray-500 hover:bg-gray-100 rounded">关闭</button>
+                            <button onClick={() => onConnect(url)} className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                                {status === 'Connected' ? '重新连接' : '连接'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const CodePreviewModal = ({ files, onClose }) => {
+            const [activeTab, setActiveTab] = useState(Object.keys(files)[0]);
+            return (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-10">
+                    <div className="bg-white w-full max-w-5xl h-[80vh] rounded-lg shadow-2xl flex flex-col overflow-hidden">
+                        <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                            <h3 className="font-bold text-slate-700 flex items-center gap-2"><Icons.FileCode className="text-blue-600" /> 代码预览与导出</h3>
+                            <div className="flex gap-2">
+                                <button onClick={() => { Object.entries(files).forEach(([name, content]) => downloadFile(name, content)); }} className="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"><Icons.Download size={14} /> 下载所有</button>
+                                <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded"><Icons.X size={20}/></button>
+                            </div>
+                        </div>
+                        <div className="flex border-b bg-gray-100 overflow-x-auto">{Object.keys(files).map(fileName => (<button key={fileName} onClick={() => setActiveTab(fileName)} className={`px-4 py-2 text-xs font-mono border-r whitespace-nowrap ${activeTab === fileName ? 'bg-white text-blue-600 font-bold border-t-2 border-t-blue-500' : 'text-gray-600 hover:bg-gray-200'}`}>{fileName}</button>))}</div>
+                        <div className="flex-1 overflow-hidden relative group"><pre className="h-full overflow-auto p-4 text-xs font-mono bg-[#1e1e1e] text-gray-300">{files[activeTab]}</pre></div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 4. 核心编辑器主程序 (Main Application)
+        // ==========================================
+        function BehaviorTreeEditor() {
+            // -- 状态定义 --
+            const [customPresets, setCustomPresets] = useState(() => JSON.parse(localStorage.getItem('rm_bt_presets') || '[]'));
+            const [showLibrary, setShowLibrary] = useState(true);
+            const [showRightPanel, setShowRightPanel] = useState(true);
+            
+            const [nodes, setNodes] = useState([]);
+            const [edges, setEdges] = useState([]);
+            const [selectedNodeId, setSelectedNodeId] = useState(null);
+            const [blackboard, setBlackboard] = useState(INITIAL_BLACKBOARD);
+            
+            // 视图状态
+            const [view, setView] = useState({ x: 0, y: 0, k: 1 });
+            const [isPanning, setIsPanning] = useState(false);
+            const [draggingNodeId, setDraggingNodeId] = useState(null);
+            const [connectingSourceId, setConnectingSourceId] = useState(null);
+            const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+            const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+            
+            const [rightPanelWidth, setRightPanelWidth] = useState(380);
+            const [bottomPanelHeight, setBottomPanelHeight] = useState(250);
+            const [isResizingPanel, setIsResizingPanel] = useState(false);
+            const [isResizingBottom, setIsResizingBottom] = useState(false);
+            
+            // 模态框, 反馈与 ROS
+            const [showCodeModal, setShowCodeModal] = useState(false);
+            const [showROSModal, setShowROSModal] = useState(false);
+            const [presetToDelete, setPresetToDelete] = useState(null); // --- 自定义删除确认 UI 状态 ---
+            
+            const [generatedFiles, setGeneratedFiles] = useState({});
+            const [toastMessage, setToastMessage] = useState(null);
+            
+            const [ros, setRos] = useState(null);
+            const [rosStatus, setRosStatus] = useState('Disconnected');
+            const [rosTopics, setRosTopics] = useState([]); 
+            const [rosConfig, setRosConfig] = useState({ url: 'ws://localhost:9090' });
+            
+            // 仿真控制
+            const [isSimulating, setIsSimulating] = useState(false);
+            const canvasRef = useRef(null);
+            const xmlInputRef = useRef(null);
+            const cppInputRef = useRef(null);
+            
+            // 仿真内存
+            const simMemory = useRef({ nodeStatus: {}, runningChild: {}, actionTimers: {}, needsReset: false });
+            const tickTimer = useRef(null);
+            const nodesRef = useRef(nodes);
+            const edgesRef = useRef(edges);
+            const bbRef = useRef(blackboard);
+
+            useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+            useEffect(() => { edgesRef.current = edges; }, [edges]);
+            useEffect(() => { bbRef.current = blackboard; }, [blackboard]);
+
+            // 初始化空树
+            useEffect(() => {
+                if(nodes.length === 0) {
+                    setNodes([{ id: generateId('n'), type: 'ReactiveSequence', x: window.innerWidth/2 - NODE_WIDTH/2, y: 100, data: { label: 'SentryMainLogic', attributes: { name: 'SentryMainLogic' } } }]);
+                }
+            }, []);
+
+            // 动态获取节点定义 (带启发式智能推断)
+            const getDef = useCallback((type) => {
+                if (BASE_NODE_TYPES[type]) return BASE_NODE_TYPES[type];
+                const preset = customPresets.find(p => p.type === type);
+                if (preset) return { label: preset.label, group: 'custom', baseType: preset.baseType, color: preset.color, icon: preset.icon, desc: preset.desc };
+                
+                // --- 启发式推断 (Heuristics for imported unknown nodes) ---
+                if (/Check|Condition|Is|Can|Has/.test(type)) {
+                    return { label: type, group: 'condition', baseType: 'CONDITION', color: '#10b981', icon: 'AlertCircle', desc: '导入的条件节点 (推断)' };
+                }
+                if (/Action|Set|Change|Navigate|Select|Wait|Accumulate|Descend/.test(type)) {
+                     return { label: type, group: 'action', baseType: 'ACTION', color: '#3b82f6', icon: 'Activity', desc: '导入的动作节点 (推断)' };
+                }
+                
+                return { label: type, group: 'action', baseType: 'ACTION', color: '#64748b', icon: 'Activity', desc: '未知自定义节点' };
+            }, [customPresets]);
+
+            // ==========================================
+            // ROS2 集成逻辑 & 自动化 Payload 解析
+            // ==========================================
+            const connectROS = (url) => {
+                setRosConfig({ url });
+                if (ros) ros.close();
+                const newRos = new ROSLIB.Ros({ url: url });
+                newRos.on('connection', () => { 
+                    setRosStatus('Connected'); 
+                    newRos.getTopics((result) => {
+                        const topicsList = result.topics.map((t, i) => ({ name: t, type: result.types[i] }));
+                        setRosTopics(topicsList);
+                    });
+                });
+                newRos.on('error', () => setRosStatus('Error'));
+                newRos.on('close', () => setRosStatus('Disconnected'));
+                setRos(newRos);
+                setShowROSModal(false);
+            };
+
+            const publishToROS = (topicName, msgType, payloadStr) => {
+                if (!ros || rosStatus !== 'Connected') return;
+                try {
+                    const topic = new ROSLIB.Topic({ ros: ros, name: topicName, messageType: msgType });
+                    const payload = JSON.parse(payloadStr);
+                    const msg = new ROSLIB.Message(payload);
+                    topic.publish(msg);
+                } catch(e) {
+                    console.error("ROS Publish Error:", e);
+                }
+            };
+
+            const generateRosPayloadTemplate = (msgType, callback) => {
+                if (!ros || rosStatus !== 'Connected') {
+                    callback('{\n  \n}'); return;
+                }
+                
+                // 防卡死超时处理: 如果 rosapi 未运行，则平滑降级，仅返回 {}
+                let hasReturned = false;
+                const fallbackTimer = setTimeout(() => {
+                    if (!hasReturned) {
+                        hasReturned = true;
+                        setToastMessage("ROS API 解析超时！未获取到消息结构体。\n这不影响正常使用，你可以手动填入 JSON。\n若需自动生成，请确保后台已运行：\nros2 run rosapi rosapi_node");
+                        callback('{\n  \n}'); // 兜底防止文本框里出现难看的报错
+                    }
+                }, 1500);
+
+                const detailClient = new ROSLIB.MessageDetailsClient({ ros: ros, type: msgType });
+                detailClient.getDetails((details) => {
+                    if (hasReturned) return;
+                    hasReturned = true;
+                    clearTimeout(fallbackTimer);
+
+                    if(!details || details.length === 0) { callback('{\n  \n}'); return; }
+                    
+                    const buildTemplate = (typeName) => {
+                        const def = details.find(d => d.type === typeName);
+                        if (!def) {
+                            if (typeName.includes('int') || typeName.includes('float')) return 0.0;
+                            if (typeName === 'bool') return false;
+                            return "";
+                        }
+                        const obj = {};
+                        def.fieldnames.forEach((fn, i) => {
+                            const ftype = def.fieldtypes[i];
+                            const isArray = def.fieldarraylen[i] !== -1; 
+                            let val;
+                            if (['int8','uint8','int16','uint16','int32','uint32','int64','uint64','float32','float64'].includes(ftype)) val = 0.0;
+                            else if (ftype === 'bool') val = false;
+                            else if (ftype === 'string') val = "";
+                            else val = buildTemplate(ftype); 
+
+                            obj[fn] = isArray ? [val] : val;
+                        });
+                        return obj;
+                    };
+
+                    const templateObj = buildTemplate(msgType);
+                    callback(JSON.stringify(templateObj, null, 2));
+                });
+            };
+
+            const updateNodeDataMulti = (id, updates) => {
+                setNodes(ns => ns.map(n => n.id === id ? {...n, data: {...n.data, ...updates}} : n));
+            };
+
+            // ==========================================
+            // C++ 多头文件两阶段跨文件解析 (Two-Pass Parsing)
+            // ==========================================
+            const handleImportCPP = async (event) => {
+                const files = Array.from(event.target.files); if (!files.length) return;
+                
+                let newVars = [...bbRef.current];
+                let addedNames = [];
+                let globalEnumDict = {}; // 全局字典：横跨所有选中的文件
+
+                try {
+                    const contents = await Promise.all(files.map(file => new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = e => resolve(e.target.result);
+                        reader.onerror = reject;
+                        reader.readAsText(file);
+                    })));
+                    
+                    // --- 第一阶段 (PASS 1)：收集所有文件里的枚举和结构体 ---
+                    contents.forEach(content => {
+                        // 匹配 enum class Name { ... } 或 enum Name { ... }
+                        const enumRegex1 = /enum\s+(?:class\s+)?(\w+)\s*\{([^}]+)\}/g;
+                        let match1;
+                        while ((match1 = enumRegex1.exec(content)) !== null) {
+                            const enumName = match1[1];
+                            const enumBody = match1[2];
+                            const options = enumBody.split(',').map(s => s.split('=')[0].trim().split('//')[0].trim()).filter(Boolean);
+                            if (options.length > 0) globalEnumDict[enumName] = options.join(',');
+                        }
+
+                        // 匹配 typedef enum _Name { ... } Name;
+                        const enumRegex2 = /typedef\s+enum\s+(?:\w+)?\s*\{([^}]+)\}\s*(\w+)\s*;/g;
+                        let match2;
+                        while ((match2 = enumRegex2.exec(content)) !== null) {
+                            const enumBody = match2[1];
+                            const enumName = match2[2];
+                            const options = enumBody.split(',').map(s => s.split('=')[0].trim().split('//')[0].trim()).filter(Boolean);
+                            if (options.length > 0) globalEnumDict[enumName] = options.join(',');
+                        }
+                    });
+
+                    // --- 第二阶段 (PASS 2)：依据合并后的全局字典提取变量 ---
+                    contents.forEach(content => {
+                        const setRegex = /blackboard_->set(?:<([^>]+)>)?\(\s*"([^"]+)"\s*,\s*(.*?)\s*\);/g;
+                        let matchSet;
+                        while ((matchSet = setRegex.exec(content)) !== null) {
+                            const rawType = matchSet[1] || '';
+                            const key = matchSet[2];
+                            const rawVal = matchSet[3].trim();
+
+                            let bbType = 'string';
+                            let defaultVal = '0';
+                            let optionsStr = '';
+
+                            if (rawVal.includes('Point2D') || rawVal.includes('Pose') || rawVal.includes('Twist')) {
+                                bbType = 'string'; defaultVal = '{}';
+                            } else if (rawVal.includes('vector')) {
+                                bbType = 'string'; defaultVal = '[]';
+                            } else if (!isNaN(parseFloat(rawVal)) && !rawVal.includes('::')) {
+                                bbType = 'float'; defaultVal = parseFloat(rawVal).toString();
+                            } else if (rawVal.includes('true') || rawVal.includes('false')) {
+                                bbType = 'boolean'; defaultVal = rawVal.includes('true') ? 'true' : 'false';
+                            } else if (globalEnumDict[rawType]) {
+                                bbType = 'enum'; optionsStr = globalEnumDict[rawType]; defaultVal = rawVal.split('::').pop() || '';
+                            } else if (rawVal.includes('::')) {
+                                bbType = 'enum';
+                                const inferredEnumName = rawVal.split('::')[0].split(' ').pop(); 
+                                optionsStr = globalEnumDict[inferredEnumName] || rawVal.split('::').pop();
+                                defaultVal = rawVal.split('::').pop();
+                            } else if (rawType.includes('msg')) {
+                                 bbType = 'string'; defaultVal = "{}";
+                            } else {
+                                defaultVal = rawVal.replace(/['"]/g, ''); 
+                            }
+
+                            let existing = newVars.find(v => v.key === key);
+                            if (!existing) {
+                                newVars.push({ key, type: bbType, value: defaultVal, optionsStr });
+                                if (!addedNames.includes(key)) addedNames.push(key);
+                            } else if (bbType === 'enum') {
+                                existing.type = 'enum';
+                                // 如果现有的 enum 选项残缺，我们更新它
+                                if (!existing.optionsStr || optionsStr.length > existing.optionsStr.length) {
+                                    existing.optionsStr = optionsStr;
+                                }
+                            }
+                        }
+
+                        const portRegex = /BT::(?:InputPort|OutputPort)<([^>]+)>\(\s*"([^"]+)"\s*\)/g;
+                        let matchPort;
+                        while ((matchPort = portRegex.exec(content)) !== null) {
+                            const rawType = matchPort[1];
+                            const key = matchPort[2];
+                            let bbType = 'string';
+                            let optionsStr = '';
+
+                            if (rawType.includes('int') || rawType.includes('double') || rawType.includes('float')) bbType = 'float';
+                            if (rawType.includes('bool')) bbType = 'boolean';
+                            if (globalEnumDict[rawType]) { bbType = 'enum'; optionsStr = globalEnumDict[rawType]; }
+                            
+                            let existing = newVars.find(v => v.key === key);
+                            if (!existing) {
+                                newVars.push({ key, type: bbType, value: bbType === 'boolean' ? 'false' : '0', optionsStr });
+                                if (!addedNames.includes(key)) addedNames.push(key);
+                            } else if (bbType === 'enum') {
+                                existing.type = 'enum';
+                                if (!existing.optionsStr || optionsStr.length > existing.optionsStr.length) {
+                                    existing.optionsStr = optionsStr;
+                                }
+                            }
+                        }
+                    });
+                    
+                    setBlackboard([...newVars]);
+                    if (addedNames.length > 0) {
+                        setToastMessage(`成功两阶段解析 ${files.length} 个文件，提取到 ${addedNames.length} 个新变量:\n${addedNames.slice(0, 8).join(', ')}${addedNames.length > 8 ? ' ...等' : ''}`);
+                    } else {
+                        setToastMessage(`解析完成！\n已更新现有变量字典，未发现新变量名。`);
+                    }
+                } catch (err) {
+                    setToastMessage(`解析失败: ${err}`);
+                }
+                event.target.value = null; 
+            };
+
+            // ==========================================
+            // 自定义预制节点保存与UI删除功能
+            // ==========================================
+            const handleSavePreset = () => {
+                if (!selectedNodeId) return;
+                const node = nodes.find(n => n.id === selectedNodeId);
+                const newName = prompt("请输入预制节点名称 (如 'CheckMyCondition', 请使用合法的 C++ 类命名):", node.type);
+                if (!newName || newName.trim() === '') return;
+                
+                const baseDef = getDef(node.type);
+                const newPreset = {
+                    id: 'tpl_' + Date.now(),
+                    type: newName.trim(),
+                    baseType: baseDef.baseType,
+                    label: newName.trim(),
+                    group: 'custom',
+                    color: '#0d9488', // 给自定义节点专门的颜色区分
+                    icon: 'Star',
+                    desc: '用户自定义节点',
+                    dataTemplate: { ...node.data, label: newName.trim(), attributes: { ...(node.data.attributes || {}), name: newName.trim() } }
+                };
+
+                const updated = [...customPresets.filter(p => p.type !== newName.trim()), newPreset];
+                setCustomPresets(updated);
+                localStorage.setItem('rm_bt_presets', JSON.stringify(updated));
+                setToastMessage(`已成功保存自定义节点: ${newName.trim()}\n您现在可以在左侧节点库复用它。`);
+            };
+
+            const confirmDeletePreset = (id, e) => {
+                e.stopPropagation();
+                setPresetToDelete(id);
+            };
+
+            const executeDeletePreset = () => {
+                if (presetToDelete) {
+                    const updated = customPresets.filter(p => p.id !== presetToDelete);
+                    setCustomPresets(updated);
+                    localStorage.setItem('rm_bt_presets', JSON.stringify(updated));
+                    setPresetToDelete(null);
+                }
+            };
+
+            // ==========================================
+            // XML 导入与导出
+            // ==========================================
+            const handleImportXML = (event) => {
+                const file = event.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const parser = new DOMParser(); const doc = parser.parseFromString(e.target.result, "text/xml");
+                    let parsedNodes = []; let parsedEdges = [];
+                    const parseElement = (el) => {
+                        if(el.nodeType !== 1) return null;
+                        const tagName = el.tagName;
+                        if(['root', 'BehaviorTree', 'TreeNodesModel', 'SubTree'].includes(tagName) && el.children.length === 1) return parseElement(el.firstElementChild);
+                        const id = generateId('n'); const attrs = {}; Array.from(el.attributes).forEach(a => attrs[a.name] = a.value);
+                        
+                        const preset = customPresets.find(p => p.type === tagName);
+                        const nodeData = preset ? JSON.parse(JSON.stringify(preset.dataTemplate)) : { label: attrs.name || tagName };
+                        nodeData.attributes = attrs; 
+                        
+                        parsedNodes.push({ id, type: tagName, x: 0, y: 0, data: nodeData });
+                        Array.from(el.children).forEach(child => { const childId = parseElement(child); if(childId) parsedEdges.push({ id: generateId('e'), source: id, target: childId }); });
+                        return id;
+                    };
+                    const rootId = parseElement(doc.documentElement);
+                    if(rootId) {
+                        parsedNodes = autoLayout(rootId, parsedNodes, parsedEdges);
+                        setNodes(parsedNodes); setEdges(parsedEdges); setView({x: 0, y: 50, k: 0.8});
+                        setToastMessage("XML 导入成功！已智能推断未知节点类型。");
+                    }
+                };
+                reader.readAsText(file); event.target.value = null;
+            };
+
+            const handleExportXML = () => {
+                const rootNodes = nodes.filter(n => !edges.some(e => e.target === n.id));
+                if(rootNodes.length === 0) { alert("没有找到有效的根节点！"); return; }
+                const buildXML = (nodeId, indent) => {
+                    const node = nodes.find(n => n.id === nodeId); if(!node) return '';
+                    let attrsStr = ''; const attrs = node.data.attributes || {};
+                    Object.entries(attrs).forEach(([k, v]) => { if (v.trim() !== '') attrsStr += ` ${k}="${v}"`; });
+                    if(!attrs.name && node.data.label !== node.type) attrsStr += ` name="${node.data.label}"`;
+                    
+                    const childrenIds = edges.filter(e => e.source === nodeId).map(e => e.target);
+                    childrenIds.sort((a, b) => (nodes.find(n=>n.id===a)?.x || 0) - (nodes.find(n=>n.id===b)?.x || 0));
+                    
+                    if(childrenIds.length === 0) return `${indent}<${node.type}${attrsStr}/>\n`;
+                    let xml = `${indent}<${node.type}${attrsStr}>\n`;
+                    childrenIds.forEach(cid => { xml += buildXML(cid, indent + '  '); });
+                    xml += `${indent}</${node.type}>\n`; return xml;
+                };
+                const finalXML = `<root main_tree_to_execute="MainTree">\n  <BehaviorTree ID="MainTree">\n${buildXML(rootNodes[0].id, '    ')}  </BehaviorTree>\n</root>`;
+                downloadFile('sentry_bt.xml', finalXML);
+                setToastMessage("XML 已成功导出！");
+            };
+
+            // ==========================================
+            // 精确的 BT 仿真引擎 (Tick Engine)
+            // ==========================================
+            const evaluateConditions = (conds) => {
+                if (!conds || conds.length === 0) return true; // 空条件默认通过
+                let finalResult = true;
+                let currentLink = '&&';
+                
+                for (let i = 0; i < conds.length; i++) {
+                     const cond = conds[i];
+                     const bbItem = bbRef.current.find(b => b.key === cond.variable);
+                     let val1 = bbItem ? bbItem.value : null;
+                     let val2 = cond.value;
+
+                     if (bbItem) {
+                         if (bbItem.type === 'float' || bbItem.type === 'int') { val1 = Number(val1); val2 = Number(val2); }
+                         if (bbItem.type === 'boolean') { val1 = (String(val1) === 'true'); val2 = (String(val2) === 'true'); }
+                     }
+
+                     let stepResult = false;
+                     if (cond.operator === '==') stepResult = (val1 == val2);
+                     else if (cond.operator === '!=') stepResult = (val1 != val2);
+                     else if (cond.operator === '>') stepResult = (val1 > val2);
+                     else if (cond.operator === '<') stepResult = (val1 < val2);
+                     else if (cond.operator === '>=') stepResult = (val1 >= val2);
+                     else if (cond.operator === '<=') stepResult = (val1 <= val2);
+
+                     if (i === 0) finalResult = stepResult;
+                     else {
+                         if (currentLink === '&&') finalResult = finalResult && stepResult;
+                         else if (currentLink === '||') finalResult = finalResult || stepResult;
+                     }
+                     currentLink = cond.logicLink || '&&';
+                }
+                return finalResult;
+            };
+
+            const tickNode = (nodeId) => {
+                const mem = simMemory.current;
+                const node = nodesRef.current.find(n => n.id === nodeId);
+                if (!node) return 'FAILURE';
+                
+                const def = getDef(node.type);
+                const bType = def.baseType;
+                
+                const childrenIds = edgesRef.current.filter(e => e.source === nodeId).map(e => e.target);
+                childrenIds.sort((a, b) => (nodesRef.current.find(n=>n.id===a)?.x || 0) - (nodesRef.current.find(n=>n.id===b)?.x || 0));
+
+                let status = 'SUCCESS';
+
+                if (bType === 'SEQUENCE' || bType === 'FALLBACK') {
+                    const isReactive = node.type.includes('Reactive');
+                    let childIndex = (isReactive || mem.runningChild[nodeId] === undefined) ? 0 : mem.runningChild[nodeId];
+                    
+                    status = bType === 'SEQUENCE' ? 'SUCCESS' : 'FAILURE';
+
+                    while (childIndex < childrenIds.length) {
+                        const childId = childrenIds[childIndex];
+                        const childStatus = tickNode(childId);
+                        
+                        if (childStatus === 'RUNNING') {
+                            status = 'RUNNING';
+                            mem.runningChild[nodeId] = childIndex;
+                            break;
+                        } else if (bType === 'SEQUENCE') {
+                            if (childStatus === 'FAILURE') { status = 'FAILURE'; mem.runningChild[nodeId] = 0; break; }
+                        } else if (bType === 'FALLBACK') {
+                            if (childStatus === 'SUCCESS') { status = 'SUCCESS'; mem.runningChild[nodeId] = 0; break; }
+                        }
+                        childIndex++;
+                    }
+                    if (status !== 'RUNNING') mem.runningChild[nodeId] = 0;
+                } 
+                else if (bType === 'CONDITION') {
+                    status = evaluateConditions(node.data.conditions) ? 'SUCCESS' : 'FAILURE';
+                }
+                else if (bType === 'ACTION') {
+                    const timeout = parseInt(node.data.timeout || 0);
+                    if (timeout > 0) {
+                        if (!mem.actionTimers[nodeId]) {
+                            mem.actionTimers[nodeId] = { ticks: 0, max: timeout };
+                            status = 'RUNNING';
+                        } else {
+                            mem.actionTimers[nodeId].ticks++;
+                            if (mem.actionTimers[nodeId].ticks >= mem.actionTimers[nodeId].max) {
+                                status = 'SUCCESS';
+                                delete mem.actionTimers[nodeId];
+                            } else {
+                                status = 'RUNNING';
+                            }
+                        }
+                    } else {
+                        status = 'SUCCESS';
+                    }
+
+                    if (status === 'SUCCESS') {
+                        if (node.data.setBbKey) {
+                            setBlackboard(prev => {
+                                const newBb = [...prev];
+                                const item = newBb.find(b => b.key === node.data.setBbKey);
+                                if (item) item.value = node.data.setBbVal;
+                                else newBb.push({ key: node.data.setBbKey, type: 'string', value: node.data.setBbVal });
+                                return newBb;
+                            });
+                        }
+                        if (node.data.rosTopic && node.data.rosMsgType && node.data.rosPayload) {
+                            publishToROS(node.data.rosTopic, node.data.rosMsgType, node.data.rosPayload);
+                        }
+                    }
+                }
+                else if (bType === 'DECORATOR') {
+                    if (childrenIds.length > 0) {
+                        const childStatus = tickNode(childrenIds[0]);
+                        if (childStatus === 'RUNNING') status = 'RUNNING';
+                        else {
+                            if (node.type === 'ForceSuccess') status = 'SUCCESS';
+                            else if (node.type === 'ForceFailure') status = 'FAILURE';
+                            else if (node.type === 'Inverter') status = childStatus === 'SUCCESS' ? 'FAILURE' : 'SUCCESS';
+                            else status = childStatus;
+                        }
+                    } else {
+                        status = 'SUCCESS';
+                    }
+                }
+
+                mem.nodeStatus[nodeId] = status;
+                return status;
+            };
+
+            const simulationTick = useCallback(() => {
+                const rootNodes = nodesRef.current.filter(n => !edgesRef.current.some(e => e.target === n.id));
+                if (rootNodes.length === 0) return;
+                
+                // 核心重置机制：若前一次运行完毕，则进入一帧的纯净停顿，清空 UI 后再继续跑
+                if (simMemory.current.needsReset) {
+                    simMemory.current = { nodeStatus: {}, runningChild: {}, actionTimers: {}, needsReset: false };
+                    setNodes(ns => ns.map(n => ({...n, data: {...n.data, status: 'IDLE'}}))); // 视觉强制刷新白板
+                    return; // 停顿一帧 (0.5s)，表现为循环刷新
+                }
+
+                simMemory.current.nodeStatus = {}; 
+                tickNode(rootNodes[0].id);
+                
+                const rootStatus = simMemory.current.nodeStatus[rootNodes[0].id];
+                if (rootStatus === 'SUCCESS' || rootStatus === 'FAILURE') {
+                    simMemory.current.needsReset = true; // 树执行到底，打上重置标记
+                }
+                
+                setNodes(ns => ns.map(n => ({...n, data: {...n.data, status: simMemory.current.nodeStatus[n.id] || 'IDLE'}})));
+            }, []);
+
+            useEffect(() => {
+                if (isSimulating) {
+                    simMemory.current = { nodeStatus: {}, runningChild: {}, actionTimers: {}, needsReset: false };
+                    tickTimer.current = setInterval(simulationTick, 500);
+                } else {
+                    clearInterval(tickTimer.current);
+                    setNodes(ns => ns.map(n => ({...n, data: {...n.data, status: 'IDLE'}})));
+                }
+                return () => clearInterval(tickTimer.current);
+            }, [isSimulating, simulationTick]);
+
+            // ==========================================
+            // 交互与布局
+            // ==========================================
+            const screenToWorld = useCallback((sx, sy) => {
+                if (!canvasRef.current) return { x: 0, y: 0 };
+                const rect = canvasRef.current.getBoundingClientRect();
+                return { x: (sx - rect.left - view.x) / view.k, y: (sy - rect.top - view.y) / view.k };
+            }, [view]);
+
+            const handleGlobalMouseMove = (e) => {
+                const worldPos = screenToWorld(e.clientX, e.clientY);
+                setMousePos(worldPos);
+                if (isPanning) { setView(v => ({ ...v, x: v.x + e.clientX - lastMousePos.x, y: v.y + e.clientY - lastMousePos.y })); setLastMousePos({ x: e.clientX, y: e.clientY }); }
+                else if (draggingNodeId) { setNodes(prev => prev.map(n => n.id === draggingNodeId ? { ...n, x: Math.round((worldPos.x - NODE_WIDTH/2)/20)*20, y: Math.round((worldPos.y - 10)/20)*20 } : n)); }
+                else if (isResizingPanel) { e.preventDefault(); setRightPanelWidth(Math.max(350, Math.min(document.body.clientWidth - e.clientX, 800))); }
+                else if (isResizingBottom) { e.preventDefault(); setBottomPanelHeight(Math.max(150, Math.min(document.body.clientHeight - e.clientY, 600))); }
+            };
+
+            const handleGlobalMouseUp = () => { setIsPanning(false); setDraggingNodeId(null); setIsResizingPanel(false); setIsResizingBottom(false); };
+
+            const autoLayout = (rootId, allNodes, allEdges) => {
+                const childrenMap = {}; allEdges.forEach(e => { if(!childrenMap[e.source]) childrenMap[e.source] = []; childrenMap[e.source].push(e.target); });
+                let leafX = 0; const H_SPACE = 220; const V_SPACE = 140;
+                const assignPositions = (nodeId, depth) => {
+                    const children = childrenMap[nodeId] || []; let myX = 0;
+                    if (children.length === 0) { myX = leafX; leafX += H_SPACE; } 
+                    else { let minX = Infinity, maxX = -Infinity; children.forEach(childId => { const cx = assignPositions(childId, depth + 1); minX = Math.min(minX, cx); maxX = Math.max(maxX, cx); }); myX = (minX + maxX) / 2; }
+                    const nIdx = allNodes.findIndex(n => n.id === nodeId);
+                    if (nIdx > -1) { allNodes[nIdx].x = myX; allNodes[nIdx].y = 50 + depth * V_SPACE; }
+                    return myX;
+                };
+                assignPositions(rootId, 0);
+                const rootNode = allNodes.find(n => n.id === rootId);
+                const offset = (window.innerWidth / 2) - 150 - (rootNode ? rootNode.x : 0);
+                allNodes.forEach(n => { n.x += offset; });
+                return allNodes;
+            };
+
+            // 数据操作
+            const updateNodeAttr = (key, value) => {
+                setNodes(ns => ns.map(n => n.id === selectedNodeId ? { ...n, data: { ...n.data, attributes: { ...(n.data.attributes || {}), [key]: value } } } : n));
+            };
+            const updateNodeData = (key, value) => { setNodes(ns => ns.map(n => n.id === selectedNodeId ? {...n, data: {...n.data, [key]: value}} : n)); };
+            const deleteNode = (id) => { setNodes(ns => ns.filter(n => n.id !== id)); setEdges(es => es.filter(e => e.source !== id && e.target !== id)); if(selectedNodeId === id) setSelectedNodeId(null); };
+            
+            // Condition 多维条件修改器
+            const addConditionRow = () => {
+                const conds = selectedNode?.data?.conditions || [];
+                updateNodeData('conditions', [...conds, { variable: blackboard[0]?.key || '', operator: '==', value: '', logicLink: '&&' }]);
+            };
+            const updateConditionRow = (idx, field, val) => {
+                const conds = [...(selectedNode.data.conditions || [])];
+                conds[idx][field] = val;
+                updateNodeData('conditions', conds);
+            };
+            const removeConditionRow = (idx) => {
+                const conds = [...(selectedNode.data.conditions || [])];
+                conds.splice(idx, 1);
+                updateNodeData('conditions', conds);
+            };
+
+            const selectedNode = nodes.find(n => n.id === selectedNodeId);
+            const selectedDef = selectedNode ? getDef(selectedNode.type) : null;
+            const getBezierPath = (x1, y1, x2, y2) => `M ${x1} ${y1} C ${x1} ${y1+60} ${x2} ${y2-60} ${x2} ${y2}`;
+
+            return (
+                <div className="flex flex-col h-screen w-full bg-[#f8fafc] text-slate-800 font-sans select-none overflow-hidden" onMouseMove={handleGlobalMouseMove} onMouseUp={handleGlobalMouseUp}>
+                    <datalist id="bb-keys-list">
+                        {blackboard.map((item, idx) => <option key={idx} value={item.key} />)}
+                    </datalist>
+                    <datalist id="ros-topics-list">
+                        {rosTopics.map((topic, idx) => <option key={idx} value={topic.name}>{topic.type}</option>)}
+                    </datalist>
+
+                    <ToastMessage message={toastMessage} onClose={() => setToastMessage(null)} />
+
+                    {/* --- 自定义预置删除确认 UI 弹窗 --- */}
+                    {presetToDelete && (
+                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+                            <div className="bg-white p-5 rounded-lg shadow-xl w-80">
+                                <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.AlertCircle className="text-red-500"/> 确认删除</h3>
+                                <p className="text-sm text-gray-600 mb-5">您确定要删除这个自定义预置节点吗？该操作无法撤销。</p>
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={() => setPresetToDelete(null)} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors border border-gray-200">取消</button>
+                                    <button onClick={executeDeletePreset} className="px-3 py-1.5 text-sm bg-red-500 text-white rounded hover:bg-red-600 font-bold transition-colors shadow-sm">确定删除</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <input type="file" accept=".xml" ref={xmlInputRef} onChange={handleImportXML} className="hidden" />
+                    <input type="file" accept=".cpp,.hpp,.h" multiple ref={cppInputRef} onChange={handleImportCPP} className="hidden" />
+                    
+                    {showROSModal && <ROSConnectionModal config={rosConfig} status={rosStatus} onConnect={connectROS} onClose={() => setShowROSModal(false)} />}
+                    {showCodeModal && <CodePreviewModal files={generatedFiles} onClose={() => setShowCodeModal(false)} />}
+
+                    {/* 顶部工具栏 */}
+                    <div className="h-14 bg-white border-b flex items-center px-5 justify-between shadow-sm z-30 shrink-0">
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 font-black text-xl text-slate-800 tracking-tight">
+                                <Icons.Zap className="text-amber-500" size={24}/> BT Ultimate <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200 ml-2">v2.5 Pro</span>
+                            </div>
+                            
+                            <div className="flex gap-1 border-l pl-4 border-gray-200">
+                                <button onClick={() => setShowLibrary(!showLibrary)} className={`p-1.5 rounded transition-colors ${showLibrary ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`} title="显示/隐藏节点库"><Icons.PanelLeft size={18}/></button>
+                                <button onClick={() => setShowRightPanel(!showRightPanel)} className={`p-1.5 rounded transition-colors ${showRightPanel ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`} title="显示/隐藏属性与黑板面板"><Icons.PanelRight size={18}/></button>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <button onClick={() => cppInputRef.current.click()} className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded font-bold text-sm transition" title="框选任意数量的 .hpp / .cpp 文件提取黑板与枚举">
+                                <Icons.FileCode size={14}/> 批量解析 C++
+                            </button>
+                            <button onClick={() => setShowROSModal(true)} className={`flex items-center gap-1 px-3 py-1.5 rounded transition font-bold text-sm border ${rosStatus === 'Connected' ? 'bg-green-50 border-green-200 text-green-600' : 'bg-red-50 border-red-200 text-red-600'}`}>
+                               {rosStatus === 'Connected' ? <Icons.Wifi size={14}/> : <Icons.WifiOff size={14}/>} ROS2
+                           </button>
+                           <button onClick={() => setIsSimulating(!isSimulating)} className={`flex items-center gap-1 px-3 py-1.5 rounded transition text-sm font-bold border ${isSimulating ? 'bg-amber-100 text-amber-700 border-amber-300 shadow-inner' : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'}`}>
+                               {isSimulating ? <><Icons.Square size={14} /> 停止仿真</> : <><Icons.Play size={14} /> 启动连续仿真</>}
+                           </button>
+                            <button onClick={() => xmlInputRef.current.click()} className="flex items-center gap-1 px-4 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 rounded font-bold text-sm transition">
+                                <Icons.Upload size={14}/> 导入 XML
+                            </button>
+                            <button onClick={handleExportXML} className="flex items-center gap-1 px-4 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded font-bold text-sm shadow-sm transition">
+                                <Icons.Download size={14}/> 导出 XML
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-1 overflow-hidden relative">
+                        {/* 左侧节点库 */}
+                        {showLibrary && (
+                            <div className="w-60 bg-white border-r flex flex-col shadow-sm z-20 shrink-0 overflow-y-auto">
+                                <div className="p-3 border-b bg-gray-50 flex justify-between items-center">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">节点分类库</span>
+                                    <button onClick={() => { setNodes(autoLayout(nodes.find(n=>!edges.some(e=>e.target===n.id))?.id, [...nodes], edges)); setView({x:0, y:50, k:0.8}); }} className="p-1 hover:bg-gray-200 rounded text-gray-600" title="自动排版"><Icons.RefreshCw size={14}/></button>
+                                </div>
+                                
+                                <div className="p-3 space-y-5">
+                                    {/* 渲染自定义节点库 */}
+                                    {customPresets.length > 0 && (
+                                        <div>
+                                            <div className="text-[11px] font-bold text-teal-600 mb-2 pl-1 uppercase tracking-widest border-b border-teal-100 pb-1 flex items-center gap-1">
+                                                <Icons.Star size={12}/> 自定义预制 (Custom)
+                                            </div>
+                                            <div className="space-y-1">
+                                                {customPresets.map((preset) => (
+                                                    <div key={preset.id} draggable onDragStart={(e) => e.dataTransfer.setData('nodeType', preset.type)} className="group flex items-start gap-2 p-2 rounded cursor-grab border border-teal-100 bg-teal-50 hover:bg-teal-100 hover:shadow-sm relative">
+                                                        <span style={{color: preset.color}} className="mt-0.5">{React.createElement(Icons[preset.icon] || Icons.Star, {size: 16})}</span>
+                                                        <div className="flex flex-col flex-1 overflow-hidden">
+                                                            <span className="text-sm font-bold text-teal-900 leading-tight truncate" title={preset.label}>{preset.label}</span>
+                                                            <span className="text-[10px] text-teal-600 mt-0.5 leading-tight">{preset.desc}</span>
+                                                        </div>
+                                                        <button onClick={(e) => confirmDeletePreset(preset.id, e)} className="hidden group-hover:block absolute right-2 top-2 text-teal-400 hover:text-red-500 bg-white rounded p-1 shadow-sm transition"><Icons.Trash2 size={12}/></button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 原生节点库 */}
+                                    {['flow', 'action', 'condition', 'decorator'].map(group => (
+                                        <div key={group}>
+                                            <div className="text-[11px] font-bold text-slate-400 mb-2 pl-1 uppercase tracking-widest border-b pb-1">
+                                                {group === 'flow' ? '顺序控制 (Flow)' : group === 'action' ? '动作 (Action)' : group === 'condition' ? '条件 (Condition)' : '装饰器 (Decorator)'}
+                                            </div>
+                                            <div className="space-y-1">
+                                                {Object.entries(BASE_NODE_TYPES).filter(([_, n]) => n.group === group).map(([type, def]) => (
+                                                    <div key={type} draggable onDragStart={(e) => e.dataTransfer.setData('nodeType', type)} className={`flex items-start gap-2 p-2 rounded cursor-grab border border-transparent hover:border-gray-200 hover:shadow-sm ${group === 'action' ? 'hover:bg-blue-50' : group === 'condition' ? 'hover:bg-emerald-50' : group === 'decorator' ? 'hover:bg-pink-50' : 'hover:bg-amber-50'}`}>
+                                                        <span style={{color: def.color}} className="mt-0.5">{React.createElement(Icons[def.icon] || Icons.Activity, {size: 16})}</span>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-bold text-gray-700 leading-tight">{def.label}</span>
+                                                            <span className="text-[10px] text-gray-400 mt-0.5 leading-tight">{def.desc}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 无限画布 */}
+                        <div className="flex-1 bg-[#e2e8f0] relative overflow-hidden" ref={canvasRef} 
+                            onMouseDown={(e) => { if(e.button===0||e.button===1){ setIsPanning(true); setLastMousePos({x:e.clientX,y:e.clientY}); setSelectedNodeId(null); } }} 
+                            onWheel={(e) => { e.preventDefault(); setView(v => ({ ...v, k: Math.min(2, Math.max(0.2, v.k - e.deltaY * 0.001)) })); }} 
+                            onDragOver={(e) => e.preventDefault()} 
+                            onDrop={(e) => {
+                                e.preventDefault(); const type = e.dataTransfer.getData('nodeType'); if(!type) return;
+                                const pos = screenToWorld(e.clientX, e.clientY);
+                                const def = getDef(type);
+                                setNodes(prev => [...prev, { id: generateId('n'), type, x: pos.x - NODE_WIDTH/2, y: pos.y - 20, data: { label: def.label, attributes: { name: def.label } } }]);
+                            }}>
+                            
+                            <div style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`, transformOrigin: '0 0', width: '100%', height: '100%' }}>
+                                <div className="absolute pointer-events-none opacity-30" style={{ top: -CANVAS_OFFSET, left: -CANVAS_OFFSET, width: CANVAS_OFFSET*2, height: CANVAS_OFFSET*2, backgroundImage: 'radial-gradient(#64748b 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+                                
+                                <svg className="absolute pointer-events-none overflow-visible z-0" style={{ top: -CANVAS_OFFSET, left: -CANVAS_OFFSET, width: CANVAS_OFFSET*2, height: CANVAS_OFFSET*2 }}>
+                                    {edges.map(edge => {
+                                        const src = nodes.find(n => n.id === edge.source); const tgt = nodes.find(n => n.id === edge.target);
+                                        if(!src || !tgt) return null;
+                                        return <path key={edge.id} d={getBezierPath(src.x+NODE_WIDTH/2+CANVAS_OFFSET, src.y+NODE_HEIGHT+4+CANVAS_OFFSET, tgt.x+NODE_WIDTH/2+CANVAS_OFFSET, tgt.y-4+CANVAS_OFFSET)} stroke="#94a3b8" strokeWidth="3" fill="none" className="cursor-pointer hover:stroke-red-500 pointer-events-auto" onClick={(e) => { e.stopPropagation(); setEdges(es => es.filter(x => x.id !== edge.id)); }} />;
+                                    })}
+                                    {connectingSourceId && <path d={getBezierPath(nodes.find(n=>n.id===connectingSourceId).x+NODE_WIDTH/2+CANVAS_OFFSET, nodes.find(n=>n.id===connectingSourceId).y+NODE_HEIGHT+4+CANVAS_OFFSET, mousePos.x+CANVAS_OFFSET, mousePos.y+CANVAS_OFFSET)} stroke="#3b82f6" strokeWidth="3" strokeDasharray="5,5" fill="none" />}
+                                </svg>
+
+                                {nodes.map(node => {
+                                    const def = getDef(node.type);
+                                    const IconComp = Icons[def.icon] || Icons.Activity;
+                                    const isSelected = selectedNodeId === node.id;
+                                    const status = node.data.status;
+                                    return (
+                                        <div key={node.id} onMouseDown={(e) => { e.stopPropagation(); if(e.button===0){ if(connectingSourceId && connectingSourceId!==node.id){ setEdges(p=>[...p,{id:generateId('e'),source:connectingSourceId,target:node.id}]); setConnectingSourceId(null); return;} setSelectedNodeId(node.id); setDraggingNodeId(node.id); } }} style={{ transform: `translate(${node.x}px, ${node.y}px)`, width: `${NODE_WIDTH}px`, height: `${NODE_HEIGHT}px` }} className={`absolute flex flex-col bg-white rounded-lg border-2 shadow-sm transition-all z-10 ${isSelected ? 'border-blue-500 shadow-md ring-4 ring-blue-500/20' : 'border-gray-200 hover:border-gray-300'} ${status === 'RUNNING' ? 'border-amber-400 ring-4 ring-amber-400/50 bg-amber-50' : status === 'SUCCESS' ? 'border-emerald-500 ring-4 ring-emerald-500/50 bg-emerald-50' : status === 'FAILURE' ? 'border-red-500 ring-4 ring-red-500/50 bg-red-50' : ''}`}>
+                                            <div className={`flex items-center gap-1.5 px-3 py-1.5 border-b rounded-t-md pointer-events-none ${status ? 'bg-transparent' : 'bg-gray-50'}`}>
+                                                <IconComp size={14} color={def.color} />
+                                                <span className="text-[10px] font-black tracking-widest uppercase truncate" style={{color: def.color}}>{node.type}</span>
+                                            </div>
+                                            <div className="flex-1 flex items-center justify-center p-2 text-center pointer-events-none">
+                                                <span className="text-sm font-bold text-slate-700 truncate" title={node.data.label}>{node.data.label}</span>
+                                            </div>
+                                            <div onMouseDown={(e) => { e.stopPropagation(); if(e.button===0) setConnectingSourceId(p => p===node.id ? null : node.id); }} className={`absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 flex items-center justify-center cursor-pointer z-20 hover:scale-125 ${connectingSourceId === node.id ? 'scale-125' : ''}`}>
+                                                <div className={`w-3.5 h-3.5 bg-white border-2 rounded-full shadow-sm ${connectingSourceId === node.id ? 'border-blue-500 bg-blue-100' : 'border-gray-400 hover:border-blue-500'}`}/>
+                                            </div>
+                                            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-white border-2 border-gray-400 rounded-full z-20 pointer-events-none"/>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* 右侧属性面板 */}
+                        {showRightPanel && (
+                            <div className="flex flex-col z-20 shadow-[-4px_0_15px_rgba(0,0,0,0.05)] border-l h-full relative bg-white" style={{ width: rightPanelWidth }}>
+                                <div className="resizer-col" onMouseDown={(e) => { e.preventDefault(); setIsResizingPanel(true); }}></div>
+                                
+                                <div className="flex-1 overflow-y-auto flex flex-col" style={{ height: `calc(100% - ${bottomPanelHeight}px)` }}>
+                                    <div className="p-3 border-b bg-gray-50 flex items-center justify-between sticky top-0 z-10">
+                                        <span className="font-bold text-sm text-slate-700">节点属性配置</span>
+                                        {selectedNode && (
+                                            <div className="flex gap-1">
+                                                <button onClick={handleSavePreset} className="text-teal-600 hover:bg-teal-50 px-2 py-1 rounded border border-teal-200 flex items-center gap-1 text-[10px] font-bold transition">
+                                                    <Icons.Save size={12}/> 保存为预置
+                                                </button>
+                                                <button onClick={() => deleteNode(selectedNode.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded"><Icons.Trash2 size={16}/></button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="p-4">
+                                        {selectedNode ? (
+                                            <div className="space-y-6">
+                                                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-3">
+                                                    {React.createElement(Icons[selectedDef?.icon || 'Activity'], {size: 24, color: selectedDef?.color || '#64748b'})}
+                                                    <div>
+                                                        <div className="font-black text-slate-800">{selectedNode.type}</div>
+                                                        <div className="text-[10px] text-slate-500">{selectedDef?.desc || '自定义节点'}</div>
+                                                    </div>
+                                                </div>
+
+                                                {/* XML 属性编辑 */}
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <label className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-1"><Icons.FileCode size={12}/> XML 属性 (Attributes)</label>
+                                                        <button onClick={() => updateNodeAttr(`attr_${Object.keys(selectedNode.data.attributes || {}).length}`, 'value')} className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2 py-1 rounded font-bold">添加 +</button>
+                                                    </div>
+                                                    <div className="space-y-2 p-3 bg-indigo-50/30 border border-indigo-100 rounded-lg">
+                                                        <div className="flex flex-col bg-white p-2 rounded border border-indigo-200 shadow-sm">
+                                                            <label className="text-[10px] font-bold text-slate-500 mb-1">name (节点显示名称)</label>
+                                                            <input type="text" className="w-full text-sm px-2 py-1 border rounded" value={selectedNode.data.attributes?.name || ''} onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setNodes(ns => ns.map(n => n.id === selectedNodeId ? { ...n, data: { ...n.data, label: val, attributes: { ...(n.data.attributes || {}), name: val } } } : n));
+                                                            }} />
+                                                        </div>
+                                                        {Object.entries(selectedNode.data.attributes || {}).filter(([k]) => k !== 'name').map(([k, v]) => (
+                                                            <div key={k} className="flex gap-2 items-start bg-white p-2 rounded border border-indigo-200 shadow-sm">
+                                                                <div className="flex-1 space-y-1">
+                                                                    <input type="text" className="w-full text-[10px] font-bold text-indigo-600 bg-transparent border-b border-indigo-200 focus:border-indigo-500 outline-none" placeholder="Key" value={k} onChange={(e) => { const newAttrs={...selectedNode.data.attributes}; newAttrs[e.target.value]=newAttrs[k]; delete newAttrs[k]; setNodes(ns=>ns.map(n=>n.id===selectedNodeId?{...n,data:{...n.data,attributes:newAttrs}}:n)); }} />
+                                                                    <input type="text" list="bb-keys-list" className="w-full text-sm bg-transparent border-b border-transparent focus:border-indigo-300 px-1 py-1 outline-none" placeholder="Value (可下拉检索)" value={v} onChange={(e) => updateNodeAttr(k, e.target.value)} />
+                                                                </div>
+                                                                <button onClick={() => { const newAttrs={...selectedNode.data.attributes}; delete newAttrs[k]; setNodes(ns=>ns.map(n=>n.id===selectedNodeId?{...n,data:{...n.data,attributes:newAttrs}}:n)); }} className="mt-4 text-gray-300 hover:text-red-500"><Icons.Trash2 size={14}/></button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* 仿真与逻辑配置 */}
+                                                {(selectedDef?.baseType === 'ACTION' || selectedDef?.baseType === 'CONDITION') && (
+                                                    <div>
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <label className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1"><Icons.Play size={12}/> 仿真逻辑与通讯设置</label>
+                                                        </div>
+                                                        <div className="p-3 bg-emerald-50/30 border border-emerald-100 rounded-lg space-y-3">
+                                                            
+                                                            {/* ==== 全新可视化的 Condition 多维条件构建器 ==== */}
+                                                            {selectedDef?.baseType === 'CONDITION' && (
+                                                                <div className="bg-white p-2 rounded border border-emerald-200 shadow-sm">
+                                                                    <label className="text-[10px] font-bold text-slate-500 block mb-2 border-b pb-1">多维判断条件列表 (Conditions)</label>
+                                                                    <div className="space-y-2 mb-2">
+                                                                        {(selectedNode.data.conditions || []).map((cond, i) => {
+                                                                            const bbItem = blackboard.find(b => b.key === cond.variable);
+                                                                            const isEnum = bbItem?.type === 'enum';
+                                                                            const isBool = bbItem?.type === 'boolean';
+                                                                            const options = isEnum ? (bbItem.optionsStr || '').split(',').filter(Boolean) : [];
+
+                                                                            return (
+                                                                                <div key={i} className="flex flex-col gap-1 bg-gray-50 p-1.5 rounded border border-gray-200 shadow-sm">
+                                                                                    <div className="flex gap-1 items-center">
+                                                                                        <select className="w-1/3 text-xs border border-gray-300 rounded p-1 outline-none focus:border-emerald-500" value={cond.variable} onChange={(e) => updateConditionRow(i, 'variable', e.target.value)}>
+                                                                                            <option value="">- 变量 -</option>
+                                                                                            {blackboard.map(b => <option key={b.key} value={b.key}>{b.key}</option>)}
+                                                                                        </select>
+                                                                                        <select className="w-12 text-xs border border-gray-300 rounded p-1 font-mono outline-none focus:border-emerald-500 text-center" value={cond.operator} onChange={(e) => updateConditionRow(i, 'operator', e.target.value)}>
+                                                                                            <option value="==">==</option><option value="!=">!=</option>
+                                                                                            <option value=">">&gt;</option><option value="<">&lt;</option>
+                                                                                            <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
+                                                                                        </select>
+                                                                                        {isEnum ? (
+                                                                                            <select className="flex-1 text-xs border border-gray-300 rounded p-1 text-blue-600 font-bold outline-none focus:border-emerald-500" value={cond.value} onChange={(e) => updateConditionRow(i, 'value', e.target.value)}>
+                                                                                                <option value="">- 枚举值 -</option>
+                                                                                                {options.map(o => <option key={o} value={o}>{o}</option>)}
+                                                                                            </select>
+                                                                                        ) : isBool ? (
+                                                                                            <select className="flex-1 text-xs border border-gray-300 rounded p-1 text-blue-600 font-bold outline-none focus:border-emerald-500" value={cond.value} onChange={(e) => updateConditionRow(i, 'value', e.target.value)}>
+                                                                                                <option value="true">true</option><option value="false">false</option>
+                                                                                            </select>
+                                                                                        ) : (
+                                                                                            <input type="text" className="flex-1 text-xs border border-gray-300 rounded p-1 font-mono text-blue-600 outline-none focus:border-emerald-500" placeholder="数值/字符" value={cond.value} onChange={(e) => updateConditionRow(i, 'value', e.target.value)} />
+                                                                                        )}
+                                                                                        <button onClick={() => removeConditionRow(i)} className="text-gray-400 hover:text-red-500 ml-1"><Icons.Trash2 size={14}/></button>
+                                                                                    </div>
+                                                                                    {i < (selectedNode.data.conditions || []).length - 1 && (
+                                                                                        <div className="flex justify-center -mb-2 z-10 relative">
+                                                                                            <select className="text-[10px] bg-white border border-emerald-300 rounded-full px-2 py-0.5 text-emerald-700 font-black shadow-sm outline-none" value={cond.logicLink || '&&'} onChange={(e) => updateConditionRow(i, 'logicLink', e.target.value)}>
+                                                                                                <option value="&&">AND (与)</option>
+                                                                                                <option value="||">OR (或)</option>
+                                                                                            </select>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                    <button onClick={addConditionRow} className="w-full py-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 transition-colors">+ 添加判断规则</button>
+                                                                    <p className="text-[9px] text-gray-400 mt-2 text-center">所有条件将依序串联进行逻辑运算。</p>
+                                                                </div>
+                                                            )}
+
+                                                            {selectedDef?.baseType === 'ACTION' && (
+                                                                <>
+                                                                    <div className="bg-white p-2 rounded border border-emerald-200 shadow-sm flex gap-2">
+                                                                        <div className="flex-1">
+                                                                            <label className="text-[10px] font-bold text-slate-500 block mb-1">执行延时/超时(Ticks)</label>
+                                                                            <input type="number" className="w-full border rounded px-2 py-1 text-xs" value={selectedNode.data.timeout || 0} onChange={(e) => updateNodeData('timeout', e.target.value)} placeholder="0为瞬发" />
+                                                                        </div>
+                                                                    </div>
+                                                                    
+                                                                    <div className="bg-white p-2 rounded border border-emerald-200 shadow-sm">
+                                                                        <label className="text-[10px] font-bold text-blue-600 block mb-2 border-b pb-1">设置黑板变量 (Set Blackboard)</label>
+                                                                        <div className="flex gap-2">
+                                                                            <input type="text" list="bb-keys-list" className="w-1/2 border rounded px-2 py-1 text-xs" placeholder="选择/输入 Key" value={selectedNode.data.setBbKey || ''} onChange={(e) => updateNodeData('setBbKey', e.target.value)} />
+                                                                            <input type="text" className="w-1/2 border rounded px-2 py-1 text-xs" placeholder="Value" value={selectedNode.data.setBbVal || ''} onChange={(e) => updateNodeData('setBbVal', e.target.value)} />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="bg-white p-2 rounded border border-emerald-200 shadow-sm">
+                                                                        <label className="text-[10px] font-bold text-green-600 block mb-2 border-b pb-1">ROS2 话题发布 (实时检索补全)</label>
+                                                                        <div className="space-y-2">
+                                                                            <input type="text" list="ros-topics-list" className="w-full border rounded px-2 py-1 text-xs" placeholder="Topic Name (支持检索下拉)" value={selectedNode.data.rosTopic || ''} 
+                                                                                onChange={(e) => {
+                                                                                    const topicVal = e.target.value;
+                                                                                    const matched = rosTopics.find(t => t.name === topicVal);
+                                                                                    
+                                                                                    updateNodeDataMulti(selectedNodeId, {
+                                                                                        rosTopic: topicVal, 
+                                                                                        rosMsgType: matched ? matched.type : (selectedNode.data.rosMsgType || '')
+                                                                                    });
+
+                                                                                    if (matched) {
+                                                                                        generateRosPayloadTemplate(matched.type, (template) => {
+                                                                                            updateNodeData('rosPayload', template);
+                                                                                        });
+                                                                                    }
+                                                                                }} 
+                                                                            />
+                                                                            <input type="text" className="w-full border rounded px-2 py-1 text-xs bg-gray-50" placeholder="Msg Type (自动补全)" value={selectedNode.data.rosMsgType || ''} onChange={(e) => updateNodeData('rosMsgType', e.target.value)} />
+                                                                            <textarea className="w-full border rounded px-2 py-1 text-xs font-mono h-24" placeholder='JSON Payload (自动生成模板)' value={selectedNode.data.rosPayload || ''} onChange={(e) => updateNodeData('rosPayload', e.target.value)} />
+                                                                        </div>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center h-full text-gray-400 mt-20">
+                                                <Icons.Activity size={48} className="mb-3 opacity-20" />
+                                                <p className="text-sm font-medium">在画布中选中节点以编辑属性</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* 黑板面板 (底部) */}
+                                <div className="bg-slate-50 border-t flex flex-col relative shadow-[0_-4px_10px_rgba(0,0,0,0.02)]" style={{ height: bottomPanelHeight }}>
+                                    <div className="resizer-row" onMouseDown={(e) => { e.preventDefault(); setIsResizingBottom(true); }}></div>
+                                    <div className="p-2 border-b bg-slate-100 flex items-center justify-between shadow-sm z-10">
+                                        <div className="font-bold text-xs text-slate-700 flex items-center gap-1.5"><Icons.Database size={12} className="text-blue-500"/> 全局黑板 (Blackboard)</div>
+                                        <button onClick={() => setBlackboard(p => [...p, { key: `var_${p.length}`, value: '0', type: 'float' }])} className="text-[10px] flex items-center gap-1 bg-white border border-slate-300 px-2 py-1 rounded shadow-sm hover:bg-blue-50 hover:border-blue-300 text-blue-600 font-bold transition"><Icons.Plus size={10} /> 新增变量</button>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-1 relative">
+                                        <table className="w-full text-xs text-left border-collapse">
+                                            <thead className="sticky top-0 bg-slate-50 shadow-sm z-10">
+                                                <tr className="text-slate-500"><th className="py-1.5 pl-2 font-semibold">Key (变量名)</th><th className="py-1.5 font-semibold w-24">Type</th><th className="py-1.5 font-semibold">Current Value</th><th className="py-1.5 w-8"></th></tr>
+                                            </thead>
+                                            <tbody>
+                                                {blackboard.map((item, idx) => (
+                                                    <tr key={idx} className="border-b border-slate-100 last:border-0 hover:bg-white transition-colors group align-top">
+                                                        <td className="p-1 pt-2"><input type="text" className="w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none px-1 font-medium text-slate-700" value={item.key} onChange={(e) => { const n=[...blackboard]; n[idx].key=e.target.value; setBlackboard(n); }} /></td>
+                                                        <td className="p-1 pt-2">
+                                                            <select className="w-full bg-transparent text-slate-600 font-medium outline-none border border-gray-200 rounded px-1" value={item.type} onChange={(e) => { const n=[...blackboard]; n[idx].type=e.target.value; setBlackboard(n); }}>
+                                                                <option value="int">int</option>
+                                                                <option value="float">float</option>
+                                                                <option value="string">string</option>
+                                                                <option value="boolean">bool</option>
+                                                                <option value="enum">enum</option>
+                                                            </select>
+                                                            {item.type === 'enum' && (
+                                                                <div className="mt-1">
+                                                                    <input type="text" className="w-full text-[9px] bg-slate-50 border border-slate-300 rounded px-1 py-0.5 placeholder-gray-400 outline-none focus:border-blue-400" placeholder="枚举项(A,B,C...)" value={item.optionsStr || ''} onChange={(e) => { const n=[...blackboard]; n[idx].optionsStr=e.target.value; setBlackboard(n); }} title="输入枚举选项，以逗号分隔"/>
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-1 pt-2">
+                                                            {item.type === 'boolean' ? (
+                                                                <select className="w-full bg-transparent text-blue-600 font-bold outline-none" value={item.value} onChange={(e)=>{ const n=[...blackboard]; n[idx].value=e.target.value; setBlackboard(n); }}><option value="true">true</option><option value="false">false</option></select> 
+                                                            ) : item.type === 'enum' ? (
+                                                                <select className="w-full bg-transparent text-blue-600 font-bold outline-none" value={item.value} onChange={(e)=>{ const n=[...blackboard]; n[idx].value=e.target.value; setBlackboard(n); }}>
+                                                                    {(item.optionsStr || '').split(',').filter(Boolean).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                                </select>
+                                                            ) : (
+                                                                <input type="text" className="w-full bg-transparent border-b border-transparent focus:border-blue-400 outline-none px-1 font-mono text-blue-600 font-bold" value={item.value} onChange={(e) => { const n=[...blackboard]; n[idx].value=e.target.value; setBlackboard(n); }} />
+                                                            )}
+                                                        </td>
+                                                        <td className="p-1 pt-2 text-center">
+                                                            <button onClick={() => setBlackboard(p=>p.filter((_,i)=>i!==idx))} className="text-transparent group-hover:text-red-400 hover:!text-red-600 transition-colors p-1"><Icons.Trash2 size={12} /></button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<BehaviorTreeEditor />);
+    </script>
 </body>
 </html>

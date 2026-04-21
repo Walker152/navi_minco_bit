@@ -1,0 +1,17 @@
+<root main_tree_to_execute="TacticalTree">
+  <BehaviorTree ID="TacticalTree">
+    <ReactiveFallback name="TacticalPrioritySelector">
+      <Sequence name="AttackPriority">
+        <CheckAttackCondition name="CheckAttackCondition" />
+        <SetTacticalMode name="SetAttackMode" mode="attack" />
+      </Sequence>
+
+      <Sequence name="DefendPriority">
+        <CheckDefendCondition name="CheckDefendCondition" />
+        <SetTacticalMode name="SetDefendMode" mode="defend" />
+      </Sequence>
+
+      <SetTacticalMode name="SetNormalMode" mode="normal" />
+    </ReactiveFallback>
+  </BehaviorTree>
+</root>

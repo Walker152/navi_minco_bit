@@ -1,16 +1,17 @@
 pgm2esdf_generator:
   ros__parameters:
-    # map_yaml: "src/navigation/navi2_bringup/maps/first_floor/first_floor1.yaml"
+    map_yaml: "src/navigation/navi2_bringup/maps/first_floor/first_floor.yaml"
     # map_yaml: "src/navigation/navi2_bringup/maps/2026/room.yaml"
-    map_yaml: "src/navigation/navi2_bringup/maps/2026/rmul2026.yaml"
+    # map_yaml: "src/navigation/navi2_bringup/maps/2026/rmul2026.yaml"
     # map_yaml: "src/navigation/navi2_bringup/maps/2026/rmuc2026.yaml"
-    # map_yaml: "src/navigation/navi2_bringup/maps/2026/hotel.yaml"
-    # output_pcd: "src/utils/pcd2esdf/maps/first_floor1_esdf.pcd"
+    # map_yaml: "src/navigation/navi2_bringup/maps/2026/rmuc2026_back.yaml"
+    output_pcd: "src/utils/pcd2esdf/maps/first_floor_esdf.pcd"
     # output_pcd: "src/utils/pcd2esdf/maps/room_esdf.pcd"
-    output_pcd: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
+    # output_pcd: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
     # output_pcd: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
-    # output_pcd: "src/utils/pcd2esdf/maps/hotel_esdf.pcd"
+    # output_pcd: "src/utils/pcd2esdf/maps/rmuc2026_back_esdf.pcd"
     max_dist: 5.0
     occupied_thresh: 0.65
     free_thresh: 0.25
     treat_unknown_as_obstacle: false
+    unknown_gray_values: [205]
