@@ -354,7 +354,13 @@ BT::NodeStatus DescendStairsAction::onRunning()
     return BT::NodeStatus::SUCCESS;
   }
   const auto pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-  const bool in_stairs = stairs_zone.contains({pose.position.x, pose.position.y, 0.0});
+  bool in_stairs = false;
+  for(auto zone : stairs_zone) {
+    if (zone.contains({pose.position.x, pose.position.y, 0.0})) {
+      in_stairs = true;
+      break;
+    }
+  }
   if (!in_stairs) {
     blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
     return BT::NodeStatus::SUCCESS;
