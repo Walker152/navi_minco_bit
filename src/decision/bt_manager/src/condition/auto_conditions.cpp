@@ -349,7 +349,13 @@ BT::NodeStatus CheckInStairsZone::tick()
   double x = current_pose.position.x;
   double y = current_pose.position.y;
 
-  bool in_stairs_zone = stairs_zone.contains({x, y, 0.0});
+  bool in_stairs_zone = false;
+  for (const auto & zone : stairs_zone) {
+    if (zone.contains({x, y, 0.0})) {
+      in_stairs_zone = true;
+      break;
+    }
+  }
 
   static bool last_in_stairs_zone = false;
   if (in_stairs_zone != last_in_stairs_zone) {
@@ -380,8 +386,13 @@ BT::NodeStatus CheckWillThroughTunnel::tick()
   auto lifter_current_pos = blackboard->get<LifterPos>("lifter_current_pos");
   const bool through_tunnel = blackboard->get<bool>("through_tunnel");
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-  const bool in_transform_zone =
-    transform_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
+  bool in_transform_zone = false;
+  for (const auto & zone : transform_zone) {
+    if (zone.contains({current_pose.position.x, current_pose.position.y, 0.0})) {
+      in_transform_zone = true;
+      break;
+    }
+  }
 
   // Once already transformed in transform zone, keep lifter at bottom until leaving this zone.
   const bool keep_bottom_locked = in_transform_zone && (lifter_current_pos == LifterPos::BOTTOM);
@@ -423,8 +434,13 @@ BT::NodeStatus CheckNoAllyBelowStairs::tick()
   const auto allies = blackboard->get<std::vector<AllyRobotInfo>>("allies_info");
   bool ally_below = false;
   for (const auto & ally : allies) {
-    if (stairs_lower_safe_zone.contains({ally.position.position.x, ally.position.position.y, 0.0})) {
-      ally_below = true;
+    for (const auto & zone : stairs_lower_safe_zone) {
+      if (zone.contains({ally.position.position.x, ally.position.position.y, 0.0})) {
+        ally_below = true;
+        break;
+      }
+    }
+    if (ally_below) {
       break;
     }
   }
