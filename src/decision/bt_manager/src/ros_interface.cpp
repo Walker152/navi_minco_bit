@@ -1,5 +1,4 @@
 #include "bt_manager/ros_interface.hpp"
-#include "bt_manager/utils/area.hpp"
 
 #include <algorithm>
 #include <array>
@@ -7,73 +6,8 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
-#include <sstream>
 #include <string>
 #include <vector>
-
-namespace {
-
-struct AreaVizConfig
-{
-  std::string name;
-  Sentry_BT::Area_Square area;
-  std::array<float, 3> color;
-};
-
-struct PolygonVizConfig
-{
-  std::string name;
-  std::vector<Sentry_BT::Point2D> vertices;
-  std::array<float, 3> color;
-};
-
-std::vector<AreaVizConfig> getAreaVizConfigs()
-{
-  std::vector<AreaVizConfig> configs = {
-    {"transform_zone", Sentry_BT::transform_zone, {1.0F, 0.2F, 0.2F}},
-    {"tunnel_zone_0", Sentry_BT::tunnel_zone[0], {1.0F, 0.6F, 0.0F}},
-    {"tunnel_zone_1", Sentry_BT::tunnel_zone[1], {1.0F, 0.6F, 0.0F}},
-    {"tunnel_zone_2", Sentry_BT::tunnel_zone[2], {1.0F, 0.6F, 0.0F}},
-    {"tunnel_zone_3", Sentry_BT::tunnel_zone[3], {1.0F, 0.6F, 0.0F}},
-    {"stairs_zone", Sentry_BT::stairs_zone, {1.0F, 1.0F, 0.2F}},
-    {"stairs_lower_safe_zone", Sentry_BT::stairs_lower_safe_zone, {0.4F, 1.0F, 0.4F}},
-    {"highland_zone", Sentry_BT::highland_zone, {0.2F, 0.6F, 1.0F}},
-    {"own_defense_zone", Sentry_BT::own_defense_zone, {0.6F, 0.4F, 1.0F}},
-    {"enemy_defense_zone", Sentry_BT::enemy_defense_zone, {1.0F, 0.2F, 1.0F}},
-    {"enemy_outpost_watch_zone", Sentry_BT::enemy_outpost_watch_zone, {0.8F, 0.8F, 0.8F}},
-    {"full_court_zone", Sentry_BT::full_court_zone, {0.2F, 0.2F, 0.2F}},
-    {"own_base_buff_zone", Sentry_BT::own_base_buff_zone, {0.3F, 0.9F, 0.3F}},
-    {"enemy_base_buff_zone", Sentry_BT::enemy_base_buff_zone, {0.9F, 0.3F, 0.3F}},
-    {"own_outpost_buff_zone", Sentry_BT::own_outpost_buff_zone, {0.5F, 0.9F, 0.3F}},
-    {"enemy_outpost_buff_zone", Sentry_BT::enemy_outpost_buff_zone, {0.9F, 0.5F, 0.3F}},
-  };
-
-  for (const auto & mode_entry : Sentry_BT::tracking_areas) {
-    const auto mode_id = static_cast<int>(mode_entry.first);
-    for (std::size_t i = 0; i < mode_entry.second.size(); ++i) {
-      std::ostringstream name;
-      name << "tracking_mode_" << mode_id << "_" << i;
-      configs.push_back({name.str(), mode_entry.second[i], {0.95F, 0.95F, 0.95F}});
-    }
-  }
-
-  return configs;
-}
-
-std::vector<PolygonVizConfig> getPolygonVizConfigs()
-{
-  return {
-    {"own_highland_buff_zone",
-      {Sentry_BT::own_highland_buff_zone.vertices.begin(), Sentry_BT::own_highland_buff_zone.vertices.end()},
-      {0.2F, 0.8F, 1.0F}},
-    {"enemy_highland_buff_zone",
-      {Sentry_BT::enemy_highland_buff_zone.vertices.begin(),
-        Sentry_BT::enemy_highland_buff_zone.vertices.end()},
-      {1.0F, 0.4F, 0.2F}},
-  };
-}
-
-}  // namespace
 
 namespace Sentry_BT {
 
@@ -156,10 +90,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
   behavior_pub = this->create_publisher<ros_interfaces::msg::Behavior>("/sentry/behaivor_send", 10);
   cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
-  rclcpp::QoS area_marker_qos(1);
-  area_marker_qos.transient_local().reliable();
-  area_marker_pub =
-    this->create_publisher<visualization_msgs::msg::MarkerArray>("/sentry/area_markers", area_marker_qos);
+  area_visualizer_ = std::make_unique<AreaVisualizer>(*this);
 
   timer_ = this->create_wall_timer(std::chrono::milliseconds(100), [this]() {
     const auto current_mode = blackboard_->get<int>("current_mode");
@@ -198,123 +129,9 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
   });
 
   area_marker_timer_ = this->create_wall_timer(std::chrono::seconds(1), [this]() {
-    this->publishAreaMarkers();
+    area_visualizer_->publishAreaMarkers(this->now());
   });
-  publishAreaMarkers();
-}
-
-void ros_interface::publishAreaMarkers()
-{
-  if (!area_marker_pub) {
-    return;
-  }
-
-  visualization_msgs::msg::MarkerArray marker_array;
-  const auto now = this->now();
-  const auto square_areas = getAreaVizConfigs();
-  const auto polygon_areas = getPolygonVizConfigs();
-
-  int marker_id = 0;
-  for (const auto & cfg : square_areas) {
-    const double min_x = std::min(cfg.area.top_left.x, cfg.area.bottom_right.x);
-    const double max_x = std::max(cfg.area.top_left.x, cfg.area.bottom_right.x);
-    const double min_y = std::min(cfg.area.top_left.y, cfg.area.bottom_right.y);
-    const double max_y = std::max(cfg.area.top_left.y, cfg.area.bottom_right.y);
-
-    visualization_msgs::msg::Marker box_marker;
-    box_marker.header.frame_id = "map";
-    box_marker.header.stamp = now;
-    box_marker.ns = "sentry_area_box/" + cfg.name;
-    box_marker.id = marker_id++;
-    box_marker.type = visualization_msgs::msg::Marker::CUBE;
-    box_marker.action = visualization_msgs::msg::Marker::ADD;
-    box_marker.pose.position.x = (min_x + max_x) * 0.5;
-    box_marker.pose.position.y = (min_y + max_y) * 0.5;
-    box_marker.pose.position.z = 0.05;
-    box_marker.pose.orientation.w = 1.0;
-    box_marker.scale.x = std::max(0.05, max_x - min_x);
-    box_marker.scale.y = std::max(0.05, max_y - min_y);
-    box_marker.scale.z = 0.1;
-    box_marker.color.r = cfg.color[0];
-    box_marker.color.g = cfg.color[1];
-    box_marker.color.b = cfg.color[2];
-    box_marker.color.a = 0.35F;
-    marker_array.markers.push_back(box_marker);
-
-    visualization_msgs::msg::Marker text_marker;
-    text_marker.header.frame_id = "map";
-    text_marker.header.stamp = now;
-    text_marker.ns = "sentry_area_label/" + cfg.name;
-    text_marker.id = marker_id++;
-    text_marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-    text_marker.action = visualization_msgs::msg::Marker::ADD;
-    text_marker.pose.position.x = box_marker.pose.position.x;
-    text_marker.pose.position.y = box_marker.pose.position.y;
-    text_marker.pose.position.z = 0.35;
-    text_marker.pose.orientation.w = 1.0;
-    text_marker.scale.z = 0.25;
-    text_marker.color.r = cfg.color[0];
-    text_marker.color.g = cfg.color[1];
-    text_marker.color.b = cfg.color[2];
-    text_marker.color.a = 1.0F;
-    text_marker.text = cfg.name;
-    marker_array.markers.push_back(text_marker);
-  }
-
-  for (const auto & cfg : polygon_areas) {
-    if (cfg.vertices.size() < 3) {
-      continue;
-    }
-
-    visualization_msgs::msg::Marker line_marker;
-    line_marker.header.frame_id = "map";
-    line_marker.header.stamp = now;
-    line_marker.ns = "sentry_area_poly/" + cfg.name;
-    line_marker.id = marker_id++;
-    line_marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
-    line_marker.action = visualization_msgs::msg::Marker::ADD;
-    line_marker.pose.orientation.w = 1.0;
-    line_marker.scale.x = 0.08;
-    line_marker.color.r = cfg.color[0];
-    line_marker.color.g = cfg.color[1];
-    line_marker.color.b = cfg.color[2];
-    line_marker.color.a = 1.0F;
-
-    double center_x = 0.0;
-    double center_y = 0.0;
-    for (const auto & vertex : cfg.vertices) {
-      geometry_msgs::msg::Point p;
-      p.x = vertex.x;
-      p.y = vertex.y;
-      p.z = 0.15;
-      line_marker.points.push_back(p);
-      center_x += vertex.x;
-      center_y += vertex.y;
-    }
-    line_marker.points.push_back(line_marker.points.front());
-    marker_array.markers.push_back(line_marker);
-
-    visualization_msgs::msg::Marker text_marker;
-    text_marker.header.frame_id = "map";
-    text_marker.header.stamp = now;
-    text_marker.ns = "sentry_area_poly_label/" + cfg.name;
-    text_marker.id = marker_id++;
-    text_marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-    text_marker.action = visualization_msgs::msg::Marker::ADD;
-    text_marker.pose.position.x = center_x / static_cast<double>(cfg.vertices.size());
-    text_marker.pose.position.y = center_y / static_cast<double>(cfg.vertices.size());
-    text_marker.pose.position.z = 0.45;
-    text_marker.pose.orientation.w = 1.0;
-    text_marker.scale.z = 0.25;
-    text_marker.color.r = cfg.color[0];
-    text_marker.color.g = cfg.color[1];
-    text_marker.color.b = cfg.color[2];
-    text_marker.color.a = 1.0F;
-    text_marker.text = cfg.name;
-    marker_array.markers.push_back(text_marker);
-  }
-
-  area_marker_pub->publish(marker_array);
+  area_visualizer_->publishAreaMarkers(this->now());
 }
 
 geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
@@ -608,7 +425,13 @@ bool ros_interface::isTroughTunnel(
 {
   const auto current_pose = getCurrentPose();
   const Point2D current_point{current_pose.position.x, current_pose.position.y};
-  const bool in_transform_zone = transform_zone.contains(current_point);
+  bool in_transform_zone = false;
+  for (const auto & zone : transform_zone) {
+    if (zone.contains(current_point)) {
+      in_transform_zone = true;
+      break;
+    }
+  }
   bool through_tunnel_now = false;
   for (const auto & zone : tunnel_areas) {
     if (isTroughZone(msg, zone)) {
