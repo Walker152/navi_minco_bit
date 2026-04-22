@@ -9,10 +9,16 @@
 // clang-format off
 namespace Sentry_BT {
 // for rmuc
-inline std::array<Area_Square, 2> transform_zone{
+inline std::array<Area_Square, 4> transform_zone{
   Area_Square{Point2D{10.5, 5.0}, Point2D{8.0, 1.3}},
-  Area_Square{Point2D{18.5, 10.0}, Point2D{21.0, 13.2}},
-};  // 假设这是隧道区域的坐标范围
+  Area_Square{Point2D{21.0, 13.2}, Point2D{18.5, 10.0}},
+  Area_Square{Point2D{15.7, 13.8}, Point2D{10.4, 12.3}},
+  Area_Square{Point2D{18.6, 2.7}, Point2D{13.3, 1.2}},
+};
+inline std::array<Area_Square, 2> bonus_zone = {
+  Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
+  Area_Square{Point2D{14.7, 11.0}, Point2D{15.7, 12.0}},
+};  // 假设这是奖励区域的坐标范围
 inline std::array<Area_Square, 4> tunnel_zone = {
   Area_Square{Point2D{10.4, 3.6}, Point2D{9.3, 1.8}},
   Area_Square{Point2D{14.1, 13.8}, Point2D{12.1, 13.0}},
@@ -208,6 +214,8 @@ inline std::vector<AreaVizConfig> getAreaVizConfigs()
   return {
     {"transform_zone", transform_zone[0], {1.0F, 0.2F, 0.2F}},
     {"transform_zone", transform_zone[1], {1.0F, 0.2F, 0.2F}},
+    {"transform_zone", transform_zone[2], {1.0F, 0.2F, 0.2F}},
+    {"transform_zone", transform_zone[3], {1.0F, 0.2F, 0.2F}},
     {"tunnel_zone", tunnel_zone[0], {1.0F, 0.6F, 0.0F}},
     {"tunnel_zone", tunnel_zone[1], {1.0F, 0.6F, 0.0F}},
     {"tunnel_zone", tunnel_zone[2], {1.0F, 0.6F, 0.0F}},
