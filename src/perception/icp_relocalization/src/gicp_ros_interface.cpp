@@ -577,8 +577,7 @@ void GicpRosInterface::runFSM()
           std::atan2(static_cast<double>(prev(1, 0)), static_cast<double>(prev(0, 0)));
         const double cand_yaw =
           std::atan2(static_cast<double>(candidate(1, 0)), static_cast<double>(candidate(0, 0)));
-        const double yaw_jump =
-          std::atan2(std::sin(cand_yaw - prev_yaw), std::cos(cand_yaw - prev_yaw));
+        const double yaw_jump = std::atan2(std::sin(cand_yaw - prev_yaw), std::cos(cand_yaw - prev_yaw));
 
         if (trans_jump > max_translation_jump_ || std::abs(yaw_jump) > max_yaw_jump_) {
           std::cout << color_text::YELLOW
@@ -645,8 +644,7 @@ void GicpRosInterface::runFSM()
     auto result = gicp_filter_->align(current_source_cloud_, initial_guess);
 
     if (result.converged && std::isfinite(result.score) && result.score < score_threshold_) {
-      const Eigen::Matrix4f prev =
-        has_last_successful_pose_ ? last_successful_pose_ : map_to_camera_init_;
+      const Eigen::Matrix4f prev = has_last_successful_pose_ ? last_successful_pose_ : map_to_camera_init_;
       const Eigen::Matrix4f candidate = result.final_transformation;
 
       const double dx = static_cast<double>(candidate(0, 3) - prev(0, 3));
