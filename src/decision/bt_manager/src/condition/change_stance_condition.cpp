@@ -195,8 +195,7 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   std::ostringstream oss;
   oss << "current_in_highland=" << current_in_highland << ", current_in_half=" << current_in_half
       << ", goal_in_highland=" << goal_in_highland << ", goal_in_half=" << goal_in_half;
-  detail::logTransition(
-    detail::TreeKind::STANCE, "CheckCrossZoneTransition", need_cross_zone, oss.str());
+  detail::logTransition(detail::TreeKind::STANCE, "CheckCrossZoneTransition", need_cross_zone, oss.str());
 
   return need_cross_zone ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
@@ -248,17 +247,13 @@ BT::NodeStatus CheckStanceRefreshRequired::tick()
 {
   auto blackboard = config().blackboard;
   const int max_hold = getInput<int>("max_hold_seconds").value_or(180);
-
   const auto current_stance = blackboard->get<SentryStance>("current_stance");
-  static auto last_stance = current_stance;
-  static auto hold_start = std::chrono::steady_clock::now();
 
   if (current_stance != last_stance) {
     hold_start = std::chrono::steady_clock::now();
     last_stance = current_stance;
     detail::logTransition(
-      detail::TreeKind::STANCE,
-      "CheckStanceRefreshRequired", false, "stance changed, reset timer");
+      detail::TreeKind::STANCE, "CheckStanceRefreshRequired", false, "stance changed, reset timer");
     return BT::NodeStatus::FAILURE;
   }
 
@@ -288,17 +283,13 @@ BT::NodeStatus CheckStanceRefreshRequired::tick()
     std::ostringstream oss;
     oss << "hold_seconds=" << hold_seconds << ", max_hold=" << max_hold
         << ", target_stance=" << transient_stance_str;
-    detail::logTransition(
-      detail::TreeKind::STANCE, "CheckStanceRefreshRequired", true, oss.str());
+    detail::logTransition(detail::TreeKind::STANCE, "CheckStanceRefreshRequired", true, oss.str());
     return BT::NodeStatus::SUCCESS;
   }
 
-  {
-    std::ostringstream oss;
-    oss << "hold_seconds=" << hold_seconds << ", max_hold=" << max_hold;
-    detail::logTransition(
-      detail::TreeKind::STANCE, "CheckStanceRefreshRequired", false, oss.str());
-  }
+  std::ostringstream oss;
+  oss << "hold_seconds=" << hold_seconds << ", max_hold=" << max_hold;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckStanceRefreshRequired", false, oss.str());
 
   return BT::NodeStatus::FAILURE;
 }
