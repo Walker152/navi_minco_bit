@@ -78,14 +78,14 @@ public:
   ~ros_interface() override = default;
 
   geometry_msgs::msg::Pose getCurrentPose() const;
-  geometry_msgs::msg::Pose transformMapPose(const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame);
+  geometry_msgs::msg::Pose transformMapPose(
+    const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame);
   std::shared_ptr<ParamManager> getParamManager() const { return param_manager_; }
 
   bool TransformPose(const geometry_msgs::msg::Pose & input_pose, geometry_msgs::msg::Pose & output_pose);
 
   bool isTroughZone(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square & zone);
-  bool isTroughTunnel(
-    const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg,
+  bool isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg,
     const std::array<Area_Square, 4> & tunnel_areas);
 };
 }  // namespace Sentry_BT
