@@ -11,7 +11,7 @@ namespace {
 inline bool compareByMode(const float lhs, const float rhs, const std::string & mode)
 {
   if (mode == "greater") {
-    return lhs > rhs;
+    return lhs >= rhs;
   }
   if (mode == "less") {
     return lhs < rhs;
@@ -41,7 +41,7 @@ BT::NodeStatus CheckHeat::tick()
   const int current_heat = blackboard->get<int>("current_heat");
 
   return compareByMode(static_cast<float>(current_heat), threshold, mode) ? BT::NodeStatus::SUCCESS
-                                                                            : BT::NodeStatus::FAILURE;
+                                                                          : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckOutpostTarget -------------------
@@ -75,8 +75,8 @@ BT::NodeStatus CheckOutpostTarget::tick()
   const bool nav_goal_is_outpost =
     std::hypot(nav_goal.x - outpost.x, nav_goal.y - outpost.y) <= static_cast<double>(dist_threshold);
 
-  return (attacking_outpost_mode || in_outpost_zone || nav_goal_is_outpost) ? BT::NodeStatus::SUCCESS
-                                                                              : BT::NodeStatus::FAILURE;
+  return (attacking_outpost_mode && in_outpost_zone) && nav_goal_is_outpost ? BT::NodeStatus::SUCCESS
+                                                                            : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckEngagedStatus -------------------
@@ -147,8 +147,8 @@ BT::NodeStatus CheckTargetDistance::tick()
   const float threshold = getInput<float>("threshold").value_or(1.0f);
   const std::string mode = getInput<std::string>("mode").value_or("greater");
 
-  const float distance = static_cast<float>(
-    std::hypot(target_pose.position.x - current_pose.position.x, target_pose.position.y - current_pose.position.y));
+  const float distance = static_cast<float>(std::hypot(
+    target_pose.position.x - current_pose.position.x, target_pose.position.y - current_pose.position.y));
   return compareByMode(distance, threshold, mode) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
@@ -178,9 +178,11 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   const bool current_in_half =
     own_defense_zone.contains(current_point) || enemy_defense_zone.contains(current_point);
   const bool goal_in_highland = highland_zone.contains(goal_point);
-  const bool goal_in_half = own_defense_zone.contains(goal_point) || enemy_defense_zone.contains(goal_point);
+  const bool goal_in_half =
+    own_defense_zone.contains(goal_point) || enemy_defense_zone.contains(goal_point);
 
-  const bool need_cross_zone = (current_in_half && goal_in_highland) || (current_in_highland && goal_in_half);
+  const bool need_cross_zone =
+    (current_in_half && goal_in_highland) || (current_in_highland && goal_in_half);
   return need_cross_zone ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
@@ -207,7 +209,7 @@ BT::NodeStatus CheckCapacitorCapacity::tick()
   const std::string mode = getInput<std::string>("mode").value_or("less");
 
   return compareByMode(capacitor_capacity, threshold, mode) ? BT::NodeStatus::SUCCESS
-                                                             : BT::NodeStatus::FAILURE;
+                                                            : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckStanceRefreshRequired -------------------
@@ -219,7 +221,8 @@ CheckStanceRefreshRequired::CheckStanceRefreshRequired(
 
 BT::PortsList CheckStanceRefreshRequired::providedPorts()
 {
-  return {BT::InputPort<int>("max_hold_seconds", 180, "Max hold seconds before refresh")};
+  return {BT::InputPort<int>("max_hold_seconds", 180, "Max hold seconds before refresh"),
+    BT::OutputPort<std::string>("target_stance", "Target stance to switch to when refresh is needed")};
 }
 
 BT::NodeStatus CheckStanceRefreshRequired::tick()
@@ -227,53 +230,44 @@ BT::NodeStatus CheckStanceRefreshRequired::tick()
   auto blackboard = config().blackboard;
   const int max_hold = getInput<int>("max_hold_seconds").value_or(180);
 
-  const auto current_stance = blackboard->get<Sentry_BT::SentryStance>("current_stance");
+  const auto current_stance = blackboard->get<SentryStance>("current_stance");
   static auto last_stance = current_stance;
   static auto hold_start = std::chrono::steady_clock::now();
-  static bool refresh_pending = false;
-  static Sentry_BT::SentryStance original_stance = Sentry_BT::SentryStance::MOVE;
-  static Sentry_BT::SentryStance transient_stance = Sentry_BT::SentryStance::ATTACK;
 
   if (current_stance != last_stance) {
     hold_start = std::chrono::steady_clock::now();
     last_stance = current_stance;
-  }
-
-  if (!refresh_pending) {
-    const auto hold_seconds =
-      std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - hold_start)
-        .count();
-    if (hold_seconds >= max_hold) {
-      refresh_pending = true;
-      original_stance = current_stance;
-      transient_stance = (current_stance == Sentry_BT::SentryStance::MOVE) ? Sentry_BT::SentryStance::ATTACK
-                                                                            : Sentry_BT::SentryStance::MOVE;
-      blackboard->set<Sentry_BT::SentryStance>("desired_stance", transient_stance);
-      blackboard->set<bool>("stance_refresh_required", true);
-      std::cout << YELLOW << "CheckStanceRefreshRequired => REFRESH_TRIGGERED" << RESET << std::endl;
-      return BT::NodeStatus::SUCCESS;
-    }
-
-    blackboard->set<bool>("stance_refresh_required", false);
     return BT::NodeStatus::FAILURE;
   }
 
-  if (current_stance == transient_stance) {
-    blackboard->set<Sentry_BT::SentryStance>("desired_stance", original_stance);
-    blackboard->set<bool>("stance_refresh_required", true);
+  const auto hold_seconds =
+    std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - hold_start).count();
+  if (hold_seconds >= max_hold) {
+    SentryStance transient_stance = SentryStance::DEFEND;
+    if (current_stance == SentryStance::DEFEND) {
+      transient_stance = SentryStance::ATTACK;
+    } else {
+      transient_stance = SentryStance::DEFEND;
+    }
+    auto stance_to_string = [](SentryStance stance) -> std::string {
+      switch (stance) {
+      case SentryStance::ATTACK:
+        return "ATTACK";
+      case SentryStance::DEFEND:
+        return "DEFEND";
+      case SentryStance::MOVE:
+        return "MOVE";
+      default:
+        return "UNKNOWN(" + std::to_string(static_cast<int>(stance)) + ")";
+      }
+    };
+    auto transient_stance_str = stance_to_string(transient_stance);
+    setOutput<std::string>("target_stance", transient_stance_str);
+    std::cout << YELLOW << "CheckStanceRefreshRequired => REFRESH_TRIGGERED" << RESET << std::endl;
     return BT::NodeStatus::SUCCESS;
   }
 
-  if (current_stance == original_stance) {
-    refresh_pending = false;
-    hold_start = std::chrono::steady_clock::now();
-    blackboard->set<bool>("stance_refresh_required", false);
-    std::cout << GREEN << "CheckStanceRefreshRequired => REFRESH_FINISHED" << RESET << std::endl;
-    return BT::NodeStatus::FAILURE;
-  }
-
-  blackboard->set<bool>("stance_refresh_required", true);
-  return BT::NodeStatus::SUCCESS;
+  return BT::NodeStatus::FAILURE;
 }
 
 }  // namespace Sentry_BT
