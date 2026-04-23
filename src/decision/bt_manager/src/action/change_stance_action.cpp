@@ -6,41 +6,79 @@ namespace Sentry_BT {
 std::chrono::time_point<std::chrono::system_clock> ChangeStance::last_change_time_ =
   std::chrono::time_point<std::chrono::system_clock>::min();
 
+// ------------------- SetGyroState -------------------
+SetGyroState::SetGyroState(const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
+
+BT::PortsList SetGyroState::providedPorts()
+{
+  return {
+    BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
+    BT::InputPort<float>("gyro_vel", "Gyro speed in rpm")
+  };
+}
+
+BT::NodeStatus SetGyroState::tick()
+{
+  auto blackboard = config().blackboard;
+  const bool use_gyro = getInput<bool>("use_gyro").value_or(blackboard->get<bool>("use_gyro_mode"));
+  const float gyro_vel = getInput<float>("gyro_vel").value_or(blackboard->get<float>("gyro_vel"));
+
+  blackboard->set("use_gyro_mode", use_gyro);
+  blackboard->set("gyro_vel", gyro_vel);
+  return BT::NodeStatus::SUCCESS;
+}
+
 // ------------------- ChangeStance -------------------
 ChangeStance::ChangeStance(const std::string & name, const BT::NodeConfiguration & config)
-: BT::SyncActionNode(name, config)
+: BT::StatefulActionNode(name, config)
 {
 }
 
 BT::PortsList ChangeStance::providedPorts()
 {
-  return {BT::InputPort<std::string>("stance", "Target stance: ATTACK/DEFEND/MOVE"),
-    BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
-    BT::InputPort<float>("gyro_vel", "Gyro speed in rpm")};
+  return {BT::InputPort<std::string>("stance", "Target stance: ATTACK/DEFEND/MOVE")};
 }
 
-BT::NodeStatus ChangeStance::tick()
+BT::NodeStatus ChangeStance::onStart()
 {
   auto parse_stance = [](const std::string & value) -> Sentry_BT::SentryStance {
     if (value == "ATTACK" || value == "attack" || value == "1") {
-      return Sentry_BT::SentryStance::ATTACK;
+      return SentryStance::ATTACK;
     }
     if (value == "DEFEND" || value == "defend" || value == "2") {
-      return Sentry_BT::SentryStance::DEFEND;
+      return SentryStance::DEFEND;
     }
     if (value == "MOVE" || value == "move" || value == "3") {
-      return Sentry_BT::SentryStance::MOVE;
+      return SentryStance::MOVE;
     }
-    return Sentry_BT::SentryStance::DEFEND;
+    return SentryStance::DEFEND;
   };
 
-  auto stance_to_string = [](Sentry_BT::SentryStance stance) -> std::string {
-    const auto index = static_cast<size_t>(stance);
-    if (index >= 1 && index <= stance_names.size()) {
-      return stance_names[index - 1];
-    }
-    return "UNKNOWN(" + std::to_string(static_cast<int>(stance)) + ")";
-  };
+  auto blackboard = config().blackboard;
+  const std::string stance_str = getInput<std::string>("stance").value_or("DEFEND");
+  desired_stance_ = parse_stance(stance_str);
+  current_stance_ = blackboard->get<SentryStance>("current_stance");
+
+  if (current_stance_ == desired_stance_) {
+    return BT::NodeStatus::SUCCESS;
+  }
+  return SwitchIfCooldown();
+}
+
+BT::NodeStatus ChangeStance::onRunning()
+{
+  return SwitchIfCooldown();
+}
+
+void ChangeStance::onHalted()
+{
+}
+
+BT::NodeStatus ChangeStance::SwitchIfCooldown()
+{
   const auto now = std::chrono::system_clock::now();
   const double elapsed_seconds =
     (last_change_time_ == std::chrono::time_point<std::chrono::system_clock>::min())
@@ -48,30 +86,33 @@ BT::NodeStatus ChangeStance::tick()
       : std::chrono::duration<double>(now - last_change_time_).count();
 
   if (elapsed_seconds < 5.0) {
-    return BT::NodeStatus::FAILURE;
+    return BT::NodeStatus::RUNNING;
   }
+
+  return applyStanceChange();
+}
+
+BT::NodeStatus ChangeStance::applyStanceChange()
+{
+  auto stance_to_string = [](SentryStance stance) -> std::string {
+    const auto index = static_cast<size_t>(stance);
+    if (index >= 1 && index <= stance_names.size()) {
+      return stance_names[index - 1];
+    }
+    return "UNKNOWN(" + std::to_string(static_cast<int>(stance)) + ")";
+  };
+
   auto blackboard = config().blackboard;
-  Sentry_BT::SentryStance desired_stance;
-  Sentry_BT::SentryStance current_stance;
-  const std::string stance_str = getInput<std::string>("stance").value_or("DEFEND");
-  blackboard->set<Sentry_BT::SentryStance>("desired_stance", parse_stance(stance_str));
-
-  const bool use_gyro = getInput<bool>("use_gyro").value_or(blackboard->get<bool>("use_gyro_mode"));
-  blackboard->set("use_gyro_mode", use_gyro);
-
-  const float gyro_vel = getInput<float>("gyro_vel").value_or(blackboard->get<float>("gyro_vel"));
-  blackboard->set("gyro_vel", gyro_vel);
-
-  desired_stance = blackboard->get<Sentry_BT::SentryStance>("desired_stance");
-  current_stance = blackboard->get<Sentry_BT::SentryStance>("current_stance");
-  if (current_stance == desired_stance) {
+  current_stance_ = blackboard->get<SentryStance>("current_stance");
+  if (current_stance_ == desired_stance_) {
     return BT::NodeStatus::SUCCESS;
   }
 
-  std::cout << GREEN << "Change from stance " << stance_to_string(current_stance) << " to stance "
-            << stance_to_string(desired_stance) << RESET << std::endl;
-  blackboard->set<Sentry_BT::SentryStance>("current_stance", desired_stance);
-  last_change_time_ = now;
+  blackboard->set<SentryStance>("desired_stance", desired_stance_);
+
+  std::cout << MAGENTA << "[STANCE_TREE]" << GREEN << "Change from stance " << stance_to_string(current_stance_) << " to stance "
+            << stance_to_string(desired_stance_) << RESET << std::endl;
+  last_change_time_ = std::chrono::system_clock::now();
   return BT::NodeStatus::SUCCESS;
 }
 
