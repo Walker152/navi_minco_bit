@@ -26,9 +26,9 @@ enum PacketTypeEnum
   ENUM_PACKET_GAMESTATUS_DATA,
   ENUM_PACKET_SENTRY_SERVER_DATA,  // 哨兵姿态等信息
   ENUM_PACKET_SENTRY_SELF_DATA,    // 机器人自身状态等信息
-  ENUM_PACKET_RADAR,                // 雷达发送的消息
-  ENUM_PACKET_GLOBAL_PATH_X,  // 全局路径X分包
-  ENUM_PACKET_GLOBAL_PATH_Y   // 全局路径Y分包
+  ENUM_PACKET_RADAR,               // 雷达发送的消息
+  ENUM_PACKET_GLOBAL_PATH_X,       // 全局路径X分包
+  ENUM_PACKET_GLOBAL_PATH_Y        // 全局路径Y分包
 };
 
 // from to 类型
@@ -77,10 +77,10 @@ using NavRes = struct _NavRes;
 
 struct __attribute__((packed, aligned(1))) _GlobalPath
 {
-  uint16_t start_x{};      // 起点x（minimap坐标系）
-  uint16_t start_y{};      // 起点y（minimap坐标系）
-  int8_t delta_x[49]{};    // x方向相对上一点增量
-  int8_t delta_y[49]{};    //  y方向相对上一点增量
+  uint16_t start_x{};    // 起点x（minimap坐标系）
+  uint16_t start_y{};    // 起点y（minimap坐标系）
+  int8_t delta_x[49]{};  // x方向相对上一点增量
+  int8_t delta_y[49]{};  //  y方向相对上一点增量
 };
 using GlobalPath = struct _GlobalPath;
 
@@ -124,10 +124,9 @@ struct _ChassisTarget
     bool _is_aim_outpost,
     uint8_t _desire_stance,
     uint8_t _desire_lifter_pos)
-  : vx_mps(_vx_mps), vy_mps(_vy_mps), vw_rpm(_vw_rpm), 
-    current_yaw(_current_yaw), current_vx(_current_vx), current_vy(_current_vy), current_vw(_current_vw),
-    is_aim_outpost(_is_aim_outpost), desire_stance(_desire_stance),
-    desire_lifter_pos(_desire_lifter_pos)
+  : vx_mps(_vx_mps), vy_mps(_vy_mps), vw_rpm(_vw_rpm), current_yaw(_current_yaw), current_vx(_current_vx),
+    current_vy(_current_vy), current_vw(_current_vw), is_aim_outpost(_is_aim_outpost),
+    desire_stance(_desire_stance), desire_lifter_pos(_desire_lifter_pos)
   {
   }
 };
