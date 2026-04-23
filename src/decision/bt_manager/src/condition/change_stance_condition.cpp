@@ -75,7 +75,7 @@ BT::NodeStatus CheckOutpostTarget::tick()
   const bool nav_goal_is_outpost =
     std::hypot(nav_goal.x - outpost.x, nav_goal.y - outpost.y) <= static_cast<double>(dist_threshold);
 
-  return (attacking_outpost_mode || in_outpost_zone || nav_goal_is_outpost) ? BT::NodeStatus::SUCCESS
+  return (attacking_outpost_mode && in_outpost_zone && nav_goal_is_outpost) ? BT::NodeStatus::SUCCESS
                                                                               : BT::NodeStatus::FAILURE;
 }
 
@@ -97,6 +97,7 @@ BT::NodeStatus CheckEngagedStatus::tick()
 
   const bool is_disengaged = blackboard->get<bool>("is_disengaged");
   const bool engaged = !is_disengaged;
+    std::cout << BLUE << "CheckEngagedStatus => engaged: " << (engaged ? "YES" : "NO") << ", expected: " << (expected_engaged ? "YES" : "NO") << RESET << std::endl;
 
   return (engaged == expected_engaged) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
@@ -201,7 +202,8 @@ BT::NodeStatus CheckCapacitorCapacity::tick()
 {
   const auto blackboard = config().blackboard;
 
-  const float capacitor_capacity = blackboard->get<float>("capacitor_capacity");
+  const float capacitor_capacity =
+    static_cast<float>(blackboard->get<uint8_t>("capacitor_capacity"));
 
   const float threshold = getInput<float>("threshold").value_or(30.0f);
   const std::string mode = getInput<std::string>("mode").value_or("less");
