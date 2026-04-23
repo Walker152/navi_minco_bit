@@ -78,7 +78,7 @@ Sentry_BT::Point2D getOutsidePointNearArea(const Sentry_BT::Area_Square & area)
   return Sentry_BT::Point2D{max_x + 0.8, max_y + 0.8, 0.0};
 }
 
-template<std::size_t N>
+template <std::size_t N>
 Sentry_BT::Point2D getAreaCenter(const std::array<Sentry_BT::Area_Square, N> & areas)
 {
   double min_x = std::min(areas[0].top_left.x, areas[0].bottom_right.x);
@@ -96,7 +96,7 @@ Sentry_BT::Point2D getAreaCenter(const std::array<Sentry_BT::Area_Square, N> & a
   return Sentry_BT::Point2D{(min_x + max_x) * 0.5, (min_y + max_y) * 0.5, 0.0};
 }
 
-template<std::size_t N>
+template <std::size_t N>
 Sentry_BT::Point2D getOutsidePointNearArea(const std::array<Sentry_BT::Area_Square, N> & areas)
 {
   double max_x = std::max(areas[0].top_left.x, areas[0].bottom_right.x);
@@ -110,7 +110,7 @@ Sentry_BT::Point2D getOutsidePointNearArea(const std::array<Sentry_BT::Area_Squa
   return Sentry_BT::Point2D{max_x + 0.8, max_y + 0.8, 0.0};
 }
 
-template<std::size_t N>
+template <std::size_t N>
 Sentry_BT::Point2D getAreaCenter(const Sentry_BT::AreaPolygon<N, Sentry_BT::Point2D> & area)
 {
   double min_x = area.vertices[0].x;
@@ -126,7 +126,7 @@ Sentry_BT::Point2D getAreaCenter(const Sentry_BT::AreaPolygon<N, Sentry_BT::Poin
   return Sentry_BT::Point2D{(min_x + max_x) * 0.5, (min_y + max_y) * 0.5, 0.0};
 }
 
-template<std::size_t N>
+template <std::size_t N>
 Sentry_BT::Point2D getOutsidePointNearArea(const Sentry_BT::AreaPolygon<N, Sentry_BT::Point2D> & area)
 {
   double max_x = area.vertices[0].x;
