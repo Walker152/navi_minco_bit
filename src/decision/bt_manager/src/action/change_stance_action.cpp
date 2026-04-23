@@ -41,32 +41,6 @@ BT::NodeStatus ChangeStance::tick()
     }
     return "UNKNOWN(" + std::to_string(static_cast<int>(stance)) + ")";
   };
-
-  auto blackboard = config().blackboard;
-  Sentry_BT::SentryStance desired_stance;
-  Sentry_BT::SentryStance current_stance;
-  try {
-    const std::string stance_str = getInput<std::string>("stance").value_or("DEFEND");
-    blackboard->set<Sentry_BT::SentryStance>("desired_stance", parse_stance(stance_str));
-
-    const bool use_gyro =
-      getInput<bool>("use_gyro").value_or(blackboard->get<bool>("use_gyro_mode"));
-    blackboard->set("use_gyro_mode", use_gyro);
-
-    const float gyro_vel =
-      getInput<float>("gyro_vel").value_or(blackboard->get<float>("gyro_vel"));
-    blackboard->set("gyro_vel", gyro_vel);
-
-    desired_stance = blackboard->get<Sentry_BT::SentryStance>("desired_stance");
-    current_stance = blackboard->get<Sentry_BT::SentryStance>("current_stance");
-  } catch (...) {
-    return BT::NodeStatus::FAILURE;
-  }
-
-  if (current_stance == desired_stance) {
-    return BT::NodeStatus::SUCCESS;
-  }
-
   const auto now = std::chrono::system_clock::now();
   const double elapsed_seconds =
     (last_change_time_ == std::chrono::time_point<std::chrono::system_clock>::min())
@@ -74,6 +48,23 @@ BT::NodeStatus ChangeStance::tick()
       : std::chrono::duration<double>(now - last_change_time_).count();
 
   if (elapsed_seconds < 5.0) {
+    return BT::NodeStatus::FAILURE;
+  }
+  auto blackboard = config().blackboard;
+  Sentry_BT::SentryStance desired_stance;
+  Sentry_BT::SentryStance current_stance;
+  const std::string stance_str = getInput<std::string>("stance").value_or("DEFEND");
+  blackboard->set<Sentry_BT::SentryStance>("desired_stance", parse_stance(stance_str));
+
+  const bool use_gyro = getInput<bool>("use_gyro").value_or(blackboard->get<bool>("use_gyro_mode"));
+  blackboard->set("use_gyro_mode", use_gyro);
+
+  const float gyro_vel = getInput<float>("gyro_vel").value_or(blackboard->get<float>("gyro_vel"));
+  blackboard->set("gyro_vel", gyro_vel);
+
+  desired_stance = blackboard->get<Sentry_BT::SentryStance>("desired_stance");
+  current_stance = blackboard->get<Sentry_BT::SentryStance>("current_stance");
+  if (current_stance == desired_stance) {
     return BT::NodeStatus::SUCCESS;
   }
 
