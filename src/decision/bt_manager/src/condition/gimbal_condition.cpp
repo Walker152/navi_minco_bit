@@ -1,12 +1,5 @@
 #include "bt_manager/condition/gimbal_condition.hpp"
-#include <chrono>
-using namespace color_text;
-
-#include "bt_manager/utils/area.hpp"
-#include "bt_manager/utils/nav_zone.hpp"
-
 #include <cmath>
-#include <iostream>
 
 namespace Sentry_BT {
 CheckTargetVisible::CheckTargetVisible(const std::string & name, const BT::NodeConfiguration & config)
