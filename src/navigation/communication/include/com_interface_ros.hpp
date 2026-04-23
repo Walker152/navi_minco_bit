@@ -94,6 +94,7 @@ public:
     msg.transform_state = in.transform_state;
     transform_state = in.transform_state;
     msg.header.stamp = now();
+    msg.capacitor_capacity = in.capacitor_capacity;
     offline_info_pub_->publish(msg);
   }
 
@@ -246,13 +247,10 @@ private:
           NV(target.vx_mps),
           NV(target.vy_mps),
           NV(target.vw_rpm),
-          NV(target.current_x),
-          NV(target.current_y),
           NV(target.current_yaw),
           NV(target.is_aim_outpost),
           NV(static_cast<int>(target.desire_stance)),
-          NV(static_cast<int>(target.desire_lifter_pos)),
-          NV(static_cast<int>(target.control_mode)));
+          NV(static_cast<int>(target.desire_lifter_pos)));
         last_send_time = now_time;
       }
     }
