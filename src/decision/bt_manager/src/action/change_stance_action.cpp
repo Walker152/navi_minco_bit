@@ -14,10 +14,8 @@ SetGyroState::SetGyroState(const std::string & name, const BT::NodeConfiguration
 
 BT::PortsList SetGyroState::providedPorts()
 {
-  return {
-    BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
-    BT::InputPort<float>("gyro_vel", "Gyro speed in rpm")
-  };
+  return {BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
+    BT::InputPort<float>("gyro_vel", "Gyro speed in rpm")};
 }
 
 BT::NodeStatus SetGyroState::tick()
@@ -110,8 +108,9 @@ BT::NodeStatus ChangeStance::applyStanceChange()
 
   blackboard->set<SentryStance>("desired_stance", desired_stance_);
 
-  std::cout << MAGENTA << "[STANCE_TREE]" << GREEN << "Change from stance " << stance_to_string(current_stance_) << " to stance "
-            << stance_to_string(desired_stance_) << RESET << std::endl;
+  std::cout << MAGENTA << "[STANCE_TREE]" << GREEN << "Change from stance "
+            << stance_to_string(current_stance_) << " to stance " << stance_to_string(desired_stance_)
+            << RESET << std::endl;
   last_change_time_ = std::chrono::system_clock::now();
   return BT::NodeStatus::SUCCESS;
 }
