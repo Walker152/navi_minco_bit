@@ -1,21 +1,10 @@
 <root main_tree_to_execute="StanceTree">
   <BehaviorTree ID="StanceTree">
     <ReactiveFallback name="StancePriorityRoot">
+      
       <Sequence name="RuleRefresh">
-        <CheckStanceRefreshRequired max_hold_seconds="180" />
-        <ChangeStance name="ChangeStanceRefresh" use_gyro="true" gyro_vel="50.0" />
-      </Sequence>
-
-      <Sequence name="AttackStanceBranch">
-        <Fallback name="AttackConditions">
-          <CheckHeat threshold="200" mode="greater" />
-          <CheckOutpostTarget />
-          <Sequence name="EngagedAndHealthy">
-            <CheckEngagedStatus expected="true" />
-            <CheckHealth threshold="50" mode="greater" />
-          </Sequence>
-        </Fallback>
-        <ChangeStance name="ChangeStanceAttack" stance="ATTACK" use_gyro="true" gyro_vel="50.0" />
+        <CheckStanceRefreshRequired max_hold_seconds="180" target_stance="{target_stance}"/>
+        <ChangeStance name="ChangeStanceRefresh" stance="{target_stance}" use_gyro="true" gyro_vel="50.0" />
       </Sequence>
 
       <Sequence name="MoveStanceNoGyroBranch">
@@ -23,14 +12,30 @@
         <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" use_gyro="false" gyro_vel="0.0" />
       </Sequence>
 
+      <Sequence name="AbsoluteAttackBranch">
+        <Fallback name="AbsoluteAttackConditions">
+          <CheckHeat threshold="200" mode="greater" />
+          <CheckOutpostTarget />
+        </Fallback>
+        <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" use_gyro="true" gyro_vel="50.0" />
+      </Sequence>
+
+      <Sequence name="PursuitStanceBranch">
+        <CheckTargetVisible />
+        <CheckTargetDistance threshold="1.0" mode="greater" />
+        <ChangeStance name="ChangeStancePursuit" stance="MOVE" use_gyro="true" gyro_vel="90.0" />
+      </Sequence>
+
+      <Sequence name="CombatAttackBranch">
+        <CheckEngagedStatus expected="true" />
+        <CheckHealth threshold="50" mode="greater" />
+        <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" use_gyro="true" gyro_vel="50.0" />
+      </Sequence>
+
       <Sequence name="MoveStanceGyroBranch">
         <Fallback name="MoveGyroConditions">
-          <CheckEngagedStatus expected="false" />
           <CheckCapacitorCapacity threshold="30" mode="less" />
-          <Sequence name="LongDistancePursuit">
-            <CheckTargetVisible />
-            <CheckTargetDistance threshold="1.0" mode="greater" />
-          </Sequence>
+          <CheckEngagedStatus expected="false" />
         </Fallback>
         <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" use_gyro="true" gyro_vel="90.0" />
       </Sequence>
@@ -41,7 +46,8 @@
         <ChangeStance name="ChangeStanceDefend" stance="DEFEND" use_gyro="true" gyro_vel="50.0" />
       </Sequence>
 
-      <ChangeStance name="DefaultStance" stance="DEFEND" use_gyro="true" gyro_vel="50.0" />
+      <ChangeStance name="DefaultDefendStance" stance="DEFEND" use_gyro="true" gyro_vel="50.0" />
+
     </ReactiveFallback>
   </BehaviorTree>
 </root>
