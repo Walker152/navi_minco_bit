@@ -15,7 +15,7 @@ gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"
 sleep 5
 
 ## ICP
-gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
+# gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
 # sleep 1
 
 
