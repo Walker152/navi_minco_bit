@@ -270,6 +270,7 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
     "lifter_current_pos", static_cast<Sentry_BT::LifterPos>(msg->lifter_current_pos));
   blackboard_->set<bool>("is_transformable", msg->is_transformable);
   blackboard_->set<float>("transform_state", msg->transform_state);
+  blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
 
   // 存储装甲板位置
   if (msg->is_get)
