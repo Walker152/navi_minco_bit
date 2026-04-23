@@ -90,6 +90,10 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+
+private:
+  SentryStance last_stance{SentryStance::DEFEND};
+  std::chrono::steady_clock::time_point hold_start{};
 };
 
 }  // namespace Sentry_BT
