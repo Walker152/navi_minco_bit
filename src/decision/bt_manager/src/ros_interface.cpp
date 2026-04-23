@@ -12,10 +12,7 @@
 namespace Sentry_BT {
 
 ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
-: Node(
-    "ros_interface_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count() % 10000),
-    rclcpp::NodeOptions().use_global_arguments(false)),
-  blackboard_(blackboard_ptr)
+: Node("ros_interface_bt", rclcpp::NodeOptions()), blackboard_(blackboard_ptr)
 {
   auto node_ptr = rclcpp::Node::SharedPtr(this, [](rclcpp::Node *) {
   });
@@ -101,12 +98,15 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto gyro_vel = blackboard_->get<float>("gyro_vel");
     const auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
     const auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
-    geometry_msgs::msg::Pose outpost_in_body_frame = this->transformMapPose(createPose(nav_points[2].x, nav_points[2].y, 0.0, 0.0), "body");
-    float outpost_theta_rad = std::atan2(outpost_in_body_frame.position.y, outpost_in_body_frame.position.x);
+    geometry_msgs::msg::Pose outpost_in_body_frame =
+      this->transformMapPose(createPose(nav_points[2].x, nav_points[2].y, 0.0, 0.0), "body");
+    float outpost_theta_rad =
+      std::atan2(outpost_in_body_frame.position.y, outpost_in_body_frame.position.x);
     const auto current_pose = getCurrentPose();
 
     // const bool is_reach_outpost_enemy =
-    //   current_mode == Sentry_BT::NavMode::RESPONSE && std::hypot(current_pose.position.x - nav_points[2].x,
+    //   current_mode == Sentry_BT::NavMode::RESPONSE && std::hypot(current_pose.position.x -
+    //   nav_points[2].x,
     //                                                     current_pose.position.y - nav_points[2].y) < 1.0;
 
     // const bool is_reach_outpost_own = std::hypot(current_pose.position.x - nav_points[0].x,
@@ -146,12 +146,12 @@ geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
   return current_pose_;
 }
 
-geometry_msgs::msg::Pose ros_interface::transformMapPose(const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame)
+geometry_msgs::msg::Pose ros_interface::transformMapPose(
+  const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame)
 {
   auto transform_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
   geometry_msgs::msg::Pose output_pose;
-  if (transform_utils &&
-      transform_utils->transformMapPose(input_pose, output_pose, target_frame)) {
+  if (transform_utils && transform_utils->transformMapPose(input_pose, output_pose, target_frame)) {
     return output_pose;
   }
   return input_pose;
@@ -283,7 +283,7 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
 
     target_pose_in.position.x = (msg->armor_pos.x) / 1000.0;  // 转换为米
     target_pose_in.position.y = (msg->armor_pos.y) / 1000.0;
-    target_pose_in.position.z = (msg->armor_pos.z) / 1000.0;  
+    target_pose_in.position.z = (msg->armor_pos.z) / 1000.0;
     TransformPose(target_pose_in, target_pose);
 
     // Quiet logging: only print when target input/output pose changes significantly.
@@ -349,9 +349,11 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
     blackboard_->set<Sentry_BT::SentryStance>(
       "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
   } else {
-    RCLCPP_WARN_THROTTLE(
-      this->get_logger(), *this->get_clock(), 2000,
-      "Invalid current_stance decoded from sentry_info_2: %u", current_stance);
+    RCLCPP_WARN_THROTTLE(this->get_logger(),
+      *this->get_clock(),
+      2000,
+      "Invalid current_stance decoded from sentry_info_2: %u",
+      current_stance);
   }
 
   // 提取bit 14：己方能量机关是否能够进入正在激活状态
@@ -420,8 +422,7 @@ bool ros_interface::isTroughZone(
 }
 
 // 判断MPC轨迹是否穿过指定隧道区域（由入口左端点和出口右端点两个点定义）
-bool ros_interface::isTroughTunnel(
-  const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg,
+bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg,
   const std::array<Area_Square, 4> & tunnel_areas)
 {
   const auto current_pose = getCurrentPose();
