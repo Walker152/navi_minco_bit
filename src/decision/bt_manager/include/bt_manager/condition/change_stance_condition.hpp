@@ -1,10 +1,25 @@
 #pragma once
 
+#include "bt_manager/utils/area.hpp"
 #include "bt_manager/utils/log.hpp"
-#include "bt_manager/utils/nav_zone.hpp"
 #include <behaviortree_cpp_v3/condition_node.h>
 
+#include <string>
+
 namespace Sentry_BT {
+namespace detail {
+inline bool compareByMode(const float lhs, const float rhs, const std::string & mode)
+{
+  if (mode == "greater") {
+    return lhs >= rhs;
+  }
+  if (mode == "less") {
+    return lhs < rhs;
+  }
+  return false;
+}
+}  // namespace detail
+
 class CheckHeat : public BT::ConditionNode
 {
 public:
@@ -75,6 +90,10 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+
+private:
+  SentryStance last_stance{SentryStance::DEFEND};
+  std::chrono::steady_clock::time_point hold_start{};
 };
 
 }  // namespace Sentry_BT
