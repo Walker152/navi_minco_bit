@@ -1,24 +1,7 @@
 #include "bt_manager/condition/change_stance_condition.hpp"
-#include "bt_manager/utils/area.hpp"
-
-#include <chrono>
 #include <cmath>
 
-using namespace color_text;
-
 namespace Sentry_BT {
-namespace {
-inline bool compareByMode(const float lhs, const float rhs, const std::string & mode)
-{
-  if (mode == "greater") {
-    return lhs >= rhs;
-  }
-  if (mode == "less") {
-    return lhs < rhs;
-  }
-  return false;
-}
-}  // namespace
 
 // ------------------- CheckHeat -------------------
 CheckHeat::CheckHeat(const std::string & name, const BT::NodeConfiguration & config)
@@ -39,9 +22,13 @@ BT::NodeStatus CheckHeat::tick()
   const std::string mode = getInput<std::string>("mode").value_or("greater");
 
   const int current_heat = blackboard->get<int>("current_heat");
+  const bool active = detail::compareByMode(static_cast<float>(current_heat), threshold, mode);
 
-  return compareByMode(static_cast<float>(current_heat), threshold, mode) ? BT::NodeStatus::SUCCESS
-                                                                          : BT::NodeStatus::FAILURE;
+  std::ostringstream oss;
+  oss << "heat=" << current_heat << ", mode=" << mode << ", threshold=" << threshold;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckHeat", active, oss.str());
+
+  return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckOutpostTarget -------------------
@@ -74,9 +61,14 @@ BT::NodeStatus CheckOutpostTarget::tick()
   const auto & outpost = nav_points[static_cast<size_t>(Sentry_BT::NavGoal::OUTPOST)];
   const bool nav_goal_is_outpost =
     std::hypot(nav_goal.x - outpost.x, nav_goal.y - outpost.y) <= static_cast<double>(dist_threshold);
+  const bool active = (attacking_outpost_mode && in_outpost_zone) && nav_goal_is_outpost;
 
-  return (attacking_outpost_mode && in_outpost_zone) && nav_goal_is_outpost ? BT::NodeStatus::SUCCESS
-                                                                            : BT::NodeStatus::FAILURE;
+  std::ostringstream oss;
+  oss << "mode=" << current_mode << ", in_outpost_zone=" << in_outpost_zone
+      << ", nav_goal_is_outpost=" << nav_goal_is_outpost;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckOutpostTarget", active, oss.str());
+
+  return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckEngagedStatus -------------------
@@ -97,8 +89,13 @@ BT::NodeStatus CheckEngagedStatus::tick()
 
   const bool is_disengaged = blackboard->get<bool>("is_disengaged");
   const bool engaged = !is_disengaged;
+  const bool active = (engaged == expected_engaged);
 
-  return (engaged == expected_engaged) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+  std::ostringstream oss;
+  oss << "engaged=" << engaged << ", expected=" << expected_engaged;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckEngagedStatus", active, oss.str());
+
+  return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckHealth -------------------
@@ -121,8 +118,13 @@ BT::NodeStatus CheckHealth::tick()
 
   const float threshold = getInput<float>("threshold").value_or(50.0f);
   const std::string mode = getInput<std::string>("mode").value_or("greater");
+  const bool active = detail::compareByMode(health, threshold, mode);
 
-  return compareByMode(health, threshold, mode) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+  std::ostringstream oss;
+  oss << "health=" << health << ", mode=" << mode << ", threshold=" << threshold;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckHealth", active, oss.str());
+
+  return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckTargetDistance -------------------
@@ -149,7 +151,13 @@ BT::NodeStatus CheckTargetDistance::tick()
 
   const float distance = static_cast<float>(std::hypot(
     target_pose.position.x - current_pose.position.x, target_pose.position.y - current_pose.position.y));
-  return compareByMode(distance, threshold, mode) ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+  const bool active = detail::compareByMode(distance, threshold, mode);
+
+  std::ostringstream oss;
+  oss << "distance=" << distance << ", mode=" << mode << ", threshold=" << threshold;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckTargetDistance", active, oss.str());
+
+  return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckCrossZoneTransition -------------------
@@ -183,6 +191,13 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
 
   const bool need_cross_zone =
     (current_in_half && goal_in_highland) || (current_in_highland && goal_in_half);
+
+  std::ostringstream oss;
+  oss << "current_in_highland=" << current_in_highland << ", current_in_half=" << current_in_half
+      << ", goal_in_highland=" << goal_in_highland << ", goal_in_half=" << goal_in_half;
+  detail::logTransition(
+    detail::TreeKind::STANCE, "CheckCrossZoneTransition", need_cross_zone, oss.str());
+
   return need_cross_zone ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
@@ -207,9 +222,13 @@ BT::NodeStatus CheckCapacitorCapacity::tick()
 
   const float threshold = getInput<float>("threshold").value_or(30.0f);
   const std::string mode = getInput<std::string>("mode").value_or("less");
+  const bool active = detail::compareByMode(capacitor_capacity, threshold, mode);
 
-  return compareByMode(capacitor_capacity, threshold, mode) ? BT::NodeStatus::SUCCESS
-                                                            : BT::NodeStatus::FAILURE;
+  std::ostringstream oss;
+  oss << "capacitor=" << capacitor_capacity << ", mode=" << mode << ", threshold=" << threshold;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckCapacitorCapacity", active, oss.str());
+
+  return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckStanceRefreshRequired -------------------
@@ -237,6 +256,9 @@ BT::NodeStatus CheckStanceRefreshRequired::tick()
   if (current_stance != last_stance) {
     hold_start = std::chrono::steady_clock::now();
     last_stance = current_stance;
+    detail::logTransition(
+      detail::TreeKind::STANCE,
+      "CheckStanceRefreshRequired", false, "stance changed, reset timer");
     return BT::NodeStatus::FAILURE;
   }
 
@@ -263,8 +285,19 @@ BT::NodeStatus CheckStanceRefreshRequired::tick()
     };
     auto transient_stance_str = stance_to_string(transient_stance);
     setOutput<std::string>("target_stance", transient_stance_str);
-    std::cout << YELLOW << "CheckStanceRefreshRequired => REFRESH_TRIGGERED" << RESET << std::endl;
+    std::ostringstream oss;
+    oss << "hold_seconds=" << hold_seconds << ", max_hold=" << max_hold
+        << ", target_stance=" << transient_stance_str;
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckStanceRefreshRequired", true, oss.str());
     return BT::NodeStatus::SUCCESS;
+  }
+
+  {
+    std::ostringstream oss;
+    oss << "hold_seconds=" << hold_seconds << ", max_hold=" << max_hold;
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckStanceRefreshRequired", false, oss.str());
   }
 
   return BT::NodeStatus::FAILURE;
