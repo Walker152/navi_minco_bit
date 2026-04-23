@@ -28,11 +28,9 @@ public:
 
   static BT::PortsList providedPorts()
   {
-    return {
-      BT::InputPort<std::string>("stance", "Target stance: ATTACK/DEFEND/MOVE"),
+    return {BT::InputPort<std::string>("stance", "Target stance: ATTACK/DEFEND/MOVE"),
       BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
-      BT::InputPort<float>("gyro_vel", "Gyro speed in rpm")
-    };
+      BT::InputPort<float>("gyro_vel", "Gyro speed in rpm")};
   }
 
   BT::NodeStatus tick() override
@@ -110,8 +108,7 @@ BT::Blackboard::Ptr makeDefaultBlackboard()
 }
 
 bool runScenario(
-  BT::BehaviorTreeFactory & factory, const std::string & xml, const Scenario & s,
-  rclcpp::Logger logger)
+  BT::BehaviorTreeFactory & factory, const std::string & xml, const Scenario & s, rclcpp::Logger logger)
 {
   auto bb = makeDefaultBlackboard();
   s.configure(bb);
@@ -126,9 +123,12 @@ bool runScenario(
   if (ok) {
     RCLCPP_INFO(logger, "[STANCE_TEST][PASS] %s -> %s", s.name.c_str(), action.c_str());
   } else {
-    RCLCPP_ERROR(
-      logger, "[STANCE_TEST][FAIL] %s expect(action=%s, stance=%d) got(action=%s, stance=%d)",
-      s.name.c_str(), s.expected_action.c_str(), static_cast<int>(s.expected_stance), action.c_str(),
+    RCLCPP_ERROR(logger,
+      "[STANCE_TEST][FAIL] %s expect(action=%s, stance=%d) got(action=%s, stance=%d)",
+      s.name.c_str(),
+      s.expected_action.c_str(),
+      static_cast<int>(s.expected_stance),
+      action.c_str(),
       static_cast<int>(stance));
   }
   return ok;
@@ -167,93 +167,84 @@ int main(int argc, char ** argv)
 
   std::vector<Scenario> scenarios;
 
-  scenarios.push_back({
-    "baseline_combat_attack", "ChangeStanceCombatAttack", SentryStance::ATTACK,
-    [](BT::Blackboard::Ptr &) {}
-  });
+  scenarios.push_back(
+    {"baseline_combat_attack", "ChangeStanceCombatAttack", SentryStance::ATTACK, [](BT::Blackboard::Ptr &) {
+     }});
 
-  scenarios.push_back({
-    "cross_zone_move_no_gyro", "ChangeStanceMoveNoGyro", SentryStance::MOVE,
+  scenarios.push_back(
+    {"cross_zone_move_no_gyro", "ChangeStanceMoveNoGyro", SentryStance::MOVE, [](BT::Blackboard::Ptr & bb) {
+       bb->set<geometry_msgs::msg::Pose>("current_pose", makePose(3.0, 8.0));
+       bb->set<Point2D>("nav_goal", Point2D{13.0, 7.0, 0.0});
+     }});
+
+  scenarios.push_back({"absolute_attack_by_heat",
+    "ChangeStanceAbsoluteAttack",
+    SentryStance::ATTACK,
     [](BT::Blackboard::Ptr & bb) {
-      bb->set<geometry_msgs::msg::Pose>("current_pose", makePose(3.0, 8.0));
-      bb->set<Point2D>("nav_goal", Point2D{13.0, 7.0, 0.0});
-    }
-  });
+      bb->set<int>("current_heat", 250);
+    }});
 
-  scenarios.push_back({
-    "absolute_attack_by_heat", "ChangeStanceAbsoluteAttack", SentryStance::ATTACK,
-    [](BT::Blackboard::Ptr & bb) { bb->set<int>("current_heat", 250); }
-  });
-
-  scenarios.push_back({
-    "absolute_attack_by_outpost", "ChangeStanceAbsoluteAttack", SentryStance::ATTACK,
+  scenarios.push_back({"absolute_attack_by_outpost",
+    "ChangeStanceAbsoluteAttack",
+    SentryStance::ATTACK,
     [](BT::Blackboard::Ptr & bb) {
       const auto outpost = Sentry_BT::nav_points[static_cast<size_t>(Sentry_BT::NavGoal::OUTPOST)];
       bb->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::RESPONSE));
       bb->set<geometry_msgs::msg::Pose>("current_pose", makePose(15.0, 11.0));
       bb->set<Point2D>("nav_goal", outpost);
-    }
-  });
+    }});
 
-  scenarios.push_back({
-    "pursuit_move", "ChangeStancePursuit", SentryStance::MOVE,
-    [](BT::Blackboard::Ptr & bb) {
-      bb->set<bool>("target_valid", true);
-      bb->set<geometry_msgs::msg::Pose>("current_pose", makePose(22.0, 7.0));
-      bb->set<geometry_msgs::msg::Pose>("target_pose", makePose(24.5, 7.0));
-    }
-  });
+  scenarios.push_back(
+    {"pursuit_move", "ChangeStancePursuit", SentryStance::MOVE, [](BT::Blackboard::Ptr & bb) {
+       bb->set<bool>("target_valid", true);
+       bb->set<geometry_msgs::msg::Pose>("current_pose", makePose(22.0, 7.0));
+       bb->set<geometry_msgs::msg::Pose>("target_pose", makePose(24.5, 7.0));
+     }});
 
-  scenarios.push_back({
-    "combat_attack", "ChangeStanceCombatAttack", SentryStance::ATTACK,
-    [](BT::Blackboard::Ptr & bb) {
-      bb->set<bool>("is_disengaged", false);
-      bb->set<float>("health", 80.0f);
-    }
-  });
+  scenarios.push_back(
+    {"combat_attack", "ChangeStanceCombatAttack", SentryStance::ATTACK, [](BT::Blackboard::Ptr & bb) {
+       bb->set<bool>("is_disengaged", false);
+       bb->set<float>("health", 80.0f);
+     }});
 
-  scenarios.push_back({
-    "move_gyro_by_low_cap", "ChangeStanceMoveWithGyro", SentryStance::MOVE,
-    [](BT::Blackboard::Ptr & bb) {
-      bb->set<bool>("is_disengaged", true);
-      bb->set<float>("health", 80.0f);
-      bb->set<float>("capacitor_capacity", 10.0f);
-    }
-  });
+  scenarios.push_back(
+    {"move_gyro_by_low_cap", "ChangeStanceMoveWithGyro", SentryStance::MOVE, [](BT::Blackboard::Ptr & bb) {
+       bb->set<bool>("is_disengaged", true);
+       bb->set<float>("health", 80.0f);
+       bb->set<float>("capacitor_capacity", 10.0f);
+     }});
 
-  scenarios.push_back({
-    "defend_low_health", "ChangeStanceDefend", SentryStance::DEFEND,
-    [](BT::Blackboard::Ptr & bb) {
-      bb->set<bool>("is_disengaged", false);
-      bb->set<float>("health", 20.0f);
-      bb->set<float>("capacitor_capacity", 80.0f);
-    }
-  });
+  scenarios.push_back(
+    {"defend_low_health", "ChangeStanceDefend", SentryStance::DEFEND, [](BT::Blackboard::Ptr & bb) {
+       bb->set<bool>("is_disengaged", false);
+       bb->set<float>("health", 20.0f);
+       bb->set<float>("capacitor_capacity", 80.0f);
+     }});
 
-  scenarios.push_back({
-    "priority_crosszone_over_heat", "ChangeStanceMoveNoGyro", SentryStance::MOVE,
+  scenarios.push_back({"priority_crosszone_over_heat",
+    "ChangeStanceMoveNoGyro",
+    SentryStance::MOVE,
     [](BT::Blackboard::Ptr & bb) {
       bb->set<int>("current_heat", 250);
       bb->set<geometry_msgs::msg::Pose>("current_pose", makePose(3.0, 8.0));
       bb->set<Point2D>("nav_goal", Point2D{13.0, 7.0, 0.0});
-    }
-  });
+    }});
 
-  scenarios.push_back({
-    "priority_pursuit_over_combat", "ChangeStancePursuit", SentryStance::MOVE,
+  scenarios.push_back({"priority_pursuit_over_combat",
+    "ChangeStancePursuit",
+    SentryStance::MOVE,
     [](BT::Blackboard::Ptr & bb) {
       bb->set<bool>("target_valid", true);
       bb->set<geometry_msgs::msg::Pose>("current_pose", makePose(22.0, 7.0));
       bb->set<geometry_msgs::msg::Pose>("target_pose", makePose(24.5, 7.0));
       bb->set<bool>("is_disengaged", false);
       bb->set<float>("health", 90.0f);
-    }
-  });
+    }});
 
-  scenarios.push_back({
-    "refresh_branch", "ChangeStanceRefresh", SentryStance::ATTACK,
-    [](BT::Blackboard::Ptr & bb) { bb->set<SentryStance>("current_stance", SentryStance::DEFEND); }
-  });
+  scenarios.push_back(
+    {"refresh_branch", "ChangeStanceRefresh", SentryStance::ATTACK, [](BT::Blackboard::Ptr & bb) {
+       bb->set<SentryStance>("current_stance", SentryStance::DEFEND);
+     }});
 
   bool all_ok = true;
   for (size_t i = 0; i < scenarios.size(); ++i) {
@@ -266,8 +257,8 @@ int main(int argc, char ** argv)
 
       auto final_action = bb->get<std::string>("last_stance_action");
       auto final_stance = bb->get<SentryStance>("current_stance");
-      bool ok = (final_action == scenarios[i].expected_action) &&
-            (final_stance == scenarios[i].expected_stance);
+      bool ok =
+        (final_action == scenarios[i].expected_action) && (final_stance == scenarios[i].expected_stance);
 
       // CheckStanceRefreshRequired has static state. If first tick is a transition-reset tick,
       // run one more tick and evaluate again.
@@ -275,18 +266,22 @@ int main(int argc, char ** argv)
         tree.tickRoot();
         final_action = bb->get<std::string>("last_stance_action");
         final_stance = bb->get<SentryStance>("current_stance");
-        ok = (final_action == scenarios[i].expected_action) &&
-             (final_stance == scenarios[i].expected_stance);
+        ok =
+          (final_action == scenarios[i].expected_action) && (final_stance == scenarios[i].expected_stance);
       }
 
       if (ok) {
-        RCLCPP_INFO(node->get_logger(), "[STANCE_TEST][PASS] %s -> %s", scenarios[i].name.c_str(), final_action.c_str());
+        RCLCPP_INFO(node->get_logger(),
+          "[STANCE_TEST][PASS] %s -> %s",
+          scenarios[i].name.c_str(),
+          final_action.c_str());
       } else {
-        RCLCPP_ERROR(
-          node->get_logger(),
+        RCLCPP_ERROR(node->get_logger(),
           "[STANCE_TEST][FAIL] %s expect(action=%s, stance=%d) got(action=%s, stance=%d)",
-          scenarios[i].name.c_str(), scenarios[i].expected_action.c_str(),
-          static_cast<int>(scenarios[i].expected_stance), final_action.c_str(),
+          scenarios[i].name.c_str(),
+          scenarios[i].expected_action.c_str(),
+          static_cast<int>(scenarios[i].expected_stance),
+          final_action.c_str(),
           static_cast<int>(final_stance));
       }
       all_ok = all_ok && ok;
