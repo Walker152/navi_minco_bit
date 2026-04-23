@@ -101,7 +101,7 @@ public:
       nav_start_time_ = std::chrono::steady_clock::now();
 
       std::cout << GREEN << "[NavigateToPoseAction:" << name() << "] send initial goal=(" << nav_goal.x
-                << ", " << nav_goal.y << ")"<< RESET << std::endl;
+                << ", " << nav_goal.y << ")" << RESET << std::endl;
     }
   }
 
