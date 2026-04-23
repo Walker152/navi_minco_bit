@@ -89,18 +89,18 @@ public:
     blackboard_->set("target_armor_id", -1);                            // 目标装甲板ID
 
     // --- Sentry Online Info ---
-    blackboard_->set("health", 100.0f);                // 初始生命值(百分比)
-    blackboard_->set("bullets_remaining", 300);        // 剩余子弹数量
-    blackboard_->set("cooling_value", 0);              // 冷却值
-    blackboard_->set("heat_limit", 0);                 // 热量上限
-    blackboard_->set("current_heat", 0);               // 当前热量
-    blackboard_->set("speed_monitor_angle", 0.0f);     // 速度监测角度
-    blackboard_->set("is_disengaged", true);           // 是否脱战状态
-    blackboard_->set("capacitor_capacity", 100.0f);    // 电容容量百分比
-    blackboard_->set("can_activate_energy", false);    // 是否能激活能量机关
-    blackboard_->set("can_free_resurrect", false);     // 是否能免费复活
-    blackboard_->set("can_instant_resurrect", false);  // 是否能立即复活
-    blackboard_->set("instant_resurrect_cost", 0);     // 立即复活的金币成本
+    blackboard_->set("health", 100.0f);                                    // 初始生命值(百分比)
+    blackboard_->set("bullets_remaining", 300);                            // 剩余子弹数量
+    blackboard_->set("cooling_value", 0);                                  // 冷却值
+    blackboard_->set("heat_limit", 0);                                     // 热量上限
+    blackboard_->set("current_heat", 0);                                   // 当前热量
+    blackboard_->set("speed_monitor_angle", 0.0f);                         // 速度监测角度
+    blackboard_->set("is_disengaged", true);                               // 是否脱战状态
+    blackboard_->set("capacitor_capacity", 100.0f);                        // 电容容量百分比
+    blackboard_->set("can_activate_energy", false);                        // 是否能激活能量机关
+    blackboard_->set("can_free_resurrect", false);                         // 是否能免费复活
+    blackboard_->set("can_instant_resurrect", false);                      // 是否能立即复活
+    blackboard_->set("instant_resurrect_cost", 0);                         // 立即复活的金币成本
     blackboard_->set<SentryStance>("current_stance", SentryStance::MOVE);  // 当前姿态
   }
 
