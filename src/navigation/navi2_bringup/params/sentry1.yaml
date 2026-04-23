@@ -328,10 +328,10 @@ planner_server:
         recovery_window_sec: 3.0
         escape_speed: 0.4
       static_esdf:
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/room_esdf.pcd"
-        # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_back_esdf.pcd"
         esdf_resolution: 0.05
         dynamic_esdf_size: 8.0
