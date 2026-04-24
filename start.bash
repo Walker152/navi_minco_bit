@@ -24,7 +24,7 @@ sleep 5
 sleep 1
 
 # ## Decision
-gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
+# gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
 # sleep 1
 
 # # Communication
@@ -34,4 +34,4 @@ gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bas
 # gnome-terminal -- bash -c "mkdir -p ~/rosbag && ros2 bag record -a -o ~/rosbag/$(date +%Y%m%d_%H%M%S); exec bash"
 
 # Foxglove
-# gnome-terminal -- bash -c "ros2 launch foxglove_bridge foxglove_bridge_launch.xml port:=8765; exec bash"
+gnome-terminal -- bash -c "ros2 launch foxglove_bridge foxglove_bridge_launch.xml port:=8765; exec bash"

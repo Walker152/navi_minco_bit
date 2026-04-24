@@ -10,6 +10,7 @@ using Mat63f = Eigen::Matrix<double, 6, 3>;
 double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d> & waypoints,
   const Eigen::Matrix3d & start_state,
   const Eigen::Matrix3d & end_state,
+  const VecDf & local_magnitudes,
   geometry_utils::Trajectory & out_traj)
 {
   // 1. Setup the optimization problem
@@ -25,8 +26,8 @@ double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d> & waypoints,
   VecDf x(opt_vars_.dim_t + opt_vars_.dim_p);
   Eigen::Map<VecDf> tau(x.data(), opt_vars_.dim_t);
   Eigen::Map<VecDf> xi(x.data() + opt_vars_.dim_t, opt_vars_.dim_p);
-
-  opt_vars_.penalty_log.resize(5);  // Energy, pos, vel, acc, attract
+  opt_vars_.local_magnitudes = local_magnitudes;
+  opt_vars_.penalty_log.resize(6);  // Energy, pos, vel, acc, attract, time_barrier
   opt_vars_.penalty_log.setZero();
 
   if (opt_vars_.times.minCoeff() < 1e-3) {
@@ -54,7 +55,6 @@ double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d> & waypoints,
   lbfgs_params.g_epsilon = 0.0;
   lbfgs_params.delta = cfg_.opt_accuracy;  // Gradient tolerance
   lbfgs_params.max_iterations = 256;
-  VecDf times_init = opt_vars_.times;
 
   // 4. Run the optimizer
   // [Theory] L-BFGS is a limited-memory quasi-Newton method.
@@ -73,6 +73,7 @@ double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d> & waypoints,
     cout << "\tVel: " << opt_vars_.penalty_log(2) << endl;
     cout << "\tAcc: " << opt_vars_.penalty_log(3) << endl;
     cout << "\tAttract: " << opt_vars_.penalty_log(4) << endl;
+    cout << "\tTime Barrier: " << opt_vars_.penalty_log(5) << endl;
     cout << "\tOptimized Time: " << opt_vars_.times.norm() << endl;
   }
 
@@ -87,6 +88,7 @@ double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d> & waypoints,
 
     opt_vars_.init_ts = opt_vars_.times;
     opt_vars_.init_ps.clear();
+    opt_vars_.init_ps.reserve(static_cast<size_t>(opt_vars_.points.cols()));
     for (int i = 0; i < opt_vars_.points.cols(); ++i) {
       opt_vars_.init_ps.emplace_back(opt_vars_.points.col(i));
     }
@@ -109,6 +111,7 @@ double MincoOptimizer::costFunctional(void * ptr, const VecDf & x, VecDf & g)
   const auto & rho = opt_vars_.rho;
   const auto & penaltyWeights = opt_vars_.penaltyWeights;
   const auto & magnitudeBounds = opt_vars_.magnitudeBounds;
+  const auto & local_magnitudes = opt_vars_.local_magnitudes;
   const auto & minco_solver_ = opt_vars_.minco_solver_;
   const auto & hybrid_esdf_map = opt_vars_.hybrid_esdf_map;
 
@@ -153,6 +156,7 @@ double MincoOptimizer::costFunctional(void * ptr, const VecDf & x, VecDf & g)
     smooth_eps,
     integral_res,
     magnitudeBounds,
+    local_magnitudes,
     penaltyWeights,
     cost,
     partialGradByTimes,
@@ -169,7 +173,7 @@ double MincoOptimizer::costFunctional(void * ptr, const VecDf & x, VecDf & g)
   gradByTimes.array() += rho;
 
   // 7.5 Kinematic Time Barrier
-  computeTimeBarrier(opt_vars_, times, magnitudeBounds, cost, gradByTimes);
+  computeTimeBarrier(opt_vars_, times, magnitudeBounds, cost, gradByTimes, opt_vars_.penalty_log);
 
   // 8. Backprop time gradient (T -> tau)
   gcopter::propagateGradientTToTau(tau, gradByTimes, grad_tau);
@@ -185,18 +189,20 @@ void MincoOptimizer::computeTimeBarrier(const OptVars & opt_vars,
   const VecDf & times,
   const VecDf & magnitudeBounds,
   double & cost,
-  VecDf & gradByTimes)
+  VecDf & gradByTimes,
+  VecDf & penalty_log)
 {
   const int N = static_cast<int>(times.size());
-  const double w_barrier = 100.0;
-  const double vmax_safe = std::max(1e-3, magnitudeBounds[1] * 0.6);
+  const auto & w_barrier = opt_vars.penaltyWeights(4);  // Time barrier weight
+  // const double vmax_safe = std::max(1e-3, magnitudeBounds[1] * 0.6);
   const double amax_safe = std::max(1e-3, magnitudeBounds[2]);
   const double v_curr = opt_vars.headPVA.col(1).norm();
   const bool has_init_ps = (opt_vars.init_ps.size() == static_cast<size_t>(std::max(0, N - 1)));
 
   for (int i = 0; i < N; ++i) {
     const double t_i = times(i);
-
+    const double local_vmax = opt_vars.local_magnitudes(i);
+    const double vmax_safe = std::max(1e-3, local_vmax);
     Eigen::Vector3d p_start = opt_vars.headPVA.col(0);
     Eigen::Vector3d p_end = opt_vars.tailPVA.col(0);
 
@@ -221,6 +227,7 @@ void MincoOptimizer::computeTimeBarrier(const OptVars & opt_vars,
       const double violation2 = violation * violation;
       cost += w_barrier * violation2 * violation;
       gradByTimes(i) += -3.0 * w_barrier * violation2;
+      penalty_log(5) = violation;
     }
   }
 }
@@ -232,6 +239,7 @@ void MincoOptimizer::constraintsFunctional(const VecDf & T,
   const double & smooth_eps,
   const int & integral_res,
   const VecDf & magnitudeBounds,
+  const VecDf & local_magnitudes,
   const VecDf & penaltyWeights,
   // outputs
   double & cost,
@@ -241,10 +249,10 @@ void MincoOptimizer::constraintsFunctional(const VecDf & T,
 {
   // 1. Unpack bounds and weights
   const auto & safe_dist = magnitudeBounds[0];
-  const auto & vmax = magnitudeBounds[1];
+  // const auto & vmax = magnitudeBounds[1];
   const auto & amax = magnitudeBounds[2];
 
-  const auto & vmaxSqr = vmax * vmax;
+  // const auto & vmaxSqr = vmax * vmax;
   const auto & amaxSqr = amax * amax;
 
   const auto & weightPos = penaltyWeights[0];
@@ -263,6 +271,8 @@ void MincoOptimizer::constraintsFunctional(const VecDf & T,
   for (int i = 0; i < piece_num; i++) {
     const Mat63f & c = coeffs.block<6, 3>(i * 6, 0);
     const auto & step = T(i) * integralFrac;
+    const auto & local_vmax = local_magnitudes(i);
+    const auto & local_vmaxSqr = local_vmax * local_vmax;
     for (int j = 0; j <= integral_res; j++) {
       double s1 = j * step;
       double s2 = s1 * s1;
@@ -302,7 +312,7 @@ void MincoOptimizer::constraintsFunctional(const VecDf & T,
       }
 
       // For velocity cost
-      const auto & violaVel = vel.squaredNorm() - vmaxSqr;
+      const auto & violaVel = vel.squaredNorm() - local_vmaxSqr;
       double violaVelPena, violaVelPenaD;
       if (weightVel > 0 && gcopter::smoothedL1(violaVel, smooth_eps, violaVelPena, violaVelPenaD)) {
         gradVel += weightVel * violaVelPenaD * 2.0 * vel;
