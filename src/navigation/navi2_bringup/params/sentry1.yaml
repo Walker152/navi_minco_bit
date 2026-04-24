@@ -107,7 +107,7 @@ controller_server:
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [4.0, 4.0, 5.0]
-      R: [1.5, 1.5, 2.0]
+      R: [2.0, 2.0, 2.0]
 
       # Velocity bounds
       vx_min: -2.5
@@ -299,7 +299,7 @@ planner_server:
 
       smac_2d:
         use_esdf_cost: true
-        esdf_weight: 0.3
+        esdf_weight: 0.05
         esdf_decay: 0.5
         esdf_max_cost: 0.3
 
@@ -307,21 +307,26 @@ planner_server:
         opt_freq: 20.0
         traj_goal_tolerance: 0.2
         enable_yaw_opt: true
-        safe_dist: 0.25
-        lookahead_dist: 5.0  # 前视距离,用于minco部分优化
-        max_velocity: 2.0
-        max_acceleration: 2.0
+        safe_dist: 0.4
+        lookahead_dist: 3.0  # 前视距离,用于minco部分优化
+        max_velocity: 3.0
+        max_acceleration: 3.0
         max_yaw_dot: 5.0
+        turn_angle_deadzone: 0.2
+        turn_angle_saturation: 1.57
+        min_turn_vel: 1.0
+        decay_power: 2.0
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
-        opt_accuracy: 0.0001
-        print_optimizer_log: false
-        penalty_weight_time: 35.0
-        penalty_weight_pos: 100000.0
+        opt_accuracy: 0.001
+        print_optimizer_log: true
+        penalty_weight_time: 25.0
+        penalty_weight_pos: 50000.0
         penalty_weight_vel: 2000.0
         penalty_weight_acc: 2000.0
-        penalty_weight_att: 300.0
+        penalty_weight_att: 200.0
+        penalty_weight_time_barrier: 50.0
       recovery_server:
         fail_threshold: 3
         cooldown_sec: 2.0
