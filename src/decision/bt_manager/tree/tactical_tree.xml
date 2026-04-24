@@ -6,10 +6,10 @@
         <SetTacticalMode name="SetAttackMode" mode="attack" />
       </Sequence>
 
-      <Sequence name="DefendPriority">
+      <!-- <Sequence name="DefendPriority">
         <CheckDefendCondition name="CheckDefendCondition" branch="DefendPriority" />
         <SetTacticalMode name="SetDefendMode" mode="defend" />
-      </Sequence>
+      </Sequence> -->
 
       <SetTacticalMode name="SetNormalMode" mode="normal" />
     </ReactiveFallback>

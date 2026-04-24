@@ -1111,8 +1111,8 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
         local_dir /= norm;
         constexpr double min_climb_speed = 1.5;
         if (std::hypot(real_speed.x(), real_speed.y()) < min_climb_speed) {
-          real_speed.x() = local_dir.x() * min_climb_speed;
-          real_speed.y() = local_dir.y() * min_climb_speed;
+          real_speed.x() += local_dir.x() * min_climb_speed;
+          real_speed.y() += local_dir.y() * min_climb_speed;
         }
       }
     }
