@@ -349,11 +349,11 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
     blackboard_->set<Sentry_BT::SentryStance>(
       "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
   } else {
-    RCLCPP_WARN_THROTTLE(this->get_logger(),
-      *this->get_clock(),
-      2000,
-      "Invalid current_stance decoded from sentry_info_2: %u",
-      current_stance);
+    // RCLCPP_WARN_THROTTLE(this->get_logger(),
+    //   *this->get_clock(),
+    //   2000,
+    //   "23%u",
+    //   current_stance);
   }
 
   // 提取bit 14：己方能量机关是否能够进入正在激活状态
