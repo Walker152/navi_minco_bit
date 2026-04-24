@@ -20,6 +20,8 @@ template <typename T> inline T clampValue(T v, T lo, T hi)
 }
 
 double quaternionToYaw(const geometry_msgs::msg::Quaternion & q);
+double calCurvatureDecay(
+  double angle, double global_vmax, double deadzone, double saturation, double min_vel, double decay_power);
 
 // === Path Geometry Utilities ===
 // --- Velocity Profile Mapping ---
@@ -34,6 +36,22 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3
   double max_vel,
   double max_acc,
   const std::function<bool(const Eigen::Vector3d &, const Eigen::Vector3d &)> & is_line_free);
+
+double LimitLocalVel(const std::vector<Eigen::Vector3d> & sparse_path,
+  int seg_idx,
+  double global_vmax,
+  double deadzone,
+  double saturation,
+  double min_turn_vel,
+  double decay_power);
+
+double ComputeNextSpeed(
+  double v_curr, double seg_len, double remain_after, double amax, double local_vmax);
+
+double ComputeSegmentTime(
+  double seg_len, double v_curr, double v_next, double local_vmax, double amax, double min_seg_time);
+
+void VelPropogation(const std::vector<double> & seg_len, double amax, std::vector<double> & local_vmaxs);
 
 // === Trajectory Command Publishing ===
 // --- Optimized Trajectory Publishing ---
