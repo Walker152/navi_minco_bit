@@ -65,23 +65,12 @@ void YawTrajOpt::getYawWaypointAllocation(const Eigen::Vector4d & init_state,
   const double pos_traj_duration = pos_traj.getTotalDuration();
   for (int i = 0; i < times.size() - 1; ++i) {
     eval_t += times(i);
-    Eigen::Vector3d pt_i = pos_traj.getPos(eval_t);
-    Eigen::Vector3d pt_g;
-    if (eval_t + 0.5 >= pos_traj_duration) {
-      pt_g = pos_traj.getPos(pos_traj_duration);
-      const double t_back = std::max(pos_traj_duration - 0.5, 0.0);
-      pt_i = pos_traj.getPos(t_back);
-    } else {
-      pt_g = pos_traj.getPos(eval_t + 0.5);
-    }
-
-    const Eigen::Vector3d dir = pt_g - pt_i;
+    Eigen::Vector3d vel_i = pos_traj.getVel(std::min(eval_t, pos_traj_duration));
     double cur_yaw = last_yaw;
-    if (dir.norm() > 0.1) {
-      cur_yaw = std::atan2(dir.y(), dir.x());
+    if (vel_i.head<2>().norm() > 1e-3) {
+      cur_yaw = std::atan2(vel_i.y(), vel_i.x());
       geometry_utils::normalizeNextYaw(last_yaw, cur_yaw);
     }
-
     way_pts(i) = cur_yaw;
     last_yaw = cur_yaw;
   }
