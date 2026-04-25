@@ -26,7 +26,7 @@ double calCurvatureDecay(
 // === Path Geometry Utilities ===
 // --- Velocity Profile Mapping ---
 double getDistFromTrapezoid(
-  double t, double total_length, double a_ref, double v_peak, double t_acc, double t_flat);
+  double t, double total_length, double a_ref, double v_peak, double t_acc, double t_flat, double t_dec);
 
 // --- Arc-Length Interpolation ---
 Eigen::Vector3d interpolateByArcLength(
@@ -35,6 +35,7 @@ Eigen::Vector3d interpolateByArcLength(
 std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3d> & path,
   double max_vel,
   double max_acc,
+  bool goal_reached,
   const std::function<bool(const Eigen::Vector3d &, const Eigen::Vector3d &)> & is_line_free);
 
 double LimitLocalVel(const std::vector<Eigen::Vector3d> & sparse_path,

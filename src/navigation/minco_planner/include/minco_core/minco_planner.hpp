@@ -116,6 +116,7 @@ private:
 
   void PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path,
     const Eigen::Matrix3d & start_state,
+    bool stop_at_local_end,
     PlanningState state,
     bool has_shifted_seed,
     const vec_Vec3f & shifted_waypoints,
