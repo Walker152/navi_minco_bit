@@ -1064,7 +1064,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
   Eigen::Vector3d pred_vel = last_traj_.getVel(t_dur);
   double tracking_error = (current_pos - pred_pos).norm();
   Eigen::Vector3d current_speed = getCurrentSpeed();
-  double dynamic_error_threshold = 0.5 + 0.3 * current_speed.head<2>().norm();
+  double dynamic_error_threshold = 1.0 + 0.5 * current_speed.head<2>().norm();
   double vel_error = (current_speed - pred_vel).norm();
   if (tracking_error > dynamic_error_threshold) {
     std::cout << YELLOW << "[MincoPlanner] Large tracking error (" << tracking_error
@@ -1072,7 +1072,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
     return PlanningState::COLD_START;
   }
 
-  if (vel_error > 0.3) {
+  if (vel_error > 1.0) {
     std::cout << YELLOW << "[MincoPlanner] Large velocity error (" << vel_error
               << "m/s). Downgrading to COLD_START." << RESET << std::endl;
     // return PlanningState::COLD_START;
@@ -1085,7 +1085,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
       Eigen::Vector3d vel_dir = pred_vel.normalized();
       double dot = vel_dir.dot(path_dir);
 
-      if (dot < 0.5) {
+      if (dot < 0.1) {
         std::cout << YELLOW << "[MincoPlanner] Hot Start Rejected: Direction mismatch (dot=" << dot
                   << ", angle=" << std::acos(dot) * 180.0 / M_PI << " deg)" << RESET << std::endl;
         return PlanningState::COLD_START;
@@ -1129,9 +1129,12 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
       if (norm > 1e-6) {
         local_dir /= norm;
         constexpr double min_climb_speed = 2.0;
+        constexpr double min_climb_acc = 3.0;
         if (std::hypot(real_speed.x(), real_speed.y()) < min_climb_speed) {
           real_speed.x() = local_dir.x() * min_climb_speed;
           real_speed.y() = local_dir.y() * min_climb_speed;
+          start_state.col(2) =
+            Eigen::Vector3d(local_dir.x() * min_climb_acc, local_dir.y() * min_climb_acc, 0.0);
         }
       }
     }
