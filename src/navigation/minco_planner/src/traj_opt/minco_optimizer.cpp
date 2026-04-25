@@ -197,6 +197,7 @@ void MincoOptimizer::computeTimeBarrier(const OptVars & opt_vars,
   // const double vmax_safe = std::max(1e-3, magnitudeBounds[1] * 0.6);
   const double amax_safe = std::max(1e-3, magnitudeBounds[2]);
   const double v_curr = opt_vars.headPVA.col(1).norm();
+  const double v_tail = opt_vars.tailPVA.col(1).norm();
   const bool has_init_ps = (opt_vars.init_ps.size() == static_cast<size_t>(std::max(0, N - 1)));
 
   for (int i = 0; i < N; ++i) {
@@ -218,7 +219,7 @@ void MincoOptimizer::computeTimeBarrier(const OptVars & opt_vars,
     const double dist = (p_end - p_start).norm();
     double t_min = dist / vmax_safe;
 
-    if (i == N - 1) {
+    if (i == N - 1 && v_tail < 0.1) {
       t_min = std::max({t_min, v_curr / amax_safe, vmax_safe / amax_safe});
     }
 
@@ -440,21 +441,22 @@ void MincoOptimizer::DefaultInit()
   const VecDf dis = computeDis();
 
   // 2. Allocate initial times with kinematic-aware startup / stopping compensation.
-  const double max_vel = (std::isfinite(cfg_.max_vel) && cfg_.max_vel > 1e-3) ? cfg_.max_vel : 1.0;
-  const double max_acc = (std::isfinite(cfg_.max_acc) && cfg_.max_acc > 1e-3) ? cfg_.max_acc : 2.0;
-  const double cruise_speed = std::max(1e-3, max_vel * 0.8);
+  const double max_vel = cfg_.max_vel;
+  const double max_acc = cfg_.max_acc;
+  const double cruise_speed = std::max(1e-3, max_vel);
+  const double v_tail = opt_vars_.tailPVA.col(1).norm();
+  const bool is_stopping = (v_tail < 0.1);
 
   opt_vars_.times.resize(opt_vars_.piece_num);
   for (int i = 0; i < opt_vars_.piece_num; ++i) {
     const double d = std::max(0.0, dis(i));
     double t = 0.1;
-
     if (i == 0) {
       // First segment: conservative startup time to avoid speed spike.
       const double t_acc = std::sqrt(std::max(0.0, 2.0 * d / max_acc));
       const double t_cons = d / std::max(1e-3, max_vel * 0.5);
       t = std::max(t_acc, t_cons);
-    } else if (i == opt_vars_.piece_num - 1) {
+    } else if (i == opt_vars_.piece_num - 1 && is_stopping) {
       // Last segment: add braking compensation for stop behavior.
       const double t_cruise = d / cruise_speed;
       const double t_brake = std::sqrt(std::max(0.0, 2.0 * d / max_acc));
