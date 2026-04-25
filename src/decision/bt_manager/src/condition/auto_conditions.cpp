@@ -1,5 +1,6 @@
 #include "bt_manager/condition/auto_conditions.hpp"
 #include <cmath>
+#include <iostream>
 
 namespace Sentry_BT {
 // ------------------- CheckRetreatCondition -------------------
@@ -78,6 +79,7 @@ BT::PortsList CheckTargetLocked::providedPorts()
 
 BT::NodeStatus CheckTargetLocked::tick()
 {
+  std::cout << "CheckTargetLocked tick" << std::endl;
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
 
@@ -88,6 +90,7 @@ BT::NodeStatus CheckTargetLocked::tick()
   bool target_valid = false;
   try {
     target_valid = blackboard->get<bool>("target_valid");
+    std::cout << "target_valid: " << target_valid << std::endl;
   } catch (...) {
     detail::logTransition(
       detail::TreeKind::NAV, "CheckTargetLocked", false, "target_valid unavailable", branch);
@@ -113,6 +116,8 @@ BT::NodeStatus CheckTargetLocked::tick()
       break;
     }
   }
+  in_attack_area = true;
+  std::cout << "in_attack_area: " << in_attack_area << std::endl;
   bool condition_met = false;
 
   if (in_attack_area && target_valid) {
@@ -142,7 +147,7 @@ BT::NodeStatus CheckTargetLocked::tick()
               << ", tactical_mode=" << static_cast<int>(tactical_mode);
   detail::logTransition(
     detail::TreeKind::NAV, "CheckTargetLocked", condition_met, lock_detail.str(), branch);
-
+    std::cout << "CheckTargetLocked result: " << (condition_met ? "SUCCESS" : "FAILURE") << std::endl;
   return condition_met ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
