@@ -312,7 +312,7 @@ planner_server:
         max_velocity: 4.0
         max_acceleration: 4.0
         max_yaw_dot: 5.0
-        turn_angle_deadzone: 0.5
+        turn_angle_deadzone: 0.8
         turn_angle_saturation: 1.57
         min_turn_vel: 1.8
         decay_power: 2.0
@@ -321,7 +321,7 @@ planner_server:
         integral_res: 16
         opt_accuracy: 0.001
         print_optimizer_log: true
-        penalty_weight_time: 20.0
+        penalty_weight_time: 45.0
         penalty_weight_pos: 50000.0
         penalty_weight_vel: 2000.0
         penalty_weight_acc: 2000.0
