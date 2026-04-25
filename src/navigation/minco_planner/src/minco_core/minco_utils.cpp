@@ -29,24 +29,9 @@ double calCurvatureDecay(
 }
 
 double getDistFromTrapezoid(
-  double t, double total_length, double a_ref, double v_peak, double t_acc, double t_flat)
+  double t, double total_length, double a_ref, double v_peak, double t_acc, double t_flat, double t_dec)
 {
-  if (!(std::isfinite(t) && std::isfinite(total_length) && std::isfinite(a_ref) && std::isfinite(v_peak) &&
-        std::isfinite(t_acc) && std::isfinite(t_flat))) {
-    return 0.0;
-  }
-
-  if (total_length <= 0.0) {
-    return 0.0;
-  }
-  if (a_ref <= 0.0 || v_peak <= 0.0 || t_acc <= 0.0) {
-    return 0.0;
-  }
-
-  const double t_total = 2.0 * t_acc + std::max(0.0, t_flat);
-  if (t <= 0.0) {
-    return 0.0;
-  }
+  const double t_total = t_acc + std::max(0.0, t_flat) + std::max(0.0, t_dec);
   if (t >= t_total) {
     return total_length;
   }
@@ -280,6 +265,7 @@ void publishEscapeCommand(const geometry_msgs::msg::PoseStamped & current_pose,
 std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3d> & path,
   double max_vel,
   double max_acc,
+  bool goal_reached,
   const std::function<bool(const Eigen::Vector3d &, const Eigen::Vector3d &)> & is_line_free)
 {
   std::vector<Eigen::Vector3d> sparse;
@@ -322,8 +308,8 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3
   }
 
   // 2) Heuristic trapezoid / triangle velocity profile
-  const double v_ref = 0.8 * std::max(0.0, max_vel);
-  const double a_ref = std::max(1e-6, max_acc);
+  const double v_ref = max_vel;
+  const double a_ref = max_acc;
 
   if (v_ref <= 1e-6) {
     sparse.push_back(path.back());
@@ -334,16 +320,27 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3
   double v_peak = v_ref;
   double t_acc = v_ref / a_ref;
   double t_flat = 0.0;
-  if (total_length > 2.0 * d_acc_ref) {
+
+  double t_dec = goal_reached ? t_acc : 0.0;  // 如果目标已达成，则不考虑终点刹车距离
+  const double d_dec = goal_reached ? d_acc_ref : 0.0;    // 如果目标已达成，则期望终点速度为 0
+  if (total_length > d_acc_ref + d_dec) {
     const double d_flat = total_length - 2.0 * d_acc_ref;
     t_flat = d_flat / v_ref;
   } else {
-    v_peak = std::sqrt(std::max(0.0, total_length * a_ref));
-    t_acc = v_peak / a_ref;
-    t_flat = 0.0;
+    if (goal_reached) {
+      v_peak = std::sqrt(std::max(0.0, total_length * a_ref)); // 三角形 (加速+减速)
+      t_acc = v_peak / a_ref;
+      t_dec = t_acc;
+      t_flat = 0.0;
+    } else {
+      v_peak = std::sqrt(std::max(0.0, 2.0 * total_length * a_ref)); // 纯加速 (v^2 = 2as)
+      t_acc = v_peak / a_ref;
+      t_dec = 0.0;
+      t_flat = 0.0;
+    }
   }
 
-  const double t_total = 2.0 * t_acc + t_flat;
+  const double t_total = t_acc + t_flat + std::max(0.0, t_dec);
   if (!(std::isfinite(t_total) && t_total > 1e-6)) {
     sparse.push_back(path.back());
     return sparse;
@@ -412,7 +409,7 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3
   size_t last_added = 0u;
   for (int i = 1; i < n_segments; ++i) {
     const double t = static_cast<double>(i) * dt;
-    const double s = getDistFromTrapezoid(t, total_length, a_ref, v_peak, t_acc, t_flat);
+    const double s = getDistFromTrapezoid(t, total_length, a_ref, v_peak, t_acc, t_flat, t_dec);
     size_t idx = arcLengthToIndex(s);
     // enforce strictly increasing indices to preserve ordering and avoid duplicates
     idx = std::max(idx, last_added);
