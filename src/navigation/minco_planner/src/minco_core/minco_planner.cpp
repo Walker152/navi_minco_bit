@@ -476,11 +476,12 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   if (dense_local_path.size() < 2) {
     return false;
   }
-
+  const bool goal_reached = (global_goal - dense_local_path.back()).head<2>().norm() <= traj_goal_tolerance_;
   // 3. Sparsify local path.
   std::vector<Eigen::Vector3d> sparse_path = utils::getSparseWaypoints(dense_local_path,
     minco_config.max_vel,
     minco_config.max_acc,
+    goal_reached,
     [this](const Eigen::Vector3d & a, const Eigen::Vector3d & b) {
       return utils::isLineFree(this->costmap_, a, b);
     });
@@ -565,7 +566,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     const double amax = std::max(0.0, minco_config.max_acc);
     const double v_max_kinematic = std::sqrt(std::max(0.0, v_curr * v_curr + 2.0 * amax * dist_to_goal));
     const double v_cmd =
-      std::min({0.8 * std::max(0.0, minco_config.max_vel), v_max_kinematic, std::max(0.0, dist_to_goal)});
+      std::min({minco_config.max_vel, v_max_kinematic, dist_to_goal});
     end_state.col(1) = tangent * v_cmd;
     end_state.col(2).setZero();
   } else {
@@ -590,6 +591,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     VecDf init_ts(N);
     PTAllocation(sparse_path,
       start_state,
+      goal_reached,
       state,
       has_shifted_seed,
       shifted_waypoints,
@@ -736,6 +738,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
 void MincoPlanner::PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path,
   const Eigen::Matrix3d & start_state,
+  bool goal_reached,
   PlanningState state,
   bool has_shifted_seed,
   const vec_Vec3f & shifted_waypoints,
@@ -756,6 +759,7 @@ void MincoPlanner::PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path
   const double amax = std::max(1e-3, minco_config.max_acc);
   const double kMinSegTime = 0.1;
   const double kBrakeSafety = 1.2;
+  const double max_brake_dist = (global_vmax * global_vmax) / (2.0 * amax);
 
   local_vmaxs.resize(N);
   local_vmaxs.setConstant(global_vmax);
@@ -809,17 +813,18 @@ void MincoPlanner::PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path
     v_curr = 0.0;
   }
 
+  const double local_goal_remain = goal_reached ? 0.0 : max_brake_dist;
   for (int i = 0; i < N; ++i) {
     const bool is_last = (i == N - 1);
     const double L = seg_len[static_cast<size_t>(i)];
-    const double remain = remain_after[static_cast<size_t>(i)];
+    const double remain = remain_after[static_cast<size_t>(i)] + local_goal_remain;
 
     if (L <= 1e-6) {
       init_ts(i) = kMinSegTime;
       continue;
     }
 
-    if (is_last) {
+    if (is_last && goal_reached) {
       const double t_stop = v_curr / amax;
       const double t_dist = L / std::max(v_curr, 0.1);
       init_ts(i) = std::max({kMinSegTime, t_dist, kBrakeSafety * t_stop});
