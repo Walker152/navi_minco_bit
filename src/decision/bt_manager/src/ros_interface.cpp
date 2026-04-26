@@ -1,4 +1,5 @@
 #include "bt_manager/ros_interface.hpp"
+#include "bt_manager/utils/tf_utils.hpp"
 
 #include <algorithm>
 #include <array>
@@ -6,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -270,7 +272,9 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
     "lifter_current_pos", static_cast<Sentry_BT::LifterPos>(msg->lifter_current_pos));
   blackboard_->set<bool>("is_transformable", msg->is_transformable);
   blackboard_->set<float>("transform_state", msg->transform_state);
-
+  blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
+  auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  tf_utils->updateGimbalYaw(msg->yaw_imu);
   // 存储装甲板位置
   if (msg->is_get)
   // if(false)
@@ -348,11 +352,11 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
     blackboard_->set<Sentry_BT::SentryStance>(
       "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
   } else {
-    RCLCPP_WARN_THROTTLE(this->get_logger(),
-      *this->get_clock(),
-      2000,
-      "Invalid current_stance decoded from sentry_info_2: %u",
-      current_stance);
+    // RCLCPP_WARN_THROTTLE(this->get_logger(),
+    //   *this->get_clock(),
+    //   2000,
+    //   "23%u",
+    //   current_stance);
   }
 
   // 提取bit 14：己方能量机关是否能够进入正在激活状态
