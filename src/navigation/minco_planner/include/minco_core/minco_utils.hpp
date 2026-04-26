@@ -20,11 +20,13 @@ template <typename T> inline T clampValue(T v, T lo, T hi)
 }
 
 double quaternionToYaw(const geometry_msgs::msg::Quaternion & q);
+double calCurvatureDecay(
+  double angle, double global_vmax, double deadzone, double saturation, double min_vel, double decay_power);
 
 // === Path Geometry Utilities ===
 // --- Velocity Profile Mapping ---
 double getDistFromTrapezoid(
-  double t, double total_length, double a_ref, double v_peak, double t_acc, double t_flat);
+  double t, double total_length, double a_ref, double v_peak, double t_acc, double t_flat, double t_dec);
 
 // --- Arc-Length Interpolation ---
 Eigen::Vector3d interpolateByArcLength(
@@ -33,7 +35,24 @@ Eigen::Vector3d interpolateByArcLength(
 std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3d> & path,
   double max_vel,
   double max_acc,
+  bool goal_reached,
   const std::function<bool(const Eigen::Vector3d &, const Eigen::Vector3d &)> & is_line_free);
+
+double LimitLocalVel(const std::vector<Eigen::Vector3d> & sparse_path,
+  int seg_idx,
+  double global_vmax,
+  double deadzone,
+  double saturation,
+  double min_turn_vel,
+  double decay_power);
+
+double ComputeNextSpeed(
+  double v_curr, double seg_len, double remain_after, double amax, double local_vmax);
+
+double ComputeSegmentTime(
+  double seg_len, double v_curr, double v_next, double local_vmax, double amax, double min_seg_time);
+
+void VelPropogation(const std::vector<double> & seg_len, double amax, std::vector<double> & local_vmaxs);
 
 // === Trajectory Command Publishing ===
 // --- Optimized Trajectory Publishing ---
