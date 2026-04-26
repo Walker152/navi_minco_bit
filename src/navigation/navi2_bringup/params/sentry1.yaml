@@ -107,7 +107,7 @@ controller_server:
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [4.0, 4.0, 5.0]
-      R: [1.0, 1.0, 2.0]
+      R: [2.0, 2.0, 2.5]
 
       # Velocity bounds
       vx_min: -3.5
@@ -307,15 +307,15 @@ planner_server:
         opt_freq: 20.0
         traj_goal_tolerance: 0.2
         enable_yaw_opt: true
-        safe_dist: 0.35
+        safe_dist: 0.40
         lookahead_dist: 5.0  # 前视距离,用于minco部分优化
-        max_velocity: 3.5
-        max_acceleration: 3.5
+        max_velocity: 4.5
+        max_acceleration: 4.5
         max_yaw_dot: 5.0
-        turn_angle_deadzone: 0.8
-        turn_angle_saturation: 1.57
+        turn_angle_deadzone: 1.0
+        turn_angle_saturation: 2.57
         min_turn_vel: 2.0
-        decay_power: 2.0
+        decay_power: 1.3
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
