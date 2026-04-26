@@ -65,7 +65,17 @@ public:
 
   // === Core Planning Interfaces ===
   // --- Configuration and Initialization ---
-  void setConfig(const Config & cfg) { cfg_ = cfg; }
+  void setConfig(const Config & cfg)
+  {
+    cfg_ = cfg;
+    opt_vars_.magnitudeBounds.resize(cfg_.magnitudeBounds.size());
+    opt_vars_.penaltyWeights.resize(cfg_.penaltyWeights.size());
+    opt_vars_.magnitudeBounds = cfg_.magnitudeBounds;
+    opt_vars_.penaltyWeights = cfg_.penaltyWeights;
+    opt_vars_.rho = cfg_.rho;
+    opt_vars_.smooth_eps = cfg_.smooth_eps;
+    opt_vars_.integral_res = cfg_.integral_res;
+  }
 
   void setInitPsAndTs(const vec_Vec3f & init_ps, const VecDf & init_ts);
 
