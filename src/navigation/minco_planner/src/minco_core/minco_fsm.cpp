@@ -146,7 +146,7 @@ void MincoFsm::callMainFsmOnce()
         goal_stop_published_ = true;
       }
 
-      if (planner_->getCurrentSpeed().head<2>().norm() < 0.1) {
+      if (planner_->getCurrentSpeed().head<2>().norm() < 0.3) {
         has_goal_ = false;
         changeState("GOAL_REACHED", State::WAIT_GOAL);
       }
