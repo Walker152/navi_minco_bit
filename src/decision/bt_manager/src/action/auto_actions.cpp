@@ -6,6 +6,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <iostream>
 #include <limits>
 #include <string>
 using namespace color_text;
@@ -66,7 +67,6 @@ BT::NodeStatus SetTargetCoordinate::tick()
   Sentry_BT::Point2D point;  //最终目标点
   //获取当前位置
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-
   // 提取坐标
   double current_x = current_pose.position.x;
   double current_y = current_pose.position.y;
@@ -80,7 +80,6 @@ BT::NodeStatus SetTargetCoordinate::tick()
   const double ATTACK_DISTANCE = 0.3;  // 攻击距离
 
   int guidance_case = -1;  // 0: approach, 1: backoff, 2: overlap-backoff
-
   if (distance > ATTACK_DISTANCE) {
     // 距离大于30cm，在线段上取离目标点ATTACK_DISTANCE的点
     double scale = 1.0 - ATTACK_DISTANCE / distance;
@@ -102,7 +101,9 @@ BT::NodeStatus SetTargetCoordinate::tick()
       guidance_case = 2;
     }
   }
-
+  std::cout << CYAN << "[NAV_TREE]" << YELLOW << "距离(" << distance
+                << "m)大于30cm,沿连线方向前进到距离目标点30cm位置"
+                << " | current_pose=(" << current_x << ", " << current_y << ")"  <<"target_pose=(" << target_x << ", " << target_y << ")" << RESET << std::endl;
   static int last_guidance_case = -1;
   if (guidance_case != last_guidance_case) {
     if (guidance_case == 0) {
@@ -119,7 +120,6 @@ BT::NodeStatus SetTargetCoordinate::tick()
     }
     last_guidance_case = guidance_case;
   }
-
   Sentry_BT::Point2D old_goal;
   bool has_old_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal", old_goal);
   static bool last_rate_limited = false;

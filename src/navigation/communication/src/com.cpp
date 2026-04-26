@@ -226,7 +226,8 @@ void Communication::stm32_read_cb(ByteArray arr)
             NV(sentry_self_data->is_transformable),
             NV(sentry_self_data->lifter_current_pos),
             NV(sentry_self_data->transform_state),
-            NV(sentry_self_data->yaw_imu));
+            NV(sentry_self_data->yaw_imu),
+            NV(sentry_self_data->capacitor_capacity));
         }
         auto ros_ptr = ros_if_;
         if (ros_ptr)

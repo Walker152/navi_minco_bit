@@ -1,5 +1,6 @@
 #include "bt_manager/condition/auto_conditions.hpp"
 #include <cmath>
+#include <iostream>
 
 namespace Sentry_BT {
 // ------------------- CheckRetreatCondition -------------------
@@ -142,7 +143,6 @@ BT::NodeStatus CheckTargetLocked::tick()
               << ", tactical_mode=" << static_cast<int>(tactical_mode);
   detail::logTransition(
     detail::TreeKind::NAV, "CheckTargetLocked", condition_met, lock_detail.str(), branch);
-
   return condition_met ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
