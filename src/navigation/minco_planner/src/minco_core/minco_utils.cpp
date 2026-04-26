@@ -22,7 +22,7 @@ double calCurvatureDecay(
   }
 
   const double clamped_angle = std::min(angle, saturation);
-  const double ratio = (clamped_angle - deadzone) / (saturation - deadzone);
+  const double ratio = (clamped_angle - deadzone) / saturation;
   const double local_vmax = min_vel + (global_vmax - min_vel) * std::exp(-ratio * decay_power);
 
   return std::max(local_vmax, min_vel);
