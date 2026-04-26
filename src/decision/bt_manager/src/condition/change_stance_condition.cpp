@@ -122,7 +122,7 @@ BT::NodeStatus CheckHealth::tick()
   const auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
 
-  const float health = blackboard->get<float>("health");
+  const auto health = blackboard->get<float>("health");
 
   const float threshold = getInput<float>("threshold").value_or(50.0f);
   const std::string mode = getInput<std::string>("mode").value_or("greater");
@@ -159,7 +159,7 @@ BT::NodeStatus CheckTargetDistance::tick()
   const float threshold = getInput<float>("threshold").value_or(1.0f);
   const std::string mode = getInput<std::string>("mode").value_or("greater");
 
-  const float distance = static_cast<float>(std::hypot(
+  const auto distance = static_cast<float>(std::hypot(
     target_pose.position.x - current_pose.position.x, target_pose.position.y - current_pose.position.y));
   const bool active = detail::compareByMode(distance, threshold, mode);
 
@@ -231,7 +231,8 @@ BT::NodeStatus CheckCapacitorCapacity::tick()
   const auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
 
-  const float capacitor_capacity = blackboard->get<float>("capacitor_capacity");
+  const float capacitor_capacity =
+    static_cast<float>(blackboard->get<uint8_t>("capacitor_capacity"));
 
   const float threshold = getInput<float>("threshold").value_or(30.0f);
   const std::string mode = getInput<std::string>("mode").value_or("less");
