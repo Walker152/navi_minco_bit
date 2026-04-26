@@ -476,12 +476,13 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   if (dense_local_path.size() < 2) {
     return false;
   }
-  const bool goal_reached = (global_goal - dense_local_path.back()).head<2>().norm() <= traj_goal_tolerance_;
+  const bool local_end_is_goal =
+    (global_goal - dense_local_path.back()).head<2>().norm() <= traj_goal_tolerance_;
   // 3. Sparsify local path.
   std::vector<Eigen::Vector3d> sparse_path = utils::getSparseWaypoints(dense_local_path,
     minco_config.max_vel,
     minco_config.max_acc,
-    goal_reached,
+    local_end_is_goal,
     [this](const Eigen::Vector3d & a, const Eigen::Vector3d & b) {
       return utils::isLineFree(this->costmap_, a, b);
     });
@@ -591,7 +592,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     VecDf init_ts(N);
     PTAllocation(sparse_path,
       start_state,
-      goal_reached,
+      local_end_is_goal,
       state,
       has_shifted_seed,
       shifted_waypoints,
@@ -1210,7 +1211,7 @@ bool MincoPlanner::optimizeYaw(const Eigen::Matrix3d & start_state,
   goal_yaw_state(0) = init_yaw_state(0) + yaw_err;
   goal_yaw_state(1) = 0.0;
 
-  return yaw_opt_->optimize(init_yaw_state, goal_yaw_state, pos_traj, out_yaw_traj, 5, false, false);
+  return yaw_opt_->optimize(init_yaw_state, goal_yaw_state, pos_traj, out_yaw_traj, 5, false, true);
 }
 
 // -----------------------------------------------------------------------------
