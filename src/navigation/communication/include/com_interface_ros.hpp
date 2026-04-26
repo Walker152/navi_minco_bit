@@ -214,6 +214,7 @@ private:
       if (transform_state >= 0.85f) {
         vx_mps *= 1.0;
         vy_mps *= 1.0;
+        vw_rpm = 0.0;
       }
       odom_q = odom_.pose.pose.orientation;
       current_vx = odom_.twist.twist.linear.x;
