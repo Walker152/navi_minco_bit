@@ -321,10 +321,10 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3
   double t_acc = v_ref / a_ref;
   double t_flat = 0.0;
 
-  double t_dec = goal_reached ? t_acc : 0.0;  // 如果目标已达成，则不考虑终点刹车距离
-  const double d_dec = goal_reached ? d_acc_ref : 0.0;    // 如果目标已达成，则期望终点速度为 0
+  double t_dec = goal_reached ? t_acc : 0.0;  // 到达全局终点时保留减速段，否则开放式巡航
+  const double d_dec = goal_reached ? d_acc_ref : 0.0;  // 末段减速所需距离
   if (total_length > d_acc_ref + d_dec) {
-    const double d_flat = total_length - 2.0 * d_acc_ref;
+    const double d_flat = total_length - (d_acc_ref + d_dec);
     t_flat = d_flat / v_ref;
   } else {
     if (goal_reached) {
@@ -504,7 +504,7 @@ double LimitLocalVel(const std::vector<Eigen::Vector3d> & sparse_path,
                                sparse_path[static_cast<size_t>(seg_idx + 1)]).head<2>();
   const double n1 = d1.norm();
   const double n2 = d2.norm();
-  if (n1 <= 1e-6 || n2 <= 1e-6) {
+  if (n1 <= 0.2 || n2 <= 0.2) {
     return global_vmax;
   }
 
