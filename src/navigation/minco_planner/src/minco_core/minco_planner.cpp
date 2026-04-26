@@ -2,6 +2,8 @@
 #include "minco_core/minco_planner.hpp"
 #include "nav2_util/node_utils.hpp"
 
+#include "geometry_msgs/msg/vector3_stamped.hpp"
+
 // Project
 #include "minco_core/minco_fsm.hpp"
 #include "minco_core/minco_utils.hpp"
@@ -150,7 +152,7 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "minco_optimizer.penalty_weight_att", rclcpp::ParameterValue(1000.0));
   node->get_parameter(prefix + "minco_optimizer.penalty_weight_att", penalty_weight_att);
-  
+
   double penalty_weight_time_barrier = 0.0;
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "minco_optimizer.penalty_weight_time_barrier", rclcpp::ParameterValue(100.0));
@@ -366,39 +368,214 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
   rcl_interfaces::msg::SetParametersResult result;
   result.successful = true;
 
-  const std::string target_param = name_ + ".static_esdf.esdf_pcd_path";
+  const std::string esdf_path_param = name_ + ".static_esdf.esdf_pcd_path";
+  const std::string esdf_resolution_param = name_ + ".static_esdf.esdf_resolution";
+  const std::string dynamic_size_param = name_ + ".static_esdf.dynamic_esdf_size";
+  const std::string dynamic_dilation_param = name_ + ".static_esdf.dynamic_dilation_radius";
+  const std::string max_vel_param = name_ + ".minco_optimizer.max_velocity";
+  const std::string max_acc_param = name_ + ".minco_optimizer.max_acceleration";
+  const std::string penalty_pos_param = name_ + ".minco_optimizer.penalty_weight_pos";
+  const std::string penalty_vel_param = name_ + ".minco_optimizer.penalty_weight_vel";
+  const std::string penalty_acc_param = name_ + ".minco_optimizer.penalty_weight_acc";
+  const std::string penalty_att_param = name_ + ".minco_optimizer.penalty_weight_att";
+  const std::string penalty_time_barrier_param = name_ + ".minco_optimizer.penalty_weight_time_barrier";
+
+  std::string next_esdf_pcd_path = esdf_pcd_path_;
+  double next_esdf_resolution = esdf_resolution_;
+  bool need_reload_static_esdf = false;
+
+  double next_max_vel = minco_config.max_vel;
+  double next_max_acc = minco_config.max_acc;
+  double next_penalty_pos =
+    (minco_config.penaltyWeights.size() > 0) ? minco_config.penaltyWeights(0) : 1000.0;
+  double next_penalty_vel =
+    (minco_config.penaltyWeights.size() > 1) ? minco_config.penaltyWeights(1) : 1000.0;
+  double next_penalty_acc =
+    (minco_config.penaltyWeights.size() > 2) ? minco_config.penaltyWeights(2) : 10000.0;
+  double next_penalty_att =
+    (minco_config.penaltyWeights.size() > 3) ? minco_config.penaltyWeights(3) : 1000.0;
+  double next_penalty_time_barrier =
+    (minco_config.penaltyWeights.size() > 4) ? minco_config.penaltyWeights(4) : 100.0;
+  bool optimizer_config_changed = false;
+
   for (const auto & param : parameters) {
-    if (param.get_name() != target_param) {
+    const auto & param_name = param.get_name();
+
+    auto parse_numeric = [&](double & out) -> bool {
+      if (param.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+        out = param.as_double();
+        return true;
+      }
+      if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
+        out = static_cast<double>(param.as_int());
+        return true;
+      }
+      return false;
+    };
+
+    if (param_name == esdf_path_param) {
+      if (param.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
+        result.successful = false;
+        result.reason = "Parameter must be a string: " + esdf_path_param;
+        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+        return result;
+      }
+
+      next_esdf_pcd_path = param.as_string();
+      need_reload_static_esdf = true;
       continue;
     }
 
-    if (param.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
+    if (param_name == esdf_resolution_param) {
+      if (param.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE &&
+          param.get_type() != rclcpp::ParameterType::PARAMETER_INTEGER) {
+        result.successful = false;
+        result.reason = "Parameter must be a number: " + esdf_resolution_param;
+        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+        return result;
+      }
+
+      const double candidate_resolution = (param.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE)
+                                            ? param.as_double()
+                                            : static_cast<double>(param.as_int());
+      if (!std::isfinite(candidate_resolution) || candidate_resolution <= 0.0) {
+        result.successful = false;
+        result.reason = "Parameter must be > 0: " + esdf_resolution_param;
+        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+        return result;
+      }
+
+      next_esdf_resolution = candidate_resolution;
+      need_reload_static_esdf = true;
+      continue;
+    }
+
+    if (param_name == dynamic_size_param || param_name == dynamic_dilation_param) {
       result.successful = false;
-      result.reason = "Parameter must be a string: " + target_param;
+      result.reason =
+        "Dynamic ESDF layer params are not hot-reloadable, please restart node: " + param_name;
       RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
       return result;
     }
 
-    esdf_pcd_path_ = param.as_string();
-    if (!esdf_map_) {
-      result.successful = false;
-      result.reason = "ESDF map is not initialized";
-      RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
-      return result;
+    if (param_name == max_vel_param) {
+      double candidate = 0.0;
+      if (!parse_numeric(candidate) || !std::isfinite(candidate) || candidate <= 0.0) {
+        result.successful = false;
+        result.reason = "Parameter must be a positive number: " + max_vel_param;
+        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+        return result;
+      }
+      next_max_vel = candidate;
+      optimizer_config_changed = true;
+      continue;
     }
 
-    const bool reloaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
-    if (reloaded) {
-      RCLCPP_INFO(logger_, "[MincoPlanner] Reloaded static ESDF map from PCD: %s", esdf_pcd_path_.c_str());
-    } else {
-      result.successful = false;
-      result.reason = "Failed to reload static ESDF map from PCD: " + esdf_pcd_path_;
-      RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+    if (param_name == max_acc_param) {
+      double candidate = 0.0;
+      if (!parse_numeric(candidate) || !std::isfinite(candidate) || candidate <= 0.0) {
+        result.successful = false;
+        result.reason = "Parameter must be a positive number: " + max_acc_param;
+        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+        return result;
+      }
+      next_max_acc = candidate;
+      optimizer_config_changed = true;
+      continue;
     }
 
+    if (param_name == penalty_pos_param || param_name == penalty_vel_param ||
+        param_name == penalty_acc_param || param_name == penalty_att_param ||
+        param_name == penalty_time_barrier_param) {
+      double candidate = 0.0;
+      if (!parse_numeric(candidate) || !std::isfinite(candidate) || candidate < 0.0) {
+        result.successful = false;
+        result.reason = "Penalty weight must be a non-negative number: " + param_name;
+        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+        return result;
+      }
+
+      if (param_name == penalty_pos_param) {
+        next_penalty_pos = candidate;
+      } else if (param_name == penalty_vel_param) {
+        next_penalty_vel = candidate;
+      } else if (param_name == penalty_acc_param) {
+        next_penalty_acc = candidate;
+      } else if (param_name == penalty_att_param) {
+        next_penalty_att = candidate;
+      } else {
+        next_penalty_time_barrier = candidate;
+      }
+
+      optimizer_config_changed = true;
+      continue;
+    }
+  }
+
+  if (optimizer_config_changed) {
+    minco_config.max_vel = next_max_vel;
+    minco_config.max_acc = next_max_acc;
+
+    minco_config.penaltyWeights.resize(5);
+    minco_config.penaltyWeights(0) = next_penalty_pos;
+    minco_config.penaltyWeights(1) = next_penalty_vel;
+    minco_config.penaltyWeights(2) = next_penalty_acc;
+    minco_config.penaltyWeights(3) = next_penalty_att;
+    minco_config.penaltyWeights(4) = next_penalty_time_barrier;
+
+    minco_config.magnitudeBounds.resize(3);
+    minco_config.magnitudeBounds(0) = minco_config.safe_dist;
+    minco_config.magnitudeBounds(1) = minco_config.max_vel;
+    minco_config.magnitudeBounds(2) = minco_config.max_acc;
+
+    if (minco_optimizer_) {
+      minco_optimizer_->setConfig(minco_config);
+    }
+
+    RCLCPP_INFO(logger_,
+      "[MincoPlanner] Updated optimizer params: vmax=%.3f, amax=%.3f, w=[%.3f %.3f %.3f %.3f %.3f]",
+      minco_config.max_vel,
+      minco_config.max_acc,
+      minco_config.penaltyWeights(0),
+      minco_config.penaltyWeights(1),
+      minco_config.penaltyWeights(2),
+      minco_config.penaltyWeights(3),
+      minco_config.penaltyWeights(4));
+  }
+
+  if (!need_reload_static_esdf) {
     return result;
   }
 
+  if (!esdf_map_) {
+    result.successful = false;
+    result.reason = "ESDF map is not initialized";
+    RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+    return result;
+  }
+
+  const std::string prev_esdf_pcd_path = esdf_pcd_path_;
+  const double prev_esdf_resolution = esdf_resolution_;
+
+  esdf_pcd_path_ = next_esdf_pcd_path;
+  esdf_resolution_ = next_esdf_resolution;
+
+  const bool reloaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
+  if (reloaded) {
+    RCLCPP_INFO(logger_,
+      "[MincoPlanner] Reloaded static ESDF map from PCD: %s (resolution=%.3f)",
+      esdf_pcd_path_.c_str(),
+      esdf_resolution_);
+    return result;
+  }
+
+  esdf_pcd_path_ = prev_esdf_pcd_path;
+  esdf_resolution_ = prev_esdf_resolution;
+  esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
+
+  result.successful = false;
+  result.reason = "Failed to reload static ESDF map from PCD: " + next_esdf_pcd_path;
+  RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
   return result;
 }
 
@@ -464,9 +641,6 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     global_goal.y() = latest_global_path_.back().pose.position.y;
     global_goal.z() = 0.0;
     goal_yaw = utils::quaternionToYaw(latest_global_path_.back().pose.orientation);
-    if (!std::isfinite(goal_yaw)) {
-      goal_yaw = 0.0;
-    }
   }
 
   Eigen::Vector3d cur_pos(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
@@ -557,17 +731,16 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
       tangent = sparse_path.back() - sparse_path[sparse_path.size() - 2];
       tangent.z() = 0.0;
       const double n = tangent.head<2>().norm();
-      if (n > 1e-6) {
+      if (n > 0.1) {
         tangent /= n;
       } else {
         tangent = Eigen::Vector3d(1.0, 0.0, 0.0);
       }
     }
-    const double v_curr = std::max(0.0, start_state.col(1).norm());
+    const double v_curr = std::max(0.0, start_state.col(1).head<2>().norm());
     const double amax = std::max(0.0, minco_config.max_acc);
     const double v_max_kinematic = std::sqrt(std::max(0.0, v_curr * v_curr + 2.0 * amax * dist_to_goal));
-    const double v_cmd =
-      std::min({minco_config.max_vel, v_max_kinematic, dist_to_goal});
+    const double v_cmd = std::min({minco_config.max_vel, v_max_kinematic, dist_to_goal});
     end_state.col(1) = tangent * v_cmd;
     end_state.col(2).setZero();
   } else {
@@ -669,15 +842,14 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   if (std::abs(pitch) > slope_threshold && sparse_path.size() >= 2) {
     goal_yaw = std::atan2(end_state.col(1).y(), end_state.col(1).x());
   } else if (sparse_path.size() >= 2) {
-      const Eigen::Vector2d tail_dir =
-        (sparse_path.back() - sparse_path[sparse_path.size() - 2]).head<2>();
-      if (tail_dir.norm() > 1e-6) {
-        goal_yaw = std::atan2(tail_dir.y(), tail_dir.x());
-      } else {
-        goal_yaw = getCurrentYawFromOdom();
-      }
-  } else {
+    const Eigen::Vector2d tail_dir = (sparse_path.back() - sparse_path[sparse_path.size() - 2]).head<2>();
+    if (tail_dir.norm() > 0.1) {
+      goal_yaw = std::atan2(tail_dir.y(), tail_dir.x());
+    } else {
       goal_yaw = getCurrentYawFromOdom();
+    }
+  } else {
+    goal_yaw = getCurrentYawFromOdom();
   }
 
   traj_opt::Trajectory yaw_traj;
@@ -809,7 +981,7 @@ void MincoPlanner::PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path
     local_vmaxs(i) = local_vmax_vec[static_cast<size_t>(i)];
   }
 
-  double v_curr = start_state.col(1).norm();
+  double v_curr = start_state.col(1).head<2>().norm();
   if (!std::isfinite(v_curr) || v_curr < 0.0) {
     v_curr = 0.0;
   }
@@ -1057,7 +1229,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
     return PlanningState::COLD_START;
   }
 
-  double now = rclcpp::Clock().now().seconds() + 0.03;
+  double now = rclcpp::Clock().now().seconds() + 0.005;
   double t_dur = now - last_traj_.start_WT;
   if (t_dur <= 0.0 || t_dur >= last_traj_.getTotalDuration()) {
     std::cout << YELLOW << "[MincoPlanner] Hot Start Rejected: Invalid time duration (t_dur=" << t_dur
@@ -1091,7 +1263,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
       Eigen::Vector3d vel_dir = pred_vel.normalized();
       double dot = vel_dir.dot(path_dir);
 
-      if (dot < 0.1) {
+      if (dot < 0.5) {
         std::cout << YELLOW << "[MincoPlanner] Hot Start Rejected: Direction mismatch (dot=" << dot
                   << ", angle=" << std::acos(dot) * 180.0 / M_PI << " deg)" << RESET << std::endl;
         return PlanningState::COLD_START;
@@ -1132,7 +1304,7 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
     if (std::abs(pitch) > slope_threshold) {
       Eigen::Vector2d local_dir = (sparse_path[1] - sparse_path[0]).head<2>();
       const double norm = local_dir.norm();
-      if (norm > 1e-6) {
+      if (norm > 0.1) {
         local_dir /= norm;
         constexpr double min_climb_speed = 2.0;
         constexpr double min_climb_acc = 3.0;
@@ -1153,6 +1325,7 @@ void MincoPlanner::prepareHotStart(
   const geometry_msgs::msg::Pose & start_pose, double t_dur, Eigen::Matrix3d & start_state)
 {
   start_state.setZero();
+  // start_state.col(0) = last_traj_.getPos(t_dur);
   start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
   start_state.col(1) = last_traj_.getVel(t_dur);
   start_state.col(2) = last_traj_.getAcc(t_dur);
@@ -1195,7 +1368,7 @@ bool MincoPlanner::optimizeYaw(const Eigen::Matrix3d & start_state,
   }
 
   if (!use_hot_seed) {
-    if (start_state.col(1).head<2>().norm() > 1e-3) {
+    if (start_state.col(1).head<2>().norm() > 0.1) {
       init_yaw_state(0) = std::atan2(start_state.col(1).y(), start_state.col(1).x());
     } else {
       init_yaw_state(0) = getCurrentYawFromOdom();
@@ -1493,9 +1666,18 @@ Eigen::Vector3d MincoPlanner::getCurrentSpeed() const
 {
   std::lock_guard<std::mutex> lk(odom_mutex_);
   if (has_latest_odom_) {
-    return Eigen::Vector3d(latest_odom_.twist.twist.linear.x,
-      latest_odom_.twist.twist.linear.y,
-      latest_odom_.twist.twist.linear.z);
+    geometry_msgs::msg::Vector3Stamped body_vel;
+    body_vel.header.stamp = latest_odom_.header.stamp;
+    body_vel.header.frame_id = latest_odom_.child_frame_id;
+    body_vel.vector = latest_odom_.twist.twist.linear;
+
+    try {
+      const auto map_vel = tf_->transform(body_vel, global_frame_);
+      return Eigen::Vector3d(map_vel.vector.x, map_vel.vector.y, map_vel.vector.z);
+    } catch (const tf2::TransformException &) {
+    }
+
+    return Eigen::Vector3d(body_vel.vector.x, body_vel.vector.y, body_vel.vector.z);
   }
   return Eigen::Vector3d::Zero();
 }
