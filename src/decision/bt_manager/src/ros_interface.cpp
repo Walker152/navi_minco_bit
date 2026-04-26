@@ -1,5 +1,5 @@
 #include "bt_manager/ros_interface.hpp"
-#include "bt_manager/utils/area.hpp"
+#include "bt_manager/utils/tf_utils.hpp"
 
 #include <algorithm>
 #include <array>
@@ -7,42 +7,14 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
-
-namespace {
-
-struct AreaVizConfig
-{
-  std::string name;
-  Sentry_BT::Area_Square area;
-  std::array<float, 3> color;
-};
-
-std::vector<AreaVizConfig> getAreaVizConfigs()
-{
-  return {
-    {"transform_zone", Sentry_BT::transform_zone, {1.0F, 0.2F, 0.2F}},
-    {"tunnel_zone", Sentry_BT::tunnel_zone, {1.0F, 0.6F, 0.0F}},
-    {"stairs_zone", Sentry_BT::stairs_zone, {1.0F, 1.0F, 0.2F}},
-    {"stairs_lower_safe_zone", Sentry_BT::stairs_lower_safe_zone, {0.4F, 1.0F, 0.4F}},
-    {"target_feasible_zone", Sentry_BT::target_feasible_zone, {0.2F, 1.0F, 1.0F}},
-    {"highland_zone", Sentry_BT::highland_zone, {0.2F, 0.6F, 1.0F}},
-    {"own_defense_zone", Sentry_BT::own_defense_zone, {0.6F, 0.4F, 1.0F}},
-    {"enemy_defense_zone", Sentry_BT::enemy_defense_zone, {1.0F, 0.2F, 1.0F}},
-    {"enemy_outpost_watch_zone", Sentry_BT::enemy_outpost_watch_zone, {0.8F, 0.8F, 0.8F}},
-  };
-}
-
-}  // namespace
 
 namespace Sentry_BT {
 
 ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
-: Node(
-    "ros_interface_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count() % 10000),
-    rclcpp::NodeOptions().use_global_arguments(false)),
-  blackboard_(blackboard_ptr)
+: Node("ros_interface_bt", rclcpp::NodeOptions()), blackboard_(blackboard_ptr)
 {
   auto node_ptr = rclcpp::Node::SharedPtr(this, [](rclcpp::Node *) {
   });
@@ -117,10 +89,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
   behavior_pub = this->create_publisher<ros_interfaces::msg::Behavior>("/sentry/behaivor_send", 10);
   cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
-  rclcpp::QoS area_marker_qos(1);
-  area_marker_qos.transient_local().reliable();
-  area_marker_pub =
-    this->create_publisher<visualization_msgs::msg::MarkerArray>("/sentry/area_markers", area_marker_qos);
+  area_visualizer_ = std::make_unique<AreaVisualizer>(*this);
 
   timer_ = this->create_wall_timer(std::chrono::milliseconds(100), [this]() {
     const auto current_mode = blackboard_->get<int>("current_mode");
@@ -131,12 +100,15 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto gyro_vel = blackboard_->get<float>("gyro_vel");
     const auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
     const auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
-    geometry_msgs::msg::Pose outpost_in_body_frame = this->transformMapPose(createPose(nav_points[2].x, nav_points[2].y, 0.0, 0.0), "body");
-    float outpost_theta_rad = std::atan2(outpost_in_body_frame.position.y, outpost_in_body_frame.position.x);
+    geometry_msgs::msg::Pose outpost_in_body_frame =
+      this->transformMapPose(createPose(nav_points[2].x, nav_points[2].y, 0.0, 0.0), "body");
+    float outpost_theta_rad =
+      std::atan2(outpost_in_body_frame.position.y, outpost_in_body_frame.position.x);
     const auto current_pose = getCurrentPose();
 
     // const bool is_reach_outpost_enemy =
-    //   current_mode == Sentry_BT::NavMode::RESPONSE && std::hypot(current_pose.position.x - nav_points[2].x,
+    //   current_mode == Sentry_BT::NavMode::RESPONSE && std::hypot(current_pose.position.x -
+    //   nav_points[2].x,
     //                                                     current_pose.position.y - nav_points[2].y) < 1.0;
 
     // const bool is_reach_outpost_own = std::hypot(current_pose.position.x - nav_points[0].x,
@@ -159,69 +131,9 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
   });
 
   area_marker_timer_ = this->create_wall_timer(std::chrono::seconds(1), [this]() {
-    this->publishAreaMarkers();
+    area_visualizer_->publishAreaMarkers(this->now());
   });
-  publishAreaMarkers();
-}
-
-void ros_interface::publishAreaMarkers()
-{
-  if (!area_marker_pub) {
-    return;
-  }
-
-  visualization_msgs::msg::MarkerArray marker_array;
-  const auto now = this->now();
-  const auto areas = getAreaVizConfigs();
-
-  int marker_id = 0;
-  for (const auto & cfg : areas) {
-    const double min_x = std::min(cfg.area.top_left.x, cfg.area.bottom_right.x);
-    const double max_x = std::max(cfg.area.top_left.x, cfg.area.bottom_right.x);
-    const double min_y = std::min(cfg.area.top_left.y, cfg.area.bottom_right.y);
-    const double max_y = std::max(cfg.area.top_left.y, cfg.area.bottom_right.y);
-
-    visualization_msgs::msg::Marker box_marker;
-    box_marker.header.frame_id = "map";
-    box_marker.header.stamp = now;
-    box_marker.ns = "sentry_area_box/" + cfg.name;
-    box_marker.id = marker_id++;
-    box_marker.type = visualization_msgs::msg::Marker::CUBE;
-    box_marker.action = visualization_msgs::msg::Marker::ADD;
-    box_marker.pose.position.x = (min_x + max_x) * 0.5;
-    box_marker.pose.position.y = (min_y + max_y) * 0.5;
-    box_marker.pose.position.z = 0.05;
-    box_marker.pose.orientation.w = 1.0;
-    box_marker.scale.x = std::max(0.05, max_x - min_x);
-    box_marker.scale.y = std::max(0.05, max_y - min_y);
-    box_marker.scale.z = 0.1;
-    box_marker.color.r = cfg.color[0];
-    box_marker.color.g = cfg.color[1];
-    box_marker.color.b = cfg.color[2];
-    box_marker.color.a = 0.35F;
-    marker_array.markers.push_back(box_marker);
-
-    visualization_msgs::msg::Marker text_marker;
-    text_marker.header.frame_id = "map";
-    text_marker.header.stamp = now;
-    text_marker.ns = "sentry_area_label/" + cfg.name;
-    text_marker.id = marker_id++;
-    text_marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-    text_marker.action = visualization_msgs::msg::Marker::ADD;
-    text_marker.pose.position.x = box_marker.pose.position.x;
-    text_marker.pose.position.y = box_marker.pose.position.y;
-    text_marker.pose.position.z = 0.35;
-    text_marker.pose.orientation.w = 1.0;
-    text_marker.scale.z = 0.25;
-    text_marker.color.r = cfg.color[0];
-    text_marker.color.g = cfg.color[1];
-    text_marker.color.b = cfg.color[2];
-    text_marker.color.a = 1.0F;
-    text_marker.text = cfg.name;
-    marker_array.markers.push_back(text_marker);
-  }
-
-  area_marker_pub->publish(marker_array);
+  area_visualizer_->publishAreaMarkers(this->now());
 }
 
 geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
@@ -236,12 +148,12 @@ geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
   return current_pose_;
 }
 
-geometry_msgs::msg::Pose ros_interface::transformMapPose(const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame)
+geometry_msgs::msg::Pose ros_interface::transformMapPose(
+  const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame)
 {
   auto transform_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
   geometry_msgs::msg::Pose output_pose;
-  if (transform_utils &&
-      transform_utils->transformMapPose(input_pose, output_pose, target_frame)) {
+  if (transform_utils && transform_utils->transformMapPose(input_pose, output_pose, target_frame)) {
     return output_pose;
   }
   return input_pose;
@@ -360,7 +272,9 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
     "lifter_current_pos", static_cast<Sentry_BT::LifterPos>(msg->lifter_current_pos));
   blackboard_->set<bool>("is_transformable", msg->is_transformable);
   blackboard_->set<float>("transform_state", msg->transform_state);
-
+  blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
+  auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  tf_utils->updateGimbalYaw(msg->yaw_imu);
   // 存储装甲板位置
   if (msg->is_get)
   // if(false)
@@ -372,7 +286,7 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
 
     target_pose_in.position.x = (msg->armor_pos.x) / 1000.0;  // 转换为米
     target_pose_in.position.y = (msg->armor_pos.y) / 1000.0;
-    target_pose_in.position.z = (msg->armor_pos.z) / 1000.0;  
+    target_pose_in.position.z = (msg->armor_pos.z) / 1000.0;
     TransformPose(target_pose_in, target_pose);
 
     // Quiet logging: only print when target input/output pose changes significantly.
@@ -433,8 +347,17 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
 
   // 提取bit 12-13：哨兵当前姿态
   uint8_t current_stance = (sentry_info_2 >> 12) & 0x3;
-  blackboard_->set<Sentry_BT::SentryStance>(
-    "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
+  if (current_stance >= static_cast<uint8_t>(Sentry_BT::SentryStance::ATTACK) &&
+      current_stance <= static_cast<uint8_t>(Sentry_BT::SentryStance::MOVE)) {
+    blackboard_->set<Sentry_BT::SentryStance>(
+      "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
+  } else {
+    // RCLCPP_WARN_THROTTLE(this->get_logger(),
+    //   *this->get_clock(),
+    //   2000,
+    //   "23%u",
+    //   current_stance);
+  }
 
   // 提取bit 14：己方能量机关是否能够进入正在激活状态
   bool can_activate_energy = ((sentry_info_2 >> 14) & 0x1) != 0;
@@ -502,13 +425,25 @@ bool ros_interface::isTroughZone(
 }
 
 // 判断MPC轨迹是否穿过指定隧道区域（由入口左端点和出口右端点两个点定义）
-bool ros_interface::isTroughTunnel(
-  const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square & tunnel_area)
+bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg,
+  const std::array<Area_Square, 4> & tunnel_areas)
 {
   const auto current_pose = getCurrentPose();
   const Point2D current_point{current_pose.position.x, current_pose.position.y};
-  const bool in_transform_zone = transform_zone.contains(current_point);
-  const bool through_tunnel_now = isTroughZone(msg, tunnel_area);
+  bool in_transform_zone = false;
+  for (const auto & zone : transform_zone) {
+    if (zone.contains(current_point)) {
+      in_transform_zone = true;
+      break;
+    }
+  }
+  bool through_tunnel_now = false;
+  for (const auto & zone : tunnel_areas) {
+    if (isTroughZone(msg, zone)) {
+      through_tunnel_now = true;
+      break;
+    }
+  }
   if (!msg || msg->cmds.empty()) {
     if (!in_transform_zone) {
       tunnel_detect_latched_ = false;

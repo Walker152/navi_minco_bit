@@ -26,9 +26,9 @@ enum PacketTypeEnum
   ENUM_PACKET_GAMESTATUS_DATA,
   ENUM_PACKET_SENTRY_SERVER_DATA,  // 哨兵姿态等信息
   ENUM_PACKET_SENTRY_SELF_DATA,    // 机器人自身状态等信息
-  ENUM_PACKET_RADAR,                // 雷达发送的消息
-  ENUM_PACKET_GLOBAL_PATH_X,  // 全局路径X分包
-  ENUM_PACKET_GLOBAL_PATH_Y   // 全局路径Y分包
+  ENUM_PACKET_RADAR,               // 雷达发送的消息
+  ENUM_PACKET_GLOBAL_PATH_X,       // 全局路径X分包
+  ENUM_PACKET_GLOBAL_PATH_Y        // 全局路径Y分包
 };
 
 // from to 类型
@@ -77,10 +77,10 @@ using NavRes = struct _NavRes;
 
 struct __attribute__((packed, aligned(1))) _GlobalPath
 {
-  uint16_t start_x{};      // 起点x（minimap坐标系）
-  uint16_t start_y{};      // 起点y（minimap坐标系）
-  int8_t delta_x[49]{};    // x方向相对上一点增量
-  int8_t delta_y[49]{};    //  y方向相对上一点增量
+  uint16_t start_x{};    // 起点x（minimap坐标系）
+  uint16_t start_y{};    // 起点y（minimap坐标系）
+  int8_t delta_x[49]{};  // x方向相对上一点增量
+  int8_t delta_y[49]{};  //  y方向相对上一点增量
 };
 using GlobalPath = struct _GlobalPath;
 
@@ -104,8 +104,6 @@ struct _ChassisTarget
   float vx_mps;               // 前进方向速度(m/s)
   float vy_mps;               // 左侧方向速度(m/s)
   float vw_rpm;               // 小陀螺速度(rpm)
-  float current_x;            // 当前x位置(m)
-  float current_y;            // 当前y位置(m)
   float current_yaw;          // 当前朝向角(rad)
   float current_vx;
   float current_vy;
@@ -113,26 +111,22 @@ struct _ChassisTarget
   bool is_aim_outpost;        // 是否抬头击打前哨站
   uint8_t desire_stance;      // 哨兵姿态
   uint8_t desire_lifter_pos;  // 云台升降状态
-  uint8_t control_mode;       // 控制模式: 0 AUTO, 1 MANUAL
   // bool buy_bullet;    // 是否购买子弹
   // bool buy_revive;        // 是否立即复活
-  _ChassisTarget(float _vx_mps,
+  _ChassisTarget(
+    float _vx_mps,
     float _vy_mps,
     float _vw_rpm,
-    float _current_x,
-    float _current_y,
     float _current_yaw,
     float _current_vx,
     float _current_vy,
     float _current_vw,
     bool _is_aim_outpost,
     uint8_t _desire_stance,
-    uint8_t _desire_lifter_pos,
-    uint8_t _control_mode)
-  : vx_mps(_vx_mps), vy_mps(_vy_mps), vw_rpm(_vw_rpm), current_x(_current_x), current_y(_current_y),
-    current_yaw(_current_yaw), current_vx(_current_vx), current_vy(_current_vy), current_vw(_current_vw),
-    is_aim_outpost(_is_aim_outpost), desire_stance(_desire_stance),
-    desire_lifter_pos(_desire_lifter_pos), control_mode(_control_mode)
+    uint8_t _desire_lifter_pos)
+  : vx_mps(_vx_mps), vy_mps(_vy_mps), vw_rpm(_vw_rpm), current_yaw(_current_yaw), current_vx(_current_vx),
+    current_vy(_current_vy), current_vw(_current_vw), is_aim_outpost(_is_aim_outpost),
+    desire_stance(_desire_stance), desire_lifter_pos(_desire_lifter_pos)
   {
   }
 };
@@ -238,6 +232,7 @@ struct __attribute__((packed)) _SentryInfoOffline
   uint8_t lifter_current_pos{};  // 0 -- kTop 1 -- kBottom 2 -- kMiddle
   bool is_transformable{};  // 是否能够进行变形（不止变形中不能变形，升降卡住后也无法进行变形）
   float transform_state{};  // 变形状态，0-1，0%为未变形，100%为完全变形，过渡状态根据实际情况变化
+  uint8_t capacitor_capacity{};  // 电容容量百分比，0-100
 
   _SentryInfoOffline(bool _is_get,
     float _armor_pos[3],
@@ -245,7 +240,8 @@ struct __attribute__((packed)) _SentryInfoOffline
     float _yaw_imu,
     uint8_t _lifter_current_pos,
     bool _is_transformable,
-    float _transform_state)
+    float _transform_state,
+    uint8_t _capacitor_capacity)
   {
     is_get = _is_get;
     for (int i = 0; i < 3; ++i) {
@@ -256,6 +252,7 @@ struct __attribute__((packed)) _SentryInfoOffline
     lifter_current_pos = _lifter_current_pos;
     is_transformable = _is_transformable;
     transform_state = _transform_state;
+    capacitor_capacity = _capacitor_capacity;
   }
 };
 using SentryInfoOffline = struct _SentryInfoOffline;

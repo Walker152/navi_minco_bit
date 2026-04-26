@@ -2,6 +2,10 @@
 
 #include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/pose.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -78,6 +82,69 @@ struct Area_Circle
   }
 };
 
+template <std::size_t N, typename T = Point2D> struct AreaPolygon
+{
+  static_assert(N >= 3, "AreaPolygon requires at least 3 vertices");
+
+  std::array<T, N> vertices;
+
+  AreaPolygon() = default;
+
+  template <typename... Args> explicit AreaPolygon(Args... args) : vertices{args...}
+  {
+    static_assert(sizeof...(args) == N, "Number of arguments must match template parameter N");
+  }
+
+  bool contains(const T & pt) const
+  {
+    constexpr double eps = 1e-9;
+    bool inside = false;
+
+    for (std::size_t i = 0, j = N - 1; i < N; j = i++) {
+      const T & a = vertices[j];
+      const T & b = vertices[i];
+
+      const double min_y = std::min(a.y, b.y);
+      const double max_y = std::max(a.y, b.y);
+
+      // Fast y-range rejection before expensive intersection math.
+      if (pt.y < (min_y - eps) || pt.y > (max_y + eps)) {
+        continue;
+      }
+
+      const double abx = b.x - a.x;
+      const double aby = b.y - a.y;
+      const double apx = pt.x - a.x;
+      const double apy = pt.y - a.y;
+
+      // Boundary-inclusive check for colinear points on edges.
+      const double cross = abx * apy - aby * apx;
+      if (std::fabs(cross) <= eps) {
+        const double dot = apx * abx + apy * aby;
+        const double len2 = abx * abx + aby * aby;
+        if (dot >= -eps && dot <= (len2 + eps)) {
+          return true;
+        }
+      }
+
+      // Vertex-safe crossing rule with strict x-intersection test.
+      const bool intersects = ((b.y > pt.y) != (a.y > pt.y));
+      if (intersects) {
+        const double denom = a.y - b.y;
+        if (std::fabs(denom) <= eps) {
+          continue;
+        }
+        const double x_intersection = (a.x - b.x) * (pt.y - b.y) / denom + b.x;
+        if (pt.x < x_intersection - eps) {
+          inside = !inside;
+        }
+      }
+    }
+
+    return inside;
+  }
+};
+
 struct PatrolPoint
 {
   Point2D position;
@@ -142,53 +209,6 @@ typedef enum _RobotID
   Sentry = 5,
 } RobotID;
 
-inline std::vector<Point2D> nav_points = {
-  // {3.0, 3.0, 0.0},   // HOME
-  // {12.8, 5.5, 0.0},   // BONUS
-  // {15.7, 11.0, 0.0}, // OUTPOST
-  // {7.2, 7.5, 0.0},   // OWN_FORT
-  // {22.0, 7.5, 0.0}   // ENEMY_FORT
-
-  // for test
-  {6.7, 3.9, 0.0},  // HOME
-  {5.6, 3.8, 0.0},  // BONUS
-  {11.0, 6.7, 0.0},  // OUTPOST
-  {11.0, 6.7, 0.0},  // OWN_FORT
-  {11.0, 6.7, 0.0}   // ENEMY_FORT
-  // for rmul
-  // {1.2, 7.2, 0.0},  //HOME
-  // {6.4, 4.4, 0.0},  // BONUS
-  // {7.5, 6.8, 0.0}  // OUTPOST
-};
-
-inline std::vector<PatrolPoint> patrol_points_normal = {
-  // for rmuc
-  // {{16.0, 12.0, 0.0}, 5000},
-  // {{17.3, 7.9, 0.0}, 5000},
-  // {{15.3, 3.8, 0.0}, 6000},
-  // {{12.4, 5.1, 0.0}, 5000},
-  // {{12.0, 8.6, 0.0}, 5000},
-  // {{14.0, 12.0, 0.0}, 6000}
-  // for test
-  {{10.2, 6.8, 0.0}, 5000},
-  {{12.6, 2.0, 0.0}, 5000},
-  {{10.1, 2.6, 0.0}, 5000}
-  };
-
-inline std::vector<PatrolPoint> patrol_points_attack = {
-  // {{16.0, 12.0, 0.0}, 5000}, {{17.3, 7.9, 0.0}, 5000}, {{15.3, 3.8, 0.0}, 6000}
-
-  // for test
-  {{10.2, 6.8, 0.0}, 5000},
-  {{13.5, 4.2, 0.0}, 5000},
-  {{11.7, 2.3, 0.0}, 5000}
-
-};
-
-inline std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};
-inline std::vector<std::string> mode_names = {"PATROL", "TRACING", "RETREAT", "RESPONSE", "MANUAL"};
-inline std::vector<std::string> stance_names = {"ATTACK", "DEFEND", "MOVE"};
-
 struct AllyRobotInfo
 {
   int robot_id;                       // 机器人ID
@@ -203,33 +223,25 @@ struct EnemyRobotInfo
   int allowed_projectile;             // 可打弹丸数
   geometry_msgs::msg::Pose position;  // 位置
 };
+struct AreaVizConfig
+{
+  std::string name;
+  Area_Square area;
+  std::array<float, 3> color;
+};
 
-// =============== 战略模式：巡逻点与云台巡检区域映射表 ===============
+struct PolygonVizConfig
+{
+  std::string name;
+  std::vector<Point2D> vertices;
+  std::array<float, 3> color;
+};
 
-using PatrolList = std::vector<PatrolPoint>;
-using GimbalPatrolAreaList = std::vector<GimbalPatrolPoint>;
-
-// 1. 底盘巡逻点映射表 (TacticalMode -> PatrolList)
-inline std::unordered_map<TacticalMode, PatrolList> tactical_patrol_map = {
-  {TacticalMode::OFFENSIVE, patrol_points_attack},
-  {TacticalMode::DEFENSIVE, patrol_points_normal},
-  {TacticalMode::BALANCED, patrol_points_normal}};
-
-// 2. 云台巡检区域映射表 (TacticalMode -> GimbalPatrolAreaList)
-inline std::unordered_map<TacticalMode, GimbalPatrolAreaList> tactical_gimbal_map = {
-  {TacticalMode::OFFENSIVE,
-    {
-      {-180.0f, 180.0f, false},  // 直视前方扫射范围
-      {-30.0f, 30.0f, true}      // 抬头重点区域
-    }},
-  {TacticalMode::DEFENSIVE,
-    {
-      {-180.0f, 180.0f, false},  // 360度全方位戒备
-      {90.0f, 180.0f, true}      // 背后抬头观察高塔等
-    }},
-  {TacticalMode::BALANCED,
-    {
-      {-180.0f, 180.0f, false}  // 兼顾前后
-    }}};
+template <std::size_t N>
+inline PolygonVizConfig makePolygonVizConfig(
+  const std::string & name, const AreaPolygon<N, Point2D> & polygon, const std::array<float, 3> & color)
+{
+  return {name, {polygon.vertices.begin(), polygon.vertices.end()}, color};
+}
 
 }  // namespace Sentry_BT

@@ -94,6 +94,7 @@ public:
     msg.transform_state = in.transform_state;
     transform_state = in.transform_state;
     msg.header.stamp = now();
+    msg.capacitor_capacity = in.capacitor_capacity;
     offline_info_pub_->publish(msg);
   }
 
@@ -174,8 +175,9 @@ private:
 
     com_timer_ = this->create_wall_timer(
       std::chrono::milliseconds(3), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
-    path_timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(1000), std::bind(&ComInterfaceRos::sendGlobalPathLoop, this), comm_cb_group_);
+    path_timer_ = this->create_wall_timer(std::chrono::milliseconds(1000),
+      std::bind(&ComInterfaceRos::sendGlobalPathLoop, this),
+      comm_cb_group_);
     RCLCPP_INFO(this->get_logger(), "ComInterfaceRos initialized");
   }
 
@@ -189,12 +191,9 @@ private:
     float current_vw = 0.0f;
     uint8_t desire_stance = 0;
     uint8_t desire_lifter_pos = 0;
-    uint8_t control_mode = 0;
     bool use_gyro_mode = false;
     float gyro_vel = 0.0f;
     bool is_aim_outpost = false;
-    double odom_x = 0.0;
-    double odom_y = 0.0;
     geometry_msgs::msg::Quaternion odom_q;
 
     {
@@ -206,19 +205,17 @@ private:
       // vw_rpm = 80.0f;
       desire_stance = behavior_.desired_stance;
       desire_lifter_pos = behavior_.desire_lifter_pos;
-      control_mode = behavior_.control_mode;
-    //   use_gyro_mode = behavior_.use_gyro_mode;
-    //   gyro_vel = behavior_.gyro_vel;
+      //   use_gyro_mode = behavior_.use_gyro_mode;
+      //   gyro_vel = behavior_.gyro_vel;
 
       // if (use_gyro_mode) {
       //   vw_rpm = gyro_vel;
       // }
       if (transform_state >= 0.85f) {
-        vx_mps *= 1.2;
-        vy_mps *= 1.2;
+        vx_mps *= 1.0;
+        vy_mps *= 1.0;
+        vw_rpm = 0.0;
       }
-      odom_x = odom_.pose.pose.position.x;
-      odom_y = odom_.pose.pose.position.y;
       odom_q = odom_.pose.pose.orientation;
       current_vx = odom_.twist.twist.linear.x;
       current_vy = odom_.twist.twist.linear.y;
@@ -236,16 +233,13 @@ private:
     ChassisTarget target(vx_mps,
       vy_mps,
       vw_rpm,
-      odom_x,
-      odom_y,
       current_yaw_deg,
       current_vx,
       current_vy,
       current_vw,
       is_aim_outpost,
       desire_stance,
-      desire_lifter_pos,
-      control_mode);
+      desire_lifter_pos);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
     if (flag == 0) {
       static auto last_send_time = this->now();
@@ -255,13 +249,10 @@ private:
           NV(target.vx_mps),
           NV(target.vy_mps),
           NV(target.vw_rpm),
-          NV(target.current_x),
-          NV(target.current_y),
           NV(target.current_yaw),
           NV(target.is_aim_outpost),
           NV(static_cast<int>(target.desire_stance)),
-          NV(static_cast<int>(target.desire_lifter_pos)),
-          NV(static_cast<int>(target.control_mode)));
+          NV(static_cast<int>(target.desire_lifter_pos)));
         last_send_time = now_time;
       }
     }
@@ -288,8 +279,11 @@ private:
     // (void)Communication::send2stm32<GlobalPathY>(global_path_y, ENUM_PACKET_GLOBAL_PATH_Y);
   }
 
-  static void mapToMinimapPoint(
-    const tf2::Transform & tf_map_to_minimap, const double map_x, const double map_y, double & mini_x, double & mini_y)
+  static void mapToMinimapPoint(const tf2::Transform & tf_map_to_minimap,
+    const double map_x,
+    const double map_y,
+    double & mini_x,
+    double & mini_y)
   {
     const tf2::Vector3 p_map(map_x, map_y, 0.0);
     const tf2::Vector3 p_minimap = tf_map_to_minimap * p_map;

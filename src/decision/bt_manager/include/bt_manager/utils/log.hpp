@@ -3,6 +3,7 @@
 #pragma once
 #include "color_text.hpp"
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <ctime>
 #include <iomanip>
@@ -10,6 +11,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 namespace icp_log {
 inline std::string now_string()
@@ -71,6 +73,99 @@ template <typename... NVs> inline void log_block(std::string prefix, const NVs &
   oss << prefix << bar << ::color_text::RESET << '\n';
   log_info_line(oss.str());
 }
+
 }  // namespace icp_log
+
+namespace Sentry_BT {
+namespace detail {
+inline std::atomic_bool & transitionLogEnabledFlag()
+{
+  static std::atomic_bool enabled{false};
+  return enabled;
+}
+
+inline void setTransitionLogEnabled(const bool enabled)
+{
+  transitionLogEnabledFlag().store(enabled, std::memory_order_relaxed);
+}
+
+inline bool isTransitionLogEnabled()
+{
+  return transitionLogEnabledFlag().load(std::memory_order_relaxed);
+}
+
+enum class TreeKind
+{
+  NAV,
+  STANCE,
+  GIMBAL,
+  TACTICAL
+};
+
+inline const std::string & treeColor(const TreeKind kind)
+{
+  switch (kind) {
+  case TreeKind::NAV:
+    return ::color_text::CYAN;
+  case TreeKind::STANCE:
+    return ::color_text::MAGENTA;
+  case TreeKind::GIMBAL:
+    return ::color_text::BLUE;
+  case TreeKind::TACTICAL:
+    return ::color_text::GREEN;
+  default:
+    return ::color_text::WHITE;
+  }
+}
+
+inline const char * treeLabel(const TreeKind kind)
+{
+  switch (kind) {
+  case TreeKind::NAV:
+    return "NAV_TREE";
+  case TreeKind::STANCE:
+    return "STANCE_TREE";
+  case TreeKind::GIMBAL:
+    return "GIMBAL_TREE";
+  case TreeKind::TACTICAL:
+    return "TACTICAL_TREE";
+  default:
+    return "BT_TREE";
+  }
+}
+
+inline void logTransition(const TreeKind tree_kind,
+  const std::string & condition_name,
+  const bool active,
+  const std::string & detail = "",
+  const std::string & branch = "")
+{
+  if (!isTransitionLogEnabled()) {
+    return;
+  }
+
+  static std::unordered_map<std::string, bool> last_states;
+  const std::string key = std::string(treeLabel(tree_kind)) + "::" + branch + "::" + condition_name;
+  const auto it = last_states.find(key);
+  if (it != last_states.end() && it->second == active) {
+    return;
+  }
+  last_states[key] = active;
+
+  std::cout << treeColor(tree_kind) << "[" << treeLabel(tree_kind) << "]";
+  if (!branch.empty()) {
+    std::cout << "[" << branch << "]";
+  }
+  std::cout << " " << condition_name << " => "
+            << (active ? std::string(::color_text::GREEN) + "ACTIVE"
+                       : std::string(::color_text::YELLOW) + "INACTIVE")
+            << ::color_text::WHITE;
+  if (!detail.empty()) {
+    std::cout << " | " << detail;
+  }
+  std::cout << ::color_text::RESET << std::endl;
+}
+}  // namespace detail
+}  // namespace Sentry_BT
 
 #define NV(var) icp_log::nv(#var, (var))
