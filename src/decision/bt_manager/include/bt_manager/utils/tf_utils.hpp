@@ -29,14 +29,15 @@ public:
     geometry_msgs::msg::Pose & output_pose,
     const std::string & target_frame);
 
+  void updateGimbalYaw(const float & yaw);
+
 private:
-  void updateGimbalYaw(const std_msgs::msg::Float32::ConstSharedPtr & msg);
+  
 
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;  // 动态发布器
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
-  rclcpp::Subscription<std_msgs::msg::Float32>::ConstSharedPtr gimbal_yaw_sub_;
   rclcpp::TimerBase::SharedPtr tf_publish_timer_;
   std::atomic<float> latest_gimbal_yaw_deg_{0.0f};
 };
