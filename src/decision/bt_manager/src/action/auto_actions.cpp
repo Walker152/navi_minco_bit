@@ -6,6 +6,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <iostream>
 #include <limits>
 #include <string>
 using namespace color_text;
@@ -37,12 +38,12 @@ BT::NodeStatus SetCoordinate::tick()
   Sentry_BT::Point2D point = nav_points[goal_index.value()];
 
   auto blackboard = config().blackboard;
-  blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
   blackboard->set("nav_goal", point);
   static int last_goal_index = -1;
   if (goal_index.value() != last_goal_index) {
-    std::cout << GREEN << "Set navigation goal to " << goal_names[goal_index.value()] << ": (" << point.x
-              << ", " << point.y << ")" << RESET << std::endl;
+    std::cout << CYAN << "[NAV_TREE]" << GREEN << "Set navigation goal to "
+              << goal_names[goal_index.value()] << ": (" << point.x << ", " << point.y << ")" << RESET
+              << std::endl;
     last_goal_index = goal_index.value();
   }
   return BT::NodeStatus::SUCCESS;
@@ -62,12 +63,10 @@ BT::PortsList SetTargetCoordinate::providedPorts()
 BT::NodeStatus SetTargetCoordinate::tick()
 {
   auto blackboard = config().blackboard;
-  blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
   auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
   Sentry_BT::Point2D point;  //最终目标点
   //获取当前位置
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-
   // 提取坐标
   double current_x = current_pose.position.x;
   double current_y = current_pose.position.y;
@@ -81,7 +80,6 @@ BT::NodeStatus SetTargetCoordinate::tick()
   const double ATTACK_DISTANCE = 0.3;  // 攻击距离
 
   int guidance_case = -1;  // 0: approach, 1: backoff, 2: overlap-backoff
-
   if (distance > ATTACK_DISTANCE) {
     // 距离大于30cm，在线段上取离目标点ATTACK_DISTANCE的点
     double scale = 1.0 - ATTACK_DISTANCE / distance;
@@ -103,22 +101,25 @@ BT::NodeStatus SetTargetCoordinate::tick()
       guidance_case = 2;
     }
   }
-
+  std::cout << CYAN << "[NAV_TREE]" << YELLOW << "距离(" << distance
+                << "m)大于30cm,沿连线方向前进到距离目标点30cm位置"
+                << " | current_pose=(" << current_x << ", " << current_y << ")"  <<"target_pose=(" << target_x << ", " << target_y << ")" << RESET << std::endl;
   static int last_guidance_case = -1;
   if (guidance_case != last_guidance_case) {
     if (guidance_case == 0) {
-      std::cout << YELLOW << "距离(" << distance << "m)大于30cm,沿连线方向前进到距离目标点30cm位置"
+      std::cout << CYAN << "[NAV_TREE]" << YELLOW << "距离(" << distance
+                << "m)大于30cm,沿连线方向前进到距离目标点30cm位置"
                 << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
     } else if (guidance_case == 1) {
-      std::cout << YELLOW << "距离(" << distance << "m)小于等于30cm,沿连线方向后退30cm"
+      std::cout << CYAN << "[NAV_TREE]" << YELLOW << "距离(" << distance
+                << "m)小于等于30cm,沿连线方向后退30cm"
                 << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
     } else if (guidance_case == 2) {
-      std::cout << YELLOW << "当前位置与目标点重合,向y轴负方向后退30cm"
+      std::cout << CYAN << "[NAV_TREE]" << YELLOW << "当前位置与目标点重合,向y轴负方向后退30cm"
                 << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
     }
     last_guidance_case = guidance_case;
   }
-
   Sentry_BT::Point2D old_goal;
   bool has_old_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal", old_goal);
   static bool last_rate_limited = false;
@@ -131,7 +132,8 @@ BT::NodeStatus SetTargetCoordinate::tick()
     // 如果新目标点跟老目标点的差距小于 0.5 米，就不更新
     if (diff_distance < 0.5) {
       if (!last_rate_limited) {
-        std::cout << WHITE << "Target update skipped by 0.5m limiter" << RESET << std::endl;
+        std::cout << CYAN << "[NAV_TREE]" << WHITE << "Target update skipped by 0.5m limiter" << RESET
+                  << std::endl;
       }
       last_rate_limited = true;
       return BT::NodeStatus::SUCCESS;  // 直接返回成功，放过底层
@@ -141,7 +143,7 @@ BT::NodeStatus SetTargetCoordinate::tick()
 
   // 将目标点设置到黑板
   blackboard->set("nav_goal", point);
-  std::cout << GREEN << "Set target pose to: (" << point.x << ", " << point.y << ")"
+  std::cout << CYAN << "[NAV_TREE]" << GREEN << "Set target pose to: (" << point.x << ", " << point.y << ")"
             << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
   return BT::NodeStatus::SUCCESS;
 }
@@ -230,8 +232,8 @@ BT::NodeStatus SelectPatrolPoint::tick()
 
   static int last_logged_index = -1;
   if (current_index != last_logged_index) {
-    std::cout << GREEN << "Selected patrol point " << current_index << ": (" << selected_point.x << ", "
-              << selected_point.y << ")" << RESET << std::endl;
+    std::cout << CYAN << "[NAV_TREE]" << GREEN << "Selected patrol point " << current_index << ": ("
+              << selected_point.x << ", " << selected_point.y << ")" << RESET << std::endl;
     last_logged_index = current_index;
   }
 
@@ -272,7 +274,8 @@ BT::NodeStatus Wait::onStart()
 
   static int last_wait_time = -1;
   if (wait_time != last_wait_time) {
-    std::cout << GREEN << "Waiting for " << wait_time << " milliseconds" << RESET << std::endl;
+    std::cout << CYAN << "[NAV_TREE]" << GREEN << "Waiting for " << wait_time << " milliseconds" << RESET
+              << std::endl;
     last_wait_time = wait_time;
   }
 
@@ -292,7 +295,8 @@ BT::NodeStatus Wait::onRunning()
 }
 
 void Wait::onHalted()
-{}
+{
+}
 // ------------------- SetStairsPosition -------------------
 SetStairsPosition::SetStairsPosition(const std::string & name, const BT::NodeConfiguration & config)
 : BT::SyncActionNode(name, config)
@@ -330,8 +334,7 @@ BT::PortsList DescendStairsAction::providedPorts()
 {
   return {BT::InputPort<double>("linear_y", 2.0, "Linear velocity y"),
     BT::InputPort<double>("angular_z", 0.0, "Angular velocity z"),
-    BT::InputPort<double>("timeout", 5.0, "Timeout in seconds")
-  };
+    BT::InputPort<double>("timeout", 5.0, "Timeout in seconds")};
 }
 
 BT::NodeStatus DescendStairsAction::onStart()
@@ -349,12 +352,19 @@ BT::NodeStatus DescendStairsAction::onRunning()
   auto ros_interface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
   auto current_time = ros_interface->now();
   if ((current_time - start_time_).seconds() > timeout_) {
-    std::cout << RED << "DescendStairsAction timed out after " << timeout_ << " seconds" << RESET << std::endl;
+    std::cout << CYAN << "[NAV_TREE]" << RED << "DescendStairsAction timed out after " << timeout_
+              << " seconds" << RESET << std::endl;
     blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
     return BT::NodeStatus::SUCCESS;
   }
   const auto pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-  const bool in_stairs = stairs_zone.contains({pose.position.x, pose.position.y, 0.0});
+  bool in_stairs = false;
+  for (auto zone : stairs_zone) {
+    if (zone.contains({pose.position.x, pose.position.y, 0.0})) {
+      in_stairs = true;
+      break;
+    }
+  }
   if (!in_stairs) {
     blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
     return BT::NodeStatus::SUCCESS;
@@ -399,8 +409,8 @@ BT::NodeStatus AccumulateAmmoPurchase::tick()
 
   static int last_total = -1;
   if (total != last_total) {
-    std::cout << CYAN << "AccumulateAmmoPurchase => request=" << request << ", total=" << total << RESET
-              << std::endl;
+    std::cout << CYAN << "[NAV_TREE]" << GREEN << "AccumulateAmmoPurchase => request=" << request
+              << ", total=" << total << RESET << std::endl;
     last_total = total;
   }
   return BT::NodeStatus::SUCCESS;

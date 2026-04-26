@@ -80,6 +80,7 @@ public:
   BT::NodeStatus onStart() override;
   BT::NodeStatus onRunning() override;
   void onHalted() override;
+
 private:
   double timeout_;
   rclcpp::Time start_time_;

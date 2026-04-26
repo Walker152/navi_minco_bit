@@ -273,17 +273,14 @@ public:
           auto current_stance = blackboard->get<int>("current_stance");
           std::string stance_str = "未知";
           switch (current_stance) {
-          case 0:
-            stance_str = "地面";
-            break;
           case 1:
-            stance_str = "悬空";
+            stance_str = "ATTACK";
             break;
           case 2:
-            stance_str = "爬坡";
+            stance_str = "DEFEND";
             break;
           case 3:
-            stance_str = "高打";
+            stance_str = "MOVE";
             break;
           }
           std::cout << "  ▸ 当前姿态: " << stance_str << " (" << current_stance << ")" << std::endl;

@@ -77,6 +77,66 @@ Sentry_BT::Point2D getOutsidePointNearArea(const Sentry_BT::Area_Square & area)
   const double max_y = std::max(area.top_left.y, area.bottom_right.y);
   return Sentry_BT::Point2D{max_x + 0.8, max_y + 0.8, 0.0};
 }
+
+template <std::size_t N>
+Sentry_BT::Point2D getAreaCenter(const std::array<Sentry_BT::Area_Square, N> & areas)
+{
+  double min_x = std::min(areas[0].top_left.x, areas[0].bottom_right.x);
+  double max_x = std::max(areas[0].top_left.x, areas[0].bottom_right.x);
+  double min_y = std::min(areas[0].top_left.y, areas[0].bottom_right.y);
+  double max_y = std::max(areas[0].top_left.y, areas[0].bottom_right.y);
+
+  for (const auto & area : areas) {
+    min_x = std::min(min_x, std::min(area.top_left.x, area.bottom_right.x));
+    max_x = std::max(max_x, std::max(area.top_left.x, area.bottom_right.x));
+    min_y = std::min(min_y, std::min(area.top_left.y, area.bottom_right.y));
+    max_y = std::max(max_y, std::max(area.top_left.y, area.bottom_right.y));
+  }
+
+  return Sentry_BT::Point2D{(min_x + max_x) * 0.5, (min_y + max_y) * 0.5, 0.0};
+}
+
+template <std::size_t N>
+Sentry_BT::Point2D getOutsidePointNearArea(const std::array<Sentry_BT::Area_Square, N> & areas)
+{
+  double max_x = std::max(areas[0].top_left.x, areas[0].bottom_right.x);
+  double max_y = std::max(areas[0].top_left.y, areas[0].bottom_right.y);
+
+  for (const auto & area : areas) {
+    max_x = std::max(max_x, std::max(area.top_left.x, area.bottom_right.x));
+    max_y = std::max(max_y, std::max(area.top_left.y, area.bottom_right.y));
+  }
+
+  return Sentry_BT::Point2D{max_x + 0.8, max_y + 0.8, 0.0};
+}
+
+template <std::size_t N>
+Sentry_BT::Point2D getAreaCenter(const Sentry_BT::AreaPolygon<N, Sentry_BT::Point2D> & area)
+{
+  double min_x = area.vertices[0].x;
+  double max_x = area.vertices[0].x;
+  double min_y = area.vertices[0].y;
+  double max_y = area.vertices[0].y;
+  for (const auto & vertex : area.vertices) {
+    min_x = std::min(min_x, vertex.x);
+    max_x = std::max(max_x, vertex.x);
+    min_y = std::min(min_y, vertex.y);
+    max_y = std::max(max_y, vertex.y);
+  }
+  return Sentry_BT::Point2D{(min_x + max_x) * 0.5, (min_y + max_y) * 0.5, 0.0};
+}
+
+template <std::size_t N>
+Sentry_BT::Point2D getOutsidePointNearArea(const Sentry_BT::AreaPolygon<N, Sentry_BT::Point2D> & area)
+{
+  double max_x = area.vertices[0].x;
+  double max_y = area.vertices[0].y;
+  for (const auto & vertex : area.vertices) {
+    max_x = std::max(max_x, vertex.x);
+    max_y = std::max(max_y, vertex.y);
+  }
+  return Sentry_BT::Point2D{max_x + 0.8, max_y + 0.8, 0.0};
+}
 }  // namespace
 
 class EventStatusTestNode : public rclcpp::Node
@@ -376,7 +436,7 @@ private:
         // 隧道阶段：血量和弹量恢复，避免继续走“低血回家”语义。
         online_msg.self_health = 400;  // /4后为100
         online_msg.bullets_remaining = 300;
-        tf_anchor = getAreaCenter(Sentry_BT::tunnel_zone);
+        tf_anchor = getAreaCenter(Sentry_BT::tunnel_zone[0]);
         offline_msg.lifter_current_pos = 1;  // 模拟升降机构处于“准备过洞”状态
       }
       break;
