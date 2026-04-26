@@ -1,4 +1,5 @@
 #include "bt_manager/ros_interface.hpp"
+#include "bt_manager/utils/tf_utils.hpp"
 
 #include <algorithm>
 #include <array>
@@ -6,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -271,7 +273,8 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
   blackboard_->set<bool>("is_transformable", msg->is_transformable);
   blackboard_->set<float>("transform_state", msg->transform_state);
   blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
-
+  auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  tf_utils->updateGimbalYaw(msg->yaw_imu);
   // 存储装甲板位置
   if (msg->is_get)
   // if(false)

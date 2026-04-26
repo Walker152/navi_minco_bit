@@ -309,24 +309,24 @@ planner_server:
         enable_yaw_opt: true
         safe_dist: 0.35
         lookahead_dist: 5.0  # 前视距离,用于minco部分优化
-        max_velocity: 4.0
-        max_acceleration: 4.0
+        max_velocity: 3.5
+        max_acceleration: 3.5
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.8
         turn_angle_saturation: 1.57
-        min_turn_vel: 1.8
+        min_turn_vel: 2.0
         decay_power: 2.0
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
         opt_accuracy: 0.001
         print_optimizer_log: true
-        penalty_weight_time: 45.0
+        penalty_weight_time: 100.0
         penalty_weight_pos: 50000.0
-        penalty_weight_vel: 2000.0
-        penalty_weight_acc: 2000.0
-        penalty_weight_att: 300.0
-        penalty_weight_time_barrier: 100.0
+        penalty_weight_vel: 1500.0
+        penalty_weight_acc: 1500.0
+        penalty_weight_att: 500.0
+        penalty_weight_time_barrier: 50.0
       recovery_server:
         fail_threshold: 3
         cooldown_sec: 2.0
