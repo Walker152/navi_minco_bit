@@ -47,8 +47,11 @@ add_library(${library_name} SHARED
   ${TRAJ_OPT_SOURCES}
 )
 
-include_directories(
-  include
+target_include_directories(${library_name} 
+PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+PRIVATE
   ${EIGEN3_INCLUDE_DIR}
   ${PCL_INCLUDE_DIRS}
 )
