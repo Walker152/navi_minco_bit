@@ -34,6 +34,10 @@ public:
     double safe_dist{0.3};
     double max_vel{5.0};
     double max_acc{5.0};
+    double turn_angle_deadzone{0.174};
+    double turn_angle_saturation{1.57};
+    double min_turn_vel{1.0};
+    double decay_power{2.0};
 
     double rho{0.01};
     double smooth_eps{0.01};
@@ -61,7 +65,17 @@ public:
 
   // === Core Planning Interfaces ===
   // --- Configuration and Initialization ---
-  void setConfig(const Config & cfg) { cfg_ = cfg; }
+  void setConfig(const Config & cfg)
+  {
+    cfg_ = cfg;
+    opt_vars_.magnitudeBounds.resize(cfg_.magnitudeBounds.size());
+    opt_vars_.penaltyWeights.resize(cfg_.penaltyWeights.size());
+    opt_vars_.magnitudeBounds = cfg_.magnitudeBounds;
+    opt_vars_.penaltyWeights = cfg_.penaltyWeights;
+    opt_vars_.rho = cfg_.rho;
+    opt_vars_.smooth_eps = cfg_.smooth_eps;
+    opt_vars_.integral_res = cfg_.integral_res;
+  }
 
   void setInitPsAndTs(const vec_Vec3f & init_ps, const VecDf & init_ts);
 
@@ -74,6 +88,7 @@ public:
   double optimize(const std::vector<Eigen::Vector3d> & waypoints,
     const Eigen::Matrix3d & start_state,
     const Eigen::Matrix3d & end_state,
+    const VecDf & local_magnitudes,
     geometry_utils::Trajectory & out_traj);
 
 private:
@@ -95,6 +110,7 @@ private:
 
     VecDf magnitudeBounds;
     VecDf penaltyWeights;
+    VecDf local_magnitudes;
 
     Eigen::Matrix3d headPVA;
     Eigen::Matrix3d tailPVA;
@@ -141,6 +157,7 @@ private:
     const double & smooth_eps,
     const int & integral_res,
     const VecDf & magnitudeBounds,
+    const VecDf & local_magnitudes,
     const VecDf & penaltyWeights,
     double & cost,
     VecDf & partialGradByTimes,
@@ -151,7 +168,8 @@ private:
     const VecDf & times,
     const VecDf & magnitudeBounds,
     double & cost,
-    VecDf & gradByTimes);
+    VecDf & gradByTimes,
+    VecDf & penalty_log);
 
   // --- Time Reparameterization ---
   static void forwardT(const VecDf & tau, VecDf & T) { T = tau.array().exp(); }
