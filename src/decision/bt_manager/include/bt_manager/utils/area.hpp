@@ -12,10 +12,10 @@ namespace Sentry_BT {
 #ifdef RMUC_AREA
 // for rmuc
 inline std::array<Area_Square, 4> transform_zone{
-  Area_Square{Point2D{10.5, 5.0}, Point2D{8.0, 1.3}},
-  Area_Square{Point2D{21.0, 13.2}, Point2D{18.5, 10.0}},
-  Area_Square{Point2D{15.7, 13.8}, Point2D{10.4, 12.3}},
-  Area_Square{Point2D{18.6, 2.7}, Point2D{13.3, 1.2}},
+  Area_Square{Point2D{10.5, 5.0}, Point2D{8.0, 1.3}}, // Home Right Tunnel
+  Area_Square{Point2D{21.0, 13.2}, Point2D{18.5, 10.0}}, // Enemy Right Tunnel
+  Area_Square{Point2D{15.7, 13.8}, Point2D{10.4, 12.3}}, // Home Left Tunnel
+  Area_Square{Point2D{18.6, 2.7}, Point2D{13.3, 1.2}}, // Enemy Left Tunnel
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
@@ -26,6 +26,13 @@ inline std::array<Area_Square, 4> tunnel_zone = {
   Area_Square{Point2D{14.1, 13.8}, Point2D{12.1, 13.0}},
   Area_Square{Point2D{19.7, 13.2}, Point2D{18.6, 11.4}},
   Area_Square{Point2D{16.9, 2.0}, Point2D{14.9, 1.2}},
+};
+// Per-tunnel recovery configuration, index-aligned with tunnel_zone.
+inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
+  TunnelRecoveryConfig{-1.57f, Point2D{3.0, 3.0, 0.0}, Point2D{9.8, 2.8, 0.0}, 0.0f, 1.2f},
+  TunnelRecoveryConfig{1.57f, Point2D{22.0, 7.5, 0.0}, Point2D{12.8, 13.3, 0.0}, 0.0f, 1.5f},
+  TunnelRecoveryConfig{0.0f, Point2D{3.0, 3.0, 0.0}, Point2D{19.1, 12.3, 0.0}, 0.0f, 1.0f},
+  TunnelRecoveryConfig{3.14f, Point2D{22.0, 7.5, 0.0}, Point2D{15.8, 1.6, 0.0}, 0.0f, 1.4f},
 };
 inline std::array<Area_Square, 2> stairs_zone{
   Area_Square{Point2D{9.4, 1.8}, Point2D{8.0, 0.2}},
@@ -158,6 +165,13 @@ inline std::array<Area_Square, 4> tunnel_zone = {
   Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 4.1}},
   Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 4.1}},
   Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 4.1}},
+};
+// Per-tunnel recovery configuration, index-aligned with tunnel_zone.
+inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
+  TunnelRecoveryConfig{1.57f, Point2D{6.4, 2.3, 0.0}, Point2D{11.8, 5.8, 0.0}, 0.0f, 1.0f},
+  TunnelRecoveryConfig{1.57f, Point2D{13.7, 3.2, 0.0}, Point2D{11.8, 5.2, 0.0}, 0.0f, 1.2f},
+  TunnelRecoveryConfig{1.57f, Point2D{6.4, 2.3, 0.0}, Point2D{11.8, 4.8, 0.0}, 0.0f, 1.4f},
+  TunnelRecoveryConfig{1.57f, Point2D{13.7, 3.2, 0.0}, Point2D{11.8, 4.4, 0.0}, 0.0f, 1.1f},
 };
 inline std::array<Area_Square, 2> stairs_zone{
   Area_Square{Point2D{11.5, 7.1}, Point2D{10.3, 6.2}},
