@@ -82,7 +82,7 @@ public:
   {
     int current_mode = -1;
     config().blackboard->get<int>("current_mode", current_mode);
-    return current_mode == Sentry_BT::NavMode::PATROL || name() == "PublishPatrolGoal";
+    return current_mode == Sentry_BT::NavMode::PATROL;
   }
 
   void on_tick() override
