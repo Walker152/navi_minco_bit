@@ -205,17 +205,17 @@ private:
       // vw_rpm = 80.0f;
       desire_stance = behavior_.desired_stance;
       desire_lifter_pos = behavior_.desire_lifter_pos;
-      //   use_gyro_mode = behavior_.use_gyro_mode;
-      //   gyro_vel = behavior_.gyro_vel;
+        use_gyro_mode = behavior_.use_gyro_mode;
+        gyro_vel = behavior_.gyro_vel;
 
-      // if (use_gyro_mode) {
-      //   vw_rpm = gyro_vel;
-      // }
-      if (transform_state >= 0.85f) {
-        vx_mps *= 1.0;
-        vy_mps *= 1.0;
-        vw_rpm = 0.0;
+      if (use_gyro_mode) {
+        vw_rpm = gyro_vel;
       }
+      // if (transform_state >= 0.85f) {
+      //   vx_mps *= 1.0;
+      //   vy_mps *= 1.0;
+      //   vw_rpm = 0.0;
+      // }
       odom_q = odom_.pose.pose.orientation;
       current_vx = odom_.twist.twist.linear.x;
       current_vy = odom_.twist.twist.linear.y;
