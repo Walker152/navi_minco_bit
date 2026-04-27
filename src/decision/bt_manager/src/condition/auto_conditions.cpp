@@ -41,7 +41,7 @@ BT::NodeStatus CheckRetreatCondition::tick()
 
   BT::NodeStatus result = BT::NodeStatus::FAILURE;
   if (current_mode == Sentry_BT::NavMode::RETREAT) {
-    if (health >= recovery_threshold && ammo > ammo_recovery_threshold) {
+    if (health >= recovery_threshold && ammo >= ammo_recovery_threshold) {
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::PATROL);
       result = BT::NodeStatus::FAILURE;
     } else {
