@@ -101,9 +101,6 @@ BT::NodeStatus SetTargetCoordinate::tick()
       guidance_case = 2;
     }
   }
-  std::cout << CYAN << "[NAV_TREE]" << YELLOW << "距离(" << distance
-                << "m)大于30cm,沿连线方向前进到距离目标点30cm位置"
-                << " | current_pose=(" << current_x << ", " << current_y << ")"  <<"target_pose=(" << target_x << ", " << target_y << ")" << RESET << std::endl;
   static int last_guidance_case = -1;
   if (guidance_case != last_guidance_case) {
     if (guidance_case == 0) {
