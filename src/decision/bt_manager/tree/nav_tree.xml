@@ -1,4 +1,5 @@
 <root main_tree_to_execute="MainTree">
+  <include path="recovery_tree.xml" />
   <BehaviorTree ID="MainTree">
     <ReactiveFallback name="NavPriorityRoot">
       <ReactiveSequence name="Priority0ManualOverride">
@@ -47,6 +48,14 @@
           </ReactiveSequence>
         </ForceSuccess>
       </ReactiveSequence>
+
+      <ReactiveSequence name="Priority1_5TunnelRecovery">
+        <CheckTimeInZone min_seconds="10.0" max_seconds="999.0" zone_name="transform_zone" />
+        <SubTree ID="TunnelRecoverySubTree"
+                 __shared_blackboard="true"
+                 __autoremap="true" />
+      </ReactiveSequence>
+
       <ReactiveSequence name="Priority2TargetAttack">
         <!-- <ChangeMapAction name="SwitchToMainMapForSpecial"
                            map_dir="src/navigation/navi2_bringup/maps/2026"
