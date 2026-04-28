@@ -24,39 +24,34 @@ BT::NodeStatus CheckRetreatCondition::tick()
 {
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
-  auto health_threshold_ = getInput<float>("health_threshold");
-  auto recovery_threshold_ = getInput<float>("recovery_threshold");
-  auto ammo_threshold_ = getInput<int>("ammo_threshold");
-  auto ammo_recovery_threshold_ = getInput<int>("ammo_recovery_threshold");
-  if (!health_threshold_ || !recovery_threshold_ || !ammo_threshold_ || !ammo_recovery_threshold_) {
-    throw BT::RuntimeError("missing required input [health_threshold] or [recovery_threshold]");
-  }
-  float health_threshold = health_threshold_.value();
-  float recovery_threshold = recovery_threshold_.value();
-  int ammo_threshold = ammo_threshold_.value();
-  int ammo_recovery_threshold = ammo_recovery_threshold_.value();
+  auto health_threshold_ = getInput<float>("health_threshold").value_or(50.0f);
+  auto recovery_threshold_ = getInput<float>("recovery_threshold").value_or(50.0f);
+  auto ammo_threshold_ = getInput<int>("ammo_threshold").value_or(100);
+  auto ammo_recovery_threshold_ = getInput<int>("ammo_recovery_threshold").value_or(100);
+
   auto health = blackboard->get<float>("health");
   auto ammo = blackboard->get<int>("bullets_remaining");
   auto current_mode = blackboard->get<int>("current_mode");
 
   BT::NodeStatus result = BT::NodeStatus::FAILURE;
   if (current_mode == Sentry_BT::NavMode::RETREAT) {
-    if (health >= recovery_threshold && ammo > ammo_recovery_threshold) {
+    if (health >= recovery_threshold_ && ammo >= ammo_recovery_threshold_) {
       blackboard->set<int>("current_mode", Sentry_BT::NavMode::PATROL);
       result = BT::NodeStatus::FAILURE;
     } else {
       result = BT::NodeStatus::SUCCESS;
     }
-  } else if (health < health_threshold || ammo < ammo_threshold) {
+  } else if (health < health_threshold_ || ammo < ammo_threshold_ ) {
     blackboard->set<int>("current_mode", Sentry_BT::NavMode::RETREAT);
     result = BT::NodeStatus::SUCCESS;
   }
 
   const bool active = (result == BT::NodeStatus::SUCCESS);
   std::ostringstream retreat_detail;
-  retreat_detail << "health=" << health << ", health_threshold=" << health_threshold
-                 << ", recovery_threshold=" << recovery_threshold << ", ammo=" << ammo
-                 << ", ammo_threshold=" << ammo_threshold;
+  retreat_detail << "health=" << health << ", health_threshold=" << health_threshold_
+                 << ", recovery_threshold=" << recovery_threshold_ << ", ammo=" << ammo
+                 << ", ammo_threshold=" << ammo_threshold_ << ", ammo_recovery_threshold=" << ammo_recovery_threshold_
+                 << ", current_mode=" << current_mode;
   detail::logTransition(
     detail::TreeKind::NAV, "CheckRetreatCondition", active, retreat_detail.str(), branch);
 
@@ -200,9 +195,8 @@ BT::NodeStatus CheckManualOverride::tick()
   const double timeout_seconds = getInput<double>("timeout_seconds").value_or(4.0);
   const double same_goal_eps = getInput<double>("same_goal_eps").value_or(0.05);
 
-  const bool manual_active = blackboard->get<bool>("manual_override_active");
   const bool goal_valid = blackboard->get<bool>("manual_override_goal_valid");
-  if (!manual_active || !goal_valid) {
+  if (!goal_valid) {
     blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
     if (blackboard->get<int>("current_mode") == static_cast<int>(Sentry_BT::NavMode::MANUAL)) {
       blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::PATROL));
@@ -262,8 +256,6 @@ BT::PortsList CheckOutpostSafeResponse::providedPorts()
 {
   return {
     BT::InputPort<double>("stable_seconds", 5.0, "Required stable-health duration to release cooldown"),
-    BT::InputPort<double>("health_drop_threshold", 0.5, "Health drop threshold to trigger cooldown"),
-    BT::InputPort<double>("health_change_eps", 0.1, "Health change epsilon"),
     BT::InputPort<bool>("require_response_mode", false, "Require current nav mode to be RESPONSE"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
@@ -273,8 +265,6 @@ BT::NodeStatus CheckOutpostSafeResponse::tick()
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
   const double stable_seconds = getInput<double>("stable_seconds").value_or(5.0);
-  const double health_drop_threshold = getInput<double>("health_drop_threshold").value_or(0.5);
-  const double health_change_eps = getInput<double>("health_change_eps").value_or(0.1);
   const bool require_response_mode = getInput<bool>("require_response_mode").value_or(false);
 
   const float health = blackboard->get<float>("health");
@@ -282,18 +272,7 @@ BT::NodeStatus CheckOutpostSafeResponse::tick()
   const bool outpost_remained = !blackboard->get<bool>("enemy_outpost_destroyed");
   const auto now = std::chrono::steady_clock::now();
 
-  if (!initialized_) {
-    last_health_ = health;
-    last_health_change_time_ = now;
-    initialized_ = true;
-  }
-
-  const bool health_changed = std::fabs(health - last_health_) > health_change_eps;
-  if (health_changed) {
-    last_health_change_time_ = now;
-  }
-
-  const bool health_dropped = (last_health_ - health) > health_drop_threshold;
+  const bool health_dropped = (last_health_ - health) > 1e-3;
   if (current_mode == static_cast<int>(Sentry_BT::NavMode::RESPONSE) && health_dropped) {
     cooldown_active_ = true;
     blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::PATROL));
@@ -408,7 +387,6 @@ BT::NodeStatus CheckWillThroughTunnel::tick()
     }
   }
 
-  // Once already transformed in transform zone, keep lifter at bottom until leaving this zone.
   const bool keep_bottom_locked = in_transform_zone && (lifter_current_pos == LifterPos::BOTTOM);
   const bool will_through_tunnel = through_tunnel || keep_bottom_locked;
 

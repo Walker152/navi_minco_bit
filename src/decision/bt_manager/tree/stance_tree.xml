@@ -10,10 +10,10 @@
 
       <Sequence name="MoveStanceNoGyroBranch">
         <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch"
-                                  kp="35.0"
+                                  kp="15.0"
                                   ki="0.0"
                                   kd="5.0"
-                                  deadzone_rad="0.08"
+                                  deadzone_rad="0.1"
                                   max_abs_gyro_vel="120.0" />
         <SetGyroState />
         <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
@@ -22,7 +22,7 @@
       <Sequence name="AbsoluteAttackBranch">
         <Fallback name="AbsoluteAttackConditions">
           <CheckHeat threshold="200" mode="greater" branch="AbsoluteAttackBranch" />
-          <CheckOutpostTarget branch="AbsoluteAttackBranch" />
+          <CheckOutpostTarget goal_distance_threshold="0.5" branch="AbsoluteAttackBranch" />
         </Fallback>
         <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
         <SetGyroState use_gyro="true" gyro_vel="50.0" />
