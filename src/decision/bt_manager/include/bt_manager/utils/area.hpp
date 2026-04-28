@@ -168,10 +168,10 @@ inline std::array<Area_Square, 4> tunnel_zone = {
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
-  TunnelRecoveryConfig{1.57f, Point2D{6.4, 2.3, 0.0}, Point2D{11.8, 5.8, 0.0}, 0.0f, 1.0f},
-  TunnelRecoveryConfig{1.57f, Point2D{13.7, 3.2, 0.0}, Point2D{11.8, 5.2, 0.0}, 0.0f, 1.2f},
-  TunnelRecoveryConfig{1.57f, Point2D{6.4, 2.3, 0.0}, Point2D{11.8, 4.8, 0.0}, 0.0f, 1.4f},
-  TunnelRecoveryConfig{1.57f, Point2D{13.7, 3.2, 0.0}, Point2D{11.8, 4.4, 0.0}, 0.0f, 1.1f},
+  TunnelRecoveryConfig{1.57f, Point2D{6.4, 2.3, 0.0}, Point2D{12.0, 7.7, 0.0}, 0.0f, -1.0f},
+  TunnelRecoveryConfig{1.57f, Point2D{13.7, 3.2, 0.0}, Point2D{12.0, 7.7, 0.0}, 0.0f, -1.0f},
+  TunnelRecoveryConfig{1.57f, Point2D{6.4, 2.3, 0.0}, Point2D{12.0, 7.7, 0.0}, 0.0f, -1.0f},
+  TunnelRecoveryConfig{1.57f, Point2D{13.7, 3.2, 0.0}, Point2D{12.0, 7.7, 0.0}, 0.0f, -1.0f},
 };
 inline std::array<Area_Square, 2> stairs_zone{
   Area_Square{Point2D{11.5, 7.1}, Point2D{10.3, 6.2}},
