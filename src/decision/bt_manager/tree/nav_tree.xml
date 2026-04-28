@@ -24,7 +24,6 @@
                          pcd_dir="src/utils/pcd2esdf/maps"
                          map_name="rmuc2026_back" /> -->
         <SetCoordinate name="SetHomeGoal" goal="0" />
-        <NavigateToPoseAction name="NavigateHome" />
         <!-- <ForceSuccess>
           <ReactiveSequence name="StairsDescentFlow">
             <CheckInStairsZone name="CheckInStairsZone" />
@@ -41,6 +40,7 @@
         <ForceSuccess>
           <CheckWillThroughTunnel name="CheckWillThroughTunnelForOwnFort" branch="Priority1Survival" />
         </ForceSuccess>
+        <NavigateToPoseAction name="NavigateHome" />
         <ForceSuccess>
           <ReactiveSequence name="AmmoBuyFlow">
             <CheckAmmoLow name="CheckAmmoLow" ammo_threshold="100" branch="Priority1Survival" />
@@ -50,7 +50,7 @@
       </ReactiveSequence>
 
       <ReactiveSequence name="Priority1_5TunnelRecovery">
-        <CheckTimeInZone min_seconds="10.0" max_seconds="999.0" zone_name="transform_zone" />
+        <CheckTimeInZone min_seconds="10.0" max_seconds="50.0" zone_name="transform_zone" />
         <SubTree ID="TunnelRecoverySubTree"
                  __shared_blackboard="true"
                  __autoremap="true" />
@@ -81,8 +81,6 @@
             <CheckTacticalModeCondition name="CheckNormalMode" mode="normal" branch="NormalOutpostResponse" />
             <CheckOutpostSafeResponse name="CheckOutpostSafeResponseForNav"
                                       stable_seconds="5.0"
-                                      health_drop_threshold="0.5"
-                                      health_change_eps="0.1"
                                       require_response_mode="false"
                                       branch="NormalOutpostResponse" />
             <CheckOutpostRemained name="CheckOutpostRemained" branch="NormalOutpostResponse" />
