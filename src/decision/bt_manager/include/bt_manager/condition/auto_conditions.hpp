@@ -52,7 +52,6 @@ public:
   BT::NodeStatus tick() override;
 
 private:
-  bool initialized_ = false;
   float last_health_ = 100.0f;
   std::chrono::steady_clock::time_point last_health_change_time_;
   bool cooldown_active_ = false;
