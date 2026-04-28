@@ -152,7 +152,7 @@ sudo make install
 ### 5.3 建图与先验地图导航流程
 
 步骤一：构建点云地图 (SLAM)
-如果你需要扫描新场地的地图，运行以下命令启动建图：
+如果你需要扫描新场地的地图，开启雷达与里程计后运行以下命令启动建图：
 
 ```bash
 ros2 launch navi2_bringup slam.launch.py

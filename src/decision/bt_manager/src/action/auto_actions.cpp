@@ -528,7 +528,8 @@ BT::NodeStatus ControlThroughTunnel::onRunning()
     }
     return BT::NodeStatus::SUCCESS;
   }
-  auto current_orientation = ros_iface->getCurrentPose().orientation;
+  auto current_orientation = blackboard->get<geometry_msgs::msg::Pose>("current_pose").orientation;
+  
   // 将四元数转换为欧拉角
   tf2::Quaternion quat(
     current_orientation.x, current_orientation.y, current_orientation.z, current_orientation.w);

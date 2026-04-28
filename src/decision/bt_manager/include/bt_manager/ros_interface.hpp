@@ -56,6 +56,10 @@ private:
 
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::TimerBase::SharedPtr area_marker_timer_;
+  mutable std::mutex mpc_msg_mutex_;
+  ros_interfaces::msg::MpcPositionCommand::SharedPtr last_mpc_msg_;
+  bool has_last_mpc_msg_{false};
+  rclcpp::TimerBase::SharedPtr tunnel_check_timer_;
   std::shared_ptr<Blackboard> blackboard_;
   std::shared_ptr<ParamManager> param_manager_;
 
@@ -77,12 +81,9 @@ public:
   ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr);
   ~ros_interface() override = default;
 
-  geometry_msgs::msg::Pose getCurrentPose() const;
   geometry_msgs::msg::Pose transformMapPose(
     const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame);
   std::shared_ptr<ParamManager> getParamManager() const { return param_manager_; }
-
-  bool TransformPose(const geometry_msgs::msg::Pose & input_pose, geometry_msgs::msg::Pose & output_pose);
 
   bool isTroughZone(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square & zone);
   bool isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg,
