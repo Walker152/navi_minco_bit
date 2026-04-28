@@ -56,18 +56,25 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
 
   odom_sub = this->create_subscription<nav_msgs::msg::Odometry>(
     "/aft_mapped_to_init", 1, [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
-      // 更新当前位置
-      std::lock_guard<std::mutex> lock(current_pose_mutex_);
-      current_pose_ = msg->pose.pose;
-
-      geometry_msgs::msg::Pose pose_in_map;
+      geometry_msgs::msg::Pose raw_pose = msg->pose.pose;
       auto transform_utils =
         blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-      if (transform_utils &&
-          transform_utils->transformPoseToMap(current_pose_, pose_in_map, "camera_init")) {
-        blackboard_->set("current_pose", pose_in_map);
-        current_pose_ = pose_in_map;
+      if (transform_utils) {
+        geometry_msgs::msg::Pose base_link_origin;
+        base_link_origin.orientation.w = 1.0;
+
+        geometry_msgs::msg::Pose base_link_in_map;
+        if (transform_utils->transformPoseToMap(base_link_origin, base_link_in_map, "base_link")) {
+          // Keep raw orientation from odom, only override base_link x/y in map frame.
+          raw_pose.position.x = base_link_in_map.position.x;
+          raw_pose.position.y = base_link_in_map.position.y;
+        }
       }
+      {
+        std::lock_guard<std::mutex> lock(current_pose_mutex_);
+        current_pose_ = raw_pose;
+      }
+      blackboard_->set("current_pose", raw_pose);
     });
 
   mpc_cmd_sub = this->create_subscription<ros_interfaces::msg::MpcPositionCommand>(
