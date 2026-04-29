@@ -796,11 +796,13 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     }
 
     if (has_last_traj && isTrajSafe()) {
-      std::cout
-        << YELLOW
-        << "[MincoPlanner] Continuing to execute last trajectory since it's still safe. Cost of new traj: "
-        << final_cost << RESET << std::endl;
-      return true;
+      if(!isTrajectoryTimeExpired(rclcpp::Clock().now().seconds())) {
+        std::cout << YELLOW
+                  << "[MincoPlanner] Last trajectory is still valid and safe. Continuing to execute it."
+                  << RESET << std::endl;
+        return true;
+      }
+      return false;
     }
     return false;
   }
