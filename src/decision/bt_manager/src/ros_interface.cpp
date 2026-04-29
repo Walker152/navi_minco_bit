@@ -104,10 +104,6 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto gyro_vel = blackboard_->get<float>("gyro_vel");
     const auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
     const auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
-    geometry_msgs::msg::Pose outpost_in_body_frame =
-      this->transformMapPose(createPose(nav_points[2].x, nav_points[2].y, 0.0, 0.0), "body");
-    float outpost_theta_rad =
-      std::atan2(outpost_in_body_frame.position.y, outpost_in_body_frame.position.x);
 
     ros_interfaces::msg::Behavior behavior_msg;
     behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
@@ -115,8 +111,8 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.use_gyro_mode = use_gyro_mode;
     behavior_msg.gyro_vel = gyro_vel;
     behavior_msg.desire_lifter_pos = static_cast<uint8_t>(desired_lifter_pos);
-    behavior_msg.scan_yaw_min = yaw_min_deg + outpost_theta_rad * 180.0f / static_cast<float>(M_PI);
-    behavior_msg.scan_yaw_max = yaw_max_deg + outpost_theta_rad * 180.0f / static_cast<float>(M_PI);
+    behavior_msg.scan_yaw_min = yaw_min_deg;
+    behavior_msg.scan_yaw_max = yaw_max_deg;
     behavior_pub->publish(behavior_msg);
 
     const auto cmd_vel = blackboard_->get<geometry_msgs::msg::Twist>("cmd_vel");
