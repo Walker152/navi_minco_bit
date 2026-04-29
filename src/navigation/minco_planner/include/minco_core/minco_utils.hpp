@@ -101,6 +101,13 @@ void mapToWorld(nav2_costmap_2d::Costmap2D * costmap, double mx, double my, doub
 // --- Costmap Cell Editing ---
 void clearRobotCell(nav2_costmap_2d::Costmap2D * costmap, unsigned int mx, unsigned int my);
 
-}  // namespace minco_planner::utils
+void compensateLeverArm(double v_lidar_x,
+  double v_lidar_y,
+  double omega_z,
+  double yaw,
+  double & vx_global,
+  double & vy_global,
+  double & omega_global);
 
+}  // namespace minco_planner::utils
 #endif  // MINCO_PLANNER__MINCO_UTILS_HPP_
