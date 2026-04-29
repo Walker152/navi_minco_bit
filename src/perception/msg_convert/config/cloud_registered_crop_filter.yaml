@@ -1,6 +1,6 @@
 cloud_registered_crop_filter:
   ros__parameters:
-    input_topic: /cloud_registered_dense
+    input_topic: /cloud_registered
     output_topic: /cloud_registered_filtered
     queue_size: 10
     filter_mode: transform_center   # transform_cloud | transform_center
