@@ -1,4 +1,5 @@
 #include "bt_manager/ros_interface.hpp"
+#include "bt_manager/utils/tf_utils.hpp"
 
 #include <algorithm>
 #include <array>
@@ -6,16 +7,14 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace Sentry_BT {
 
 ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
-: Node(
-    "ros_interface_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count() % 10000),
-    rclcpp::NodeOptions().use_global_arguments(false)),
-  blackboard_(blackboard_ptr)
+: Node("ros_interface_bt", rclcpp::NodeOptions()), blackboard_(blackboard_ptr)
 {
   auto node_ptr = rclcpp::Node::SharedPtr(this, [](rclcpp::Node *) {
   });
@@ -57,28 +56,32 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
 
   odom_sub = this->create_subscription<nav_msgs::msg::Odometry>(
     "/aft_mapped_to_init", 1, [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
-      // 更新当前位置
-      std::lock_guard<std::mutex> lock(current_pose_mutex_);
-      current_pose_ = msg->pose.pose;
-
-      geometry_msgs::msg::Pose pose_in_map;
+      geometry_msgs::msg::Pose raw_pose = msg->pose.pose;
       auto transform_utils =
         blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-      if (transform_utils &&
-          transform_utils->transformPoseToMap(current_pose_, pose_in_map, "camera_init")) {
-        blackboard_->set("current_pose", pose_in_map);
-      } else {
-        blackboard_->set("current_pose", current_pose_);
+      if (transform_utils) {
+        geometry_msgs::msg::Pose base_link_origin;
+        base_link_origin.orientation.w = 1.0;
+
+        geometry_msgs::msg::Pose base_link_in_map;
+        if (transform_utils->transformPoseToMap(base_link_origin, base_link_in_map, "base_link")) {
+          // Keep raw orientation from odom, only override base_link x/y in map frame.
+          raw_pose.position.x = base_link_in_map.position.x;
+          raw_pose.position.y = base_link_in_map.position.y;
+        }
       }
+      {
+        std::lock_guard<std::mutex> lock(current_pose_mutex_);
+        current_pose_ = raw_pose;
+      }
+      blackboard_->set("current_pose", raw_pose);
     });
 
-  // 订阅MPC轨迹指令
   mpc_cmd_sub = this->create_subscription<ros_interfaces::msg::MpcPositionCommand>(
     "/opt_path", 1, [this](const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg) {
-      // std::cout << "Received MPC command with horizon: " << msg->mpc_horizon << std::endl;
-      //  blackboard_->set("through_tunnel", isTroughTunnel(msg, Area_Square{Point2D{9.46, 1.80},
-      //  Point2D{10.40, 2.65}}));
-      blackboard_->set("through_tunnel", isTroughTunnel(msg, tunnel_zone));
+      std::lock_guard<std::mutex> lock(mpc_msg_mutex_);
+      last_mpc_msg_ = msg;
+      has_last_mpc_msg_ = true;
     });
   // 订阅外部速度指令
   cmd_vel_sub = this->create_subscription<geometry_msgs::msg::Twist>(
@@ -101,24 +104,16 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto gyro_vel = blackboard_->get<float>("gyro_vel");
     const auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
     const auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
-    geometry_msgs::msg::Pose outpost_in_body_frame = this->transformMapPose(createPose(nav_points[2].x, nav_points[2].y, 0.0, 0.0), "body");
-    float outpost_theta_rad = std::atan2(outpost_in_body_frame.position.y, outpost_in_body_frame.position.x);
-    const auto current_pose = getCurrentPose();
-
-    // const bool is_reach_outpost_enemy =
-    //   current_mode == Sentry_BT::NavMode::RESPONSE && std::hypot(current_pose.position.x - nav_points[2].x,
-    //                                                     current_pose.position.y - nav_points[2].y) < 1.0;
-
-    // const bool is_reach_outpost_own = std::hypot(current_pose.position.x - nav_points[0].x,
-    //                                     current_pose.position.y - nav_points[0].y) < 1.0;
+    geometry_msgs::msg::Pose outpost_in_body_frame =
+      this->transformMapPose(createPose(nav_points[2].x, nav_points[2].y, 0.0, 0.0), "body");
+    float outpost_theta_rad =
+      std::atan2(outpost_in_body_frame.position.y, outpost_in_body_frame.position.x);
 
     ros_interfaces::msg::Behavior behavior_msg;
     behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
     behavior_msg.control_mode = static_cast<uint8_t>(control_mode);
     behavior_msg.use_gyro_mode = use_gyro_mode;
     behavior_msg.gyro_vel = gyro_vel;
-    // behavior_msg.is_reach_outpost_enemy = is_reach_outpost_enemy;
-    // behavior_msg.is_reach_outpost_own = is_reach_outpost_own;
     behavior_msg.desire_lifter_pos = static_cast<uint8_t>(desired_lifter_pos);
     behavior_msg.scan_yaw_min = yaw_min_deg + outpost_theta_rad * 180.0f / static_cast<float>(M_PI);
     behavior_msg.scan_yaw_max = yaw_max_deg + outpost_theta_rad * 180.0f / static_cast<float>(M_PI);
@@ -132,26 +127,24 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     area_visualizer_->publishAreaMarkers(this->now());
   });
   area_visualizer_->publishAreaMarkers(this->now());
+
+  tunnel_check_timer_ = this->create_wall_timer(std::chrono::milliseconds(100), [this]() {
+    ros_interfaces::msg::MpcPositionCommand::SharedPtr snapshot;
+    {
+      std::lock_guard<std::mutex> lock(mpc_msg_mutex_);
+      snapshot = last_mpc_msg_;
+    }
+    bool through = isTroughTunnel(snapshot, tunnel_zone);
+    blackboard_->set("through_tunnel", through);
+  });
 }
 
-geometry_msgs::msg::Pose ros_interface::getCurrentPose() const
-{
-  std::lock_guard<std::mutex> lock(current_pose_mutex_);
-  auto transform_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-  geometry_msgs::msg::Pose transformed_pose;
-  if (transform_utils &&
-      transform_utils->transformPoseToMap(current_pose_, transformed_pose, "camera_init")) {
-    return transformed_pose;
-  }
-  return current_pose_;
-}
-
-geometry_msgs::msg::Pose ros_interface::transformMapPose(const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame)
+geometry_msgs::msg::Pose ros_interface::transformMapPose(
+  const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame)
 {
   auto transform_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
   geometry_msgs::msg::Pose output_pose;
-  if (transform_utils &&
-      transform_utils->transformMapPose(input_pose, output_pose, target_frame)) {
+  if (transform_utils && transform_utils->transformMapPose(input_pose, output_pose, target_frame)) {
     return output_pose;
   }
   return input_pose;
@@ -270,38 +263,22 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
     "lifter_current_pos", static_cast<Sentry_BT::LifterPos>(msg->lifter_current_pos));
   blackboard_->set<bool>("is_transformable", msg->is_transformable);
   blackboard_->set<float>("transform_state", msg->transform_state);
-
+  blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
+  auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  tf_utils->updateGimbalYaw(msg->yaw_imu);
   // 存储装甲板位置
   if (msg->is_get)
   // if(false)
   {
     geometry_msgs::msg::Pose target_pose_in, target_pose;
-    static bool has_last_logged_pose = false;
-    static geometry_msgs::msg::Pose last_target_pose_in;
-    static geometry_msgs::msg::Pose last_target_pose;
 
     target_pose_in.position.x = (msg->armor_pos.x) / 1000.0;  // 转换为米
     target_pose_in.position.y = (msg->armor_pos.y) / 1000.0;
-    target_pose_in.position.z = (msg->armor_pos.z) / 1000.0;  
-    TransformPose(target_pose_in, target_pose);
+    target_pose_in.position.z = (msg->armor_pos.z) / 1000.0;
 
-    // Quiet logging: only print when target input/output pose changes significantly.
-    const double input_diff = std::hypot(target_pose_in.position.x - last_target_pose_in.position.x,
-      target_pose_in.position.y - last_target_pose_in.position.y);
-    const double output_diff = std::hypot(target_pose.position.x - last_target_pose.position.x,
-      target_pose.position.y - last_target_pose.position.y);
-    const bool should_log = !has_last_logged_pose || input_diff > 0.5 || output_diff > 0.5;
-
-    if (should_log) {
-      // std::cout << "Target pose: " << target_pose.position.x << ", " << target_pose.position.y <<
-      // std::endl; std::cout << "target pose in: " << target_pose_in.position.x << "," <<
-      // target_pose_in.position.y
-      //           << "," << target_pose_in.position.z << std::endl;
-      last_target_pose_in = target_pose_in;
-      last_target_pose = target_pose;
-      has_last_logged_pose = true;
+    if (tf_utils) {
+      tf_utils->transformPoseToMap(target_pose_in, target_pose, "gimbal");
     }
-
     target_pose.orientation.w = 1.0;  // 设置默认朝向
     blackboard_->set<int>("target_armor_id", (int)msg->armor_num);
     blackboard_->set<geometry_msgs::msg::Pose>("target_pose", target_pose);
@@ -348,9 +325,11 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
     blackboard_->set<Sentry_BT::SentryStance>(
       "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
   } else {
-    RCLCPP_WARN_THROTTLE(
-      this->get_logger(), *this->get_clock(), 2000,
-      "Invalid current_stance decoded from sentry_info_2: %u", current_stance);
+    // RCLCPP_WARN_THROTTLE(this->get_logger(),
+    //   *this->get_clock(),
+    //   2000,
+    //   "23%u",
+    //   current_stance);
   }
 
   // 提取bit 14：己方能量机关是否能够进入正在激活状态
@@ -389,26 +368,13 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
   // blackboard_->set<int>("remaining_ammo_exchange", static_cast<int>(remaining_ammo_exchange));
 }
 
-bool ros_interface::TransformPose(
-  const geometry_msgs::msg::Pose & input_pose, geometry_msgs::msg::Pose & output_pose)
-{
-  // 从黑板获取TransformUtils实例
-  auto transform_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-
-  if (!transform_utils) {
-    return false;
-  }
-
-  // 执行坐标转换
-  bool success = transform_utils->transformPoseToMap(input_pose, output_pose, "gimbal");
-
-  return success;
-}
-
 // 判断MPC轨迹是否穿过指定矩形区域
 bool ros_interface::isTroughZone(
   const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square & zone)
 {
+  if (!msg) {
+    return false;
+  }
   for (const auto & cmd : msg->cmds) {
     Point2D point{cmd.position.x, cmd.position.y};
     if (zone.contains(point)) {
@@ -419,12 +385,10 @@ bool ros_interface::isTroughZone(
 }
 
 // 判断MPC轨迹是否穿过指定隧道区域（由入口左端点和出口右端点两个点定义）
-bool ros_interface::isTroughTunnel(
-  const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg,
+bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg,
   const std::array<Area_Square, 4> & tunnel_areas)
 {
-  const auto current_pose = getCurrentPose();
-  const Point2D current_point{current_pose.position.x, current_pose.position.y};
+  const Point2D current_point{current_pose_.position.x, current_pose_.position.y};
   bool in_transform_zone = false;
   for (const auto & zone : transform_zone) {
     if (zone.contains(current_point)) {
@@ -453,14 +417,6 @@ bool ros_interface::isTroughTunnel(
   }
 
   const bool through_tunnel_stable = in_transform_zone && tunnel_detect_latched_;
-  // std::cout << "MPC trajectory check: robot at (" << current_point.x << ", " << current_point.y << ")"
-  //           << ", in transform zone: " << (in_transform_zone ? "YES" : "NO")
-  //           << ", through tunnel now: " << (through_tunnel_now ? "YES" : "NO")
-  //           << ", through tunnel latched: "
-  //           << (through_tunnel_stable ? "YES" : "NO")
-  //           // << ", in inflated zone: " << (flag3 ? "YES" : "NO")
-  //           << std::endl;
-
   return through_tunnel_stable;
 }
 geometry_msgs::msg::Pose ros_interface::createPose(float x, float y, float z, float yaw_deg)

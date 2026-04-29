@@ -77,8 +77,9 @@ private:
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
-  rclcpp::CallbackGroup::SharedPtr callback_group_lidar_;
-  rclcpp::CallbackGroup::SharedPtr callback_group_service_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_data_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_compute_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_utility_;
   rclcpp::TimerBase::SharedPtr fsm_timer_;
   rclcpp::TimerBase::SharedPtr visualization_timer_;
   rclcpp::TimerBase::SharedPtr tf_publish_timer_;
@@ -100,6 +101,7 @@ private:
   int current_accumulated_frames_ = 0;
   rclcpp::Time last_cloud_stamp_;
   std::string cloud_frame_id_;
+  std::mutex cloud_mtx_;
 
   bool gicp_initialized_ = false;
   rclcpp::Time last_icp_time_;
@@ -117,6 +119,7 @@ private:
 
   // 变换与位姿
   Eigen::Matrix4f map_to_camera_init_ = Eigen::Matrix4f::Identity();
+  std::mutex pose_mtx_;
 
   // 默认参数
   std::string map_frame_;
