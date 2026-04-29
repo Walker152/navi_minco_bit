@@ -51,7 +51,8 @@ public:
     blackboard_->set("target_gimbal_tilt", 0.0f);   // 云台目标俯仰
     blackboard_->set("scan_yaw_min_deg", -180.0f);  // 巡检范围最小偏航
     blackboard_->set("scan_yaw_max_deg", 180.0f);   // 巡检范围最大偏航
-    blackboard_->set("scan_pitch_deg", 0.0f);       // 巡检俯仰
+    blackboard_->set("scan_pitch_min_deg", 0.0f);       // 巡检最小俯仰
+    blackboard_->set("scan_pitch_max_deg", 90.0f);      // 巡检最大俯仰
 
     // --- Tactical Tree ---
     blackboard_->set<TacticalMode>("tactical_mode", TacticalMode::BALANCED);  // 战术模式
