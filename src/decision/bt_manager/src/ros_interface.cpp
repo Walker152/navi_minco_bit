@@ -372,6 +372,9 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
 bool ros_interface::isTroughZone(
   const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square & zone)
 {
+  if (!msg) {
+    return false;
+  }
   for (const auto & cmd : msg->cmds) {
     Point2D point{cmd.position.x, cmd.position.y};
     if (zone.contains(point)) {

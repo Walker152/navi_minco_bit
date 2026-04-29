@@ -103,7 +103,7 @@
 
           <ReactiveSequence name="AttackFortResponse">
             <CheckTacticalModeCondition name="CheckAttackMode" mode="attack" branch="AttackFortResponse" />
-            <CheckEnemyBaseLowHp name="CheckEnemyBaseLowHp" threshold="1000" branch="AttackFortResponse" />
+            <!-- <CheckEnemyBaseLowHp name="CheckEnemyBaseLowHp" threshold="1000" branch="AttackFortResponse" /> -->
             <SetCoordinate name="SetEnemyFortGoal" goal="4" />
             <ForceSuccess>
               <CheckWillThroughTunnel name="CheckWillThroughTunnelForEnemyFort" branch="AttackFortResponse" />

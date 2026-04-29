@@ -186,7 +186,9 @@ BT::PortsList CheckCrossZoneTransition::providedPorts()
     BT::InputPort<float>("kd", 5.0f, "PID Kd for tunnel gyro control"),
     BT::InputPort<float>("deadzone_rad", 0.08f, "Yaw deadzone in radians"),
     BT::InputPort<float>("max_abs_gyro_vel", 120.0f, "Max absolute gyro velocity in rpm"),
-    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
+    BT::OutputPort<bool>("use_gyro", "Enable gyro output"),
+    BT::OutputPort<float>("gyro_vel", "Gyro velocity output")};
 }
 
 float CheckCrossZoneTransition::computeTunnelGyroVelPid(
@@ -292,8 +294,8 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
 
     if (active_tunnel_idx < 0) {
       resetPidState();
-      blackboard->set("use_gyro_mode", false);
-      blackboard->set("gyro_vel", 0.0f);
+      setOutput("use_gyro", false);
+      setOutput("gyro_vel", 0.0f);
       detail::logTransition(
         detail::TreeKind::STANCE,
         "CheckCrossZoneTransition",
@@ -316,8 +318,8 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
     resetPidState();
   }
 
-  blackboard->set("use_gyro_mode", enable_small_gyro);
-  blackboard->set("gyro_vel", computed_gyro_vel);
+  setOutput("use_gyro", enable_small_gyro);
+  setOutput("gyro_vel", computed_gyro_vel);
 
   std::ostringstream oss;
   oss << "current_in_highland=" << current_in_highland << ", current_in_half=" << current_in_half

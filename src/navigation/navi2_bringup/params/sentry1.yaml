@@ -307,7 +307,7 @@ planner_server:
         opt_freq: 20.0
         traj_goal_tolerance: 0.2
         enable_yaw_opt: true
-        safe_dist: 0.40
+        safe_dist: 0.35
         lookahead_dist: 5.0  # 前视距离,用于minco部分优化
         max_velocity: 4.5
         max_acceleration: 4.5
