@@ -2,6 +2,8 @@
 
 #include <behaviortree_cpp_v3/action_node.h>
 #include <geometry_msgs/msg/pose.hpp>
+#include "bt_manager/blackboard.hpp"
+#include "bt_manager/ros_interface.hpp"
 
 namespace Sentry_BT {
 class TrackTargetAction : public BT::StatefulActionNode
