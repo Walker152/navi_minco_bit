@@ -21,6 +21,8 @@ public:
 
   // Exposed hook for external schedulers that want exact single-tick control.
   void tickMainExactlyOnce();
+  void tickStanceExactlyOnce();
+  void tickTacticalExactlyOnce();
 
 private:
   void registerNodes();

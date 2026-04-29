@@ -82,7 +82,7 @@ public:
   {
     int current_mode = -1;
     config().blackboard->get<int>("current_mode", current_mode);
-    return current_mode == Sentry_BT::NavMode::PATROL || name() == "PublishPatrolGoal";
+    return current_mode == Sentry_BT::NavMode::PATROL;
   }
 
   void on_tick() override
@@ -101,7 +101,7 @@ public:
       nav_start_time_ = std::chrono::steady_clock::now();
 
       std::cout << GREEN << "[NavigateToPoseAction:" << name() << "] send initial goal=(" << nav_goal.x
-                << ", " << nav_goal.y << ")"<< RESET << std::endl;
+                << ", " << nav_goal.y << ")" << RESET << std::endl;
     }
   }
 

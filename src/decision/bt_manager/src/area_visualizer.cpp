@@ -15,8 +15,7 @@ bool shouldFillBasePolygon(const std::string & name)
 }
 
 void appendPolygonFillTriangles(
-  visualization_msgs::msg::Marker & fill_marker, const std::vector<Sentry_BT::Point2D> & vertices,
-  double z)
+  visualization_msgs::msg::Marker & fill_marker, const std::vector<Sentry_BT::Point2D> & vertices, double z)
 {
   if (vertices.size() < 3) {
     return;

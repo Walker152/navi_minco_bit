@@ -7,3 +7,4 @@ float32 yaw_imu                  # imu的yaw轴角度 逆时针为正
 uint8 lifter_current_pos         # 0 -- kTop 1 -- kBottom 2 -- kMiddle
 bool is_transformable            # 是否能够进行变形（不止变形中不能变形，升降卡住后也无法进行变形）
 float32 transform_state          # 变形状态，0-1，0%为未变形，100%为完全变形，过渡状态根据实际情况变化
+uint8 capacitor_capacity         # 电容容量百分比

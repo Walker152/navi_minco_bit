@@ -14,23 +14,23 @@ source ./install/setup.bash
 gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"
 sleep 5
 
-## ICP
-gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
-# sleep 1
-
-
-## Cluster
-# gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
+# ICP
+# gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
 sleep 1
 
-# ## Decision
-gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
+
+# Cluster
+# gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
 # sleep 1
 
-# # Communication
+# # ## Decision
+# gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
+# # sleep 1
+
+# # # Communication
 # gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
 
-# Rosbag record
+# # Rosbag record
 # gnome-terminal -- bash -c "mkdir -p ~/rosbag && ros2 bag record -a -o ~/rosbag/$(date +%Y%m%d_%H%M%S); exec bash"
 
 # Foxglove

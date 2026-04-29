@@ -6,10 +6,12 @@
 #include "bt_manager/action/change_stance_action.hpp"
 #include "bt_manager/action/gimbal_action.hpp"
 #include "bt_manager/action/nav_action.hpp"
+#include "bt_manager/action/recovery_actions.hpp"
 #include "bt_manager/action/tactical_action.hpp"
 #include "bt_manager/condition/auto_conditions.hpp"
 #include "bt_manager/condition/change_stance_condition.hpp"
 #include "bt_manager/condition/gimbal_condition.hpp"
+#include "bt_manager/condition/recovery_conditions.hpp"
 #include "bt_manager/condition/tactical_condition.hpp"
 #include "bt_manager/new_test.hpp"
 
@@ -60,6 +62,10 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckEnemyBaseLowHp>("CheckEnemyBaseLowHp");
   factory_.registerNodeType<CheckWillThroughTunnel>("CheckWillThroughTunnel");
   factory_.registerNodeType<ControlThroughTunnel>("ControlThroughTunnel");
+  factory_.registerNodeType<CheckTimeInZone>("CheckTimeInZone");
+  factory_.registerNodeType<SetTunnelRecoveryAttemptPoint>("SetTunnelRecoveryAttemptPoint");
+  factory_.registerNodeType<SetTunnelRecoveryRetreatPoint>("SetTunnelRecoveryRetreatPoint");
+  factory_.registerNodeType<SetGlobalVelocity>("SetGlobalVelocity");
 
   // stance
   factory_.registerNodeType<CheckHeat>("CheckHeat");
@@ -70,6 +76,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckCrossZoneTransition>("CheckCrossZoneTransition");
   factory_.registerNodeType<CheckCapacitorCapacity>("CheckCapacitorCapacity");
   factory_.registerNodeType<CheckStanceRefreshRequired>("CheckStanceRefreshRequired");
+  factory_.registerNodeType<SetGyroState>("SetGyroState");
   factory_.registerNodeType<ChangeStance>("ChangeStance");
 
   // gimbal
@@ -119,6 +126,16 @@ void SentryBTManager::tickMainExactlyOnce()
   }
 
   tickTreeExactlyOnce(*main_tree_);
+}
+
+void SentryBTManager::tickStanceExactlyOnce()
+{
+  tickTreeExactlyOnce(stance_tree_);
+}
+
+void SentryBTManager::tickTacticalExactlyOnce()
+{
+  tickTreeExactlyOnce(tactical_tree_);
 }
 
 void SentryBTManager::run(double frequency_hz)
