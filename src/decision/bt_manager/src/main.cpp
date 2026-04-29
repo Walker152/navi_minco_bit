@@ -3,6 +3,7 @@
 #include "bt_manager/utils/log.hpp"
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <chrono>
+#include <filesystem>
 #include <rclcpp/rclcpp.hpp>
 #include <thread>
 
@@ -14,10 +15,20 @@ int main(int argc, char const * argv[])
   auto transform_utils_node = std::make_shared<Sentry_BT::TransformUtils>();
 
   const bool bt_debug_logs = ros_interface_node->declare_parameter<bool>("bt_debug_logs", false);
+  const bool bt_debug_log_to_file =
+    ros_interface_node->declare_parameter<bool>("bt_debug_log_to_file", false);
+  const std::string bt_debug_log_file =
+    ros_interface_node->declare_parameter<std::string>("bt_debug_log_file", "logs/bt_transition.log");
+
   Sentry_BT::detail::setTransitionLogEnabled(bt_debug_logs);
-  RCLCPP_INFO(ros_interface_node->get_logger(),
-    "BT transition logs are %s (param: bt_debug_logs)",
-    bt_debug_logs ? "ENABLED" : "DISABLED");
+  if (bt_debug_log_to_file) {
+    std::filesystem::path log_path(bt_debug_log_file);
+    if (log_path.has_parent_path()) {
+      std::filesystem::create_directories(log_path.parent_path());
+    }
+    Sentry_BT::detail::setTransitionLogFilePath(bt_debug_log_file);
+  }
+  Sentry_BT::detail::setTransitionLogFileEnabled(bt_debug_log_to_file);
 
   // 获取BT黑板并存储ros_interface实例指针
   auto bt_blackboard = blackboard->getBTBlackboard();
