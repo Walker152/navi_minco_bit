@@ -100,6 +100,7 @@ BT::NodeStatus SetGimbalPoseByAreaAction::tick()
   auto blackboard = config().blackboard;
   const auto pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const auto enemy_outpost_remain = !blackboard->get<bool>("enemy_outpost_destroyed");
+  auto ros_iface = blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
   TacticalMode tactical_mode = TacticalMode::BALANCED;
   blackboard->get<TacticalMode>("tactical_mode", tactical_mode);
 
@@ -138,8 +139,15 @@ BT::NodeStatus SetGimbalPoseByAreaAction::tick()
   if (highland_zone.contains(p)) {
     if ((enemy_outpost_buff_zone.contains(p) || enemy_outpost_watch_zone.contains(p)) && enemy_outpost_remain) {
       // 前哨站区域内优先使用敌方前哨站的巡逻规则
-      yaw_min = -50.0f;
-      yaw_max = 50.0f;
+      geometry_msgs::msg::Pose outpost_in_map_frame;
+      outpost_in_map_frame.position.x = nav_points[2].x;
+      outpost_in_map_frame.position.y = nav_points[2].y;
+      geometry_msgs::msg::Pose outpost_in_body_frame =
+      ros_iface->transformMapPose(outpost_in_map_frame, "body");
+      float outpost_theta_rad =
+      std::atan2(outpost_in_body_frame.position.y, outpost_in_body_frame.position.x);
+      yaw_min = -50.0f + outpost_theta_rad * 180.0f / static_cast<float>(M_PI);
+      yaw_max = 50.0f + outpost_theta_rad * 180.0f / static_cast<float>(M_PI);
       pitch_min = 15.0f;
       pitch_max = 60.0f;
     } else {
