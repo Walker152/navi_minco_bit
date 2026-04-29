@@ -17,11 +17,6 @@ TransformUtils::TransformUtils()
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
-  gimbal_yaw_sub_ = this->create_subscription<std_msgs::msg::Float32>(
-    "/sentry/gimbal_yaw", 10, [this](const std_msgs::msg::Float32::ConstSharedPtr & msg) {
-      this->updateGimbalYaw(msg);
-    });
-
   tf_publish_timer_ = this->create_wall_timer(std::chrono::milliseconds(10), [this]() {
     this->publishDynamicTransform();
   });
@@ -29,9 +24,9 @@ TransformUtils::TransformUtils()
   publishDynamicTransform();
 }
 
-void TransformUtils::updateGimbalYaw(const std_msgs::msg::Float32::ConstSharedPtr & msg)
+void TransformUtils::updateGimbalYaw(const float & yaw)
 {
-  latest_gimbal_yaw_deg_.store(msg->data, std::memory_order_relaxed);
+  latest_gimbal_yaw_deg_.store(yaw, std::memory_order_relaxed);
 }
 
 void TransformUtils::publishDynamicTransform()
@@ -51,7 +46,7 @@ void TransformUtils::publishDynamicTransform()
 
   const float yaw_deg = latest_gimbal_yaw_deg_.load(std::memory_order_relaxed);
   tf2::Quaternion quat;
-  quat.setRPY(0, 0, -M_PI / 2 + yaw_deg / 180 * M_PI);
+  quat.setRPY(0, 0, yaw_deg / 180 * M_PI);
   dynamic_transform.transform.rotation = tf2::toMsg(quat);
 
   // 发布动态变换

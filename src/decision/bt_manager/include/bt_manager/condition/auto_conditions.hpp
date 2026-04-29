@@ -1,10 +1,9 @@
 #pragma once
 
 #include "bt_manager/blackboard.hpp"
-#include "bt_manager/condition/auto_conditions.hpp"
 #include "bt_manager/ros_interface.hpp"
+#include "bt_manager/utils/area.hpp"
 #include "bt_manager/utils/log.hpp"
-#include "bt_manager/utils/nav_zone.hpp"
 #include <behaviortree_cpp_v3/condition_node.h>
 #include <chrono>
 
@@ -53,7 +52,6 @@ public:
   BT::NodeStatus tick() override;
 
 private:
-  bool initialized_ = false;
   float last_health_ = 100.0f;
   std::chrono::steady_clock::time_point last_health_change_time_;
   bool cooldown_active_ = false;

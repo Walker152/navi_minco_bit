@@ -2,6 +2,8 @@
 #include "minco_core/minco_planner.hpp"
 #include "nav2_util/node_utils.hpp"
 
+#include "geometry_msgs/msg/vector3_stamped.hpp"
+
 // Project
 #include "minco_core/minco_fsm.hpp"
 #include "minco_core/minco_utils.hpp"
@@ -82,6 +84,22 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     node, prefix + "minco_optimizer.max_acceleration", rclcpp::ParameterValue(4.0));
   node->get_parameter(prefix + "minco_optimizer.max_acceleration", minco_config.max_acc);
 
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "minco_optimizer.turn_angle_deadzone", rclcpp::ParameterValue(0.174));
+  node->get_parameter(prefix + "minco_optimizer.turn_angle_deadzone", minco_config.turn_angle_deadzone);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "minco_optimizer.turn_angle_saturation", rclcpp::ParameterValue(1.57));
+  node->get_parameter(prefix + "minco_optimizer.turn_angle_saturation", minco_config.turn_angle_saturation);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "minco_optimizer.min_turn_vel", rclcpp::ParameterValue(1.0));
+  node->get_parameter(prefix + "minco_optimizer.min_turn_vel", minco_config.min_turn_vel);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "minco_optimizer.decay_power", rclcpp::ParameterValue(2.0));
+  node->get_parameter(prefix + "minco_optimizer.decay_power", minco_config.decay_power);
+
   double max_yaw_dot = 3.14;
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "minco_optimizer.max_yaw_dot", rclcpp::ParameterValue(max_yaw_dot));
@@ -135,11 +153,17 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     node, prefix + "minco_optimizer.penalty_weight_att", rclcpp::ParameterValue(1000.0));
   node->get_parameter(prefix + "minco_optimizer.penalty_weight_att", penalty_weight_att);
 
-  minco_config.penaltyWeights.resize(4);
+  double penalty_weight_time_barrier = 0.0;
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "minco_optimizer.penalty_weight_time_barrier", rclcpp::ParameterValue(100.0));
+  node->get_parameter(prefix + "minco_optimizer.penalty_weight_time_barrier", penalty_weight_time_barrier);
+
+  minco_config.penaltyWeights.resize(5);
   minco_config.penaltyWeights(0) = penalty_weight_pos;
   minco_config.penaltyWeights(1) = penalty_weight_vel;
   minco_config.penaltyWeights(2) = penalty_weight_acc;
   minco_config.penaltyWeights(3) = penalty_weight_att;
+  minco_config.penaltyWeights(4) = penalty_weight_time_barrier;
 
   minco_config.magnitudeBounds.resize(3);
   minco_config.magnitudeBounds(0) = minco_config.safe_dist;
@@ -344,39 +368,214 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
   rcl_interfaces::msg::SetParametersResult result;
   result.successful = true;
 
-  const std::string target_param = name_ + ".static_esdf.esdf_pcd_path";
+  const std::string esdf_path_param = name_ + ".static_esdf.esdf_pcd_path";
+  const std::string esdf_resolution_param = name_ + ".static_esdf.esdf_resolution";
+  const std::string dynamic_size_param = name_ + ".static_esdf.dynamic_esdf_size";
+  const std::string dynamic_dilation_param = name_ + ".static_esdf.dynamic_dilation_radius";
+  const std::string max_vel_param = name_ + ".minco_optimizer.max_velocity";
+  const std::string max_acc_param = name_ + ".minco_optimizer.max_acceleration";
+  const std::string penalty_pos_param = name_ + ".minco_optimizer.penalty_weight_pos";
+  const std::string penalty_vel_param = name_ + ".minco_optimizer.penalty_weight_vel";
+  const std::string penalty_acc_param = name_ + ".minco_optimizer.penalty_weight_acc";
+  const std::string penalty_att_param = name_ + ".minco_optimizer.penalty_weight_att";
+  const std::string penalty_time_barrier_param = name_ + ".minco_optimizer.penalty_weight_time_barrier";
+
+  std::string next_esdf_pcd_path = esdf_pcd_path_;
+  double next_esdf_resolution = esdf_resolution_;
+  bool need_reload_static_esdf = false;
+
+  double next_max_vel = minco_config.max_vel;
+  double next_max_acc = minco_config.max_acc;
+  double next_penalty_pos =
+    (minco_config.penaltyWeights.size() > 0) ? minco_config.penaltyWeights(0) : 1000.0;
+  double next_penalty_vel =
+    (minco_config.penaltyWeights.size() > 1) ? minco_config.penaltyWeights(1) : 1000.0;
+  double next_penalty_acc =
+    (minco_config.penaltyWeights.size() > 2) ? minco_config.penaltyWeights(2) : 10000.0;
+  double next_penalty_att =
+    (minco_config.penaltyWeights.size() > 3) ? minco_config.penaltyWeights(3) : 1000.0;
+  double next_penalty_time_barrier =
+    (minco_config.penaltyWeights.size() > 4) ? minco_config.penaltyWeights(4) : 100.0;
+  bool optimizer_config_changed = false;
+
   for (const auto & param : parameters) {
-    if (param.get_name() != target_param) {
+    const auto & param_name = param.get_name();
+
+    auto parse_numeric = [&](double & out) -> bool {
+      if (param.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+        out = param.as_double();
+        return true;
+      }
+      if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
+        out = static_cast<double>(param.as_int());
+        return true;
+      }
+      return false;
+    };
+
+    if (param_name == esdf_path_param) {
+      if (param.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
+        result.successful = false;
+        result.reason = "Parameter must be a string: " + esdf_path_param;
+        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+        return result;
+      }
+
+      next_esdf_pcd_path = param.as_string();
+      need_reload_static_esdf = true;
       continue;
     }
 
-    if (param.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
+    if (param_name == esdf_resolution_param) {
+      if (param.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE &&
+          param.get_type() != rclcpp::ParameterType::PARAMETER_INTEGER) {
+        result.successful = false;
+        result.reason = "Parameter must be a number: " + esdf_resolution_param;
+        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+        return result;
+      }
+
+      const double candidate_resolution = (param.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE)
+                                            ? param.as_double()
+                                            : static_cast<double>(param.as_int());
+      if (!std::isfinite(candidate_resolution) || candidate_resolution <= 0.0) {
+        result.successful = false;
+        result.reason = "Parameter must be > 0: " + esdf_resolution_param;
+        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+        return result;
+      }
+
+      next_esdf_resolution = candidate_resolution;
+      need_reload_static_esdf = true;
+      continue;
+    }
+
+    if (param_name == dynamic_size_param || param_name == dynamic_dilation_param) {
       result.successful = false;
-      result.reason = "Parameter must be a string: " + target_param;
+      result.reason =
+        "Dynamic ESDF layer params are not hot-reloadable, please restart node: " + param_name;
       RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
       return result;
     }
 
-    esdf_pcd_path_ = param.as_string();
-    if (!esdf_map_) {
-      result.successful = false;
-      result.reason = "ESDF map is not initialized";
-      RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
-      return result;
+    if (param_name == max_vel_param) {
+      double candidate = 0.0;
+      if (!parse_numeric(candidate) || !std::isfinite(candidate) || candidate <= 0.0) {
+        result.successful = false;
+        result.reason = "Parameter must be a positive number: " + max_vel_param;
+        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+        return result;
+      }
+      next_max_vel = candidate;
+      optimizer_config_changed = true;
+      continue;
     }
 
-    const bool reloaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
-    if (reloaded) {
-      RCLCPP_INFO(logger_, "[MincoPlanner] Reloaded static ESDF map from PCD: %s", esdf_pcd_path_.c_str());
-    } else {
-      result.successful = false;
-      result.reason = "Failed to reload static ESDF map from PCD: " + esdf_pcd_path_;
-      RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+    if (param_name == max_acc_param) {
+      double candidate = 0.0;
+      if (!parse_numeric(candidate) || !std::isfinite(candidate) || candidate <= 0.0) {
+        result.successful = false;
+        result.reason = "Parameter must be a positive number: " + max_acc_param;
+        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+        return result;
+      }
+      next_max_acc = candidate;
+      optimizer_config_changed = true;
+      continue;
     }
 
+    if (param_name == penalty_pos_param || param_name == penalty_vel_param ||
+        param_name == penalty_acc_param || param_name == penalty_att_param ||
+        param_name == penalty_time_barrier_param) {
+      double candidate = 0.0;
+      if (!parse_numeric(candidate) || !std::isfinite(candidate) || candidate < 0.0) {
+        result.successful = false;
+        result.reason = "Penalty weight must be a non-negative number: " + param_name;
+        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+        return result;
+      }
+
+      if (param_name == penalty_pos_param) {
+        next_penalty_pos = candidate;
+      } else if (param_name == penalty_vel_param) {
+        next_penalty_vel = candidate;
+      } else if (param_name == penalty_acc_param) {
+        next_penalty_acc = candidate;
+      } else if (param_name == penalty_att_param) {
+        next_penalty_att = candidate;
+      } else {
+        next_penalty_time_barrier = candidate;
+      }
+
+      optimizer_config_changed = true;
+      continue;
+    }
+  }
+
+  if (optimizer_config_changed) {
+    minco_config.max_vel = next_max_vel;
+    minco_config.max_acc = next_max_acc;
+
+    minco_config.penaltyWeights.resize(5);
+    minco_config.penaltyWeights(0) = next_penalty_pos;
+    minco_config.penaltyWeights(1) = next_penalty_vel;
+    minco_config.penaltyWeights(2) = next_penalty_acc;
+    minco_config.penaltyWeights(3) = next_penalty_att;
+    minco_config.penaltyWeights(4) = next_penalty_time_barrier;
+
+    minco_config.magnitudeBounds.resize(3);
+    minco_config.magnitudeBounds(0) = minco_config.safe_dist;
+    minco_config.magnitudeBounds(1) = minco_config.max_vel;
+    minco_config.magnitudeBounds(2) = minco_config.max_acc;
+
+    if (minco_optimizer_) {
+      minco_optimizer_->setConfig(minco_config);
+    }
+
+    RCLCPP_INFO(logger_,
+      "[MincoPlanner] Updated optimizer params: vmax=%.3f, amax=%.3f, w=[%.3f %.3f %.3f %.3f %.3f]",
+      minco_config.max_vel,
+      minco_config.max_acc,
+      minco_config.penaltyWeights(0),
+      minco_config.penaltyWeights(1),
+      minco_config.penaltyWeights(2),
+      minco_config.penaltyWeights(3),
+      minco_config.penaltyWeights(4));
+  }
+
+  if (!need_reload_static_esdf) {
     return result;
   }
 
+  if (!esdf_map_) {
+    result.successful = false;
+    result.reason = "ESDF map is not initialized";
+    RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+    return result;
+  }
+
+  const std::string prev_esdf_pcd_path = esdf_pcd_path_;
+  const double prev_esdf_resolution = esdf_resolution_;
+
+  esdf_pcd_path_ = next_esdf_pcd_path;
+  esdf_resolution_ = next_esdf_resolution;
+
+  const bool reloaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
+  if (reloaded) {
+    RCLCPP_INFO(logger_,
+      "[MincoPlanner] Reloaded static ESDF map from PCD: %s (resolution=%.3f)",
+      esdf_pcd_path_.c_str(),
+      esdf_resolution_);
+    return result;
+  }
+
+  esdf_pcd_path_ = prev_esdf_pcd_path;
+  esdf_resolution_ = prev_esdf_resolution;
+  esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
+
+  result.successful = false;
+  result.reason = "Failed to reload static ESDF map from PCD: " + next_esdf_pcd_path;
+  RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
   return result;
 }
 
@@ -442,9 +641,6 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     global_goal.y() = latest_global_path_.back().pose.position.y;
     global_goal.z() = 0.0;
     goal_yaw = utils::quaternionToYaw(latest_global_path_.back().pose.orientation);
-    if (!std::isfinite(goal_yaw)) {
-      goal_yaw = 0.0;
-    }
   }
 
   Eigen::Vector3d cur_pos(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
@@ -454,11 +650,13 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   if (dense_local_path.size() < 2) {
     return false;
   }
-
+  const bool local_end_is_goal =
+    (global_goal - dense_local_path.back()).head<2>().norm() <= traj_goal_tolerance_;
   // 3. Sparsify local path.
   std::vector<Eigen::Vector3d> sparse_path = utils::getSparseWaypoints(dense_local_path,
     minco_config.max_vel,
     minco_config.max_acc,
+    local_end_is_goal,
     [this](const Eigen::Vector3d & a, const Eigen::Vector3d & b) {
       return utils::isLineFree(this->costmap_, a, b);
     });
@@ -533,17 +731,16 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
       tangent = sparse_path.back() - sparse_path[sparse_path.size() - 2];
       tangent.z() = 0.0;
       const double n = tangent.head<2>().norm();
-      if (n > 1e-6) {
+      if (n > 0.1) {
         tangent /= n;
       } else {
         tangent = Eigen::Vector3d(1.0, 0.0, 0.0);
       }
     }
-    const double v_curr = std::max(0.0, start_state.col(1).norm());
+    const double v_curr = std::max(0.0, start_state.col(1).head<2>().norm());
     const double amax = std::max(0.0, minco_config.max_acc);
     const double v_max_kinematic = std::sqrt(std::max(0.0, v_curr * v_curr + 2.0 * amax * dist_to_goal));
-    const double v_cmd =
-      std::min({0.8 * std::max(0.0, minco_config.max_vel), v_max_kinematic, std::max(0.0, dist_to_goal)});
+    const double v_cmd = std::min({minco_config.max_vel, v_max_kinematic, dist_to_goal});
     end_state.col(1) = tangent * v_cmd;
     end_state.col(2).setZero();
   } else {
@@ -561,134 +758,29 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   }
 
   // 7.5 Initial guess Ps/Ts for optimizer (all cases).
-  {
-    const int N = static_cast<int>(sparse_path.size()) - 1;
-    if (N > 0) {
-      const double vmax = std::max(0.0, minco_config.max_vel);
-      const double amax = std::max(1e-3, minco_config.max_acc);
-      const double kMinSegTime = 0.1;
-      const double kBrakeSafety = 1.2;
+  const int N = static_cast<int>(sparse_path.size()) - 1;
+  VecDf local_vmaxs(N);
+  if (N > 0) {
+    vec_Vec3f init_ps;
+    VecDf init_ts(N);
+    PTAllocation(sparse_path,
+      start_state,
+      local_end_is_goal,
+      state,
+      has_shifted_seed,
+      shifted_waypoints,
+      shifted_durations,
+      init_ps,
+      init_ts,
+      local_vmaxs);
 
-      // Build init control points (Ps). Use shifted seed when available.
-      vec_Vec3f init_ps;
-      init_ps.reserve(static_cast<size_t>(std::max(0, N - 1)));
-      int copyPs = 0;
-      if (state == PlanningState::HOT_START && has_shifted_seed) {
-        const int oldWp = static_cast<int>(shifted_waypoints.size());
-        const int oldPs = std::max(0, oldWp - 2);
-        copyPs = std::min(std::max(0, N - 1), oldPs);
-      }
-      for (int j = 0; j < (N - 1); ++j) {
-        if (j < copyPs) {
-          init_ps.emplace_back(shifted_waypoints[static_cast<size_t>(j + 1)]);
-        } else {
-          init_ps.emplace_back(sparse_path[static_cast<size_t>(j + 1)]);
-        }
-      }
-
-      // Kinematics-aware time allocation.
-      double v_curr = start_state.col(1).norm();
-      if (!std::isfinite(v_curr) || v_curr < 0.0) {
-        v_curr = 0.0;
-      }
-
-      std::vector<double> seg_len;
-      seg_len.resize(static_cast<size_t>(N), 0.0);
-      for (int i = 0; i < N; ++i) {
-        const double dis =
-          (sparse_path[static_cast<size_t>(i + 1)] - sparse_path[static_cast<size_t>(i)]).head<2>().norm();
-        seg_len[static_cast<size_t>(i)] = (std::isfinite(dis) && dis > 0.0) ? dis : 0.0;
-      }
-
-      VecDf init_ts(N);
-      for (int i = 0; i < N; ++i) {
-        const bool is_last = (i == N - 1);
-        const double L = seg_len[static_cast<size_t>(i)];
-
-        // Remaining distance after this segment (for stop feasibility capping).
-        double remain_after = 0.0;
-        for (int k = i + 1; k < N; ++k) {
-          remain_after += seg_len[static_cast<size_t>(k)];
-        }
-
-        if (L <= 1e-6) {
-          init_ts(i) = kMinSegTime;
-          continue;
-        }
-
-        if (is_last) {
-          const double t_stop = v_curr / amax;
-          const double t_dist = L / std::max(v_curr, 0.1);
-          init_ts(i) = std::max({kMinSegTime, t_dist, kBrakeSafety * t_stop});
-          v_curr = 0.0;
-          continue;
-        }
-
-        // Predict reachable speed at end of this segment under accel limits.
-        double v_next = std::sqrt(std::max(0.0, v_curr * v_curr + 2.0 * amax * L));
-        if (std::isfinite(vmax) && vmax > 0.0) {
-          v_next = std::min(v_next, vmax);
-        }
-
-        // Cap speed to ensure it can stop within remaining path length.
-        if (remain_after > 1e-6) {
-          const double v_cap_stop = std::sqrt(std::max(0.0, 2.0 * amax * remain_after));
-          v_next = std::min(v_next, v_cap_stop);
-        } else {
-          v_next = 0.0;
-        }
-
-        if (!std::isfinite(v_next) || v_next < 0.0) {
-          v_next = 0.0;
-        }
-
-        double t = 0.0;
-        const double v_sum = v_curr + v_next;
-        if (v_sum > 1e-3) {
-          t = 2.0 * L / v_sum;
-        } else {
-          t = L / 0.1;
-        }
-
-        // If saturating at vmax and still long, include cruise time.
-        if (vmax > 1e-6 && std::abs(v_next - vmax) < 1e-6 && v_curr < vmax - 1e-6) {
-          const double d_acc = (vmax * vmax - v_curr * v_curr) / (2.0 * amax);
-          if (std::isfinite(d_acc) && d_acc > 0.0 && L > d_acc) {
-            const double t_acc = (vmax - v_curr) / amax;
-            const double t_cruise = (L - d_acc) / vmax;
-            const double t_alt = t_acc + t_cruise;
-            if (std::isfinite(t_alt) && t_alt > 0.0) {
-              t = t_alt;
-            }
-          }
-        }
-
-        if (!std::isfinite(t) || t < kMinSegTime) {
-          t = kMinSegTime;
-        }
-
-        init_ts(i) = t;
-        v_curr = v_next;
-      }
-
-      // If we have shifted seed durations, keep them only as a lower bound.
-      if (state == PlanningState::HOT_START && has_shifted_seed) {
-        const int oldN = std::min(N, static_cast<int>(shifted_durations.size()));
-        for (int i = 0; i < oldN; ++i) {
-          const double t_seed = shifted_durations(i);
-          if (std::isfinite(t_seed) && t_seed > 0.02) {
-            init_ts(i) = std::max(init_ts(i), t_seed);
-          }
-        }
-      }
-
-      minco_optimizer_->setInitPsAndTs(init_ps, init_ts);
-    }
+    minco_optimizer_->setInitPsAndTs(init_ps, init_ts);
   }
 
   // 8. Optimize.
   auto opt_start_time = rclcpp::Clock().now().seconds();
-  double final_cost = minco_optimizer_->optimize(sparse_path, start_state, end_state, opt_traj);
+  double final_cost =
+    minco_optimizer_->optimize(sparse_path, start_state, end_state, local_vmaxs, opt_traj);
 
   const double max_allowed_cost = 3000.0;
   if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
@@ -748,24 +840,16 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   constexpr double slope_threshold = 0.1;
   if (std::abs(pitch) > slope_threshold && sparse_path.size() >= 2) {
-    const Eigen::Vector2d local_dir = (sparse_path[1] - sparse_path[0]).head<2>();
-    if (local_dir.norm() > 1e-6) {
-      goal_yaw = std::atan2(local_dir.y(), local_dir.x());
+    goal_yaw = std::atan2(end_state.col(1).y(), end_state.col(1).x());
+  } else if (sparse_path.size() >= 2) {
+    const Eigen::Vector2d tail_dir = (sparse_path.back() - sparse_path[sparse_path.size() - 2]).head<2>();
+    if (tail_dir.norm() > 0.1) {
+      goal_yaw = std::atan2(tail_dir.y(), tail_dir.x());
+    } else {
+      goal_yaw = getCurrentYawFromOdom();
     }
   } else {
-    // Flat ground: keep using local lookahead endpoint / terminal tangent yaw.
-    if (!sparse_path.empty()) {
-      Eigen::Vector2d local_goal_dir = (sparse_path.back() - start_state.col(0)).head<2>();
-      if (local_goal_dir.norm() > 1e-6) {
-        goal_yaw = std::atan2(local_goal_dir.y(), local_goal_dir.x());
-      } else if (sparse_path.size() >= 2) {
-        const Eigen::Vector2d tail_dir =
-          (sparse_path.back() - sparse_path[sparse_path.size() - 2]).head<2>();
-        if (tail_dir.norm() > 1e-6) {
-          goal_yaw = std::atan2(tail_dir.y(), tail_dir.x());
-        }
-      }
-    }
+    goal_yaw = getCurrentYawFromOdom();
   }
 
   traj_opt::Trajectory yaw_traj;
@@ -823,6 +907,119 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   is_traj_safe_.store(true);
   return true;
+}
+
+void MincoPlanner::PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path,
+  const Eigen::Matrix3d & start_state,
+  bool goal_reached,
+  PlanningState state,
+  bool has_shifted_seed,
+  const vec_Vec3f & shifted_waypoints,
+  const VecDf & shifted_durations,
+  vec_Vec3f & init_ps,
+  VecDf & init_ts,
+  VecDf & local_vmaxs) const
+{
+  const int N = static_cast<int>(sparse_path.size()) - 1;
+  if (N <= 0) {
+    init_ps.clear();
+    init_ts.resize(0);
+    local_vmaxs.resize(0);
+    return;
+  }
+
+  const double global_vmax = std::max(0.0, minco_config.max_vel);
+  const double amax = std::max(1e-3, minco_config.max_acc);
+  const double kMinSegTime = 0.1;
+  const double kBrakeSafety = 1.2;
+  const double max_brake_dist = (global_vmax * global_vmax) / (2.0 * amax);
+
+  local_vmaxs.resize(N);
+  local_vmaxs.setConstant(global_vmax);
+  init_ts.resize(N);
+
+  init_ps.clear();
+  init_ps.reserve(static_cast<size_t>(std::max(0, N - 1)));
+  int copyPs = 0;
+  if (state == PlanningState::HOT_START && has_shifted_seed) {
+    const int oldWp = static_cast<int>(shifted_waypoints.size());
+    const int oldPs = std::max(0, oldWp - 2);
+    copyPs = std::min(std::max(0, N - 1), oldPs);
+  }
+  for (int j = 0; j < copyPs; ++j) {
+    init_ps.emplace_back(shifted_waypoints[static_cast<size_t>(j + 1)]);
+  }
+  for (int j = copyPs; j < (N - 1); ++j) {
+    init_ps.emplace_back(sparse_path[static_cast<size_t>(j + 1)]);
+  }
+
+  std::vector<double> seg_len(static_cast<size_t>(N), 0.0);
+  for (int i = 0; i < N; ++i) {
+    const double dis =
+      (sparse_path[static_cast<size_t>(i + 1)] - sparse_path[static_cast<size_t>(i)]).head<2>().norm();
+    seg_len[static_cast<size_t>(i)] = (std::isfinite(dis) && dis > 0.0) ? dis : 0.0;
+  }
+
+  std::vector<double> remain_after(static_cast<size_t>(N), 0.0);
+  for (int i = N - 2; i >= 0; --i) {
+    remain_after[static_cast<size_t>(i)] =
+      remain_after[static_cast<size_t>(i + 1)] + seg_len[static_cast<size_t>(i + 1)];
+  }
+
+  std::vector<double> local_vmax_vec(static_cast<size_t>(N), global_vmax);
+  for (int i = 0; i < N - 1; ++i) {
+    local_vmax_vec[static_cast<size_t>(i)] = utils::LimitLocalVel(sparse_path,
+      i,
+      global_vmax,
+      minco_config.turn_angle_deadzone,
+      minco_config.turn_angle_saturation,
+      minco_config.min_turn_vel,
+      minco_config.decay_power);
+  }
+  utils::VelPropogation(seg_len, amax, local_vmax_vec);
+  for (int i = 0; i < N; ++i) {
+    local_vmaxs(i) = local_vmax_vec[static_cast<size_t>(i)];
+  }
+
+  double v_curr = start_state.col(1).head<2>().norm();
+  if (!std::isfinite(v_curr) || v_curr < 0.0) {
+    v_curr = 0.0;
+  }
+
+  const double local_goal_remain = goal_reached ? 0.0 : max_brake_dist;
+  for (int i = 0; i < N; ++i) {
+    const bool is_last = (i == N - 1);
+    const double L = seg_len[static_cast<size_t>(i)];
+    const double remain = remain_after[static_cast<size_t>(i)] + local_goal_remain;
+
+    if (L <= 1e-6) {
+      init_ts(i) = kMinSegTime;
+      continue;
+    }
+
+    if (is_last && goal_reached) {
+      const double t_stop = v_curr / amax;
+      const double t_dist = L / std::max(v_curr, 0.1);
+      init_ts(i) = std::max({kMinSegTime, t_dist, kBrakeSafety * t_stop});
+      v_curr = 0.0;
+      continue;
+    }
+
+    const double local_vmax = local_vmax_vec[static_cast<size_t>(i)];
+    const double v_next = utils::ComputeNextSpeed(v_curr, L, remain, amax, local_vmax);
+    init_ts(i) = utils::ComputeSegmentTime(L, v_curr, v_next, local_vmax, amax, kMinSegTime);
+    v_curr = v_next;
+  }
+
+  if (state == PlanningState::HOT_START && has_shifted_seed) {
+    const int oldN = std::min(N, static_cast<int>(shifted_durations.size()));
+    for (int i = 0; i < oldN; ++i) {
+      const double t_seed = shifted_durations(i);
+      if (std::isfinite(t_seed) && t_seed > 0.02) {
+        init_ts(i) = std::max(init_ts(i), t_seed);
+      }
+    }
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -1032,7 +1229,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
     return PlanningState::COLD_START;
   }
 
-  double now = rclcpp::Clock().now().seconds() + 0.03;
+  double now = rclcpp::Clock().now().seconds() + 0.005;
   double t_dur = now - last_traj_.start_WT;
   if (t_dur <= 0.0 || t_dur >= last_traj_.getTotalDuration()) {
     std::cout << YELLOW << "[MincoPlanner] Hot Start Rejected: Invalid time duration (t_dur=" << t_dur
@@ -1045,7 +1242,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
   Eigen::Vector3d pred_vel = last_traj_.getVel(t_dur);
   double tracking_error = (current_pos - pred_pos).norm();
   Eigen::Vector3d current_speed = getCurrentSpeed();
-  double dynamic_error_threshold = 0.5 + 0.3 * current_speed.head<2>().norm();
+  double dynamic_error_threshold = 1.0 + 0.5 * current_speed.head<2>().norm();
   double vel_error = (current_speed - pred_vel).norm();
   if (tracking_error > dynamic_error_threshold) {
     std::cout << YELLOW << "[MincoPlanner] Large tracking error (" << tracking_error
@@ -1053,7 +1250,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
     return PlanningState::COLD_START;
   }
 
-  if (vel_error > 0.3) {
+  if (vel_error > 1.0) {
     std::cout << YELLOW << "[MincoPlanner] Large velocity error (" << vel_error
               << "m/s). Downgrading to COLD_START." << RESET << std::endl;
     // return PlanningState::COLD_START;
@@ -1107,12 +1304,15 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
     if (std::abs(pitch) > slope_threshold) {
       Eigen::Vector2d local_dir = (sparse_path[1] - sparse_path[0]).head<2>();
       const double norm = local_dir.norm();
-      if (norm > 1e-6) {
+      if (norm > 0.1) {
         local_dir /= norm;
-        constexpr double min_climb_speed = 1.5;
+        constexpr double min_climb_speed = 2.5;
+        constexpr double min_climb_acc = 3.0;
         if (std::hypot(real_speed.x(), real_speed.y()) < min_climb_speed) {
           real_speed.x() = local_dir.x() * min_climb_speed;
           real_speed.y() = local_dir.y() * min_climb_speed;
+          start_state.col(2) =
+            Eigen::Vector3d(local_dir.x() * min_climb_acc, local_dir.y() * min_climb_acc, 0.0);
         }
       }
     }
@@ -1125,6 +1325,7 @@ void MincoPlanner::prepareHotStart(
   const geometry_msgs::msg::Pose & start_pose, double t_dur, Eigen::Matrix3d & start_state)
 {
   start_state.setZero();
+  // start_state.col(0) = last_traj_.getPos(t_dur);
   start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
   start_state.col(1) = last_traj_.getVel(t_dur);
   start_state.col(2) = last_traj_.getAcc(t_dur);
@@ -1167,7 +1368,7 @@ bool MincoPlanner::optimizeYaw(const Eigen::Matrix3d & start_state,
   }
 
   if (!use_hot_seed) {
-    if (start_state.col(1).head<2>().norm() > 1e-3) {
+    if (start_state.col(1).head<2>().norm() > 0.1) {
       init_yaw_state(0) = std::atan2(start_state.col(1).y(), start_state.col(1).x());
     } else {
       init_yaw_state(0) = getCurrentYawFromOdom();
@@ -1314,7 +1515,7 @@ bool MincoPlanner::checkCollision(const traj_opt::Trajectory & traj)
       return false;
     }
     const unsigned char cost = costmap_->getCost(mx, my);
-    if (cost == nav2_costmap_2d::LETHAL_OBSTACLE ) {
+    if (cost == nav2_costmap_2d::LETHAL_OBSTACLE) {
       return false;
     }
   }
@@ -1465,9 +1666,18 @@ Eigen::Vector3d MincoPlanner::getCurrentSpeed() const
 {
   std::lock_guard<std::mutex> lk(odom_mutex_);
   if (has_latest_odom_) {
-    return Eigen::Vector3d(latest_odom_.twist.twist.linear.x,
-      latest_odom_.twist.twist.linear.y,
-      latest_odom_.twist.twist.linear.z);
+    geometry_msgs::msg::Vector3Stamped body_vel;
+    body_vel.header.stamp = latest_odom_.header.stamp;
+    body_vel.header.frame_id = latest_odom_.child_frame_id;
+    body_vel.vector = latest_odom_.twist.twist.linear;
+
+    try {
+      const auto map_vel = tf_->transform(body_vel, global_frame_);
+      return Eigen::Vector3d(map_vel.vector.x, map_vel.vector.y, map_vel.vector.z);
+    } catch (const tf2::TransformException &) {
+    }
+
+    return Eigen::Vector3d(body_vel.vector.x, body_vel.vector.y, body_vel.vector.z);
   }
   return Eigen::Vector3d::Zero();
 }

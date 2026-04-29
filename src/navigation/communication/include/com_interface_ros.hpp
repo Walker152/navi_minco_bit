@@ -94,6 +94,7 @@ public:
     msg.transform_state = in.transform_state;
     transform_state = in.transform_state;
     msg.header.stamp = now();
+    msg.capacitor_capacity = in.capacitor_capacity;
     offline_info_pub_->publish(msg);
   }
 
@@ -174,8 +175,9 @@ private:
 
     com_timer_ = this->create_wall_timer(
       std::chrono::milliseconds(3), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
-    path_timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(1000), std::bind(&ComInterfaceRos::sendGlobalPathLoop, this), comm_cb_group_);
+    path_timer_ = this->create_wall_timer(std::chrono::milliseconds(1000),
+      std::bind(&ComInterfaceRos::sendGlobalPathLoop, this),
+      comm_cb_group_);
     RCLCPP_INFO(this->get_logger(), "ComInterfaceRos initialized");
   }
 
@@ -203,16 +205,17 @@ private:
       // vw_rpm = 80.0f;
       desire_stance = behavior_.desired_stance;
       desire_lifter_pos = behavior_.desire_lifter_pos;
-    //   use_gyro_mode = behavior_.use_gyro_mode;
-    //   gyro_vel = behavior_.gyro_vel;
+        use_gyro_mode = behavior_.use_gyro_mode;
+        gyro_vel = behavior_.gyro_vel;
 
-      // if (use_gyro_mode) {
-      //   vw_rpm = gyro_vel;
-      // }
-      if (transform_state >= 0.85f) {
-        vx_mps *= 1.2;
-        vy_mps *= 1.2;
+      if (use_gyro_mode) {
+        vw_rpm = gyro_vel;
       }
+      // if (transform_state >= 0.85f) {
+      //   vx_mps *= 1.0;
+      //   vy_mps *= 1.0;
+      //   vw_rpm = 0.0;
+      // }
       odom_q = odom_.pose.pose.orientation;
       current_vx = odom_.twist.twist.linear.x;
       current_vy = odom_.twist.twist.linear.y;
@@ -246,13 +249,10 @@ private:
           NV(target.vx_mps),
           NV(target.vy_mps),
           NV(target.vw_rpm),
-          NV(target.current_x),
-          NV(target.current_y),
           NV(target.current_yaw),
           NV(target.is_aim_outpost),
           NV(static_cast<int>(target.desire_stance)),
-          NV(static_cast<int>(target.desire_lifter_pos)),
-          NV(static_cast<int>(target.control_mode)));
+          NV(static_cast<int>(target.desire_lifter_pos)));
         last_send_time = now_time;
       }
     }
@@ -279,8 +279,11 @@ private:
     // (void)Communication::send2stm32<GlobalPathY>(global_path_y, ENUM_PACKET_GLOBAL_PATH_Y);
   }
 
-  static void mapToMinimapPoint(
-    const tf2::Transform & tf_map_to_minimap, const double map_x, const double map_y, double & mini_x, double & mini_y)
+  static void mapToMinimapPoint(const tf2::Transform & tf_map_to_minimap,
+    const double map_x,
+    const double map_y,
+    double & mini_x,
+    double & mini_y)
   {
     const tf2::Vector3 p_map(map_x, map_y, 0.0);
     const tf2::Vector3 p_minimap = tf_map_to_minimap * p_map;
