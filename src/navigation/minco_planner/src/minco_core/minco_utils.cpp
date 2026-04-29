@@ -692,5 +692,22 @@ void clearRobotCell(nav2_costmap_2d::Costmap2D * costmap, unsigned int mx, unsig
   }
   costmap->setCost(mx, my, nav2_costmap_2d::FREE_SPACE);
 }
+void compensateLeverArm(double v_lidar_x,
+  double v_lidar_y,
+  double omega_z,
+  double yaw,
+  double & vx_global,
+  double & vy_global,
+  double & omega_global)
+{
+  const double v_body_x = v_lidar_x + omega_z * 0.2;
+  const double v_body_y = v_lidar_y - omega_z * 0.0;
 
+  const double cos_yaw = std::cos(yaw);
+  const double sin_yaw = std::sin(yaw);
+
+  vx_global = v_body_x * cos_yaw - v_body_y * sin_yaw;
+  vy_global = v_body_x * sin_yaw + v_body_y * cos_yaw;
+  omega_global = omega_z;
+}
 }  // namespace minco_planner::utils
