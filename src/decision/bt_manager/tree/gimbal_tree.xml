@@ -9,8 +9,6 @@
       <ReactiveSequence name="Priority2SpecialResponseScan">
         <CheckOutpostSafeResponse name="CheckOutpostSafeResponseForGimbal"
                                   stable_seconds="5.0"
-                                  health_drop_threshold="0.5"
-                                  health_change_eps="0.1"
                                   require_response_mode="true"
                                   branch="Priority2SpecialResponseScan" />
         <CheckNearEnemyOutpost name="CheckNearEnemyOutpost" branch="Priority2SpecialResponseScan" />

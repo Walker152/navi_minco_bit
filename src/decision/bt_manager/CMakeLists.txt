@@ -38,9 +38,22 @@ file(GLOB_RECURSE BT_MANAGER_SOURCES CONFIGURE_DEPENDS
   "src/utils/*.cpp"
 )
 
+file(GLOB_RECURSE BT_TEST_SOURCES CONFIGURE_DEPENDS
+  "src/*.cpp"
+  "src/action/*.cpp"
+  "src/condition/*.cpp"
+  "src/utils/*.cpp"
+)
+
 list(REMOVE_ITEM BT_MANAGER_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/src/test/event_status_pub_test.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/test/stance_tree_test.cpp"
+)
+
+list(REMOVE_ITEM BT_TEST_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/stance_tree_test.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/event_status_pub_test.cpp"
 )
 
 add_executable(bt_manager_node 
@@ -49,6 +62,7 @@ add_executable(bt_manager_node
 
 add_executable(event_test
   src/test/event_status_pub_test.cpp
+  ${BT_TEST_SOURCES}
 )
 
 add_executable(stance_tree_test

@@ -1,0 +1,52 @@
+[NAV_TREE][Priority0ManualOverride] CheckManualOverride => INACTIVE | manual inactive or goal invalid
+[NAV_TREE][Priority1Survival] CheckRetreatCondition => INACTIVE | health=100, health_threshold=30, recovery_threshold=80, ammo=300, ammo_threshold=0, ammo_recovery_threshold=0, current_mode=0
+[RECOVERY_TREE] CheckTimeInZone => INACTIVE | zone=transform_zone, zone_idx=-1, pos=(0, 0)
+[NAV_TREE][Priority2TargetAttack] CheckTargetLocked => INACTIVE | target_valid=0, in_attack_area=0, target_xy=(0, 0), tactical_mode=2
+[NAV_TREE][NormalOutpostResponse] CheckTacticalModeCondition => ACTIVE | mode=normal, current_tactical_mode=2, expected_mode=2
+[NAV_TREE][NormalOutpostResponse] CheckOutpostSafeResponse => ACTIVE | health=100, current_mode=0, require_response_mode=0, cooldown_active=0
+[NAV_TREE][NormalOutpostResponse] CheckOutpostRemained => ACTIVE | enemy outpost remained
+[NAV_TREE][NormalOutpostResponse] CheckWillThroughTunnel => INACTIVE | through_tunnel=0, in_transform_zone=0, lifter_current_pos=0
+[STANCE_TREE][RuleRefresh] CheckStanceRefreshRequired => INACTIVE | stance changed, reset timer
+[STANCE_TREE][MoveStanceNoGyroBranch] CheckCrossZoneTransition => INACTIVE | current_in_highland=0, current_in_half=0, goal_in_highland=1, goal_in_half=0, through_tunnel=0, tunnel_idx=-1, use_gyro_mode=0, gyro_vel=0
+[STANCE_TREE][AbsoluteAttackBranch] CheckHeat => INACTIVE | heat=0, mode=greater, threshold=200
+[STANCE_TREE][AbsoluteAttackBranch] CheckOutpostTarget => INACTIVE | mode=3, in_outpost_zone=0, nav_goal_is_outpost=1
+[GIMBAL_TREE] CheckTargetVisible => INACTIVE
+[STANCE_TREE][CombatAttackBranch] CheckEngagedStatus => INACTIVE | engaged=0, expected=1
+[STANCE_TREE][MoveStanceGyroBranch] CheckCapacitorCapacity => INACTIVE | capacitor=100, mode=less, threshold=30
+[STANCE_TREE][MoveStanceGyroBranch] CheckEngagedStatus => ACTIVE | engaged=0, expected=0
+[GIMBAL_TREE][Priority1HardLock] CheckTargetVisible => INACTIVE
+[NAV_TREE][Priority2SpecialResponseScan] CheckOutpostSafeResponse => ACTIVE | health=100, current_mode=3, require_response_mode=1, cooldown_active=0
+[GIMBAL_TREE][Priority2SpecialResponseScan] CheckNearEnemyOutpost => INACTIVE | pos=(0, 0)
+[TACTICAL_TREE][AttackPriority] CheckAttackCondition => INACTIVE | outpost_destroyed=0, energy_active=0, home_health=3000, threshold=1000
+[NAV_TREE][DefendFortResponse] CheckTacticalModeCondition => INACTIVE | mode=defend, current_tactical_mode=2, expected_mode=1
+[NAV_TREE][AttackFortResponse] CheckTacticalModeCondition => INACTIVE | mode=attack, current_tactical_mode=2, expected_mode=0
+[NAV_TREE][Priority4TrackPatrol] CheckWillThroughTunnel => INACTIVE | through_tunnel=0, in_transform_zone=0, lifter_current_pos=0
+[NAV_TREE][Priority2SpecialResponseScan] CheckOutpostSafeResponse => INACTIVE | health=100, current_mode=0, require_response_mode=1, cooldown_active=0
+[NAV_TREE][Priority2SpecialResponseScan] CheckOutpostSafeResponse => ACTIVE | health=100, current_mode=3, require_response_mode=1, cooldown_active=0
+[NAV_TREE][Priority0ManualOverride] CheckManualOverride => INACTIVE | manual inactive or goal invalid
+[NAV_TREE][Priority1Survival] CheckRetreatCondition => INACTIVE | health=100, health_threshold=30, recovery_threshold=80, ammo=300, ammo_threshold=0, ammo_recovery_threshold=0, current_mode=0
+[RECOVERY_TREE] CheckTimeInZone => INACTIVE | zone=transform_zone, zone_idx=-1, pos=(0, 0)
+[NAV_TREE][Priority2TargetAttack] CheckTargetLocked => INACTIVE | target_valid=0, in_attack_area=0, target_xy=(0, 0), tactical_mode=2
+[NAV_TREE][NormalOutpostResponse] CheckTacticalModeCondition => ACTIVE | mode=normal, current_tactical_mode=2, expected_mode=2
+[NAV_TREE][NormalOutpostResponse] CheckOutpostSafeResponse => ACTIVE | health=100, current_mode=0, require_response_mode=0, cooldown_active=0
+[NAV_TREE][NormalOutpostResponse] CheckOutpostRemained => ACTIVE | enemy outpost remained
+[NAV_TREE][NormalOutpostResponse] CheckWillThroughTunnel => INACTIVE | through_tunnel=0, in_transform_zone=0, lifter_current_pos=0
+[STANCE_TREE][RuleRefresh] CheckStanceRefreshRequired => INACTIVE | stance changed, reset timer
+[STANCE_TREE][MoveStanceNoGyroBranch] CheckCrossZoneTransition => INACTIVE | current_in_highland=0, current_in_half=0, goal_in_highland=1, goal_in_half=0, through_tunnel=0, tunnel_idx=-1, use_gyro_mode=0, gyro_vel=0
+[STANCE_TREE][AbsoluteAttackBranch] CheckHeat => INACTIVE | heat=0, mode=greater, threshold=200
+[STANCE_TREE][AbsoluteAttackBranch] CheckOutpostTarget => INACTIVE | mode=3, in_outpost_zone=0, nav_goal_is_outpost=1
+[GIMBAL_TREE] CheckTargetVisible => INACTIVE
+[STANCE_TREE][CombatAttackBranch] CheckEngagedStatus => INACTIVE | engaged=0, expected=1
+[STANCE_TREE][MoveStanceGyroBranch] CheckCapacitorCapacity => INACTIVE | capacitor=100, mode=less, threshold=30
+[STANCE_TREE][MoveStanceGyroBranch] CheckEngagedStatus => ACTIVE | engaged=0, expected=0
+[GIMBAL_TREE][Priority1HardLock] CheckTargetVisible => INACTIVE
+[NAV_TREE][Priority2SpecialResponseScan] CheckOutpostSafeResponse => ACTIVE | health=100, current_mode=3, require_response_mode=1, cooldown_active=0
+[GIMBAL_TREE][Priority2SpecialResponseScan] CheckNearEnemyOutpost => INACTIVE | pos=(0, 0)
+[TACTICAL_TREE][AttackPriority] CheckAttackCondition => INACTIVE | outpost_destroyed=0, energy_active=0, home_health=3000, threshold=1000
+[NAV_TREE][DefendFortResponse] CheckTacticalModeCondition => INACTIVE | mode=defend, current_tactical_mode=2, expected_mode=1
+[NAV_TREE][AttackFortResponse] CheckTacticalModeCondition => INACTIVE | mode=attack, current_tactical_mode=2, expected_mode=0
+[NAV_TREE][Priority4TrackPatrol] CheckWillThroughTunnel => INACTIVE | through_tunnel=0, in_transform_zone=0, lifter_current_pos=0
+[NAV_TREE][Priority2SpecialResponseScan] CheckOutpostSafeResponse => INACTIVE | health=100, current_mode=0, require_response_mode=1, cooldown_active=0
+[NAV_TREE][Priority2SpecialResponseScan] CheckOutpostSafeResponse => ACTIVE | health=100, current_mode=3, require_response_mode=1, cooldown_active=0
+[NAV_TREE][Priority2SpecialResponseScan] CheckOutpostSafeResponse => INACTIVE | health=100, current_mode=0, require_response_mode=1, cooldown_active=0
+[NAV_TREE][Priority2SpecialResponseScan] CheckOutpostSafeResponse => ACTIVE | health=100, current_mode=3, require_response_mode=1, cooldown_active=0

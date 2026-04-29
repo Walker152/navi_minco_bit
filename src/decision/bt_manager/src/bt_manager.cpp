@@ -128,6 +128,16 @@ void SentryBTManager::tickMainExactlyOnce()
   tickTreeExactlyOnce(*main_tree_);
 }
 
+void SentryBTManager::tickStanceExactlyOnce()
+{
+  tickTreeExactlyOnce(stance_tree_);
+}
+
+void SentryBTManager::tickTacticalExactlyOnce()
+{
+  tickTreeExactlyOnce(tactical_tree_);
+}
+
 void SentryBTManager::run(double frequency_hz)
 {
   if (frequency_hz <= 0.0) {

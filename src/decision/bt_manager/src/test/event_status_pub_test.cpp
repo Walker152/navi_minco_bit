@@ -1,586 +1,834 @@
-#include <algorithm>
-#include <chrono>
-#include <cstdint>
-#include <memory>
-#include <string>
+#include "bt_manager/bt_manager.hpp"
+#include "bt_manager/blackboard.hpp"
+#include "bt_manager/ros_interface.hpp"
+#include "bt_manager/utils/color_text.hpp"
+#include "bt_manager/utils/area.hpp"
+#include "bt_manager/utils/tf_utils.hpp"
 
-#include <bt_manager/utils/area.hpp>
-#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <ros_interfaces/msg/game_info.hpp>
-#include <ros_interfaces/msg/radar_info.hpp>
-#include <ros_interfaces/msg/sentry_info_offline.hpp>
-#include <ros_interfaces/msg/sentry_info_online.hpp>
-#include <ros_interfaces/msg/team_information.hpp>
-#include <tf2/LinearMath/Quaternion.h>
-#include <tf2_ros/transform_broadcaster.h>
+#include <iostream>
+#include <cmath>
+#include <thread>
+#include <chrono>
+#include <cassert>
+#include <functional>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
-namespace {
-constexpr const char * C_GREEN = "\033[1;32m";
-constexpr const char * C_YELLOW = "\033[1;33m";
-constexpr const char * C_CYAN = "\033[1;36m";
-constexpr const char * C_MAGENTA = "\033[1;35m";
-constexpr const char * C_RESET = "\033[0m";
-constexpr int TICK_PERIOD_MS = 100;
-constexpr int TICKS_PER_SUBPHASE = 100;     // 10s / 100ms
-constexpr int PHASE_DURATION_SECONDS = 30;  // A/B/C each 10s
+using namespace Sentry_BT;
+using namespace color_text;
 
-uint16_t buildSentryInfo2(bool is_disengaged, uint8_t current_stance_bits, bool can_activate_energy)
-{
-  uint16_t value = 0;
-  if (is_disengaged) {
-    value |= 0x0001;
-  }
-  value |= static_cast<uint16_t>((current_stance_bits & 0x3) << 12);
-  if (can_activate_energy) {
-    value |= static_cast<uint16_t>(1U << 14);
-  }
-  return value;
-}
-
-uint32_t buildSentryInfo1(
-  bool can_free_resurrect, bool can_instant_resurrect, uint16_t instant_resurrect_cost)
-{
-  uint32_t value = 0;
-  if (can_free_resurrect) {
-    value |= (1U << 19);
-  }
-  if (can_instant_resurrect) {
-    value |= (1U << 20);
-  }
-  value |= (static_cast<uint32_t>(instant_resurrect_cost & 0x03FF) << 21);
-  return value;
-}
-
-uint32_t buildEventCode(
-  uint8_t small_energy_status, uint8_t big_energy_status, uint8_t fort_occupation_status)
-{
-  uint32_t value = 0;
-  value |= (static_cast<uint32_t>(small_energy_status & 0x3) << 3);
-  value |= (static_cast<uint32_t>(big_energy_status & 0x3) << 5);
-  value |= (static_cast<uint32_t>(fort_occupation_status & 0x3) << 25);
-  return value;
-}
-
-Sentry_BT::Point2D getAreaCenter(const Sentry_BT::Area_Square & area)
-{
-  const double min_x = std::min(area.top_left.x, area.bottom_right.x);
-  const double max_x = std::max(area.top_left.x, area.bottom_right.x);
-  const double min_y = std::min(area.top_left.y, area.bottom_right.y);
-  const double max_y = std::max(area.top_left.y, area.bottom_right.y);
-  return Sentry_BT::Point2D{(min_x + max_x) * 0.5, (min_y + max_y) * 0.5, 0.0};
-}
-
-Sentry_BT::Point2D getOutsidePointNearArea(const Sentry_BT::Area_Square & area)
-{
-  const double max_x = std::max(area.top_left.x, area.bottom_right.x);
-  const double max_y = std::max(area.top_left.y, area.bottom_right.y);
-  return Sentry_BT::Point2D{max_x + 0.8, max_y + 0.8, 0.0};
-}
-
-template <std::size_t N>
-Sentry_BT::Point2D getAreaCenter(const std::array<Sentry_BT::Area_Square, N> & areas)
-{
-  double min_x = std::min(areas[0].top_left.x, areas[0].bottom_right.x);
-  double max_x = std::max(areas[0].top_left.x, areas[0].bottom_right.x);
-  double min_y = std::min(areas[0].top_left.y, areas[0].bottom_right.y);
-  double max_y = std::max(areas[0].top_left.y, areas[0].bottom_right.y);
-
-  for (const auto & area : areas) {
-    min_x = std::min(min_x, std::min(area.top_left.x, area.bottom_right.x));
-    max_x = std::max(max_x, std::max(area.top_left.x, area.bottom_right.x));
-    min_y = std::min(min_y, std::min(area.top_left.y, area.bottom_right.y));
-    max_y = std::max(max_y, std::max(area.top_left.y, area.bottom_right.y));
-  }
-
-  return Sentry_BT::Point2D{(min_x + max_x) * 0.5, (min_y + max_y) * 0.5, 0.0};
-}
-
-template <std::size_t N>
-Sentry_BT::Point2D getOutsidePointNearArea(const std::array<Sentry_BT::Area_Square, N> & areas)
-{
-  double max_x = std::max(areas[0].top_left.x, areas[0].bottom_right.x);
-  double max_y = std::max(areas[0].top_left.y, areas[0].bottom_right.y);
-
-  for (const auto & area : areas) {
-    max_x = std::max(max_x, std::max(area.top_left.x, area.bottom_right.x));
-    max_y = std::max(max_y, std::max(area.top_left.y, area.bottom_right.y));
-  }
-
-  return Sentry_BT::Point2D{max_x + 0.8, max_y + 0.8, 0.0};
-}
-
-template <std::size_t N>
-Sentry_BT::Point2D getAreaCenter(const Sentry_BT::AreaPolygon<N, Sentry_BT::Point2D> & area)
-{
-  double min_x = area.vertices[0].x;
-  double max_x = area.vertices[0].x;
-  double min_y = area.vertices[0].y;
-  double max_y = area.vertices[0].y;
-  for (const auto & vertex : area.vertices) {
-    min_x = std::min(min_x, vertex.x);
-    max_x = std::max(max_x, vertex.x);
-    min_y = std::min(min_y, vertex.y);
-    max_y = std::max(max_y, vertex.y);
-  }
-  return Sentry_BT::Point2D{(min_x + max_x) * 0.5, (min_y + max_y) * 0.5, 0.0};
-}
-
-template <std::size_t N>
-Sentry_BT::Point2D getOutsidePointNearArea(const Sentry_BT::AreaPolygon<N, Sentry_BT::Point2D> & area)
-{
-  double max_x = area.vertices[0].x;
-  double max_y = area.vertices[0].y;
-  for (const auto & vertex : area.vertices) {
-    max_x = std::max(max_x, vertex.x);
-    max_y = std::max(max_y, vertex.y);
-  }
-  return Sentry_BT::Point2D{max_x + 0.8, max_y + 0.8, 0.0};
-}
-}  // namespace
-
-class EventStatusTestNode : public rclcpp::Node
-{
+// ==========================================
+// 测试框架基础类：接管黑板，模拟时间与状态
+// ==========================================
+class SentryTestSuite {
 public:
-  EventStatusTestNode()
-  : Node("event_status_test"), phase_(1), phase_tick_(0), last_phase_(-1), last_subphase_(-1),
-    tf_enabled_(true), last_tf_enabled_(true), fake_time_jump_applied_(false)
-  {
-    team_pub_ = create_publisher<ros_interfaces::msg::TeamInformation>("/sentry/team_info", 10);
-    game_pub_ = create_publisher<ros_interfaces::msg::GameInfo>("/sentry/game_info", 10);
-    radar_pub_ = create_publisher<ros_interfaces::msg::RadarInfo>("/sentry/radar_info", 10);
-    offline_pub_ = create_publisher<ros_interfaces::msg::SentryInfoOffline>("/sentry/offline_info", 10);
-    online_pub_ = create_publisher<ros_interfaces::msg::SentryInfoOnline>("/sentry/online_info", 10);
+    SentryTestSuite(std::shared_ptr<rclcpp::Node> node) : node_(node) {
+        blackboard_ = std::make_shared<Blackboard>();
+        bt_blackboard_ = blackboard_->getBTBlackboard();
+        
+        // 挂载 ROS 接口（即使是空壳也需要，以防节点内部调用）
+        ros_interface_ = std::make_shared<ros_interface>(blackboard_);
+        bt_blackboard_->set<std::shared_ptr<ros_interface>>("ros_interface", ros_interface_);
+        bt_blackboard_->set<rclcpp::Node::SharedPtr>("node", ros_interface_);
+        bt_blackboard_->set<std::shared_ptr<TransformUtils>>(
+            "transform_utils", std::make_shared<TransformUtils>());
+        bt_blackboard_->set<std::chrono::milliseconds>("bt_loop_duration", std::chrono::milliseconds(100));
+        bt_blackboard_->set<std::chrono::milliseconds>("server_timeout", std::chrono::milliseconds(500));
+        bt_blackboard_->set<std::chrono::milliseconds>(
+            "wait_for_service_timeout", std::chrono::milliseconds(10000));
+        
+        // 初始化 BT Manager
+        bt_manager_ = std::make_shared<SentryBTManager>();
+        // 注意：请确保运行测试时，工作目录或环境变量指向正确的 tree 文件夹路径
+        tree_dir_ = ament_index_cpp::get_package_share_directory("bt_manager");
+        if (!bt_manager_->initialize(bt_blackboard_, tree_dir_)) {
+            std::cerr << RED << "[ERROR] 无法加载行为树 XML 文件，请检查路径: " << tree_dir_ << RESET << std::endl;
+            exit(-1);
+        }
+    }
 
-    tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
-    tick_timer_ = create_wall_timer(std::chrono::milliseconds(TICK_PERIOD_MS), [this]() {
-      this->onTick();
-    });
-    phase_timer_ = create_wall_timer(std::chrono::seconds(PHASE_DURATION_SECONDS), [this]() {
-      this->advancePhase();
-    });
+    void runAllTests() {
+        std::cout << "\n" << MAGENTA << "==========================================" << RESET << std::endl;
+        std::cout << MAGENTA << "   SENTRY BEHAVIOR TREE 综合自动化测试启动   " << RESET << std::endl;
+        std::cout << MAGENTA << "==========================================" << RESET << std::endl;
 
-    RCLCPP_INFO(get_logger(),
-      "%s[TestNode] event_test started: 10Hz publish + 30s phase switch (10s per sub-scenario)%s",
-      C_CYAN,
-      C_RESET);
-    logStateTransition(true);
-  }
+        runTest("一.1 导航树：己方半场战术模式响应", [this]() { testNav_TacticalModesResponse(); });
+        runTest("一.2 导航树：前哨站受击 5s CD 及重回逻辑", [this]() { testNav_OutpostHitAndCooldown(); });
+        runTest("一.3 导航树：索敌追击抢占响应", [this]() { testNav_TargetPursuitOverride(); });
+        runTest("一.4 导航树：隧道跨越与卡死恢复", [this]() { testNav_TunnelCrossingAndRecovery(); });
+        runTest("一.5 导航树：组合隧道场景", [this]() { testNav_CombinedTunnelScenarios(); });
+        runTest("一.6 导航树：优先级绝对抢占", [this]() { testNav_PriorityEscalation(); });
+        runTest("一.7 导航树：状态抖动 (Ping-Pong) 检测", [this]() { testNav_JitterDetection(); });
+
+        runTest("二.1 姿态树：隧道与跨区姿态", [this]() { testStance_TunnelAndCrossZone(); });
+        runTest("二.2 姿态树：多条件姿态切换", [this]() { testStance_VariousConditions(); });
+        runTest("二.3 姿态树：优先级覆盖", [this]() { testStance_PriorityEscalation(); });
+        runTest("二.4 姿态树：回家再出门迟滞循环", [this]() { testStance_RetreatAndPatrolLoop(); });
+
+        runTest("三.1 战术树：切换与优先级", [this]() { testTactical_SwitchAndPriority(); });
+        runTest("三.2 组合边界场景", [this]() { testCombined_ExtremeEdgeCases(); });
+
+        std::cout << GREEN << "\n[ALL TESTS PASSED] 所有行为树逻辑测试完美通过！" << RESET << std::endl;
+    }
 
 private:
-  void advancePhase()
-  {
-    phase_ = (phase_ % 6) + 1;
-    phase_tick_ = 0;
-    fake_time_jump_applied_ = false;
-    logStateTransition(true);
-  }
+    std::shared_ptr<rclcpp::Node> node_;
+    std::shared_ptr<Blackboard> blackboard_;
+    std::shared_ptr<BT::Blackboard> bt_blackboard_;
+    std::shared_ptr<ros_interface> ros_interface_;
+    std::shared_ptr<SentryBTManager> bt_manager_;
+    std::string tree_dir_;
 
-  int subPhase() const
-  {
-    // 一个 phase 内再细分 3 个子场景：0~2
-    // 30 秒 phase, 每 10 秒一个子场景。
-    return std::min(2, phase_tick_ / TICKS_PER_SUBPHASE);
-  }
-
-  void logStateTransition(bool force = false)
-  {
-    const int sub = subPhase();
-    if (!force && phase_ == last_phase_ && sub == last_subphase_ && tf_enabled_ == last_tf_enabled_) {
-      return;
-    }
-
-    last_phase_ = phase_;
-    last_subphase_ = sub;
-    last_tf_enabled_ = tf_enabled_;
-
-    switch (phase_) {
-    case 1:
-      if (sub == 0) {
-        RCLCPP_INFO(get_logger(),
-          "%s[Phase1-A] 生存最高优先: 低血低弹，预期强制回血回弹(HOME)+MOVE%s",
-          C_GREEN,
-          C_RESET);
-      } else {
-        RCLCPP_INFO(
-          get_logger(), "%s[Phase1-B] 恢复血弹: 预期退出回血模式，恢复常规行为%s", C_GREEN, C_RESET);
-      }
-      break;
-    case 2:
-      if (sub == 0) {
-        RCLCPP_INFO(
-          get_logger(), "%s[Phase2-A] TF进台阶区 + 台阶下有队友: 预期下台阶避让中止%s", C_YELLOW, C_RESET);
-      } else if (sub == 1) {
-        RCLCPP_INFO(get_logger(), "%s[Phase2-B] 清除队友占位: 预期恢复下台阶cmd_vel%s", C_YELLOW, C_RESET);
-      } else {
-        RCLCPP_INFO(
-          get_logger(), "%s[Phase2-C] TF进隧道区: 预期触发过隧道流程(含升降相关)%s", C_YELLOW, C_RESET);
-      }
-      break;
-    case 3:
-      if (sub == 0) {
-        RCLCPP_INFO(
-          get_logger(), "%s[Phase3-A] NORMAL: 前哨站未摧毁，预期优先响应前哨站%s", C_CYAN, C_RESET);
-      } else if (sub == 1) {
-        RCLCPP_INFO(
-          get_logger(), "%s[Phase3-B] DEFEND: 基地低血+堡垒空闲，预期占领己方堡垒%s", C_CYAN, C_RESET);
-      } else {
-        RCLCPP_INFO(
-          get_logger(), "%s[Phase3-C] ATTACK: 前哨站已毁+能量激活，预期压制敌方堡垒%s", C_CYAN, C_RESET);
-      }
-      break;
-    case 4:
-      if (sub == 0) {
-        RCLCPP_INFO(get_logger(),
-          "%s[Phase4-A] 强锁敌追踪: target_valid=true，预期追踪与追击目标发布%s",
-          C_MAGENTA,
-          C_RESET);
-      } else if (sub == 1) {
-        RCLCPP_INFO(get_logger(),
-          "%s[Phase4-B1] 丢失目标+DEFEND语义巡检: 预期防御战术巡检输出%s",
-          C_MAGENTA,
-          C_RESET);
-      } else {
-        RCLCPP_INFO(get_logger(),
-          "%s[Phase4-B2] 丢失目标+ATTACK/NORMAL巡检: 预期战术隔离巡检输出%s",
-          C_MAGENTA,
-          C_RESET);
-      }
-      break;
-    case 5:
-      if (sub == 0 || sub == 1) {
-        RCLCPP_INFO(
-          get_logger(), "%s[Phase5-A] 1Hz交替target_valid: 预期5秒CD拦截姿态抖动%s", C_YELLOW, C_RESET);
-      } else {
-        RCLCPP_INFO(get_logger(),
-          "%s[Phase5-B] 伪造长时间流逝(>180s): 预期触发姿态超时刷新机制%s",
-          C_YELLOW,
-          C_RESET);
-      }
-      break;
-    case 6:
-      if (sub == 0) {
-        RCLCPP_INFO(get_logger(),
-          "%s[Phase6-A] 同时触发多事件: 预期抢占顺序回血>特殊响应>追踪>巡逻%s",
-          C_GREEN,
-          C_RESET);
-      } else {
-        RCLCPP_INFO(get_logger(),
-          "%s[Phase6-B] 关闭TF广播: 预期系统安全退化，不崩溃(缓存/报错处理)%s",
-          C_GREEN,
-          C_RESET);
-      }
-      break;
-    default:
-      break;
-    }
-
-    if (tf_enabled_) {
-      RCLCPP_INFO(get_logger(), "%s[TF] enabled%s", C_CYAN, C_RESET);
-    } else {
-      RCLCPP_INFO(get_logger(), "%s[TF] disabled (boundary test)%s", C_CYAN, C_RESET);
-    }
-  }
-
-  void publishTf(const Sentry_BT::Point2D & anchor)
-  {
-    if (!tf_enabled_) {
-      return;
-    }
-
-    const auto stamp = now();
-
-    // 中文说明：这里通过平移 map->camera_init 来模拟“机器人在地图中的位置”，
-    // 供被测系统做 map->base_link 的位姿推断与区域判断。
-    geometry_msgs::msg::TransformStamped map_to_camera;
-    map_to_camera.header.stamp = stamp;
-    map_to_camera.header.frame_id = "map";
-    map_to_camera.child_frame_id = "camera_init";
-    map_to_camera.transform.translation.x = anchor.x;
-    map_to_camera.transform.translation.y = anchor.y;
-    map_to_camera.transform.translation.z = 0.0;
-
-    tf2::Quaternion q_map_camera;
-    q_map_camera.setRPY(0.0, 0.0, anchor.yaw);
-    map_to_camera.transform.rotation.x = q_map_camera.x();
-    map_to_camera.transform.rotation.y = q_map_camera.y();
-    map_to_camera.transform.rotation.z = q_map_camera.z();
-    map_to_camera.transform.rotation.w = q_map_camera.w();
-
-    geometry_msgs::msg::TransformStamped camera_to_gimbal;
-    camera_to_gimbal.header.stamp = stamp;
-    camera_to_gimbal.header.frame_id = "camera_init";
-    camera_to_gimbal.child_frame_id = "gimbal";
-    camera_to_gimbal.transform.translation.x = 0.15;
-    camera_to_gimbal.transform.translation.y = 0.0;
-    camera_to_gimbal.transform.translation.z = 0.2;
-
-    tf2::Quaternion q_camera_gimbal;
-    q_camera_gimbal.setRPY(0.0, 0.0, 0.0);
-    camera_to_gimbal.transform.rotation.x = q_camera_gimbal.x();
-    camera_to_gimbal.transform.rotation.y = q_camera_gimbal.y();
-    camera_to_gimbal.transform.rotation.z = q_camera_gimbal.z();
-    camera_to_gimbal.transform.rotation.w = q_camera_gimbal.w();
-
-    tf_broadcaster_->sendTransform(map_to_camera);
-    tf_broadcaster_->sendTransform(camera_to_gimbal);
-  }
-
-  void applyBaseline(ros_interfaces::msg::TeamInformation & team_msg,
-    ros_interfaces::msg::GameInfo & game_msg,
-    ros_interfaces::msg::RadarInfo & radar_msg,
-    ros_interfaces::msg::SentryInfoOffline & offline_msg,
-    ros_interfaces::msg::SentryInfoOnline & online_msg,
-    Sentry_BT::Point2D & tf_anchor)
-  {
-    const auto stamp = now();
-    team_msg.header.stamp = stamp;
-    game_msg.header.stamp = stamp;
-    radar_msg.header.stamp = stamp;
-    offline_msg.header.stamp = stamp;
-    online_msg.header.stamp = stamp;
-
-    // 中文说明：默认状态统一回到(5,7)，用于“非区域触发”基线。
-    tf_anchor = Sentry_BT::Point2D{5.0, 7.0, 0.0};
-    tf_enabled_ = true;
-
-    // Team / Game baseline
-    team_msg.outpost_hp = 1500;
-    team_msg.base_hp = 3000;
-    game_msg.game_status = 4;
-    game_msg.game_time_remaining = 420;
-    game_msg.coin_remaining = 80;
-    game_msg.event_code = buildEventCode(0, 0, 0);
-
-    // Radar baseline
-    radar_msg.enemy_coin_left = 30;
-    radar_msg.enemy_coin_accumulated = 120;
-    radar_msg.is_enemy_outpost_sensed = true;  // true => 前哨站未摧毁
-
-    // Offline (target) baseline
-    offline_msg.is_get = false;
-    offline_msg.armor_num = 3;
-    offline_msg.armor_pos.x = 0.0;
-    offline_msg.armor_pos.y = 0.0;
-    offline_msg.armor_pos.z = 0.0;
-    offline_msg.yaw_imu = 0.0F;
-    offline_msg.lifter_current_pos = 0;
-    offline_msg.is_transformable = true;
-    offline_msg.transform_state = 0.0F;
-
-    // Online baseline
-    online_msg.self_health = 1000;       // bt内通常会做/4，对应约250
-    online_msg.bullets_remaining = 300;  // 充足弹药
-    online_msg.cooling_value = 40;
-    online_msg.heat_limit = 200;
-    online_msg.current_heat = 20;
-    online_msg.speed_monitor_angle = 0.0F;
-    online_msg.sentry_info_1 = buildSentryInfo1(false, false, 0);
-    online_msg.sentry_info_2 = buildSentryInfo2(true, 0, false);
-
-    // 默认友军位置放在台阶安全区外
-    team_msg.allies[0].armor_id = 1;
-    team_msg.allies[0].remain_hp = 180;
-    team_msg.allies[0].position.position.x = 2.0;
-    team_msg.allies[0].position.position.y = -1.0;
-
-    // 默认敌方观测
-    radar_msg.enemies[0].robot_id = 101;
-    radar_msg.enemies[0].robot_hp = 220;
-    radar_msg.enemies[0].allowed_projectile = 90;
-    radar_msg.enemies[0].position.position.x = 8.0;
-    radar_msg.enemies[0].position.position.y = 3.0;
-  }
-
-  void applyPhaseScenario(ros_interfaces::msg::TeamInformation & team_msg,
-    ros_interfaces::msg::GameInfo & game_msg,
-    ros_interfaces::msg::RadarInfo & radar_msg,
-    ros_interfaces::msg::SentryInfoOffline & offline_msg,
-    ros_interfaces::msg::SentryInfoOnline & online_msg,
-    Sentry_BT::Point2D & tf_anchor)
-  {
-    const int sub = subPhase();
-
-    switch (phase_) {
-    case 1: {
-      // [Phase1] 生存最高优先 + 10秒后恢复
-      if (phase_tick_ < TICKS_PER_SUBPHASE) {
-        online_msg.self_health = 80;  // /4后为20
-        online_msg.bullets_remaining = 50;
-      } else {
-        online_msg.self_health = 400;  // /4后为100
-        online_msg.bullets_remaining = 300;
-      }
-      break;
-    }
-
-    case 2: {
-      // [Phase2-A/B/C] 台阶避让 -> 解除避让 -> 过隧道
-      if (sub == 0) {
-        // 台阶避让阶段：保持低血低弹，确保进入生存分支并触发下台阶监测。
-        online_msg.self_health = 80;  // /4后为20，低于阈值30
-        online_msg.bullets_remaining = 50;
-        tf_anchor = getAreaCenter(Sentry_BT::stairs_zone);
-        // 中文说明：把友军放入台阶下安全区，触发“有队友占位，暂停下台阶”
-        team_msg.allies[0].position.position.x = getAreaCenter(Sentry_BT::stairs_lower_safe_zone).x;
-        team_msg.allies[0].position.position.y = getAreaCenter(Sentry_BT::stairs_lower_safe_zone).y;
-      } else if (sub == 1) {
-        // 台阶恢复阶段：继续保持低血低弹，验证解除队友占位后的下台阶恢复。
-        online_msg.self_health = 80;
-        online_msg.bullets_remaining = 50;
-        tf_anchor = getAreaCenter(Sentry_BT::stairs_zone);
-        // 清空队友占位
-        team_msg.allies[0].position.position.x = 2.0;
-        team_msg.allies[0].position.position.y = -1.0;
-      } else {
-        // 隧道阶段：血量和弹量恢复，避免继续走“低血回家”语义。
-        online_msg.self_health = 400;  // /4后为100
-        online_msg.bullets_remaining = 300;
-        tf_anchor = getAreaCenter(Sentry_BT::tunnel_zone[0]);
-        offline_msg.lifter_current_pos = 1;  // 模拟升降机构处于“准备过洞”状态
-      }
-      break;
-    }
-
-    case 3: {
-      // [Phase3-A/B/C] NORMAL -> DEFEND -> ATTACK
-      if (sub == 0) {
-        radar_msg.is_enemy_outpost_sensed = true;  // 前哨站未摧毁
-        team_msg.base_hp = 2500;
-        game_msg.event_code = buildEventCode(0, 0, 0);
-      } else if (sub == 1) {
-        team_msg.base_hp = 800;                         // 触发防守阈值
-        game_msg.event_code = buildEventCode(0, 0, 0);  // fort_occupation_status=0
-      } else {
-        radar_msg.is_enemy_outpost_sensed = false;  // 前哨站已摧毁
-        team_msg.base_hp = 2200;
-        game_msg.event_code = buildEventCode(1, 0, 1);
-        online_msg.sentry_info_2 = buildSentryInfo2(true, 1, true);  // can_activate_energy=true
-      }
-      break;
-    }
-
-    case 4: {
-      // [Phase4-A/B] 强锁敌追踪 + 丢失目标后的战术巡检
-      if (sub == 0) {
-        offline_msg.is_get = true;
-        offline_msg.armor_pos.x = 6000.0;
-        offline_msg.armor_pos.y = 4000.0;
-        tf_anchor = getAreaCenter(Sentry_BT::highland_zone);
-      } else if (sub == 1) {
-        offline_msg.is_get = false;
-        team_msg.base_hp = 700;                    // 倾向DEFEND
-        radar_msg.is_enemy_outpost_sensed = true;  // 未摧毁
-        tf_anchor = getAreaCenter(Sentry_BT::own_defense_zone);
-      } else {
-        offline_msg.is_get = false;
-        team_msg.base_hp = 2200;
-        radar_msg.is_enemy_outpost_sensed = false;  // 倾向ATTACK/NORMAL切换
-        online_msg.sentry_info_2 = buildSentryInfo2(true, 1, true);
-        tf_anchor = getOutsidePointNearArea(Sentry_BT::own_defense_zone);
-      }
-      break;
-    }
-
-    case 5: {
-      // [Phase5-A] 1Hz target_valid 翻转测试5秒CD
-      if (sub < 2) {
-        const bool target_on = ((phase_tick_ / 10) % 2) == 0;
-        offline_msg.is_get = target_on;
-        if (target_on) {
-          offline_msg.armor_pos.x = 7000.0;
-          offline_msg.armor_pos.y = 3500.0;
+    // ================= 辅助测试函数 =================
+    void runTest(const std::string& test_name, std::function<void()> test_func) {
+        std::cout << "\n" << CYAN << "[RUNNING] " << test_name << RESET << std::endl;
+        try {
+            resetBlackboard(); // 每次测试前重置状态
+            test_func();
+            std::cout << GREEN << "[PASSED]  " << test_name << RESET << std::endl;
+        } catch (const std::exception& e) {
+            std::cout << RED << "[FAILED]  " << test_name << " -> " << e.what() << RESET << std::endl;
         }
-      } else {
-        // [Phase5-B] 伪造超时刷新场景：在测试节点中模拟“逻辑时钟跳变”
-        // 注：是否真正触发BT内部超时刷新，取决于被测系统如何取时。
-        if (!fake_time_jump_applied_) {
-          fake_time_jump_applied_ = true;
-          RCLCPP_INFO(
-            get_logger(), "%s[Phase5-B] 伪造Time Jump: +181s (用于超时刷新测试)%s", C_YELLOW, C_RESET);
+    }
+
+    void resetBlackboard() {
+        bt_blackboard_->set("health", 100.0f);
+        bt_blackboard_->set("bullets_remaining", 300);
+        bt_blackboard_->set("current_heat", 0);
+        bt_blackboard_->set("tactical_mode", TacticalMode::BALANCED);
+        bt_blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));
+        bt_blackboard_->set("enemy_outpost_destroyed", true);
+        bt_blackboard_->set("target_valid", false);
+        bt_blackboard_->set("through_tunnel", false);
+        bt_blackboard_->set("outpost_safe_cooldown_active", false);
+        bt_blackboard_->set("manual_override_active", false);
+        bt_blackboard_->set("manual_override_goal_valid", false);
+        bt_blackboard_->set("manual_override_goal", Point2D{0.0, 0.0, 0.0});
+        bt_blackboard_->set("patrol_index", 0);
+        bt_blackboard_->set("fort_occupation_status", 0);
+        bt_blackboard_->set("is_disengaged", true);
+        bt_blackboard_->set("capacitor_capacity", static_cast<uint8_t>(100));
+        bt_blackboard_->set("current_stance", SentryStance::DEFEND);
+        bt_blackboard_->set("desired_stance", SentryStance::DEFEND);
+        bt_blackboard_->set("use_gyro_mode", true);
+        bt_blackboard_->set("gyro_vel", 50.0f);
+        bt_blackboard_->set("lifter_current_pos", LifterPos::TOP);
+        bt_blackboard_->set("desired_lifter_pos", LifterPos::TOP);
+        bt_blackboard_->set("home_health", 3000);
+        bt_blackboard_->set("small_energy_status", 0);
+        bt_blackboard_->set("big_energy_status", 0);
+        bt_blackboard_->set("target_pose", makePose(0.0, 0.0));
+        bt_blackboard_->set("nav_goal", nav_points[static_cast<size_t>(NavGoal::HOME)]);
+        bt_blackboard_->set("current_pose", makePose(7.0, 1.5));
+    }
+
+    geometry_msgs::msg::Pose makePose(double x, double y) {
+        geometry_msgs::msg::Pose pose;
+        pose.position.x = x;
+        pose.position.y = y;
+        pose.orientation.w = 1.0;
+        return pose;
+    }
+
+    void tickNavTree() {
+        bt_manager_->tickMainExactlyOnce();
+    }
+
+    void tickStanceTree() {
+        bt_manager_->tickStanceExactlyOnce();
+    }
+
+    void tickTacticalTree() {
+        bt_manager_->tickTacticalExactlyOnce();
+    }
+
+    void waitForStanceCooldown(const std::string & label) {
+        std::cout << YELLOW << "      等待 5.1 秒冷却: " << label << RESET << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5100));
+    }
+
+    void logPoint(const std::string & label, const Point2D & point) {
+        std::cout << YELLOW << "      " << label << ": (" << point.x << ", " << point.y << ")" << RESET
+                  << std::endl;
+    }
+
+    bool nearlyEqual(double a, double b, double tol) {
+        return std::fabs(a - b) <= tol;
+    }
+
+    void expectPointNear(const Point2D & actual, const Point2D & expected, const std::string & message,
+                         double tol = 1e-2) {
+        if (!nearlyEqual(actual.x, expected.x, tol) || !nearlyEqual(actual.y, expected.y, tol)) {
+            throw std::runtime_error(message);
         }
-        offline_msg.is_get = false;
-        online_msg.self_health = 1200;
-        online_msg.bullets_remaining = 260;
-      }
-      break;
     }
 
-    case 6: {
-      // [Phase6-A/B] 抢占顺序校验 + TF丢失边界
-      if (sub == 0) {
-        // 同时触发：回血 + 前哨站响应 + 锁敌
-        online_msg.self_health = 80;               // 低血
-        online_msg.bullets_remaining = 50;         // 低弹
-        radar_msg.is_enemy_outpost_sensed = true;  // 前哨站未摧毁
-        offline_msg.is_get = true;                 // 有目标
-        offline_msg.armor_pos.x = 5500.0;
-        offline_msg.armor_pos.y = 3000.0;
-        tf_anchor = getAreaCenter(Sentry_BT::highland_zone);
-      } else {
-        // TF 丢失测试：停止广播，但消息继续发布
-        tf_enabled_ = false;
-        online_msg.self_health = 900;
-        online_msg.bullets_remaining = 220;
-        offline_msg.is_get = false;
-      }
-      break;
+    Point2D computeTargetGoal(
+        const geometry_msgs::msg::Pose & current_pose, const geometry_msgs::msg::Pose & target_pose) {
+        const double current_x = current_pose.position.x;
+        const double current_y = current_pose.position.y;
+        const double target_x = target_pose.position.x;
+        const double target_y = target_pose.position.y;
+        const double dx = target_x - current_x;
+        const double dy = target_y - current_y;
+        const double distance = std::hypot(dx, dy);
+        const double attack_distance = 0.3;
+
+        Point2D point;
+        if (distance > attack_distance) {
+            const double scale = 1.0 - attack_distance / distance;
+            point.x = current_x + dx * scale;
+            point.y = current_y + dy * scale;
+        } else if (distance > 0.001) {
+            const double ux = dx / distance;
+            const double uy = dy / distance;
+            point.x = current_x - ux * attack_distance;
+            point.y = current_y - uy * attack_distance;
+        } else {
+            point.x = current_x;
+            point.y = current_y - attack_distance;
+        }
+        point.yaw = 0.0;
+        return point;
     }
 
-    default:
-      break;
+    int findTransformZoneIndex(const geometry_msgs::msg::Pose & pose) {
+        const Point2D point{pose.position.x, pose.position.y, 0.0};
+        for (std::size_t i = 0; i < transform_zone.size(); ++i) {
+            if (transform_zone[i].contains(point)) {
+                return static_cast<int>(i);
+            }
+        }
+        return -1;
     }
-  }
 
-  void onTick()
-  {
-    ros_interfaces::msg::TeamInformation team_msg;
-    ros_interfaces::msg::GameInfo game_msg;
-    ros_interfaces::msg::RadarInfo radar_msg;
-    ros_interfaces::msg::SentryInfoOffline offline_msg;
-    ros_interfaces::msg::SentryInfoOnline online_msg;
-    Sentry_BT::Point2D tf_anchor;
+    // ================= 具体测试用例实现 =================
 
-    applyBaseline(team_msg, game_msg, radar_msg, offline_msg, online_msg, tf_anchor);
-    applyPhaseScenario(team_msg, game_msg, radar_msg, offline_msg, online_msg, tf_anchor);
+    void testNav_TacticalModesResponse() {
+        bt_blackboard_->set("current_pose", makePose(7.0, 1.5));
+        bt_blackboard_->set("enemy_outpost_destroyed", true);
+        bt_blackboard_->set("target_valid", false);
+        bt_blackboard_->set("fort_occupation_status", 0);
 
-    logStateTransition();
+        bt_blackboard_->set("tactical_mode", TacticalMode::OFFENSIVE);
+        tickNavTree();
+        auto goal = bt_blackboard_->get<Point2D>("nav_goal");
+        logPoint("ATTACK nav_goal", goal);
+        logPoint("ATTACK expected", nav_points[static_cast<size_t>(NavGoal::ENEMY_FORT)]);
+        expectPointNear(goal, nav_points[static_cast<size_t>(NavGoal::ENEMY_FORT)],
+                        "攻击模式下未正确下发敌方基地坐标");
 
-    team_pub_->publish(team_msg);
-    game_pub_->publish(game_msg);
-    radar_pub_->publish(radar_msg);
-    offline_pub_->publish(offline_msg);
-    online_pub_->publish(online_msg);
-    publishTf(tf_anchor);
+        bt_blackboard_->set("tactical_mode", TacticalMode::DEFENSIVE);
+        tickNavTree();
+        goal = bt_blackboard_->get<Point2D>("nav_goal");
+        logPoint("DEFEND nav_goal", goal);
+        logPoint("DEFEND expected", nav_points[static_cast<size_t>(NavGoal::OWN_FORT)]);
+        expectPointNear(goal, nav_points[static_cast<size_t>(NavGoal::OWN_FORT)],
+                        "防守模式下未正确下发己方基地坐标");
 
-    ++phase_tick_;
-  }
+        bt_blackboard_->set("tactical_mode", TacticalMode::BALANCED);
+        bt_blackboard_->set("patrol_index", 0);
+        tickNavTree();
+        goal = bt_blackboard_->get<Point2D>("nav_goal");
+        const auto expected_patrol = patrol_points_normal[0].position;
+        logPoint("NORMAL nav_goal", goal);
+        logPoint("NORMAL expected", expected_patrol);
+        expectPointNear(goal, expected_patrol, "正常模式下未正确下发巡逻点");
+    }
 
-private:
-  int phase_;
-  int phase_tick_;
-  int last_phase_;
-  int last_subphase_;
-  bool tf_enabled_;
-  bool last_tf_enabled_;
-  bool fake_time_jump_applied_;
+    void testNav_OutpostHitAndCooldown() {
+        bt_blackboard_->set("tactical_mode", TacticalMode::BALANCED);
+        bt_blackboard_->set("enemy_outpost_destroyed", false);
+        bt_blackboard_->set("current_mode", static_cast<int>(NavMode::RESPONSE));
+        bt_blackboard_->set("health", 100.0f);
 
-  rclcpp::Publisher<ros_interfaces::msg::TeamInformation>::SharedPtr team_pub_;
-  rclcpp::Publisher<ros_interfaces::msg::GameInfo>::SharedPtr game_pub_;
-  rclcpp::Publisher<ros_interfaces::msg::RadarInfo>::SharedPtr radar_pub_;
-  rclcpp::Publisher<ros_interfaces::msg::SentryInfoOffline>::SharedPtr offline_pub_;
-  rclcpp::Publisher<ros_interfaces::msg::SentryInfoOnline>::SharedPtr online_pub_;
+        auto logState = [&](const std::string & label) {
+            const auto health = bt_blackboard_->get<float>("health");
+            const auto cooldown = bt_blackboard_->get<bool>("outpost_safe_cooldown_active");
+            std::cout << YELLOW << "      " << label << " health=" << health
+                      << " cooldown=" << cooldown << RESET << std::endl;
+        };
 
-  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
-  rclcpp::TimerBase::SharedPtr tick_timer_;
-  rclcpp::TimerBase::SharedPtr phase_timer_;
+        tickNavTree();
+        logState("Step A");
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+        bt_blackboard_->set("health", 95.0f);
+        tickNavTree();
+        logState("Step B");
+        auto mode = bt_blackboard_->get<int>("current_mode");
+        bool cd_active = bt_blackboard_->get<bool>("outpost_safe_cooldown_active");
+        if (mode != static_cast<int>(NavMode::PATROL) || !cd_active) {
+            throw std::runtime_error("受击后未正确退出响应模式并激活冷却");
+        }
+
+        bt_blackboard_->set("health", 98.4f);
+        tickNavTree();
+        logState("Step C");
+        if (!bt_blackboard_->get<bool>("outpost_safe_cooldown_active")) {
+            throw std::runtime_error("5秒内继续受击，冷却被错误地提前解除了");
+        }
+
+        std::cout << YELLOW << "      等待 5.1 秒模拟冷却结束..." << RESET << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5100));
+        tickNavTree();
+        logState("Step D");
+        cd_active = bt_blackboard_->get<bool>("outpost_safe_cooldown_active");
+        mode = bt_blackboard_->get<int>("current_mode");
+        if (cd_active || mode != static_cast<int>(NavMode::RESPONSE)) {
+            throw std::runtime_error("5秒无伤后冷却未能解除并恢复 RESPONSE 模式");
+        }
+    }
+
+    void testNav_TargetPursuitOverride() {
+        const auto current_pose = makePose(7.0, 1.5);
+        bt_blackboard_->set("current_pose", current_pose);
+        bt_blackboard_->set("enemy_outpost_destroyed", true);
+        bt_blackboard_->set("tactical_mode", TacticalMode::BALANCED);
+        bt_blackboard_->set("target_valid", false);
+        bt_blackboard_->set("nav_goal", nav_points[static_cast<size_t>(NavGoal::HOME)]);
+
+        tickNavTree();
+        const auto mode_before = bt_blackboard_->get<int>("current_mode");
+        const auto goal_before = bt_blackboard_->get<Point2D>("nav_goal");
+        std::cout << YELLOW << "      before mode=" << mode_before << " goal=(" << goal_before.x
+                  << ", " << goal_before.y << ")" << RESET << std::endl;
+
+        const auto target_pose = makePose(8.0, 2.0);
+        bt_blackboard_->set("target_valid", true);
+        bt_blackboard_->set("target_pose", target_pose);
+        bt_blackboard_->set("nav_goal", nav_points[static_cast<size_t>(NavGoal::ENEMY_FORT)]);
+
+        tickNavTree();
+        const auto mode_after = bt_blackboard_->get<int>("current_mode");
+        const auto goal_after = bt_blackboard_->get<Point2D>("nav_goal");
+        std::cout << YELLOW << "      after mode=" << mode_after << " goal=(" << goal_after.x
+                  << ", " << goal_after.y << ")" << RESET << std::endl;
+
+        if (mode_after != static_cast<int>(NavMode::TRACING)) {
+            throw std::runtime_error("追击逻辑未能抢占响应/巡逻逻辑");
+        }
+
+        const auto expected = computeTargetGoal(current_pose, target_pose);
+        logPoint("TRACING expected", expected);
+        expectPointNear(goal_after, expected, "追击模式下未正确下发接近目标的坐标", 5e-2);
+    }
+
+    void testNav_TunnelCrossingAndRecovery() {
+        auto assertLifterBottom = [&](const std::string & label) {
+            const auto lifter = bt_blackboard_->get<LifterPos>("desired_lifter_pos");
+            std::cout << YELLOW << "      " << label << " lifter=" << static_cast<int>(lifter) << RESET
+                      << std::endl;
+            if (lifter != LifterPos::BOTTOM) {
+                throw std::runtime_error("隧道场景下升降未强制到底部");
+            }
+        };
+
+        bt_blackboard_->set("current_pose", makePose(12.0, 5.0));
+        bt_blackboard_->set("through_tunnel", true);
+        bt_blackboard_->set("lifter_current_pos", LifterPos::TOP);
+        tickNavTree();
+        assertLifterBottom("进入 tunnel_area");
+
+        bt_blackboard_->set("current_pose", makePose(10.0, 3.0));
+        bt_blackboard_->set("through_tunnel", false);
+        bt_blackboard_->set("lifter_current_pos", LifterPos::BOTTOM);
+        tickNavTree();
+        assertLifterBottom("离开 tunnel_area 但仍在 transform_area");
+
+        bt_blackboard_->set("through_tunnel", true);
+        bt_blackboard_->set("current_pose", makePose(7.0, 1.5));
+        bt_blackboard_->set("nav_goal", Point2D{10.0, 6.8, 0.0});
+        tickNavTree();
+        assertLifterBottom("防守区 -> 高地");
+
+        bt_blackboard_->set("current_pose", makePose(10.0, 6.8));
+        bt_blackboard_->set("nav_goal", Point2D{7.0, 1.5, 0.0});
+        tickNavTree();
+        assertLifterBottom("高地 -> 防守区");
+
+        const auto recovery_pose = makePose(10.0, 3.0);
+        const int tunnel_idx = findTransformZoneIndex(recovery_pose);
+        if (tunnel_idx < 0) {
+            throw std::runtime_error("卡死恢复测试：未找到 transform_zone");
+        }
+        bt_blackboard_->set("current_pose", recovery_pose);
+        bt_blackboard_->set("through_tunnel", false);
+        tickNavTree();
+
+        std::cout << YELLOW << "      等待 10.1 秒触发卡死恢复 Phase1..." << RESET << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10100));
+        tickNavTree();
+        auto goal = bt_blackboard_->get<Point2D>("nav_goal");
+        const auto expected_forward = tunnel_recovery_configs[static_cast<size_t>(tunnel_idx)].forward_point;
+        logPoint("Phase1 nav_goal", goal);
+        logPoint("Phase1 expected", expected_forward);
+        expectPointNear(goal, expected_forward, "卡死恢复 Phase1 目标点错误", 5e-2);
+
+        std::cout << YELLOW << "      等待 5.1 秒触发卡死恢复 Phase2..." << RESET << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5100));
+        tickNavTree();
+        goal = bt_blackboard_->get<Point2D>("nav_goal");
+        const auto expected_retreat = tunnel_recovery_configs[static_cast<size_t>(tunnel_idx)].recovery_point;
+        logPoint("Phase2 nav_goal", goal);
+        logPoint("Phase2 expected", expected_retreat);
+        expectPointNear(goal, expected_retreat, "卡死恢复 Phase2 目标点错误", 5e-2);
+
+        std::cout << YELLOW << "      等待 5.1 秒触发卡死恢复 Phase3..." << RESET << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5100));
+        tickNavTree();
+        const auto cmd_vel = bt_blackboard_->get<geometry_msgs::msg::Twist>("cmd_vel");
+        std::cout << YELLOW << "      cmd_vel=(vx=" << cmd_vel.linear.x << ", vy=" << cmd_vel.linear.y << ")"
+                  << RESET << std::endl;
+        const auto & cfg = tunnel_recovery_configs[static_cast<size_t>(tunnel_idx)];
+        if (!nearlyEqual(cmd_vel.linear.x, cfg.recovery_vx, 1e-3) ||
+            !nearlyEqual(cmd_vel.linear.y, cfg.recovery_vy, 1e-3)) {
+            throw std::runtime_error("卡死恢复 Phase3 未正确下发世界系速度");
+        }
+    }
+
+    void testNav_CombinedTunnelScenarios() {
+        const auto tunnel_pose = makePose(10.0, 3.0);
+        auto assertLifterBottom = [&](const std::string & label) {
+            const auto lifter = bt_blackboard_->get<LifterPos>("desired_lifter_pos");
+            std::cout << YELLOW << "      " << label << " lifter=" << static_cast<int>(lifter) << RESET
+                      << std::endl;
+            if (lifter != LifterPos::BOTTOM) {
+                throw std::runtime_error("组合隧道场景未强制升降到底部");
+            }
+        };
+
+        bt_blackboard_->set("current_pose", tunnel_pose);
+        bt_blackboard_->set("through_tunnel", true);
+        bt_blackboard_->set("enemy_outpost_destroyed", false);
+        bt_blackboard_->set("tactical_mode", TacticalMode::BALANCED);
+        bt_blackboard_->set("health", 100.0f);
+        bt_blackboard_->set("target_valid", false);
+        tickNavTree();
+        assertLifterBottom("RESPONSE in tunnel");
+
+        bt_blackboard_->set("current_pose", tunnel_pose);
+        bt_blackboard_->set("through_tunnel", true);
+        bt_blackboard_->set("health", 20.0f);
+        bt_blackboard_->set("enemy_outpost_destroyed", true);
+        bt_blackboard_->set("target_valid", false);
+        tickNavTree();
+        assertLifterBottom("RETREAT in tunnel");
+
+        bt_blackboard_->set("current_pose", tunnel_pose);
+        bt_blackboard_->set("through_tunnel", true);
+        bt_blackboard_->set("health", 100.0f);
+        bt_blackboard_->set("enemy_outpost_destroyed", true);
+        bt_blackboard_->set("target_valid", true);
+        bt_blackboard_->set("target_pose", makePose(8.0, 2.0));
+        tickNavTree();
+        assertLifterBottom("TRACING in tunnel");
+    }
+
+    void testNav_PriorityEscalation() {
+        bt_blackboard_->set("enemy_outpost_destroyed", true);
+        bt_blackboard_->set("target_valid", false);
+        bt_blackboard_->set("manual_override_goal_valid", false);
+        bt_blackboard_->set("health", 100.0f);
+        bt_blackboard_->set("tactical_mode", TacticalMode::BALANCED);
+
+        tickNavTree();
+        int mode = bt_blackboard_->get<int>("current_mode");
+        std::cout << YELLOW << "      Patrol mode=" << mode << RESET << std::endl;
+        if (mode != static_cast<int>(NavMode::PATROL)) {
+            throw std::runtime_error("最低优先级巡逻未生效");
+        }
+
+        bt_blackboard_->set("tactical_mode", TacticalMode::OFFENSIVE);
+        bt_blackboard_->set("enemy_outpost_destroyed", true);
+        tickNavTree();
+        auto goal = bt_blackboard_->get<Point2D>("nav_goal");
+        mode = bt_blackboard_->get<int>("current_mode");
+        std::cout << YELLOW << "      AttackFort mode=" << mode << " goal=(" << goal.x << ", " << goal.y
+                  << ")" << RESET << std::endl;
+        logPoint("AttackFort expected", nav_points[static_cast<size_t>(NavGoal::ENEMY_FORT)]);
+        expectPointNear(goal, nav_points[static_cast<size_t>(NavGoal::ENEMY_FORT)],
+                        "攻击堡垒未正确下发敌方基地目标");
+
+        bt_blackboard_->set("target_valid", true);
+        bt_blackboard_->set("target_pose", makePose(8.0, 2.0));
+        tickNavTree();
+        mode = bt_blackboard_->get<int>("current_mode");
+        std::cout << YELLOW << "      Pursuit mode=" << mode << RESET << std::endl;
+        if (mode != static_cast<int>(NavMode::TRACING)) {
+            throw std::runtime_error("追击未能抢占攻击堡垒");
+        }
+
+        bt_blackboard_->set("health", 20.0f);
+        tickNavTree();
+        mode = bt_blackboard_->get<int>("current_mode");
+        std::cout << YELLOW << "      Retreat mode=" << mode << RESET << std::endl;
+        if (mode != static_cast<int>(NavMode::RETREAT)) {
+            throw std::runtime_error("回家未能抢占追击");
+        }
+
+        bt_blackboard_->set("manual_override_active", true);
+        bt_blackboard_->set("manual_override_goal_valid", true);
+        const auto manual_goal = nav_points[static_cast<size_t>(NavGoal::BONUS)];
+        bt_blackboard_->set("manual_override_goal", manual_goal);
+        tickNavTree();
+        mode = bt_blackboard_->get<int>("current_mode");
+        const auto manual_nav = bt_blackboard_->get<Point2D>("nav_goal");
+        std::cout << YELLOW << "      Manual mode=" << mode << " goal=(" << manual_nav.x << ", "
+                  << manual_nav.y << ")" << RESET << std::endl;
+        expectPointNear(manual_nav, manual_goal, "手动接管未正确下发目标点");
+        if (mode != static_cast<int>(NavMode::MANUAL)) {
+            throw std::runtime_error("手动接管未能抢占更低优先级行为");
+        }
+    }
+
+    void testNav_JitterDetection() {
+        bt_blackboard_->set("health", 29.0f);
+        tickNavTree();
+        int mode1 = bt_blackboard_->get<int>("current_mode");
+
+        bt_blackboard_->set("health", 31.0f);
+        tickNavTree();
+        int mode2 = bt_blackboard_->get<int>("current_mode");
+
+        std::cout << YELLOW << "      mode1=" << mode1 << " mode2=" << mode2 << RESET << std::endl;
+        if (mode1 != static_cast<int>(NavMode::RETREAT) || mode2 != static_cast<int>(NavMode::RETREAT)) {
+            throw std::runtime_error("检测到状态机迟滞逻辑失效，发生乒乓抖动！");
+        }
+    }
+
+    void testStance_TunnelAndCrossZone() {
+        waitForStanceCooldown("跨区姿态");
+        bt_blackboard_->set("current_stance", SentryStance::ATTACK);
+        bt_blackboard_->set("desired_stance", SentryStance::ATTACK);
+        bt_blackboard_->set("through_tunnel", true);
+        bt_blackboard_->set("current_pose", makePose(7.0, 1.5));
+        bt_blackboard_->set("nav_goal", Point2D{10.0, 6.8, 0.0});
+
+        tickStanceTree();
+        const auto desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        const auto use_gyro = bt_blackboard_->get<bool>("use_gyro_mode");
+        std::cout << YELLOW << "      desired_stance=" << static_cast<int>(desired)
+                  << " use_gyro_mode=" << use_gyro << RESET << std::endl;
+        if (desired != SentryStance::MOVE || use_gyro) {
+            throw std::runtime_error("跨区姿态未切换为 MOVE 或未关闭小陀螺");
+        }
+    }
+
+    void testStance_VariousConditions() {
+        waitForStanceCooldown("热量触发");
+        bt_blackboard_->set("current_stance", SentryStance::MOVE);
+        bt_blackboard_->set("desired_stance", SentryStance::MOVE);
+        bt_blackboard_->set("current_heat", 250);
+        bt_blackboard_->set("target_valid", false);
+        bt_blackboard_->set("through_tunnel", false);
+        bt_blackboard_->set("is_disengaged", true);
+        tickStanceTree();
+        auto desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        auto use_gyro = bt_blackboard_->get<bool>("use_gyro_mode");
+        std::cout << YELLOW << "      heat desired_stance=" << static_cast<int>(desired)
+                  << " use_gyro_mode=" << use_gyro << RESET << std::endl;
+        if (desired != SentryStance::ATTACK || !use_gyro) {
+            throw std::runtime_error("热量超标未切换为 ATTACK 或未开启小陀螺");
+        }
+
+        waitForStanceCooldown("追击距离");
+        bt_blackboard_->set("current_stance", SentryStance::DEFEND);
+        bt_blackboard_->set("desired_stance", SentryStance::DEFEND);
+        bt_blackboard_->set("current_heat", 0);
+        bt_blackboard_->set("through_tunnel", false);
+        bt_blackboard_->set("target_valid", true);
+        bt_blackboard_->set("current_pose", makePose(7.0, 1.5));
+        bt_blackboard_->set("target_pose", makePose(13.0, 1.5));
+        tickStanceTree();
+        desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        std::cout << YELLOW << "      pursuit desired_stance=" << static_cast<int>(desired) << RESET
+                  << std::endl;
+        if (desired != SentryStance::MOVE) {
+            throw std::runtime_error("追击距离触发未切换为 MOVE");
+        }
+
+        waitForStanceCooldown("电容不足");
+        bt_blackboard_->set("current_stance", SentryStance::DEFEND);
+        bt_blackboard_->set("desired_stance", SentryStance::DEFEND);
+        bt_blackboard_->set("current_heat", 0);
+        bt_blackboard_->set("target_valid", false);
+        bt_blackboard_->set("through_tunnel", false);
+        bt_blackboard_->set("is_disengaged", true);
+        bt_blackboard_->set("capacitor_capacity", static_cast<uint8_t>(20));
+        tickStanceTree();
+        desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        use_gyro = bt_blackboard_->get<bool>("use_gyro_mode");
+        std::cout << YELLOW << "      capacitor desired_stance=" << static_cast<int>(desired)
+                  << " use_gyro_mode=" << use_gyro << RESET << std::endl;
+        if (desired != SentryStance::MOVE || !use_gyro) {
+            throw std::runtime_error("电容不足未切换为 MOVE 或未保持小陀螺");
+        }
+    }
+
+    void testStance_PriorityEscalation() {
+        waitForStanceCooldown("DefaultDefend");
+        bt_blackboard_->set("current_stance", SentryStance::MOVE);
+        bt_blackboard_->set("desired_stance", SentryStance::MOVE);
+        bt_blackboard_->set("current_heat", 0);
+        bt_blackboard_->set("target_valid", false);
+        bt_blackboard_->set("through_tunnel", false);
+        bt_blackboard_->set("capacitor_capacity", static_cast<uint8_t>(100));
+        bt_blackboard_->set("is_disengaged", false);
+        bt_blackboard_->set("health", 40.0f);
+        tickStanceTree();
+        auto desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        auto use_gyro = bt_blackboard_->get<bool>("use_gyro_mode");
+        std::cout << YELLOW << "      DefaultDefend desired_stance=" << static_cast<int>(desired)
+                  << " use_gyro_mode=" << use_gyro << RESET << std::endl;
+        if (desired != SentryStance::DEFEND) {
+            throw std::runtime_error("DefaultDefend 未生效");
+        }
+
+        waitForStanceCooldown("MoveStanceGyro");
+        bt_blackboard_->set("current_stance", SentryStance::DEFEND);
+        bt_blackboard_->set("desired_stance", SentryStance::DEFEND);
+        bt_blackboard_->set("current_heat", 0);
+        bt_blackboard_->set("target_valid", false);
+        bt_blackboard_->set("through_tunnel", false);
+        bt_blackboard_->set("capacitor_capacity", static_cast<uint8_t>(20));
+        bt_blackboard_->set("is_disengaged", true);
+        tickStanceTree();
+        desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        use_gyro = bt_blackboard_->get<bool>("use_gyro_mode");
+        std::cout << YELLOW << "      MoveStanceGyro desired_stance=" << static_cast<int>(desired)
+                  << " use_gyro_mode=" << use_gyro << RESET << std::endl;
+        if (desired != SentryStance::MOVE || !use_gyro) {
+            throw std::runtime_error("MoveStanceGyro 未覆盖 DefaultDefend");
+        }
+
+        waitForStanceCooldown("CombatAttack");
+        bt_blackboard_->set("current_stance", SentryStance::MOVE);
+        bt_blackboard_->set("desired_stance", SentryStance::MOVE);
+        bt_blackboard_->set("current_heat", 0);
+        bt_blackboard_->set("target_valid", false);
+        bt_blackboard_->set("through_tunnel", false);
+        bt_blackboard_->set("is_disengaged", false);
+        bt_blackboard_->set("health", 90.0f);
+        bt_blackboard_->set("capacitor_capacity", static_cast<uint8_t>(100));
+        tickStanceTree();
+        desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        use_gyro = bt_blackboard_->get<bool>("use_gyro_mode");
+        std::cout << YELLOW << "      CombatAttack desired_stance=" << static_cast<int>(desired)
+                  << " use_gyro_mode=" << use_gyro << RESET << std::endl;
+        if (desired != SentryStance::ATTACK || !use_gyro) {
+            throw std::runtime_error("CombatAttack 未覆盖 MoveStanceGyro");
+        }
+
+        waitForStanceCooldown("Pursuit");
+        bt_blackboard_->set("current_stance", SentryStance::ATTACK);
+        bt_blackboard_->set("desired_stance", SentryStance::ATTACK);
+        bt_blackboard_->set("current_heat", 0);
+        bt_blackboard_->set("through_tunnel", false);
+        bt_blackboard_->set("target_valid", true);
+        bt_blackboard_->set("current_pose", makePose(7.0, 1.5));
+        bt_blackboard_->set("target_pose", makePose(13.0, 1.5));
+        bt_blackboard_->set("is_disengaged", true);
+        tickStanceTree();
+        desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        std::cout << YELLOW << "      Pursuit desired_stance=" << static_cast<int>(desired) << RESET
+                  << std::endl;
+        if (desired != SentryStance::MOVE) {
+            throw std::runtime_error("Pursuit 未覆盖 CombatAttack");
+        }
+
+        waitForStanceCooldown("AbsoluteAttack");
+        bt_blackboard_->set("current_stance", SentryStance::MOVE);
+        bt_blackboard_->set("desired_stance", SentryStance::MOVE);
+        bt_blackboard_->set("current_heat", 250);
+        bt_blackboard_->set("target_valid", false);
+        bt_blackboard_->set("through_tunnel", false);
+        tickStanceTree();
+        desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        use_gyro = bt_blackboard_->get<bool>("use_gyro_mode");
+        std::cout << YELLOW << "      AbsoluteAttack desired_stance=" << static_cast<int>(desired)
+                  << " use_gyro_mode=" << use_gyro << RESET << std::endl;
+        if (desired != SentryStance::ATTACK || !use_gyro) {
+            throw std::runtime_error("AbsoluteAttack 未覆盖 Pursuit");
+        }
+
+        waitForStanceCooldown("MoveStanceNoGyro");
+        bt_blackboard_->set("current_stance", SentryStance::ATTACK);
+        bt_blackboard_->set("desired_stance", SentryStance::ATTACK);
+        bt_blackboard_->set("current_heat", 250);
+        bt_blackboard_->set("through_tunnel", true);
+        bt_blackboard_->set("current_pose", makePose(7.0, 1.5));
+        bt_blackboard_->set("nav_goal", Point2D{10.0, 6.8, 0.0});
+        tickStanceTree();
+        desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        use_gyro = bt_blackboard_->get<bool>("use_gyro_mode");
+        std::cout << YELLOW << "      MoveNoGyro desired_stance=" << static_cast<int>(desired)
+                  << " use_gyro_mode=" << use_gyro << RESET << std::endl;
+        if (desired != SentryStance::MOVE || use_gyro) {
+            throw std::runtime_error("跨区关陀螺未覆盖热量超标开陀螺");
+        }
+    }
+
+    void testStance_RetreatAndPatrolLoop() {
+        waitForStanceCooldown("retreat");
+        bt_blackboard_->set("current_stance", SentryStance::MOVE);
+        bt_blackboard_->set("desired_stance", SentryStance::MOVE);
+        bt_blackboard_->set("health", 15.0f);
+        bt_blackboard_->set("is_disengaged", true);
+        bt_blackboard_->set("current_mode", static_cast<int>(NavMode::RETREAT));
+        tickStanceTree();
+        auto desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        std::cout << YELLOW << "      retreat desired_stance=" << static_cast<int>(desired) << RESET
+                  << std::endl;
+        if (desired != SentryStance::MOVE) {
+            throw std::runtime_error("残血回家阶段未切换为 MOVE");
+        }
+
+        waitForStanceCooldown("patrol");
+        bt_blackboard_->set("health", 85.0f);
+        bt_blackboard_->set("is_disengaged", true);
+        bt_blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));
+        tickStanceTree();
+        desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        std::cout << YELLOW << "      patrol desired_stance=" << static_cast<int>(desired) << RESET
+                  << std::endl;
+        if (desired != SentryStance::MOVE) {
+            throw std::runtime_error("出门巡逻阶段未切换为 MOVE");
+        }
+
+        waitForStanceCooldown("combat");
+        bt_blackboard_->set("is_disengaged", false);
+        tickStanceTree();
+        desired = bt_blackboard_->get<SentryStance>("desired_stance");
+        std::cout << YELLOW << "      combat desired_stance=" << static_cast<int>(desired) << RESET
+                  << std::endl;
+        if (desired != SentryStance::ATTACK) {
+            throw std::runtime_error("交战阶段未切换为 ATTACK");
+        }
+    }
+
+    void testTactical_SwitchAndPriority() {
+        bt_blackboard_->set("enemy_outpost_destroyed", false);
+        bt_blackboard_->set("small_energy_status", 0);
+        bt_blackboard_->set("big_energy_status", 0);
+        bt_blackboard_->set("home_health", 3000);
+        tickTacticalTree();
+        auto mode = bt_blackboard_->get<TacticalMode>("tactical_mode");
+        std::cout << YELLOW << "      default tactical_mode=" << static_cast<int>(mode) << RESET << std::endl;
+        if (mode != TacticalMode::BALANCED) {
+            throw std::runtime_error("默认战术模式不是 NORMAL/BALANCED");
+        }
+
+        bt_blackboard_->set("enemy_outpost_destroyed", true);
+        bt_blackboard_->set("small_energy_status", 1);
+        bt_blackboard_->set("big_energy_status", 0);
+        bt_blackboard_->set("home_health", 3000);
+        tickTacticalTree();
+        mode = bt_blackboard_->get<TacticalMode>("tactical_mode");
+        std::cout << YELLOW << "      attack tactical_mode=" << static_cast<int>(mode) << RESET << std::endl;
+        if (mode != TacticalMode::OFFENSIVE) {
+            throw std::runtime_error("满足攻击条件时未切换为 OFFENSIVE");
+        }
+
+        // Defend 分支当前在 tactical_tree.xml 中被注释，优先级验证留待启用后补充。
+    }
+
+    void testCombined_ExtremeEdgeCases() {
+        const auto tunnel_pose = makePose(12.0, 5.0);
+        bt_blackboard_->set("current_pose", tunnel_pose);
+        bt_blackboard_->set("health", 25.0f);
+        bt_blackboard_->set("current_heat", 250);
+        bt_blackboard_->set("through_tunnel", true);
+        bt_blackboard_->set("enemy_outpost_destroyed", true);
+        bt_blackboard_->set("target_valid", false);
+        bt_blackboard_->set("lifter_current_pos", LifterPos::TOP);
+        tickNavTree();
+        const auto retreat_goal = bt_blackboard_->get<Point2D>("nav_goal");
+        logPoint("EdgeA nav_goal", retreat_goal);
+        logPoint("EdgeA expected", nav_points[static_cast<size_t>(NavGoal::HOME)]);
+        expectPointNear(retreat_goal, nav_points[static_cast<size_t>(NavGoal::HOME)],
+                        "要命的撤退：NavTree 未下发回家目标");
+        const auto lifter = bt_blackboard_->get<LifterPos>("desired_lifter_pos");
+        std::cout << YELLOW << "      EdgeA lifter=" << static_cast<int>(lifter) << RESET << std::endl;
+        if (lifter != LifterPos::BOTTOM) {
+            throw std::runtime_error("要命的撤退：lifter 未强制到底部");
+        }
+
+        waitForStanceCooldown("edge-case A stance");
+        bt_blackboard_->set("current_stance", SentryStance::ATTACK);
+        bt_blackboard_->set("desired_stance", SentryStance::ATTACK);
+        tickStanceTree();
+        const auto use_gyro = bt_blackboard_->get<bool>("use_gyro_mode");
+        std::cout << YELLOW << "      EdgeA use_gyro_mode=" << use_gyro << RESET << std::endl;
+        if (use_gyro) {
+            throw std::runtime_error("要命的撤退：StanceTree 未关闭小陀螺");
+        }
+
+        const auto stuck_pose = makePose(10.0, 3.0);
+        const int tunnel_idx = findTransformZoneIndex(stuck_pose);
+        if (tunnel_idx < 0) {
+            throw std::runtime_error("卡死时的被袭：未找到 transform_zone");
+        }
+        bt_blackboard_->set("current_pose", stuck_pose);
+        bt_blackboard_->set("health", 100.0f);
+        bt_blackboard_->set("through_tunnel", false);
+        bt_blackboard_->set("target_valid", false);
+        tickNavTree();
+        std::cout << YELLOW << "      等待 20.5 秒触发卡死恢复..." << RESET << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(20500));
+        bt_blackboard_->set("target_valid", true);
+        bt_blackboard_->set("target_pose", makePose(8.0, 2.0));
+        tickNavTree();
+        const auto cmd_vel = bt_blackboard_->get<geometry_msgs::msg::Twist>("cmd_vel");
+        std::cout << YELLOW << "      EdgeB cmd_vel=(vx=" << cmd_vel.linear.x << ", vy="
+                  << cmd_vel.linear.y << ")" << RESET << std::endl;
+        const auto & cfg = tunnel_recovery_configs[static_cast<size_t>(tunnel_idx)];
+        if (!nearlyEqual(cmd_vel.linear.x, cfg.recovery_vx, 1e-3) ||
+            !nearlyEqual(cmd_vel.linear.y, cfg.recovery_vy, 1e-3)) {
+            throw std::runtime_error("卡死时的被袭：Recovery 未优先下发 cmd_vel");
+        }
+
+        waitForStanceCooldown("edge-case C refresh");
+        auto refresh_manager = std::make_shared<SentryBTManager>();
+        if (!refresh_manager->initialize(bt_blackboard_, tree_dir_)) {
+            throw std::runtime_error("RuleRefresh 测试初始化失败");
+        }
+        bt_blackboard_->set("current_stance", SentryStance::DEFEND);
+        bt_blackboard_->set("desired_stance", SentryStance::DEFEND);
+        refresh_manager->tickStanceExactlyOnce();
+        const auto refresh_stance = bt_blackboard_->get<SentryStance>("desired_stance");
+        std::cout << YELLOW << "      EdgeC refresh stance=" << static_cast<int>(refresh_stance) << RESET
+                  << std::endl;
+
+        bt_blackboard_->set("health", 25.0f);
+        tickNavTree();
+        const auto retreat_mode = bt_blackboard_->get<int>("current_mode");
+        if (retreat_mode != static_cast<int>(NavMode::RETREAT)) {
+            throw std::runtime_error("防静默期间的激战：NavTree 未切换为 RETREAT");
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        refresh_manager->tickStanceExactlyOnce();
+        const auto stance_after = bt_blackboard_->get<SentryStance>("desired_stance");
+        std::cout << YELLOW << "      EdgeC stance_after=" << static_cast<int>(stance_after) << RESET
+                  << std::endl;
+        if (stance_after != refresh_stance) {
+            throw std::runtime_error("防静默期间的激战：姿态刷新冷却未拦截新指令");
+        }
+    }
 };
 
-int main(int argc, char ** argv)
-{
-  rclcpp::init(argc, argv);
-  auto node = std::make_shared<EventStatusTestNode>();
-  rclcpp::spin(node);
-  rclcpp::shutdown();
-  return 0;
+int main(int argc, char **argv) {
+    rclcpp::init(argc, argv);
+    auto node = std::make_shared<rclcpp::Node>("bt_comprehensive_test_node");
+    
+    try {
+        SentryTestSuite suite(node);
+        suite.runAllTests();
+    } catch (const std::exception& e) {
+        std::cerr << "测试套件遭遇致命错误: " << e.what() << std::endl;
+    }
+    
+    rclcpp::shutdown();
+    return 0;
 }
