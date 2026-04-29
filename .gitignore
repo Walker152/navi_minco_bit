@@ -15,3 +15,4 @@ build-*/
 *.sqlite
 *.png
 .venv/
+.log/
