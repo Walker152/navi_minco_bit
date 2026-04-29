@@ -161,10 +161,10 @@ inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{14.7, 11.0}, Point2D{15.7, 12.0}},
 };  // 假设这是奖励区域的坐标范围
 inline std::array<Area_Square, 4> tunnel_zone = {
-  Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 4.1}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 4.1}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 4.1}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 4.1}},
+  Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 3.1}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
