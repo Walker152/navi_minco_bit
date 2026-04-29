@@ -222,7 +222,7 @@ private:
       current_vw = odom_.twist.twist.angular.z;
       // vx_mps = 2.5;
       // vy_mps = 0.0;
-      vw_rpm = 80.0f;
+      vw_rpm = 100.0f;
     }
 
     tf2::Quaternion q;
