@@ -32,6 +32,32 @@ struct Point2D
   }
 };
 
+struct TunnelRecoveryConfig
+{
+  float tunnel_pass_yaw_target_rad;  // Desired yaw when passing this tunnel, in radians
+  Point2D recovery_point;            // Recovery/retreat point for this tunnel
+  Point2D forward_point;             // Forward attempt point for this tunnel
+  float recovery_vx;                 // Recovery linear velocity x in map frame
+  float recovery_vy;                 // Recovery linear velocity y in map frame
+
+  TunnelRecoveryConfig()
+  : tunnel_pass_yaw_target_rad(0.0f), recovery_point(), forward_point(), recovery_vx(0.0f),
+    recovery_vy(0.0f)
+  {
+  }
+
+  TunnelRecoveryConfig(
+    float tunnel_pass_yaw_target_rad_,
+    const Point2D & recovery_point_,
+    const Point2D & forward_point_,
+    float recovery_vx_,
+    float recovery_vy_)
+  : tunnel_pass_yaw_target_rad(tunnel_pass_yaw_target_rad_), recovery_point(recovery_point_),
+    forward_point(forward_point_), recovery_vx(recovery_vx_), recovery_vy(recovery_vy_)
+  {
+  }
+};
+
 struct GimbalPatrolPoint
 {
   float yaw_lower_bound_deg;  // 云台巡逻点的偏航角下界，单位为度
@@ -237,7 +263,7 @@ struct PolygonVizConfig
   std::array<float, 3> color;
 };
 
-template<std::size_t N>
+template <std::size_t N>
 inline PolygonVizConfig makePolygonVizConfig(
   const std::string & name, const AreaPolygon<N, Point2D> & polygon, const std::array<float, 3> & color)
 {
