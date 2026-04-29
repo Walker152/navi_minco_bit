@@ -8,6 +8,7 @@
 #include "minco_core/minco_fsm.hpp"
 #include "minco_core/minco_utils.hpp"
 #include "minco_core/visualizer.hpp"
+#include <iostream>
 
 namespace minco_planner {
 
@@ -689,6 +690,8 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   vec_Vec3f shifted_waypoints;
   VecDf shifted_durations;
   bool has_shifted_seed = false;
+  // std::cout << CYAN << "[MincoPlanner] Planning state: " << ((state == PlanningState::HOT_START) ? "HOT_START" : "COLD_START")
+  //           << RESET << std::endl;
   if (state == PlanningState::HOT_START) {
     const double now = rclcpp::Clock().now().seconds() + 0.005;  // small buffer
     const double t_dur = now - last_traj_start_WT;
@@ -713,7 +716,10 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     // Avoid reusing stale warm-start guesses.
     minco_optimizer_->setInitPsAndTs(vec_Vec3f{}, VecDf{});
   }
-
+  // std::cout << CYAN << "[MincoPlanner] Start state: pos=(" << start_state.col(0).x() << ", " << start_state.col(0).y()
+  //           << "), vel=(" << start_state.col(1).x() << ", " << start_state.col(1).y()
+  //           << "), acc=(" << start_state.col(2).x() << ", " << start_state.col(2).y() << ")"
+  //           << RESET << std::endl;
   // 6. Generate backup trajectory (safety).
   traj_opt::Trajectory backup_traj = generateBackupTraj(start_state);
 
@@ -1255,7 +1261,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
   if (vel_error > 1.0) {
     std::cout << YELLOW << "[MincoPlanner] Large velocity error (" << vel_error
               << "m/s). Downgrading to COLD_START." << RESET << std::endl;
-    // return PlanningState::COLD_START;
+    return PlanningState::COLD_START;
   }
 
   if (new_path.size() >= 2) {
@@ -1668,18 +1674,26 @@ Eigen::Vector3d MincoPlanner::getCurrentSpeed() const
 {
   std::lock_guard<std::mutex> lk(odom_mutex_);
   if (has_latest_odom_) {
-    geometry_msgs::msg::Vector3Stamped body_vel;
-    body_vel.header.stamp = latest_odom_.header.stamp;
-    body_vel.header.frame_id = latest_odom_.child_frame_id;
-    body_vel.vector = latest_odom_.twist.twist.linear;
+    const auto & twist = latest_odom_.twist.twist;
+    const double yaw = utils::quaternionToYaw(latest_odom_.pose.pose.orientation);
 
-    try {
-      const auto map_vel = tf_->transform(body_vel, global_frame_);
-      return Eigen::Vector3d(map_vel.vector.x, map_vel.vector.y, map_vel.vector.z);
-    } catch (const tf2::TransformException &) {
-    }
+    double vx_global = 0.0;
+    double vy_global = 0.0;
+    double omega_global = 0.0;
+    utils::compensateLeverArm(
+      twist.linear.x,
+      twist.linear.y,
+      twist.angular.z,
+      yaw,
+      vx_global,
+      vy_global,
+      omega_global);
 
-    return Eigen::Vector3d(body_vel.vector.x, body_vel.vector.y, body_vel.vector.z);
+    std::cout << "[MincoPlanner] Lever-arm compensation: raw_v=(" << twist.linear.x << ", "
+              << twist.linear.y << ") wz=" << twist.angular.z << " yaw=" << yaw << " -> v=("
+              << vx_global << ", " << vy_global << ")" << std::endl;
+
+    return Eigen::Vector3d(vx_global, vy_global, twist.linear.z);
   }
   return Eigen::Vector3d::Zero();
 }
