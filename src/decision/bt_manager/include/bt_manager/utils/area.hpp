@@ -1,6 +1,6 @@
 #pragma once
-// #define RMUC_AREA
-#define TEST_AREA
+#define RMUC_AREA
+// #define TEST_AREA
 #include "bt_manager/utils/nav_zone.hpp"
 
 #include <array>
