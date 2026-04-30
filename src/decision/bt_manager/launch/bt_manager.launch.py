@@ -3,7 +3,9 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
+from launch_ros.substitutions import FindPackageShare
 
+bt_manager_share = FindPackageShare('bt_manager').find('bt_manager')
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -12,11 +14,11 @@ def generate_launch_description():
             description='Enable behavior-tree transition debug logs'),
         DeclareLaunchArgument(
             'bt_debug_log_to_file',
-            default_value='true',
+            default_value='false',
             description='Enable behavior-tree transition logs to file'),
         DeclareLaunchArgument(
             'bt_debug_log_file',
-            default_value='logs/bt_transition.log',
+            default_value=bt_manager_share + '/logs/bt_transition.log',
             description='Behavior-tree transition log file path'),
         Node(
             package='bt_manager',
