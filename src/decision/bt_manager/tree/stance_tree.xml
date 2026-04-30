@@ -4,8 +4,9 @@
       
       <Sequence name="RuleRefresh">
         <CheckStanceRefreshRequired max_hold_seconds="180" target_stance="{target_stance}" branch="RuleRefresh"/>
-        <ChangeStance name="ChangeStanceRefresh" stance="{target_stance}" />
         <SetGyroState use_gyro="true" gyro_vel="50.0" />
+        <!-- <CheckStanceCooldown cooldown="5.0" branch="RuleRefresh" /> -->
+        <ChangeStance name="ChangeStanceRefresh" stance="{target_stance}" />
       </Sequence>
 
       <Sequence name="MoveStanceNoGyroBranch">
@@ -18,6 +19,7 @@
                                   use_gyro="{use_gyro}"
                                   gyro_vel="{gyro_vel}" />
         <SetGyroState use_gyro="{use_gyro}" gyro_vel="{gyro_vel}" />
+        <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
         <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
       </Sequence>
 
@@ -26,22 +28,25 @@
           <CheckHeat threshold="200" mode="greater" branch="AbsoluteAttackBranch" />
           <CheckOutpostTarget goal_distance_threshold="0.5" branch="AbsoluteAttackBranch" />
         </Fallback>
-        <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
         <SetGyroState use_gyro="true" gyro_vel="50.0" />
+        <!-- <CheckStanceCooldown cooldown="5.0" branch="AbsoluteAttackBranch" /> -->
+        <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
       </Sequence>
 
       <Sequence name="PursuitStanceBranch">
         <CheckTargetVisible />
         <CheckTargetDistance threshold="4.0" mode="greater" branch="PursuitStanceBranch" />
-        <ChangeStance name="ChangeStancePursuit" stance="MOVE" />
         <SetGyroState use_gyro="true" gyro_vel="90.0" />
+        <!-- <CheckStanceCooldown cooldown="5.0" branch="PursuitStanceBranch" /> -->
+        <ChangeStance name="ChangeStancePursuit" stance="MOVE" />
       </Sequence>
 
       <Sequence name="CombatAttackBranch">
         <CheckEngagedStatus expected="true" branch="CombatAttackBranch" />
         <CheckHealth threshold="50" mode="greater" branch="CombatAttackBranch" />
-        <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
         <SetGyroState use_gyro="true" gyro_vel="50.0" />
+        <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
+        <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
       </Sequence>
 
       <Sequence name="MoveStanceGyroBranch">
@@ -49,20 +54,23 @@
           <CheckCapacitorCapacity threshold="30" mode="less" branch="MoveStanceGyroBranch" />
           <CheckEngagedStatus expected="false" branch="MoveStanceGyroBranch" />
         </Fallback>
-        <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
         <SetGyroState use_gyro="true" gyro_vel="90.0" />
+        <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
+        <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
       </Sequence>
 
       <Sequence name="DefendStanceBranch">
         <CheckEngagedStatus expected="true" branch="DefendStanceBranch" />
         <CheckHealth threshold="50" mode="less" branch="DefendStanceBranch" />
-        <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
         <SetGyroState use_gyro="true" gyro_vel="50.0" />
+        <!-- <CheckStanceCooldown cooldown="5.0" branch="DefendStanceBranch" /> -->
+        <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
       </Sequence>
 
       <Sequence name="DefaultDefendBranch">
-        <ChangeStance name="DefaultDefendStance" stance="DEFEND" />
         <SetGyroState use_gyro="true" gyro_vel="50.0" />
+        <!-- <CheckStanceCooldown cooldown="5.0" branch="DefaultDefendBranch" /> -->
+        <ChangeStance name="DefaultDefendStance" stance="DEFEND" />
       </Sequence>
 
     </ReactiveFallback>

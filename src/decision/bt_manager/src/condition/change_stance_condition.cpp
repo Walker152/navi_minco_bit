@@ -1,6 +1,9 @@
 #include "bt_manager/condition/change_stance_condition.hpp"
 #include <algorithm>
 #include <cmath>
+#include <limits>
+
+#include "bt_manager/action/change_stance_action.hpp"
 
 namespace Sentry_BT {
 
@@ -208,7 +211,13 @@ float CheckCrossZoneTransition::computeTunnelGyroVelPid(
   }
 
   double dt = std::chrono::duration<double>(now - last_pid_time_).count();
-  dt = std::clamp(dt, 1e-3, 0.2);
+  if (dt > 0.5) {
+    integral_error_ = 0.0;
+    last_error_ = yaw_error;
+    dt = 1e-3;
+  } else {
+    dt = std::clamp(dt, 1e-3, 0.2);
+  }
   last_pid_time_ = now;
 
   if (std::fabs(yaw_error) <= static_cast<double>(deadzone)) {
@@ -361,6 +370,38 @@ BT::NodeStatus CheckCapacitorCapacity::tick()
   std::ostringstream oss;
   oss << "capacitor=" << capacitor_capacity << ", mode=" << mode << ", threshold=" << threshold;
   detail::logTransition(detail::TreeKind::STANCE, "CheckCapacitorCapacity", active, oss.str(), branch);
+
+  return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckStanceCooldown -------------------
+CheckStanceCooldown::CheckStanceCooldown(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckStanceCooldown::providedPorts()
+{
+  return {BT::InputPort<double>("cooldown", 5.0, "Cooldown seconds between stance changes"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckStanceCooldown::tick()
+{
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const double cooldown = getInput<double>("cooldown").value_or(5.0);
+
+  const auto last_change = ChangeStance::getLastChangeTime();
+  const auto now = std::chrono::system_clock::now();
+  const double elapsed =
+    (last_change == std::chrono::time_point<std::chrono::system_clock>::min())
+      ? std::numeric_limits<double>::infinity()
+      : std::chrono::duration<double>(now - last_change).count();
+
+  const bool active = elapsed >= cooldown;
+  std::ostringstream oss;
+  oss << "elapsed=" << elapsed << ", cooldown=" << cooldown;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckStanceCooldown", active, oss.str(), branch);
 
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
