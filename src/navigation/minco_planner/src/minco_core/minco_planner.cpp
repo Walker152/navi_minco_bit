@@ -1301,7 +1301,7 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
     }
   }
 
-  constexpr double slope_threshold = 0.1;
+  // constexpr double slope_threshold = 0.1;
   if (has_valid_odom && sparse_path.size() >= 2) {
     const tf2::Quaternion q(odom_q.x, odom_q.y, odom_q.z, odom_q.w);
     double roll = 0.0;
@@ -1309,13 +1309,13 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
     double yaw = 0.0;
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
 
-    if (std::abs(pitch) > slope_threshold) {
+    // if (std::abs(pitch) > slope_threshold) {
       Eigen::Vector2d local_dir = (sparse_path[1] - sparse_path[0]).head<2>();
       const double norm = local_dir.norm();
       if (norm > 0.1) {
         local_dir /= norm;
         constexpr double min_climb_speed = 2.5;
-        constexpr double min_climb_acc = 3.0;
+        constexpr double min_climb_acc = 0.0;
         if (std::hypot(real_speed.x(), real_speed.y()) < min_climb_speed) {
           real_speed.x() = local_dir.x() * min_climb_speed;
           real_speed.y() = local_dir.y() * min_climb_speed;
@@ -1324,7 +1324,7 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
         }
       }
     }
-  }
+  // }
 
   start_state.col(1) = real_speed;
 }
