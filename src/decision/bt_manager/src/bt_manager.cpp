@@ -75,6 +75,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckTargetDistance>("CheckTargetDistance");
   factory_.registerNodeType<CheckCrossZoneTransition>("CheckCrossZoneTransition");
   factory_.registerNodeType<CheckCapacitorCapacity>("CheckCapacitorCapacity");
+  factory_.registerNodeType<CheckStanceCooldown>("CheckStanceCooldown");
   factory_.registerNodeType<CheckStanceRefreshRequired>("CheckStanceRefreshRequired");
   factory_.registerNodeType<SetGyroState>("SetGyroState");
   factory_.registerNodeType<ChangeStance>("ChangeStance");
