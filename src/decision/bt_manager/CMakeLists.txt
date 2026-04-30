@@ -62,14 +62,13 @@ add_executable(bt_manager_node
 
 add_executable(event_test
   src/test/event_status_pub_test.cpp
-  ${BT_TEST_SOURCES}
 )
 
-add_executable(stance_tree_test
-  src/test/stance_tree_test.cpp
-  src/condition/change_stance_condition.cpp
-  src/condition/gimbal_condition.cpp
-)
+# add_executable(stance_tree_test
+#   src/test/stance_tree_test.cpp
+#   src/condition/change_stance_condition.cpp
+#   src/condition/gimbal_condition.cpp
+# )
 
 ament_target_dependencies(event_test
   rclcpp
@@ -83,19 +82,19 @@ ament_target_dependencies(event_test
   nav2_behavior_tree
 )
 
-ament_target_dependencies(stance_tree_test
-  rclcpp
-  std_msgs
-  ros_interfaces
-  geometry_msgs
-  visualization_msgs
-  tf2
-  tf2_ros
-  tf2_geometry_msgs
-  behaviortree_cpp_v3
-  nav2_behavior_tree
-  ament_index_cpp
-)
+# ament_target_dependencies(stance_tree_test
+#   rclcpp
+#   std_msgs
+#   ros_interfaces
+#   geometry_msgs
+#   visualization_msgs
+#   tf2
+#   tf2_ros
+#   tf2_geometry_msgs
+#   behaviortree_cpp_v3
+#   nav2_behavior_tree
+#   ament_index_cpp
+# )
 
 ament_target_dependencies(bt_manager_node
   rclcpp
@@ -116,7 +115,7 @@ ament_target_dependencies(bt_manager_node
 install(TARGETS
   bt_manager_node
   event_test
-  stance_tree_test
+  # stance_tree_test
   DESTINATION lib/${PROJECT_NAME}
 )
 

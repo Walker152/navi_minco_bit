@@ -1,6 +1,5 @@
 #include "bt_manager/action/change_stance_action.hpp"
 
-#include <limits>
 using namespace color_text;
 namespace Sentry_BT {
 std::chrono::time_point<std::chrono::system_clock> ChangeStance::last_change_time_ =
@@ -63,31 +62,16 @@ BT::NodeStatus ChangeStance::onStart()
   if (current_stance_ == desired_stance_) {
     return BT::NodeStatus::SUCCESS;
   }
-  return SwitchIfCooldown();
+  return applyStanceChange();
 }
 
 BT::NodeStatus ChangeStance::onRunning()
 {
-  return SwitchIfCooldown();
+  return applyStanceChange();
 }
 
 void ChangeStance::onHalted()
 {
-}
-
-BT::NodeStatus ChangeStance::SwitchIfCooldown()
-{
-  const auto now = std::chrono::system_clock::now();
-  const double elapsed_seconds =
-    (last_change_time_ == std::chrono::time_point<std::chrono::system_clock>::min())
-      ? std::numeric_limits<double>::infinity()
-      : std::chrono::duration<double>(now - last_change_time_).count();
-
-  if (elapsed_seconds < 5.0) {
-    return BT::NodeStatus::RUNNING;
-  }
-
-  return applyStanceChange();
 }
 
 BT::NodeStatus ChangeStance::applyStanceChange()
