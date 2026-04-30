@@ -273,6 +273,9 @@ BT::NodeStatus CheckOutpostSafeResponse::tick()
   const auto now = std::chrono::steady_clock::now();
 
   const bool health_dropped = (last_health_ - health) > 1e-3;
+  if (health_dropped) {
+    last_health_change_time_ = now;
+  }
   if (current_mode == static_cast<int>(Sentry_BT::NavMode::RESPONSE) && health_dropped) {
     cooldown_active_ = true;
     blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::PATROL));

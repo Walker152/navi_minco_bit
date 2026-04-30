@@ -26,8 +26,12 @@ public:
   BT::NodeStatus onRunning() override;
   void onHalted() override;
 
+  static std::chrono::time_point<std::chrono::system_clock> getLastChangeTime()
+  {
+    return last_change_time_;
+  }
+
 private:
-  BT::NodeStatus SwitchIfCooldown();
   BT::NodeStatus applyStanceChange();
 
   SentryStance desired_stance_{SentryStance::DEFEND};

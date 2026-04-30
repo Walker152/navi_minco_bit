@@ -99,6 +99,15 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class CheckStanceCooldown : public BT::ConditionNode
+{
+public:
+  CheckStanceCooldown(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 class CheckStanceRefreshRequired : public BT::ConditionNode
 {
 public:
