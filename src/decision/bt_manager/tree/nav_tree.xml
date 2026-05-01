@@ -4,10 +4,10 @@
     <ReactiveFallback name="NavPriorityRoot">
       <ReactiveSequence name="Priority0ManualOverride">
         <CheckManualOverride name="CheckManualOverride" timeout_seconds="4.0" same_goal_eps="0.05" branch="Priority0ManualOverride" />
-        <ChangeMapAction name="SwitchToMainMapForManual"
+        <!-- <ChangeMapAction name="SwitchToMainMapForManual"
                          map_dir="src/navigation/navi2_bringup/maps/2026"
                          pcd_dir="src/utils/pcd2esdf/maps"
-                         map_name="rmuc2026" />
+                         map_name="rmuc2026" /> -->
         <SetManualOverrideGoal name="SetManualOverrideGoal" />
         <NavigateToPoseAction name="NavigateManualOverrideGoal" />
       </ReactiveSequence>
@@ -19,10 +19,10 @@
                                ammo_threshold="0"
                                ammo_recovery_threshold="0"
                                branch="Priority1Survival" />
-        <ChangeMapAction name="SwitchToRetreatMap"
+        <!-- <ChangeMapAction name="SwitchToRetreatMap"
                          map_dir="src/navigation/navi2_bringup/maps/2026"
                          pcd_dir="src/utils/pcd2esdf/maps"
-                         map_name="rmuc2026_back" />
+                         map_name="rmuc2026_back" /> -->
         <SetCoordinate name="SetHomeGoal" goal="0" />
         <!-- <ForceSuccess>
           <ReactiveSequence name="StairsDescentFlow">
@@ -50,17 +50,17 @@
       </ReactiveSequence>
 
       <ReactiveSequence name="Priority1_5TunnelRecovery">
-        <CheckTimeInZone min_seconds="10.0" max_seconds="50.0" zone_name="transform_zone" />
+        <CheckTimeInZone min_seconds="20.0" max_seconds="50.0" zone_name="transform_zone" />
         <SubTree ID="TunnelRecoverySubTree"
                  __shared_blackboard="true"
                  __autoremap="true" />
       </ReactiveSequence>
 
       <ReactiveSequence name="Priority2TargetAttack">
-        <ChangeMapAction name="SwitchToMainMapForSpecial"
+        <!-- <ChangeMapAction name="SwitchToMainMapForSpecial"
                            map_dir="src/navigation/navi2_bringup/maps/2026"
                            pcd_dir="src/utils/pcd2esdf/maps"
-                           map_name="rmuc2026" />
+                           map_name="rmuc2026" /> -->
         <ReactiveSequence name="TargetPursuit">
           <CheckTargetLocked name="CheckTargetLocked" branch="Priority2TargetAttack" />
           <SetTargetCoordinate name="SetTargetCoordinate" />
@@ -72,10 +72,10 @@
       </ReactiveSequence>
 
       <ReactiveSequence name="Priority3SpecialResponse">
-        <ChangeMapAction name="SwitchToMainMapForSpecial"
+        <!-- <ChangeMapAction name="SwitchToMainMapForSpecial"
                          map_dir="src/navigation/navi2_bringup/maps/2026"
                          pcd_dir="src/utils/pcd2esdf/maps"
-                         map_name="rmuc2026" />
+                         map_name="rmuc2026" /> -->
         <ReactiveFallback name="SpecialResponseSelector">
           <ReactiveSequence name="NormalOutpostResponse">
             <CheckTacticalModeCondition name="CheckNormalMode" mode="normal" branch="NormalOutpostResponse" />
@@ -114,10 +114,10 @@
       </ReactiveSequence>
 
       <ReactiveSequence name="Priority4TrackPatrol">
-        <ChangeMapAction name="SwitchToMainMapForRoutine"
+        <!-- <ChangeMapAction name="SwitchToMainMapForRoutine"
                          map_dir="src/navigation/navi2_bringup/maps/2026"
                          pcd_dir="src/utils/pcd2esdf/maps"
-                         map_name="rmuc2026" />
+                         map_name="rmuc2026" /> -->
         <Sequence name="PatrolByTacticalMode">
           <SelectPatrolPoint name="SelectPatrolPoint" />
           <ForceSuccess>

@@ -312,14 +312,14 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
 
   // 提取bit 0：脱战状态
   bool is_disengaged = (sentry_info_2 & 0x0001) != 0;
-  blackboard_->set<bool>("is_disengaged", is_disengaged);
+  // blackboard_->set<bool>("is_disengaged", is_disengaged);
 
   // 提取bit 12-13：哨兵当前姿态
   uint8_t current_stance = (sentry_info_2 >> 12) & 0x3;
   if (current_stance >= static_cast<uint8_t>(Sentry_BT::SentryStance::ATTACK) &&
       current_stance <= static_cast<uint8_t>(Sentry_BT::SentryStance::MOVE)) {
-    blackboard_->set<Sentry_BT::SentryStance>(
-      "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
+    // blackboard_->set<Sentry_BT::SentryStance>(
+    //   "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
   } else {
     // RCLCPP_WARN_THROTTLE(this->get_logger(),
     //   *this->get_clock(),
