@@ -299,7 +299,7 @@ planner_server:
 
       smac_2d:
         use_esdf_cost: true
-        esdf_weight: 0.3
+        esdf_weight: 0.05
         esdf_decay: 0.5
         esdf_max_cost: 0.3
 
