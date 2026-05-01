@@ -88,6 +88,7 @@ private:
   double integral_error_ = 0.0;
   double last_error_ = 0.0;
   std::chrono::steady_clock::time_point last_pid_time_;
+  bool tunnel_recovery_latched_ = false;
 };
 
 class CheckCapacitorCapacity : public BT::ConditionNode
