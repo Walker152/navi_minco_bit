@@ -280,38 +280,55 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   const Point2D goal_point{nav_goal.x, nav_goal.y, 0.0};
 
   const bool current_in_highland = highland_zone.contains(current_point);
-  const bool current_in_half =
-    own_defense_zone.contains(current_point) || enemy_defense_zone.contains(current_point);
+  const bool current_in_own = own_defense_zone.contains(current_point);
+  const bool current_in_enemy = enemy_defense_zone.contains(current_point);
   const bool goal_in_highland = highland_zone.contains(goal_point);
-  const bool goal_in_half =
-    own_defense_zone.contains(goal_point) || enemy_defense_zone.contains(goal_point);
-
-  const bool need_cross_zone =
-    (current_in_half && goal_in_highland) || (current_in_highland && goal_in_half);
-  const bool tunnel_recovery_active = need_cross_zone && through_tunnel;
+  const bool goal_in_own = own_defense_zone.contains(goal_point);
+  const bool goal_in_enemy = enemy_defense_zone.contains(goal_point);
+  const bool same_zone =
+    (current_in_highland && goal_in_highland) || (current_in_own && goal_in_own) ||
+    (current_in_enemy && goal_in_enemy);
+  const bool need_cross_zone = !same_zone;
+  const bool tunnel_recovery_entry = need_cross_zone && through_tunnel;
+  bool current_in_tunnel = false;
+  for (const auto & zone : tunnel_zone) {
+    if (zone.contains(current_point)) {
+      current_in_tunnel = true;
+      break;
+    }
+  }
+  if (!tunnel_recovery_latched_ && tunnel_recovery_entry) {
+    tunnel_recovery_latched_ = true;
+  }
+  if (tunnel_recovery_latched_ && !current_in_tunnel) {
+    tunnel_recovery_latched_ = false;
+  }
+  const bool tunnel_recovery_active = tunnel_recovery_latched_;
 
   float computed_gyro_vel = 0.0f;
   bool enable_small_gyro = false;
   int active_tunnel_idx = -1;
   if (tunnel_recovery_active) {
+    int nearest_tunnel_idx = -1;
+    double nearest_dist2 = std::numeric_limits<double>::infinity();
     for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
+      const auto & zone = tunnel_zone[i];
+      const double center_x = (zone.top_left.x + zone.bottom_right.x) * 0.5;
+      const double center_y = (zone.top_left.y + zone.bottom_right.y) * 0.5;
+      const double dx = current_point.x - center_x;
+      const double dy = current_point.y - center_y;
+      const double dist2 = dx * dx + dy * dy;
+      if (dist2 < nearest_dist2) {
+        nearest_dist2 = dist2;
+        nearest_tunnel_idx = static_cast<int>(i);
+      }
       if (tunnel_zone[i].contains(current_point)) {
         active_tunnel_idx = static_cast<int>(i);
         break;
       }
     }
-
     if (active_tunnel_idx < 0) {
-      resetPidState();
-      setOutput("use_gyro", false);
-      setOutput("gyro_vel", 0.0f);
-      detail::logTransition(
-        detail::TreeKind::STANCE,
-        "CheckCrossZoneTransition",
-        false,
-        "tunnel_recovery_active but not inside any tunnel_zone",
-        branch);
-      return BT::NodeStatus::FAILURE;
+      active_tunnel_idx = nearest_tunnel_idx;
     }
 
     enable_small_gyro = true;
@@ -331,9 +348,11 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   setOutput("gyro_vel", computed_gyro_vel);
 
   std::ostringstream oss;
-  oss << "current_in_highland=" << current_in_highland << ", current_in_half=" << current_in_half
-      << ", goal_in_highland=" << goal_in_highland << ", goal_in_half=" << goal_in_half
-      << ", through_tunnel=" << through_tunnel << ", tunnel_idx=" << active_tunnel_idx
+    oss << "current_in_highland=" << current_in_highland << ", current_in_own=" << current_in_own
+      << ", current_in_enemy=" << current_in_enemy << ", goal_in_highland=" << goal_in_highland
+      << ", goal_in_own=" << goal_in_own << ", goal_in_enemy=" << goal_in_enemy
+      << ", through_tunnel=" << through_tunnel << ", current_in_tunnel=" << current_in_tunnel
+      << ", tunnel_idx=" << active_tunnel_idx
       << ", use_gyro_mode=" << enable_small_gyro << ", gyro_vel=" << computed_gyro_vel;
   detail::logTransition(
     detail::TreeKind::STANCE, "CheckCrossZoneTransition", tunnel_recovery_active, oss.str(), branch);

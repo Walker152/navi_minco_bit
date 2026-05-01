@@ -11,11 +11,11 @@
 
       <Sequence name="MoveStanceNoGyroBranch">
         <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch"
-                                  kp="15.0"
+                                  kp="5.0"
                                   ki="0.0"
-                                  kd="5.0"
+                                  kd="0.0"
                                   deadzone_rad="0.1"
-                                  max_abs_gyro_vel="120.0"
+                                  max_abs_gyro_vel="100.0"
                                   use_gyro="{use_gyro}"
                                   gyro_vel="{gyro_vel}" />
         <SetGyroState use_gyro="{use_gyro}" gyro_vel="{gyro_vel}" />
@@ -54,7 +54,7 @@
           <CheckCapacitorCapacity threshold="30" mode="less" branch="MoveStanceGyroBranch" />
           <CheckEngagedStatus expected="false" branch="MoveStanceGyroBranch" />
         </Fallback>
-        <SetGyroState use_gyro="true" gyro_vel="90.0" />
+        <SetGyroState use_gyro="true" gyro_vel="0.0" />
         <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
         <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
       </Sequence>
