@@ -13,7 +13,8 @@
 
         common:
             lid_topic: "livox/lidar"
-            imu_topic: "livox/imu"
+            # imu_topic: "livox/imu"
+            imu_topic: "livox/imu_192_168_1_135"
             con_frame: False                                # True: if you need to combine several LiDAR frames into one
             con_frame_num: 1                                # the number of frames combined
             cut_frame: False                                # True: if you need to cut one LiDAR frame into several subframes
