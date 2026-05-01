@@ -177,8 +177,8 @@ BT::NodeStatus SetGimbalPoseByAreaAction::tick()
   static float last_pitch_min = 0.0f;
   static float last_pitch_max = 0.0f;
   if (yaw_min != last_yaw_min || yaw_max != last_yaw_max || pitch_min != last_pitch_min || pitch_max != last_pitch_max) {
-    std::cout << "SetGimbalPoseByAreaAction => yaw[" << yaw_min << ", " << yaw_max << "], pitch_min=" << pitch_min
-              << ", pitch_max=" << pitch_max << std::endl;
+    // std::cout << "SetGimbalPoseByAreaAction => yaw[" << yaw_min << ", " << yaw_max << "], pitch_min=" << pitch_min
+    //           << ", pitch_max=" << pitch_max << std::endl;
     last_yaw_min = yaw_min;
     last_yaw_max = yaw_max;
     last_pitch_min = pitch_min;
