@@ -10,6 +10,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(livox_ros_driver2 REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 find_package(OpenMP REQUIRED)
@@ -38,6 +39,7 @@ ament_target_dependencies(
   rclcpp_components
   message_filters
   livox_ros_driver2
+  sensor_msgs
 )
 
 rclcpp_components_register_nodes(lidar_merger_component
