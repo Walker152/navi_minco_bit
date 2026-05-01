@@ -808,7 +808,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
                   << RESET << std::endl;
         return true;
       }
-      return true;
+      return false;
     }
     return false;
   }
@@ -1316,7 +1316,7 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
       if (norm > 0.1) {
         local_dir /= norm;
         constexpr double min_climb_speed = 2.5;
-        constexpr double min_climb_acc = 0.0;
+        constexpr double min_climb_acc = 3.0;
         if (std::hypot(real_speed.x(), real_speed.y()) < min_climb_speed) {
           real_speed.x() = local_dir.x() * min_climb_speed;
           real_speed.y() = local_dir.y() * min_climb_speed;
@@ -1690,9 +1690,9 @@ Eigen::Vector3d MincoPlanner::getCurrentSpeed() const
       vy_global,
       omega_global);
 
-    std::cout << "[MincoPlanner] Lever-arm compensation: raw_v=(" << twist.linear.x << ", "
-              << twist.linear.y << ") wz=" << twist.angular.z << " yaw=" << yaw << " -> v=("
-              << vx_global << ", " << vy_global << ")" << std::endl;
+    // std::cout << "[MincoPlanner] Lever-arm compensation: raw_v=(" << twist.linear.x << ", "
+    //           << twist.linear.y << ") wz=" << twist.angular.z << " yaw=" << yaw << " -> v=("
+    //           << vx_global << ", " << vy_global << ")" << std::endl;
 
     return Eigen::Vector3d(vx_global, vy_global, twist.linear.z);
   }
