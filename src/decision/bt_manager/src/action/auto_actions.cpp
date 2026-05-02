@@ -159,10 +159,6 @@ BT::PortsList SetManualOverrideGoal::providedPorts()
 BT::NodeStatus SetManualOverrideGoal::tick()
 {
   auto blackboard = config().blackboard;
-  const bool goal_valid = blackboard->get<bool>("manual_override_goal_valid");
-  if (!goal_valid) {
-    return BT::NodeStatus::FAILURE;
-  }
 
   const auto manual_goal = blackboard->get<Sentry_BT::Point2D>("manual_override_goal");
   blackboard->set("nav_goal", manual_goal);
