@@ -3,16 +3,16 @@ cd ~/2025-sentry-navi
 source ./install/setup.bash
 
 # PTP Sync
-gnome-terminal -- bash -c "sudo ./scripts/ptp_sync.bash; exec bash"
-sleep 2
+# gnome-terminal -- bash -c "sudo ./scripts/ptp_sync.bash; exec bash"
+# sleep 2
 
 # MID360 
-gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_mixed_MID360.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_MID360_launch.py; exec bash"
 sleep 1
 
 # Lidar Merger
-gnome-terminal -- bash -c "ros2 launch lidar_merger dual_lidar_merger.launch.py; exec bash"
-sleep 1
+# gnome-terminal -- bash -c "ros2 launch lidar_merger dual_lidar_merger.launch.py; exec bash"
+# sleep 1
 
 # SLAM
 gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py; exec bash"
