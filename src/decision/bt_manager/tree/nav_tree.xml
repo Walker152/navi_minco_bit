@@ -77,11 +77,11 @@
           <ReactiveFallback name="SpecialResponseSelector">
             <ReactiveSequence name="NormalOutpostResponse">
               <CheckTacticalModeCondition name="CheckNormalMode" mode="normal" branch="NormalOutpostResponse" />
+              <CheckOutpostRemained name="CheckOutpostRemained" branch="NormalOutpostResponse" />
               <CheckOutpostSafeResponse name="CheckOutpostSafeResponseForNav"
                                         stable_seconds="5.0"
                                         require_response_mode="true"
                                         branch="NormalOutpostResponse" />
-              <CheckOutpostRemained name="CheckOutpostRemained" branch="NormalOutpostResponse" />
               <SetCoordinate name="SetEnemyOutpostGoal" goal="2" />
               <NavigateToPoseAction name="NavigateEnemyOutpost" />
             </ReactiveSequence>
