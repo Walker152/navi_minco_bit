@@ -133,7 +133,7 @@ private:
     sub_opt.callback_group = sub_cb_group_;
 
     chassis_sub_ = create_subscription<geometry_msgs::msg::Twist>(
-      "/cmd_vel",
+      "/cmd_vel_mpc",
       1,
       [this](geometry_msgs::msg::Twist::ConstSharedPtr msg) {
         sendChassisCtrlCB(msg);
@@ -189,6 +189,7 @@ private:
     float current_vx = 0.0f;
     float current_vy = 0.0f;
     float current_vw = 0.0f;
+    float tunnel_speed_y = 0.0f;
     uint8_t desire_stance = 0;
     uint8_t desire_lifter_pos = 0;
     bool use_gyro_mode = false;
@@ -205,8 +206,9 @@ private:
       // vw_rpm = 80.0f;
       desire_stance = behavior_.desired_stance;
       desire_lifter_pos = behavior_.desire_lifter_pos;
-        use_gyro_mode = behavior_.use_gyro_mode;
-        gyro_vel = behavior_.gyro_vel;
+      use_gyro_mode = behavior_.use_gyro_mode;
+      gyro_vel = behavior_.gyro_vel;
+      tunnel_speed_y = behavior_.tunnel_speed_y;
 
       if (use_gyro_mode) {
         vw_rpm = gyro_vel;
@@ -222,7 +224,7 @@ private:
       current_vw = odom_.twist.twist.angular.z;
       // vx_mps = 2.5;
       // vy_mps = 0.0;
-      // vw_rpm = 100.0f;
+      // vw_rpm = 0.0f;
     }
 
     tf2::Quaternion q;
