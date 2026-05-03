@@ -15,5 +15,7 @@ uint8 LIFTER_TOP=0
 uint8 LIFTER_BOTTOM=1
 uint8 LIFTER_MIDDLE=2
 
+uint16 ammo_purchase_request
+
 float32 scan_yaw_min
 float32 scan_yaw_max
