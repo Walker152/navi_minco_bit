@@ -38,7 +38,6 @@ public:
     blackboard_->set("cmd_vel", geometry_msgs::msg::Twist());             // 速度指令
     blackboard_->set("current_pose", geometry_msgs::msg::Pose());         // 当前位姿缓存
     blackboard_->set("ammo_purchase_total", 0);                           // 累计买弹请求量
-    blackboard_->set("ammo_purchase_request", 0);                         // 单次买弹请求量
     blackboard_->set("manual_override_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});  // 手动接管目标点
     blackboard_->set("outpost_safe_cooldown_active", false);  // 前哨站避险冷却状态
 

@@ -68,7 +68,6 @@ CheckTargetLocked::CheckTargetLocked(const std::string & name, const BT::NodeCon
 BT::PortsList CheckTargetLocked::providedPorts()
 {
   return {
-    BT::InputPort<bool>("target_valid"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
   };
 }

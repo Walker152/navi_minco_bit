@@ -43,7 +43,7 @@
 
       <Sequence name="CombatAttackBranch">
         <CheckEngagedStatus expected="true" branch="CombatAttackBranch" />
-        <CheckHealth threshold="50" mode="greater" branch="CombatAttackBranch" />
+        <CheckHealth threshold="60" mode="greater" branch="CombatAttackBranch" />
         <SetGyroState use_gyro="true" gyro_vel="50.0" />
         <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
         <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
@@ -61,7 +61,7 @@
 
       <Sequence name="DefendStanceBranch">
         <CheckEngagedStatus expected="true" branch="DefendStanceBranch" />
-        <CheckHealth threshold="50" mode="less" branch="DefendStanceBranch" />
+        <CheckHealth threshold="40" mode="less" branch="DefendStanceBranch" />
         <SetGyroState use_gyro="true" gyro_vel="50.0" />
         <!-- <CheckStanceCooldown cooldown="5.0" branch="DefendStanceBranch" /> -->
         <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
