@@ -34,14 +34,11 @@ public:
     blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));  // 当前模式
     blackboard_->set("nav_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});      // 当前导航目标
     blackboard_->set("patrol_index", 0);                                  // 巡逻点索引
-    blackboard_->set("outpost_msg", false);                               // 抬头
     blackboard_->set("through_tunnel", false);                            // 是否通过隧道
     blackboard_->set("cmd_vel", geometry_msgs::msg::Twist());             // 速度指令
     blackboard_->set("current_pose", geometry_msgs::msg::Pose());         // 当前位姿缓存
     blackboard_->set("ammo_purchase_total", 0);                           // 累计买弹请求量
     blackboard_->set("ammo_purchase_request", 0);                         // 单次买弹请求量
-    blackboard_->set("manual_override_active", false);                    // 手动接管是否激活
-    blackboard_->set("manual_override_goal_valid", false);                // 手动接管目标是否有效
     blackboard_->set("manual_override_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});  // 手动接管目标点
     blackboard_->set("outpost_safe_cooldown_active", false);  // 前哨站避险冷却状态
 
@@ -60,7 +57,6 @@ public:
     // === External Info (From Referee/Lower Computer) ===
 
     // --- Team Info ---
-    // team_info
     blackboard_->set("allies_info", std::vector<AllyRobotInfo>());  // 队友信息列表
     blackboard_->set("home_health", 3000);                          // 基地血量
     blackboard_->set("own_outpost_health", 1500);                   // 前哨站血量
