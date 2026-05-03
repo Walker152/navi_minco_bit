@@ -102,9 +102,10 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto control_mode = blackboard_->get<Sentry_BT::ControlMode>("control_mode");
     const auto use_gyro_mode = blackboard_->get<bool>("use_gyro_mode");
     const auto gyro_vel = blackboard_->get<float>("gyro_vel");
-    const auto ammo_purchase_request = blackboard_->get<uint16_t>("ammo_purchase_request");
+    const auto ammo_purchase_request = blackboard_->get<uint16_t>("ammo_purchase_total");
     const auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
     const auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
+    const auto tunnel_speed_y = blackboard_->get<float>("tunnel_speed_y");
 
     ros_interfaces::msg::Behavior behavior_msg;
     behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
@@ -115,6 +116,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.scan_yaw_min = yaw_min_deg;
     behavior_msg.scan_yaw_max = yaw_max_deg;
     behavior_msg.ammo_purchase_request = ammo_purchase_request;
+    behavior_msg.tunnel_speed_y = tunnel_speed_y;
     behavior_pub->publish(behavior_msg);
 
     const auto cmd_vel = blackboard_->get<geometry_msgs::msg::Twist>("cmd_vel");

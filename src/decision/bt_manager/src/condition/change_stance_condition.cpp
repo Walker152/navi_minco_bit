@@ -191,7 +191,8 @@ BT::PortsList CheckCrossZoneTransition::providedPorts()
     BT::InputPort<float>("max_abs_gyro_vel", 120.0f, "Max absolute gyro velocity in rpm"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
     BT::OutputPort<bool>("use_gyro", "Enable gyro output"),
-    BT::OutputPort<float>("gyro_vel", "Gyro velocity output")};
+    BT::OutputPort<float>("gyro_vel", "Gyro velocity output"),
+    BT::OutputPort<float>("tunnel_speed_y", "vy tunnel")};
 }
 
 float CheckCrossZoneTransition::computeTunnelGyroVelPid(
@@ -335,7 +336,12 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
       const double error = (std::abs(error_forward) <= std::abs(error_backward))
                              ? error_forward
                              : error_backward;
-
+      float tunnel_speed_y = 3.0f;
+      if (std::abs(error) < 0.1)
+      {
+        setOutput("tunnel_speed_y", tunnel_speed_y);
+      }
+      
       const auto now = std::chrono::steady_clock::now();
       computed_gyro_vel = computeTunnelGyroVelPid(error, kp, ki, kd, deadzone, max_abs_gyro_vel, now);
     } else {

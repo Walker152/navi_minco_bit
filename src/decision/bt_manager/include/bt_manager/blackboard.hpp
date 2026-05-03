@@ -27,8 +27,9 @@ public:
     blackboard_->set<SentryStance>("desired_stance", SentryStance::DEFEND);  // 期望姿态
     blackboard_->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);       // 目标升降位置
     blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);        // 控制模式
-    blackboard_->set("use_gyro_mode", true);                                 // 小陀螺开关
+    blackboard_->set("use_gyro_mode", false);                                 // 小陀螺开关
     blackboard_->set("gyro_vel", 80.0f);                                     // 小陀螺转速(rpm)
+    blackboard_->set("tunnel_speed_y", 1.5f);
     blackboard_->set("heat_attack_latched", false);  // 热量触发攻击滞回锁存
     // --- Navigation Tree ---
     blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));  // 当前模式
