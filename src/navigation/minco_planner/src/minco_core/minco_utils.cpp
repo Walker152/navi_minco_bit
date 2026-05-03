@@ -700,7 +700,7 @@ void compensateLeverArm(double v_lidar_x,
   double & vy_global,
   double & omega_global)
 {
-  const double v_body_x = v_lidar_x + omega_z * 0.2;
+  const double v_body_x = v_lidar_x + omega_z * (-0.2);
   const double v_body_y = v_lidar_y - omega_z * 0.0;
 
   const double cos_yaw = std::cos(yaw);

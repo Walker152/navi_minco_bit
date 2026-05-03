@@ -11,14 +11,15 @@
 
       <Sequence name="MoveStanceNoGyroBranch">
         <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch"
-                                  kp="5.0"
+                                  kp="2.0"
                                   ki="0.0"
                                   kd="0.0"
                                   deadzone_rad="0.1"
                                   max_abs_gyro_vel="100.0"
                                   use_gyro="{use_gyro}"
-                                  gyro_vel="{gyro_vel}" />
-        <SetGyroState use_gyro="{use_gyro}" gyro_vel="{gyro_vel}" />
+                                  gyro_vel="{gyro_vel}" 
+                                  tunnel_speed_y = "{tunnel_speed_y}"/>
+        <SetGyroState use_gyro="{use_gyro}" gyro_vel="{gyro_vel}" tunnel_speed_y="{tunnel_speed_y}"/>
         <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
         <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
       </Sequence>
