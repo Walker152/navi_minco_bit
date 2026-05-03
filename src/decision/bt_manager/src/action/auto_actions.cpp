@@ -57,13 +57,14 @@ SetTargetCoordinate::SetTargetCoordinate(const std::string & name, const BT::Nod
 
 BT::PortsList SetTargetCoordinate::providedPorts()
 {
-  return {BT::InputPort<geometry_msgs::msg::Pose>("target_coordinate")};
+  return {BT::InputPort<double>("tracing_dist")};
 }
 
 BT::NodeStatus SetTargetCoordinate::tick()
 {
   auto blackboard = config().blackboard;
   auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
+  auto tracing_dist = getInput<double>("tracing_dist").value_or(0.3);
   Sentry_BT::Point2D point;  //最终目标点
   //获取当前位置
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
@@ -72,49 +73,23 @@ BT::NodeStatus SetTargetCoordinate::tick()
   double current_y = current_pose.position.y;
   double target_x = target_pose.position.x;
   double target_y = target_pose.position.y;
-  //适当漂移，留出攻击距离
   double dx = target_x - current_x;
   double dy = target_y - current_y;
   double distance = std::sqrt(dx * dx + dy * dy);
 
-  const double ATTACK_DISTANCE = 0.3;  // 攻击距离
-
-  int guidance_case = -1;  // 0: approach, 1: backoff, 2: overlap-backoff
-  if (distance > ATTACK_DISTANCE) {
-    // 距离大于30cm，在线段上取离目标点ATTACK_DISTANCE的点
-    double scale = 1.0 - ATTACK_DISTANCE / distance;
-    point.x = current_x + dx * scale;
-    point.y = current_y + dy * scale;
+  int guidance_case = -1;
+  if (distance > 0.001) {
+    double ux = dx / distance;
+    double uy = dy / distance;
+    point.x = target_x - ux * tracing_dist;
+    point.y = target_y - uy * tracing_dist;
     guidance_case = 0;
-  } else {
-    // 距离小于等于30cm，沿着两点连线方向后退30cm
-    if (distance > 0.001) {  // 避免除零
-      double ux = dx / distance;
-      double uy = dy / distance;
-      point.x = current_x - ux * ATTACK_DISTANCE;
-      point.y = current_y - uy * ATTACK_DISTANCE;
-      guidance_case = 1;
-    } else {
-      // 如果距离几乎为0（当前位置与目标点重合）
-      point.x = current_x;
-      point.y = current_y - ATTACK_DISTANCE;
-      guidance_case = 2;
-    }
   }
   static int last_guidance_case = -1;
   if (guidance_case != last_guidance_case) {
-    if (guidance_case == 0) {
-      std::cout << CYAN << "[NAV_TREE]" << YELLOW << "距离(" << distance
-                << "m)大于30cm,沿连线方向前进到距离目标点30cm位置"
-                << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
-    } else if (guidance_case == 1) {
-      std::cout << CYAN << "[NAV_TREE]" << YELLOW << "距离(" << distance
-                << "m)小于等于30cm,沿连线方向后退30cm"
-                << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
-    } else if (guidance_case == 2) {
-      std::cout << CYAN << "[NAV_TREE]" << YELLOW << "当前位置与目标点重合,向y轴负方向后退30cm"
-                << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
-    }
+    std::cout << CYAN << "[NAV_TREE]" << GREEN << "Target_dist(" << distance
+              << "m)" << "threshold(" << tracing_dist << "m), approach target along the line"
+              << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
     last_guidance_case = guidance_case;
   }
   Sentry_BT::Point2D old_goal;
@@ -390,14 +365,13 @@ BT::PortsList AccumulateAmmoPurchase::providedPorts()
 BT::NodeStatus AccumulateAmmoPurchase::tick()
 {
   auto blackboard = config().blackboard;
-  const int step = getInput<int>("step").value_or(30);
+  const int step = getInput<int>("step").value_or(100);
   const int ammo = blackboard->get<int>("bullets_remaining");
   int total = blackboard->get<int>("ammo_purchase_total");
 
   const int shortage = std::max(0, 100 - ammo);
   const int request = std::max(step, shortage);
   total += request;
-  blackboard->set("ammo_purchase_request", request);
   blackboard->set("ammo_purchase_total", total);
 
   static int last_total = -1;
