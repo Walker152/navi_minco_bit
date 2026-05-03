@@ -26,8 +26,7 @@ sleep 5
 gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
 sleep 1
 
-
-# Cluster
+# Cloud Crop Filter
 gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
 sleep 1
 
