@@ -41,7 +41,7 @@ BT::NodeStatus CheckRetreatCondition::tick()
     } else {
       result = BT::NodeStatus::SUCCESS;
     }
-  } else if (health < health_threshold_ || ammo < ammo_threshold_ ) {
+  } else if (health < health_threshold_ || ammo < ammo_threshold_) {
     blackboard->set<int>("current_mode", Sentry_BT::NavMode::RETREAT);
     result = BT::NodeStatus::SUCCESS;
   }
@@ -50,7 +50,8 @@ BT::NodeStatus CheckRetreatCondition::tick()
   std::ostringstream retreat_detail;
   retreat_detail << "health=" << health << ", health_threshold=" << health_threshold_
                  << ", recovery_threshold=" << recovery_threshold_ << ", ammo=" << ammo
-                 << ", ammo_threshold=" << ammo_threshold_ << ", ammo_recovery_threshold=" << ammo_recovery_threshold_
+                 << ", ammo_threshold=" << ammo_threshold_
+                 << ", ammo_recovery_threshold=" << ammo_recovery_threshold_
                  << ", current_mode=" << current_mode;
   detail::logTransition(
     detail::TreeKind::NAV, "CheckRetreatCondition", active, retreat_detail.str(), branch);
@@ -195,26 +196,16 @@ BT::NodeStatus CheckManualOverride::tick()
   const double timeout_seconds = getInput<double>("timeout_seconds").value_or(4.0);
   const double same_goal_eps = getInput<double>("same_goal_eps").value_or(0.05);
 
-  const bool goal_valid = blackboard->get<bool>("manual_override_goal_valid");
-  if (!goal_valid) {
-    blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
-    if (blackboard->get<int>("current_mode") == static_cast<int>(Sentry_BT::NavMode::MANUAL)) {
-      blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::PATROL));
-    }
-    initialized_ = false;
-    detail::logTransition(
-      detail::TreeKind::NAV, "CheckManualOverride", false, "manual inactive or goal invalid", branch);
+  const auto current_control_mode = blackboard->get<Sentry_BT::ControlMode>("control_mode");
+  if (current_control_mode != ControlMode::MANUAL_CONTROL) {
     return BT::NodeStatus::FAILURE;
   }
 
   const auto manual_goal = blackboard->get<Sentry_BT::Point2D>("manual_override_goal");
   const auto now = std::chrono::steady_clock::now();
 
-  if (!initialized_) {
-    last_goal_ = manual_goal;
-    last_goal_change_time_ = now;
-    initialized_ = true;
-  }
+  last_goal_ = manual_goal;
+  last_goal_change_time_ = now;
 
   const double delta = std::hypot(manual_goal.x - last_goal_.x, manual_goal.y - last_goal_.y);
   if (delta > same_goal_eps) {
@@ -224,17 +215,13 @@ BT::NodeStatus CheckManualOverride::tick()
 
   const double unchanged_seconds = std::chrono::duration<double>(now - last_goal_change_time_).count();
   if (unchanged_seconds >= timeout_seconds) {
-    blackboard->set("manual_override_active", false);
-    blackboard->set("manual_override_goal_valid", false);
     blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
     blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::PATROL));
-    initialized_ = false;
     detail::logTransition(
       detail::TreeKind::NAV, "CheckManualOverride", false, "manual timeout reached", branch);
     return BT::NodeStatus::FAILURE;
   }
 
-  blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::MANUAL_CONTROL);
   blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::MANUAL));
   {
     std::ostringstream manual_detail;

@@ -38,7 +38,6 @@ public:
   BT::NodeStatus tick() override;
 
 private:
-  bool initialized_ = false;
   Point2D last_goal_;
   std::chrono::steady_clock::time_point last_goal_change_time_;
 };
