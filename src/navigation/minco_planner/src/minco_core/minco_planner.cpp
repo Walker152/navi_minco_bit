@@ -1310,7 +1310,7 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
     double yaw = 0.0;
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
 
-    // if (std::abs(pitch) > slope_threshold) {
+    if (std::abs(pitch) > slope_threshold) {
       Eigen::Vector2d local_dir = (sparse_path[1] - sparse_path[0]).head<2>();
       const double norm = local_dir.norm();
       if (norm > 0.1) {
@@ -1325,7 +1325,7 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
         }
       }
     }
-  // }
+  }
 
   start_state.col(1) = real_speed;
 }
