@@ -106,6 +106,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
     const auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
     const auto tunnel_speed_y = blackboard_->get<float>("tunnel_speed_y");
+    const auto through_tunnel = blackboard_->get<bool>("through_tunnel");
 
     ros_interfaces::msg::Behavior behavior_msg;
     behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
@@ -117,6 +118,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.scan_yaw_max = yaw_max_deg;
     behavior_msg.ammo_purchase_request = ammo_purchase_request;
     behavior_msg.tunnel_speed_y = tunnel_speed_y;
+    behavior_msg.through_tunnel = through_tunnel;
     behavior_pub->publish(behavior_msg);
 
     const auto cmd_vel = blackboard_->get<geometry_msgs::msg::Twist>("cmd_vel");
