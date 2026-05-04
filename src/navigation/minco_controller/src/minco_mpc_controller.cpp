@@ -530,7 +530,7 @@ bool MincoMpcController::buildReferenceFromOptPath(
 void MincoMpcController::applyGravityCompensation(
   const nav_msgs::msg::Odometry::SharedPtr & odom, double & vx, double & vy)
 {
-  if (!odom || std::hypot(vx, vy) < 0.01) {
+  if (!odom) {
     return;
   }
 
@@ -770,9 +770,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     vx = 0.0;
     vy = 0.0;
   }
-  std::cout << "vx_raw:" << vx << ",vy_raw:" << vy << std::endl;
   applyGravityCompensation(latest_odom, vx, vy);
-  std::cout << "vx_now:" << vx << ",vy_now:" << vy << std::endl;
   cmd.twist.linear.x = vx;
   cmd.twist.linear.y = vy;
   cmd.twist.angular.z = wz;
