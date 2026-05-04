@@ -18,17 +18,17 @@ sleep 1
 gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py; exec bash"
 sleep 1
 
-# Navigation2
-gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"
-sleep 5
+# Cloud Crop Filter
+gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
+sleep 1
 
 # ICP
 gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
 sleep 1
 
-# Cloud Crop Filter
-gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
-sleep 1
+# Navigation2
+gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"
+sleep 5
 
 # # Decision
 gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
@@ -38,7 +38,7 @@ sleep 1
 gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
 
 # Rosbag record
-gnome-terminal -- bash -c "mkdir -p ~/rosbag && ros2 bag record -a -o ~/rosbag/$(date +%Y%m%d_%H%M%S); exec bash"
+gnome-terminal -- bash -c "mkdir -p ~/roslaunchbag && ros2 bag record -a -o ~/rosbag/$(date +%Y%m%d_%H%M%S); exec bash"
 
 # Foxglove
 # gnome-terminal -- bash -c "ros2 launch foxglove_bridge foxglove_bridge_launch.xml port:=8765; exec bash"
