@@ -219,10 +219,10 @@ private:
 
       // if (use_gyro_mode) {
         vw_rpm = gyro_vel;
-        if(current_in_tunnel) {
-          vx_mps = tunnel_speed_x;
-          vy_mps = tunnel_speed_y;
-        }
+        // if(current_in_tunnel) {
+        //   vx_mps = tunnel_speed_x;
+        //   vy_mps = tunnel_speed_y;
+        // }
       // }
       // if (transform_state >= 0.85f) {
       //   vx_mps *= 1.0;
