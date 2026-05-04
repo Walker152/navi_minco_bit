@@ -746,7 +746,13 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     const double v_curr = std::max(0.0, start_state.col(1).head<2>().norm());
     const double amax = std::max(0.0, minco_config.max_acc);
     const double v_max_kinematic = std::sqrt(std::max(0.0, v_curr * v_curr + 2.0 * amax * dist_to_goal));
-    const double v_cmd = std::min({minco_config.max_vel, v_max_kinematic, dist_to_goal});
+    double local_end_vmax = minco_config.max_vel;
+    if (sparse_path.size() >= 3) {
+      local_end_vmax = utils::LimitLocalVel(sparse_path, sparse_path.size() - 3, minco_config.max_vel, 
+                                            minco_config.turn_angle_deadzone, minco_config.turn_angle_saturation, 
+                                            minco_config.min_turn_vel, minco_config.decay_power);
+    }
+    const double v_cmd = std::min({minco_config.max_vel, v_max_kinematic, dist_to_goal, local_end_vmax});
     end_state.col(1) = tangent * v_cmd;
     end_state.col(2).setZero();
   } else {
@@ -1336,7 +1342,8 @@ void MincoPlanner::prepareHotStart(
   start_state.setZero();
   // start_state.col(0) = last_traj_.getPos(t_dur);
   start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
-  start_state.col(1) = last_traj_.getVel(t_dur);
+  // start_state.col(1) = last_traj_.getVel(t_dur);
+  start_state.col(1) = getCurrentSpeed();
   start_state.col(2) = last_traj_.getAcc(t_dur);
 }
 

@@ -255,7 +255,7 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
     if (cost == nav2_costmap_2d::NO_INFORMATION) {
       return allow_unknown_;
     }
-    return cost <= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+    return cost < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
   };
 
   if (!is_traversable(goal_index)) {
