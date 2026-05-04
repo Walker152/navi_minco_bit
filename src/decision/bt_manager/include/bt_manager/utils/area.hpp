@@ -268,7 +268,7 @@ inline std::vector<Point2D> nav_points = {
   // for test
   {6.4, 2.3, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
-  {8.6, 6.6, 0.0},  // OUTPOST
+  {8.6, 6.4, 0.0},  // OUTPOST
   {6.8, 3.5, 0.0},  // OWN_FORT
   {13.7, 3.2, 0.0}   // ENEMY_FORT
 };
