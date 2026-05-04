@@ -428,7 +428,7 @@ bool MincoMpcController::buildReferenceFromOptPath(
   const uint32_t current_traj_id = (!opt->cmds.empty()) ? opt->cmds.front().trajectory_id : 0u;
 
   // 轨迹未更新时，按时间持续向前推进参考索引，且不允许回退
-  const bool same_opt_traj = has_tracked_ref && tracked_opt_traj_id == current_traj_id;
+  // const bool same_opt_traj = has_tracked_ref && tracked_opt_traj_id == current_traj_id;
 
   // double progress_idx_float = nearest_idx_float;
   // if (same_opt_traj) {
@@ -544,14 +544,14 @@ void MincoMpcController::applyGravityCompensation(
 
   const double true_roll = roll - lidar_roll_offset_;
   constexpr double angle_threshold = 0.05;
-  constexpr double k_gravity_x = 20.0;
-  constexpr double k_gravity_y = 20.0;
+  constexpr double k_gravity_x = 2.0;
+  constexpr double k_gravity_y = 8.0;
 
 
   double body_comp_x = 0.0;
   double body_comp_y = 0.0;
   if (std::abs(pitch) > angle_threshold) {
-    body_comp_x = k_gravity_x * std::sin(std::abs(pitch));
+    body_comp_x = k_gravity_x * std::sin(-pitch);
   }
   if (std::abs(true_roll) > angle_threshold) {
     body_comp_y = k_gravity_y * std::sin(std::abs(true_roll));
