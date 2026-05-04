@@ -10,6 +10,7 @@ uint8 CONTROL_MANUAL=1
 bool use_gyro_mode
 bool through_tunnel
 float32 gyro_vel
+float32 tunnel_speed_x
 float32 tunnel_speed_y
 
 uint8 desire_lifter_pos

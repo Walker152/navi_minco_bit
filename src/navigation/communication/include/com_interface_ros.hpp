@@ -189,6 +189,7 @@ private:
     float current_vx = 0.0f;
     float current_vy = 0.0f;
     float current_vw = 0.0f;
+    float tunnel_speed_x = 0.0f;
     float tunnel_speed_y = 0.0f;
     uint8_t desire_stance = 0;
     uint8_t desire_lifter_pos = 0;
@@ -210,15 +211,17 @@ private:
       desire_lifter_pos = behavior_.desire_lifter_pos;
       use_gyro_mode = behavior_.use_gyro_mode;
       gyro_vel = behavior_.gyro_vel;
+      tunnel_speed_x = behavior_.tunnel_speed_x;
       tunnel_speed_y = behavior_.tunnel_speed_y;
       through_tunnel = behavior_.through_tunnel;
 
-      if (use_gyro_mode) {
+      // if (use_gyro_mode) {
         vw_rpm = gyro_vel;
-        // if(through_tunnel) {
-        //   vy_mps = tunnel_speed_y;
-        // }
-      }
+        if(through_tunnel) {
+          vx_mps = tunnel_speed_x;
+          vy_mps = tunnel_speed_y;
+        }
+      // }
       // if (transform_state >= 0.85f) {
       //   vx_mps *= 1.0;
       //   vy_mps *= 1.0;

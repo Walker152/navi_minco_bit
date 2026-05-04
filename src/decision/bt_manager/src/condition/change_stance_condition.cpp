@@ -183,8 +183,7 @@ CheckCrossZoneTransition::CheckCrossZoneTransition(
 
 BT::PortsList CheckCrossZoneTransition::providedPorts()
 {
-  return {
-    BT::InputPort<float>("kp", 35.0f, "PID Kp for tunnel gyro control"),
+  return {BT::InputPort<float>("kp", 35.0f, "PID Kp for tunnel gyro control"),
     BT::InputPort<float>("ki", 0.0f, "PID Ki for tunnel gyro control"),
     BT::InputPort<float>("kd", 5.0f, "PID Kd for tunnel gyro control"),
     BT::InputPort<float>("deadzone_rad", 0.08f, "Yaw deadzone in radians"),
@@ -192,11 +191,11 @@ BT::PortsList CheckCrossZoneTransition::providedPorts()
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
     BT::OutputPort<bool>("use_gyro", "Enable gyro output"),
     BT::OutputPort<float>("gyro_vel", "Gyro velocity output"),
+    BT::OutputPort<float>("tunnel_speed_x", "vx tunnel"),
     BT::OutputPort<float>("tunnel_speed_y", "vy tunnel")};
 }
 
-float CheckCrossZoneTransition::computeTunnelGyroVelPid(
-  double yaw_error,
+float CheckCrossZoneTransition::computeTunnelGyroVelPid(double yaw_error,
   float kp,
   float ki,
   float kd,
@@ -230,8 +229,8 @@ float CheckCrossZoneTransition::computeTunnelGyroVelPid(
   integral_error_ += yaw_error * dt;
   const double derivative = (yaw_error - last_error_) / dt;
   const double pid_out_rad = static_cast<double>(kp) * yaw_error +
-                                     static_cast<double>(ki) * integral_error_ +
-                                     static_cast<double>(kd) * derivative;
+                             static_cast<double>(ki) * integral_error_ +
+                             static_cast<double>(kd) * derivative;
   last_error_ = yaw_error;
 
   constexpr double kRadPerSecToRpm = 60.0 / (2.0 * M_PI);
@@ -286,9 +285,8 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   const bool goal_in_highland = highland_zone.contains(goal_point);
   const bool goal_in_own = own_defense_zone.contains(goal_point);
   const bool goal_in_enemy = enemy_defense_zone.contains(goal_point);
-  const bool same_zone =
-    (current_in_highland && goal_in_highland) || (current_in_own && goal_in_own) ||
-    (current_in_enemy && goal_in_enemy);
+  const bool same_zone = (current_in_highland && goal_in_highland) || (current_in_own && goal_in_own) ||
+                         (current_in_enemy && goal_in_enemy);
   const bool need_cross_zone = !same_zone;
   bool current_in_tunnel = false;
   for (const auto & zone : tunnel_zone) {
@@ -333,15 +331,19 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
       const double current_yaw = yawFromQuaternion(current_pose.orientation);
       const double error_forward = wrapAngle(base_target_yaw - current_yaw);
       const double error_backward = wrapAngle(base_target_yaw + M_PI - current_yaw);
-      const double error = (std::abs(error_forward) <= std::abs(error_backward))
-                             ? error_forward
-                             : error_backward;
-      float tunnel_speed_y = 3.0f;
-      if (std::abs(error) < 0.1)
-      {
-        setOutput("tunnel_speed_y", tunnel_speed_y);
-      }
+      const double error =
+        (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
       
+      float tunnel_speed_x = 0.0f;
+      float tunnel_speed_y = 3.0f;
+      if (std::abs(error) < 0.1) {
+        setOutput("tunnel_speed_x", tunnel_speed_x);
+        setOutput("tunnel_speed_y", tunnel_speed_y);
+      } else {
+        setOutput("tunnel_speed_x", 0.0f);
+        setOutput("tunnel_speed_y", 0.0f);
+      }
+
       const auto now = std::chrono::steady_clock::now();
       computed_gyro_vel = computeTunnelGyroVelPid(error, kp, ki, kd, deadzone, max_abs_gyro_vel, now);
     } else {
@@ -357,12 +359,12 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   setOutput("gyro_vel", computed_gyro_vel);
 
   std::ostringstream oss;
-    oss << "current_in_highland=" << current_in_highland << ", current_in_own=" << current_in_own
+  oss << "current_in_highland=" << current_in_highland << ", current_in_own=" << current_in_own
       << ", current_in_enemy=" << current_in_enemy << ", goal_in_highland=" << goal_in_highland
       << ", goal_in_own=" << goal_in_own << ", goal_in_enemy=" << goal_in_enemy
       << ", through_tunnel=" << through_tunnel << ", current_in_tunnel=" << current_in_tunnel
-      << ", tunnel_idx=" << active_tunnel_idx
-      << ", use_gyro_mode=" << enable_small_gyro << ", gyro_vel=" << computed_gyro_vel;
+      << ", tunnel_idx=" << active_tunnel_idx << ", use_gyro_mode=" << enable_small_gyro
+      << ", gyro_vel=" << computed_gyro_vel;
   detail::logTransition(
     detail::TreeKind::STANCE, "CheckCrossZoneTransition", is_tunnel_journey, oss.str(), branch);
 
@@ -388,8 +390,7 @@ BT::NodeStatus CheckCapacitorCapacity::tick()
   const auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
 
-  const float capacitor_capacity =
-    static_cast<float>(blackboard->get<uint8_t>("capacitor_capacity"));
+  const float capacitor_capacity = static_cast<float>(blackboard->get<uint8_t>("capacitor_capacity"));
 
   const float threshold = getInput<float>("threshold").value_or(30.0f);
   const std::string mode = getInput<std::string>("mode").value_or("less");
@@ -421,10 +422,9 @@ BT::NodeStatus CheckStanceCooldown::tick()
 
   const auto last_change = ChangeStance::getLastChangeTime();
   const auto now = std::chrono::system_clock::now();
-  const double elapsed =
-    (last_change == std::chrono::time_point<std::chrono::system_clock>::min())
-      ? std::numeric_limits<double>::infinity()
-      : std::chrono::duration<double>(now - last_change).count();
+  const double elapsed = (last_change == std::chrono::time_point<std::chrono::system_clock>::min())
+                           ? std::numeric_limits<double>::infinity()
+                           : std::chrono::duration<double>(now - last_change).count();
 
   const bool active = elapsed >= cooldown;
   std::ostringstream oss;
