@@ -235,9 +235,9 @@ void LidarMergerNode::syncCallback(const livox_ros_driver2::msg::CustomMsg::Cons
   const int64_t n_front_i = static_cast<int64_t>(n_front);
   const int64_t n_back_i = static_cast<int64_t>(n_back);
 
-#ifdef _OPENMP
-#pragma omp parallel for schedule(static)
-#endif
+// #ifdef _OPENMP
+// #pragma omp parallel for schedule(static)
+// #endif
   for (int64_t i = 0; i < n_front_i; ++i) {
     const auto & pt = msg_front->points[static_cast<size_t>(i)];
     livox_ros_driver2::msg::CustomPoint pt_out = pt;
@@ -246,9 +246,9 @@ void LidarMergerNode::syncCallback(const livox_ros_driver2::msg::CustomMsg::Cons
     msg_merged.points[static_cast<size_t>(i)] = pt_out;
   }
 
-#ifdef _OPENMP
-#pragma omp parallel for schedule(static)
-#endif
+// #ifdef _OPENMP
+// #pragma omp parallel for schedule(static)
+// #endif
   for (int64_t i = 0; i < n_back_i; ++i) {
     const auto & pt = msg_back->points[static_cast<size_t>(i)];
     livox_ros_driver2::msg::CustomPoint pt_out = transformPoint(pt, R_front_back_, t_front_back_);
