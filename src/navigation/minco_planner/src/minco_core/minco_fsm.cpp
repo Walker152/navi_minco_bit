@@ -116,7 +116,7 @@ void MincoFsm::callMainFsmOnce()
     if (!planner_->ReplanLocal(current_pose)) {
       Eigen::Vector3d cur_p(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
       double dist = planner_->getEsdfDistance(cur_p);
-      if (dist < 0.10) {
+      if (dist < 0.20) {
         handle_generate_replan_failure("GEN_STUCK_TRIGGER_RECOVERING", "GENERATE_RECOVERY_FAIL");
         return;
       }
@@ -180,7 +180,7 @@ void MincoFsm::callMainFsmOnce()
       double dist = planner_->getEsdfDistance(cur_p);
 
       // 2. 诊断为安全 (ESDF >= 0.25m)：纯粹前方路障，立即绕路
-      if (dist >= 0.1) {
+      if (dist >= 0.20) {
         recovery_server_->onReplanSuccess();  // 清空失败计数
         changeState("PATH_BLOCKED_DETOUR", State::GENERATE_TRAJ);
         return;
@@ -268,7 +268,7 @@ void MincoFsm::callMainFsmOnce()
     // 2) Timeout protection: avoid deadlock.
     const double now_s = planner_->nowSeconds();
     if (std::isfinite(now_s) && std::isfinite(emer_stop_start_time_) &&
-        (now_s - emer_stop_start_time_) > 5.0) {
+        (now_s - emer_stop_start_time_) > 2.0) {
       // Keep mission goal so FSM can retry planning automatically after emergency stop timeout.
       changeState("EMER_TIMEOUT", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
       return;

@@ -63,7 +63,7 @@ def generate_launch_description():
         #     package='tf2_ros',
         #     executable='static_transform_publisher',
         #     name='static_tf_body_to_base_link',
-        #     arguments=['0', '-0.20', '0', '0', '0', '0', 'body', 'base_link'],
+        #     arguments=['0', '0.20', '0', '0', '0', '0', 'body', 'base_link'],
         #     output='screen'),
         # 声明新的 Launch 参数
         launch.actions.DeclareLaunchArgument('use_sim_time', default_value=use_sim_time,
