@@ -544,14 +544,14 @@ void MincoMpcController::applyGravityCompensation(
 
   const double true_roll = roll - lidar_roll_offset_;
   constexpr double angle_threshold = 0.05;
-  constexpr double k_gravity_x = 20.0;
-  constexpr double k_gravity_y = 20.0;
+  constexpr double k_gravity_x = 15.0;
+  constexpr double k_gravity_y = 15.0;
 
 
   double body_comp_x = 0.0;
   double body_comp_y = 0.0;
   if (std::abs(pitch) > angle_threshold) {
-    body_comp_x = k_gravity_x * std::sin(std::abs(pitch));
+    body_comp_x = k_gravity_x * std::sin(-pitch);
   }
   if (std::abs(true_roll) > angle_threshold) {
     body_comp_y = k_gravity_y * std::sin(std::abs(true_roll));
