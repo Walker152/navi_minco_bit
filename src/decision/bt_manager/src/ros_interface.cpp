@@ -108,6 +108,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto tunnel_speed_x = blackboard_->get<float>("tunnel_speed_x");
     const auto tunnel_speed_y = blackboard_->get<float>("tunnel_speed_y");
     const auto through_tunnel = blackboard_->get<bool>("through_tunnel");
+    const auto current_in_tunnel = blackboard_->get<bool>("current_in_tunnel");
 
     ros_interfaces::msg::Behavior behavior_msg;
     behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
@@ -121,6 +122,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.tunnel_speed_x = tunnel_speed_x;
     behavior_msg.tunnel_speed_y = tunnel_speed_y;
     behavior_msg.through_tunnel = through_tunnel;
+    behavior_msg.current_in_tunnel = current_in_tunnel;
     behavior_pub->publish(behavior_msg);
 
     const auto cmd_vel = blackboard_->get<geometry_msgs::msg::Twist>("cmd_vel");
@@ -400,6 +402,16 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
       break;
     }
   }
+
+  bool current_in_tunnel = false;
+  for (const auto & zone : tunnel_zone) {
+    if (zone.contains(current_point)) {
+      current_in_tunnel = true;
+      break;
+    }
+  }
+  blackboard_->set("current_in_tunnel", current_in_tunnel);
+
   bool through_tunnel_now = false;
   for (const auto & zone : tunnel_areas) {
     if (isTroughZone(msg, zone)) {

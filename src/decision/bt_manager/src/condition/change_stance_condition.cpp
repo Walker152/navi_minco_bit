@@ -333,15 +333,17 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
       const double error_backward = wrapAngle(base_target_yaw + M_PI - current_yaw);
       const double error =
         (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
-      
+
       float tunnel_speed_x = 0.0f;
       float tunnel_speed_y = 3.0f;
-      if (std::abs(error) < 0.1) {
-        setOutput("tunnel_speed_x", tunnel_speed_x);
-        setOutput("tunnel_speed_y", tunnel_speed_y);
-      } else {
-        setOutput("tunnel_speed_x", 0.0f);
-        setOutput("tunnel_speed_y", 0.0f);
+      if (current_in_tunnel) {
+        if (std::abs(error) < 0.1) {
+          setOutput("tunnel_speed_x", tunnel_speed_x);
+          setOutput("tunnel_speed_y", tunnel_speed_y);
+        } else {
+          setOutput("tunnel_speed_x", 0.0f);
+          setOutput("tunnel_speed_y", 0.0f);
+        }
       }
 
       const auto now = std::chrono::steady_clock::now();

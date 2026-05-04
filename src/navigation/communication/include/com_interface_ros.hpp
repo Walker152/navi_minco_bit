@@ -195,6 +195,7 @@ private:
     uint8_t desire_lifter_pos = 0;
     bool use_gyro_mode = false;
     bool through_tunnel = false;
+    bool current_in_tunnel = false;
 
     float gyro_vel = 0.0f;
     bool is_aim_outpost = false;
@@ -214,10 +215,11 @@ private:
       tunnel_speed_x = behavior_.tunnel_speed_x;
       tunnel_speed_y = behavior_.tunnel_speed_y;
       through_tunnel = behavior_.through_tunnel;
+      current_in_tunnel = behavior_.current_in_tunnel;
 
       // if (use_gyro_mode) {
         vw_rpm = gyro_vel;
-        if(through_tunnel) {
+        if(current_in_tunnel) {
           vx_mps = tunnel_speed_x;
           vy_mps = tunnel_speed_y;
         }
