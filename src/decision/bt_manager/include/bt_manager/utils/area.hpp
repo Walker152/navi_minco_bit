@@ -151,10 +151,10 @@ inline std::vector<PatrolPoint> patrol_points_attack = {
 #ifdef TEST_AREA
 // for test
 inline std::array<Area_Square, 4> transform_zone{
-  Area_Square{Point2D{12.6, 7.3}, Point2D{9.6, 2.1}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{9.6, 2.1}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{9.6, 2.1}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{9.6, 2.1}},
+  Area_Square{Point2D{12.6, 7.3}, Point2D{8.6, 1.5}},
+  Area_Square{Point2D{12.6, 7.3}, Point2D{8.6, 1.5}},
+  Area_Square{Point2D{12.6, 7.3}, Point2D{8.6, 1.5}},
+  Area_Square{Point2D{12.6, 7.3}, Point2D{8.6, 1.5}},
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},

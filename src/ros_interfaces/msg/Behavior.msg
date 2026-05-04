@@ -8,6 +8,7 @@ uint8 CONTROL_AUTO=0
 uint8 CONTROL_MANUAL=1
 
 bool use_gyro_mode
+bool through_tunnel
 float32 gyro_vel
 float32 tunnel_speed_y
 
