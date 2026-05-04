@@ -303,7 +303,7 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   bool enable_small_gyro = false;
   int active_tunnel_idx = -1;
   if (is_tunnel_journey) {
-    if (current_in_tunnel) {
+    if (through_tunnel) {
       int nearest_tunnel_idx = -1;
       double nearest_dist2 = std::numeric_limits<double>::infinity();
       for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
