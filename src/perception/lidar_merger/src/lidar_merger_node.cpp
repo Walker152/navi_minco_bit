@@ -124,6 +124,8 @@ void LidarMergerNode::loadExtrinsics()
       "参数 extrinsic_back_to_front 期望长度为 6，但实际为 %zu。将使用单位外参。",
       extrinsic_back_to_front_.size());
     T_front_back_ = Eigen::Matrix4f::Identity();
+    R_front_back_ = Eigen::Matrix3f::Identity();
+    t_front_back_ = Eigen::Vector3f::Zero();
     return;
   }
 
@@ -138,6 +140,8 @@ void LidarMergerNode::loadExtrinsics()
   t.rotate(Eigen::AngleAxisf(static_cast<float>(p[3]), Eigen::Vector3f::UnitX()));
 
   T_front_back_ = t.matrix();
+  R_front_back_ = t.rotation();
+  t_front_back_ = t.translation();
 
   RCLCPP_INFO(this->get_logger(),
     "已加载外参 back->front: [%.3f %.3f %.3f %.3f %.3f %.3f]",
@@ -194,13 +198,15 @@ sensor_msgs::msg::PointCloud2 LidarMergerNode::customMsgToPointCloud2(
   return cloud;
 }
 
-livox_ros_driver2::msg::CustomPoint LidarMergerNode::transformPoint(
-  const livox_ros_driver2::msg::CustomPoint & pt_in, const Eigen::Matrix4f & T)
+inline livox_ros_driver2::msg::CustomPoint LidarMergerNode::transformPoint(
+  const livox_ros_driver2::msg::CustomPoint & pt_in,
+  const Eigen::Matrix3f & R,
+  const Eigen::Vector3f & t)
 {
   livox_ros_driver2::msg::CustomPoint pt_out = pt_in;
 
   const Eigen::Vector3f p_in(pt_in.x, pt_in.y, pt_in.z);
-  const Eigen::Vector3f p_out = (T.block<3, 3>(0, 0) * p_in) + T.block<3, 1>(0, 3);
+  const Eigen::Vector3f p_out = (R * p_in) + t;
 
   pt_out.x = p_out.x();
   pt_out.y = p_out.y();
@@ -245,7 +251,7 @@ void LidarMergerNode::syncCallback(const livox_ros_driver2::msg::CustomMsg::Cons
 #endif
   for (int64_t i = 0; i < n_back_i; ++i) {
     const auto & pt = msg_back->points[static_cast<size_t>(i)];
-    livox_ros_driver2::msg::CustomPoint pt_out = transformPoint(pt, T_front_back_);
+    livox_ros_driver2::msg::CustomPoint pt_out = transformPoint(pt, R_front_back_, t_front_back_);
     const uint64_t absolute_time = msg_back->timebase + static_cast<uint64_t>(pt.offset_time);
     pt_out.offset_time = static_cast<uint32_t>(absolute_time - min_timebase);
     msg_merged.points[n_front + static_cast<size_t>(i)] = pt_out;

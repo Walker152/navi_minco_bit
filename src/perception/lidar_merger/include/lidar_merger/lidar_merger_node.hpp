@@ -28,8 +28,10 @@ private:
   void loadParams();
   void loadExtrinsics();
 
-  static livox_ros_driver2::msg::CustomPoint transformPoint(
-    const livox_ros_driver2::msg::CustomPoint & pt_in, const Eigen::Matrix4f & T);
+  static inline livox_ros_driver2::msg::CustomPoint transformPoint(
+    const livox_ros_driver2::msg::CustomPoint & pt_in,
+    const Eigen::Matrix3f & R,
+    const Eigen::Vector3f & t);
 
   static sensor_msgs::msg::PointCloud2 customMsgToPointCloud2(
     const livox_ros_driver2::msg::CustomMsg & msg,
@@ -70,4 +72,6 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_merged_cloud_;
 
   Eigen::Matrix4f T_front_back_ = Eigen::Matrix4f::Identity();
+  Eigen::Matrix3f R_front_back_ = Eigen::Matrix3f::Identity();
+  Eigen::Vector3f t_front_back_ = Eigen::Vector3f::Zero();
 };
