@@ -115,7 +115,7 @@ void MincoFsm::callMainFsmOnce()
     }
     if (!planner_->ReplanLocal(current_pose)) {
       Eigen::Vector3d cur_p(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
-      double dist = planner_->getEsdfDistance(cur_p);
+      // double dist = planner_->getEsdfDistance(cur_p);
       // if (dist < 0.25) {
         handle_generate_replan_failure("GEN_STUCK_TRIGGER_RECOVERING", "GENERATE_RECOVERY_FAIL");
         // return;
