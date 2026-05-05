@@ -165,37 +165,29 @@ public:
       height_,
       resolution_,
       negate_);
-    RCLCPP_INFO(this->get_logger(),
-      "occupied_thresh=%.3f, free_thresh=%.3f, max_dist=%.3f, treat_unknown_as_obstacle=%s",
-      occupied_thresh_,
-      free_thresh_,
-      max_dist_,
-      (treat_unknown_as_obstacle_ ? "true" : "false"));
 
     if (occupied_thresh_ < 0.0 || occupied_thresh_ > 1.0 || free_thresh_ < 0.0 || free_thresh_ > 1.0 ||
         free_thresh_ >= occupied_thresh_) {
-      RCLCPP_ERROR(this->get_logger(),
-        "Invalid thresholds: require 0<=free_thresh<occupied_thresh<=1. Got free_thresh=%.3f "
-        "occupied_thresh=%.3f",
-        free_thresh_,
-        occupied_thresh_);
+      RCLCPP_ERROR(this->get_logger(), "Invalid thresholds: require 0<=free_thresh<occupied_thresh<=1.");
       return;
     }
 
-    // 3. 初始化距离场缓冲区
-    std::vector<double> dist_buffer(width_ * height_, 1e10);
+    // 3. 初始化双向距离场缓冲区
+    // dist_buffer_out: 计算外部距离（空闲区到障碍物的距离）
+    std::vector<double> dist_buffer_out(width_ * height_, 1e10);
+    // dist_buffer_in: 计算内部距离（障碍物到空闲区的距离）
+    std::vector<double> dist_buffer_in(width_ * height_, 1e10);
     std::vector<uint8_t> occupied_mask(width_ * height_, 0);
+
     size_t occupied_cnt = 0;
     size_t unknown_cnt = 0;
     size_t free_cnt = 0;
+
     for (int r = 0; r < height_; ++r) {
       for (int c = 0; c < width_; ++c) {
-        // Nav2 PGM: 0 是障碍物，254 是空地，255 是未知
         const auto pix = img.at<uchar>(r, c);
-        // negate==0: 0(黑)表示占据概率高；negate==1: 255(白)表示占据概率高
         const double occ_prob = (negate_ == 0) ? (255.0 - (double)pix) / 255.0 : (double)pix / 255.0;
 
-        // 显式识别 unknown 像素，默认仅 205，避免将白色自由区(255)误判为unknown。
         const bool is_unknown_pixel =
           (unknown_gray_values_.find(static_cast<int>(pix)) != unknown_gray_values_.end());
 
@@ -210,10 +202,15 @@ public:
         }
 
         if (is_occupied) {
-          dist_buffer[r * width_ + c] = 0;
+          // 占据栅格：对于外部距离场是零点，对于内部距离场是待求区域
+          dist_buffer_out[r * width_ + c] = 0;
+          dist_buffer_in[r * width_ + c] = 1e10;
           occupied_mask[r * width_ + c] = 1;
           occupied_cnt++;
         } else {
+          // 空闲栅格：对于外部距离场是待求区域，对于内部距离场是零点
+          dist_buffer_out[r * width_ + c] = 1e10;
+          dist_buffer_in[r * width_ + c] = 0;
           if (is_unknown) {
             unknown_cnt++;
           } else {
@@ -223,63 +220,59 @@ public:
       }
     }
 
-    const double occupied_ratio = (double)occupied_cnt / (double)(width_ * height_);
-    RCLCPP_INFO(this->get_logger(),
-      "Occupied cells: %lu / %d (%.2f%%)",
-      (unsigned long)occupied_cnt,
-      width_ * height_,
-      occupied_ratio * 100.0);
-    RCLCPP_INFO(this->get_logger(),
-      "Free cells: %lu, Unknown cells: %lu (unknown treated as obstacle: %s)",
-      (unsigned long)free_cnt,
-      (unsigned long)unknown_cnt,
-      (treat_unknown_as_obstacle_ ? "true" : "false"));
-
-    // 4. Meijster 算法计算 ESDF
+    // 4. Meijster 算法计算双向 ESDF
     std::vector<double> tmp_buffer(width_ * height_, 1e10);
-    // 第一遍：行扫描 (Column-wise in logic, but Row in data)
+
+    // --- 4.1 计算外部距离 (Outward ESDF) ---
     for (int r = 0; r < height_; ++r) {
-      fillESDF1D(dist_buffer, tmp_buffer, width_, 1, r * width_);
+      fillESDF1D(dist_buffer_out, tmp_buffer, width_, 1, r * width_);
     }
-    // 第二遍：列扫描
     for (int c = 0; c < width_; ++c) {
-      fillESDF1D(tmp_buffer, dist_buffer, height_, width_, c);
+      fillESDF1D(tmp_buffer, dist_buffer_out, height_, width_, c);
     }
 
-    // 5. 转换为世界坐标系点云
+    // --- 4.2 计算内部距离 (Inward ESDF) ---
+    std::fill(tmp_buffer.begin(), tmp_buffer.end(), 1e10);
+    for (int r = 0; r < height_; ++r) {
+      fillESDF1D(dist_buffer_in, tmp_buffer, width_, 1, r * width_);
+    }
+    for (int c = 0; c < width_; ++c) {
+      fillESDF1D(tmp_buffer, dist_buffer_in, height_, width_, c);
+    }
+
+    // 5. 转换为世界坐标系点云 (融合为真正的 SEDF)
     pcl::PointCloud<pcl::PointXYZI>::Ptr out_cloud(new pcl::PointCloud<pcl::PointXYZI>);
     double max_px_dist_sq = std::pow(max_dist_ / resolution_, 2);
 
     double min_intensity = std::numeric_limits<double>::infinity();
     double max_intensity = 0.0;
-    size_t neg_inf_cnt = 0;
 
     for (int r = 0; r < height_; ++r) {
       for (int c = 0; c < width_; ++c) {
         const int idx = r * width_ + c;
-        double d2 = dist_buffer[idx];
-        if (d2 > max_px_dist_sq)
-          d2 = max_px_dist_sq;
 
         pcl::PointXYZI pt;
-        // 注意：PGM 的 (0,0) 是左上角，行代表 Y 轴减方向。
-        // Nav2 的逻辑通常是：World_X = Origin_X + col * Res
-        // World_Y = Origin_Y + (height - row - 1) * Res (如果原点在左下角)
-        // 具体的转换取决于 YAML 的定义，通常 Nav2 是 col -> X, (height-row) -> Y
         pt.x = origin_[0] + (double)c * resolution_;
         pt.y = origin_[1] + (double)(height_ - r - 1) * resolution_;
         pt.z = 0.0;
 
-        // 需求：障碍物层的距离标记为负无穷。
-        // 注意：PointXYZI::intensity 是 float。
         if (occupied_mask[idx]) {
-          pt.intensity = -std::numeric_limits<float>::infinity();
-          neg_inf_cnt++;
+          // 障碍物内部：读取内部距离场，取负值
+          double d2 = dist_buffer_in[idx];
+          if (d2 > max_px_dist_sq)
+            d2 = max_px_dist_sq;  // 限制内部最大穿透距离
+          pt.intensity = -static_cast<float>(std::sqrt(d2) * resolution_);
         } else {
-          pt.intensity = static_cast<float>(std::sqrt(d2) * resolution_);  // 物理距离 (米)
-          min_intensity = std::min(min_intensity, (double)pt.intensity);
-          max_intensity = std::max(max_intensity, (double)pt.intensity);
+          // 空闲区域：读取外部距离场，取正值
+          double d2 = dist_buffer_out[idx];
+          if (d2 > max_px_dist_sq)
+            d2 = max_px_dist_sq;
+          pt.intensity = static_cast<float>(std::sqrt(d2) * resolution_);
         }
+
+        min_intensity = std::min(min_intensity, (double)pt.intensity);
+        max_intensity = std::max(max_intensity, (double)pt.intensity);
+
         out_cloud->push_back(pt);
       }
     }
@@ -289,17 +282,8 @@ public:
       return;
     }
 
-    if (min_intensity == std::numeric_limits<double>::infinity()) {
-      RCLCPP_WARN(this->get_logger(),
-        "All cells are marked as occupied; intensity is -inf everywhere (%lu points)",
-        (unsigned long)neg_inf_cnt);
-    } else {
-      RCLCPP_INFO(this->get_logger(),
-        "ESDF intensity range (free cells only): [%.3f, %.3f] (meters). -inf cells: %lu",
-        min_intensity,
-        max_intensity,
-        (unsigned long)neg_inf_cnt);
-    }
+    RCLCPP_INFO(
+      this->get_logger(), "SEDF intensity range: [%.3f, %.3f] (meters).", min_intensity, max_intensity);
 
     // 6. 保存与发布
     out_cloud->width = out_cloud->size();
@@ -307,7 +291,7 @@ public:
     out_cloud->is_dense = true;
     pcl::io::savePCDFileBinary(output_pcd_path_, *out_cloud);
     RCLCPP_INFO(
-      this->get_logger(), "ESDF saved to %s (%lu points)", output_pcd_path_.c_str(), out_cloud->size());
+      this->get_logger(), "SEDF saved to %s (%lu points)", output_pcd_path_.c_str(), out_cloud->size());
 
     sensor_msgs::msg::PointCloud2 ros_msg;
     pcl::toROSMsg(*out_cloud, ros_msg);
@@ -316,7 +300,6 @@ public:
     esdf_pub_->publish(ros_msg);
   }
 };
-
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
