@@ -428,15 +428,15 @@ bool MincoMpcController::buildReferenceFromOptPath(
   const uint32_t current_traj_id = (!opt->cmds.empty()) ? opt->cmds.front().trajectory_id : 0u;
 
   // 轨迹未更新时，按时间持续向前推进参考索引，且不允许回退
-  const bool same_opt_traj = has_tracked_ref && tracked_opt_traj_id == current_traj_id;
+  // const bool same_opt_traj = has_tracked_ref && tracked_opt_traj_id == current_traj_id;
 
-  double progress_idx_float = nearest_idx_float;
-  if (same_opt_traj) {
-    double dt_pass = (now - tracked_ref_time).seconds();
-    dt_pass = std::max(0.0, dt_pass);
-    progress_idx_float = tracked_ref_idx + dt_pass / planner_dt;
-  }
-  double current_idx_float = std::max(nearest_idx_float, progress_idx_float);
+  // double progress_idx_float = nearest_idx_float;
+  // if (same_opt_traj) {
+  //   double dt_pass = (now - tracked_ref_time).seconds();
+  //   dt_pass = std::max(0.0, dt_pass);
+  //   progress_idx_float = tracked_ref_idx + dt_pass / planner_dt;
+  // }
+  // double current_idx_float = std::max(nearest_idx_float, progress_idx_float);
 
   // // 同一条轨迹若超过阈值仍未更新，判定规划器卡死
   // const double traj_stamp_sec =
@@ -446,8 +446,8 @@ bool MincoMpcController::buildReferenceFromOptPath(
   //   return false;
   // }
 
-  // double current_idx_float = nearest_idx_float;
-  // current_idx_float = std::min(current_idx_float, static_cast<double>(n_cmds - 1));
+  double current_idx_float = nearest_idx_float;
+  current_idx_float = std::min(current_idx_float, static_cast<double>(n_cmds - 1));
 
   {
     std::lock_guard<std::mutex> lk(data_mtx_);
