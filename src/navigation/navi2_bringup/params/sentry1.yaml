@@ -76,7 +76,7 @@ controller_server:
   ros__parameters:
     robot_base_frame: "base_link"
     use_sim_time: False
-    controller_frequency: 60.0
+    controller_frequency: 100.0
     min_x_velocity_threshold: 0.01
     min_y_velocity_threshold: 0.01
     min_theta_velocity_threshold: 0.001
@@ -100,14 +100,14 @@ controller_server:
       plugin: "minco_controller::MincoMpcController"
       # MPC sampling period (s) and lookahead time (s)
       dt: 0.01
-      lookahead_time : 0.4
+      lookahead_time : 0.6
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.03
+      control_delay_compensation: 0.25
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
-      Q: [2.0, 2.0, 5.0]
-      R: [1.0, 1.0, 1.0]
+      Q: [1.0, 1.0, 2.0]
+      R: [4.0, 4.0, 1.0]
 
       # Velocity bounds
       vx_min: -4.5
@@ -120,10 +120,10 @@ controller_server:
 
       # Optional acceleration constraints
       use_acc_constraints: true
-      ax_min: -3.0
-      ax_max: 3.0
-      ay_min: -3.0
-      ay_max: 3.0
+      ax_min: -4.0
+      ax_max: 4.0
+      ay_min: -4.0
+      ay_max: 4.0
       alpha_min: -5.0
       alpha_max: 5.0
 
@@ -305,17 +305,17 @@ planner_server:
 
       minco_optimizer:
         opt_freq: 10.0
-        traj_goal_tolerance: 0.2
+        traj_goal_tolerance: 0.25
         enable_yaw_opt: true
-        safe_dist: 0.40
+        safe_dist: 0.4
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
-        max_velocity: 3.5
-        max_acceleration: 1.5
+        max_velocity: 4.5
+        max_acceleration: 2.5
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.2
-        turn_angle_saturation: 0.57
-        min_turn_vel: 0.5
-        decay_power: 2.0
+        turn_angle_saturation: 0.9
+        min_turn_vel: 0.8
+        decay_power: 3.0
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
@@ -325,13 +325,13 @@ planner_server:
         penalty_weight_pos: 50000.0
         penalty_weight_vel: 2000.0
         penalty_weight_acc: 2000.0
-        penalty_weight_att: 2000.0
-        penalty_weight_time_barrier: 100.0
+        penalty_weight_att: 500.0
+        penalty_weight_time_barrier: 50.0
       recovery_server:
         fail_threshold: 10
         cooldown_sec: 2.0
         recovery_window_sec: 3.0
-        escape_speed: 0.5
+        escape_speed: 0.7
       static_esdf:
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
