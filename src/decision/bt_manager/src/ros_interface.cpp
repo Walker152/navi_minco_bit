@@ -49,11 +49,6 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
       this->sentryOnlineCallback(msg);
     });
 
-  manual_override_sub = this->create_subscription<geometry_msgs::msg::PointStamped>(
-    "/sentry/manual_override_goal", 1, [this](const geometry_msgs::msg::PointStamped::SharedPtr msg) {
-      this->manualOverrideCallback(msg);
-    });
-
   odom_sub = this->create_subscription<nav_msgs::msg::Odometry>(
     "/aft_mapped_to_init", 1, [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
       geometry_msgs::msg::Pose raw_pose = msg->pose.pose;
@@ -207,6 +202,29 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   // 提取bit 25-26：己方堡垒增益点的占领状态
   uint8_t fort_occupation_status = (event_code >> 25) & 0x3;
   blackboard_->set<int>("fort_occupation_status", static_cast<int>(fort_occupation_status));
+
+  geometry_msgs::msg::Pose manual_point_in, manual_point;
+  manual_point_in.position.x = msg->manual_point_x;
+  manual_point_in.position.y = msg->manual_point_y;
+  manual_point_in.position.z = 0.0;
+  manual_point_in.orientation.w = 1.0;
+  auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  if (tf_utils) {
+    tf_utils->transformPoseToMap(manual_point_in, manual_point, "minimap");
+  }
+  Point2D manual_point_2d(manual_point.position.x, manual_point.position.y);
+  blackboard_->set<Point2D>("manual_override_goal", manual_point_2d);
+
+  static int control_counter = 0;
+  if (msg->manual_key == 65)  // 'A'键切换控制模式
+  {
+    control_counter++;
+  }
+  if (control_counter % 2 == 0) {
+    blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
+  } else {
+    blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);
+  }
 }
 
 // 新增：雷达信息回调函数
@@ -238,25 +256,6 @@ void ros_interface::radarInfoCallback(const ros_interfaces::msg::RadarInfo::Shar
   }
 
   blackboard_->set<std::vector<EnemyRobotInfo>>("enemies_info", enemies_info);
-}
-
-void ros_interface::manualOverrideCallback(const geometry_msgs::msg::PointStamped::SharedPtr msg)
-{
-  const auto tf_utils_node =
-    blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-  geometry_msgs::msg::Point manual_goal_in_map = msg->point;
-  if (tf_utils_node) {
-    geometry_msgs::msg::Pose input_pose;
-    input_pose.position = msg->point;
-    input_pose.orientation.w = 1.0;
-    geometry_msgs::msg::Pose output_pose;
-    if (tf_utils_node->transformPoseToMap(input_pose, output_pose, "minimap")) {
-      manual_goal_in_map = output_pose.position;
-    }
-  }
-
-  const Point2D manual_goal{manual_goal_in_map.x, manual_goal_in_map.y, 0.0};
-  blackboard_->set("manual_override_goal", manual_goal);
 }
 
 // 新增：哨兵离线信息回调函数
