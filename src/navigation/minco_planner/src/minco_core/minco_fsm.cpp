@@ -116,11 +116,11 @@ void MincoFsm::callMainFsmOnce()
     if (!planner_->ReplanLocal(current_pose)) {
       Eigen::Vector3d cur_p(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
       double dist = planner_->getEsdfDistance(cur_p);
-      if (dist < 0.20) {
+      // if (dist < 0.25) {
         handle_generate_replan_failure("GEN_STUCK_TRIGGER_RECOVERING", "GENERATE_RECOVERY_FAIL");
-        return;
-      }
-      recovery_server_->onReplanSuccess();
+        // return;
+      // }
+      // recovery_server_->onReplanSuccess();
       return;
     }
 
@@ -141,10 +141,10 @@ void MincoFsm::callMainFsmOnce()
 
     // 容差限停检测：到达终点且速度足够低
     if (planner_->checkGoalReached(current_pose)) {
-      if (!goal_stop_published_) {
-        planner_->publishEmergencyStop(current_pose);
-        goal_stop_published_ = true;
-      }
+      // if (!goal_stop_published_) {
+      //   planner_->publishEmergencyStop(current_pose);
+      //   goal_stop_published_ = true;
+      // }
 
       if (planner_->getCurrentSpeed().head<2>().norm() < 0.3) {
         has_goal_ = false;
@@ -180,8 +180,8 @@ void MincoFsm::callMainFsmOnce()
       double dist = planner_->getEsdfDistance(cur_p);
 
       // 2. 诊断为安全 (ESDF >= 0.25m)：纯粹前方路障，立即绕路
-      if (dist >= 0.20) {
-        recovery_server_->onReplanSuccess();  // 清空失败计数
+      if (dist >= 0.25) {
+        // recovery_server_->onReplanSuccess();  // 清空失败计数
         changeState("PATH_BLOCKED_DETOUR", State::GENERATE_TRAJ);
         return;
       }

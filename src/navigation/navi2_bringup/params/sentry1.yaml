@@ -305,7 +305,7 @@ planner_server:
 
       minco_optimizer:
         opt_freq: 10.0
-        traj_goal_tolerance: 0.25
+        traj_goal_tolerance: 0.3
         enable_yaw_opt: true
         safe_dist: 0.4
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
