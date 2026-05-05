@@ -197,6 +197,9 @@ BT::NodeStatus CheckManualOverride::tick()
 
   const auto current_control_mode = blackboard->get<Sentry_BT::ControlMode>("control_mode");
   if (current_control_mode != ControlMode::MANUAL_CONTROL) {
+    blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::PATROL));
+     detail::logTransition(
+      detail::TreeKind::NAV, "CheckManualOverride", false, "not in manual control mode", branch);
     return BT::NodeStatus::FAILURE;
   }
 
