@@ -171,6 +171,9 @@ struct __attribute__((packed)) _GameInfo
   uint16_t coin_remaining{};       // 己方剩余金币数量
   uint32_t event_code{};           // 场地事件代码，未解码，需接收后根据协议解码
   uint8_t game_status{};  // 0:未开始比赛 1:准备阶段 2:15s裁判系统自检 3:5s倒计时 4:比赛中 5:比赛结算中
+  float manual_point_x{};  // 手动指定的目标点x坐标，单位m，坐标系minimap
+  float manual_point_y{};  // 手动指定的目标点y坐标，单位m，坐标系minimap
+  uint8_t manual_key{};    // 手动指定的目标点快捷键
 
   _GameInfo(
     uint16_t _game_time_remaining, uint16_t _coin_remaining, uint32_t _event_code, uint8_t _game_status)
