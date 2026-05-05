@@ -231,7 +231,7 @@ void MincoFsm::callMainFsmOnce()
     double dist = planner_->getEsdfDistance(cur_p);
 
     // 条件1: 成功挤出泥坑 (ESDF 距离恢复安全)
-    if (dist > 0.25) {
+    if (dist > 0.40) {
       recovery_server_->finishRecovery(true, now_s);
       changeState("ESCAPE_SUCCESS", State::GENERATE_TRAJ);
       return;
@@ -245,11 +245,7 @@ void MincoFsm::callMainFsmOnce()
     }
 
     // 条件3: 持续高频下发伪指令覆盖 MPC
-    static double last_escape_pub_time = 0.0;
-    if (now_s - last_escape_pub_time > 0.2) {
-      planner_->publishEscapeCommand(current_pose, current_escape_vel_);
-      last_escape_pub_time = now_s;
-    }
+    planner_->publishEscapeCommand(current_pose, current_escape_vel_);
     return;
   }
 

@@ -1,9 +1,7 @@
 <root main_tree_to_execute="TunnelRecoverySubTree">
   <BehaviorTree ID="TunnelRecoverySubTree">
     <ReactiveSequence name="RecoveryExecution">
-      <Inverter>
-        <CheckTimeInZone min_seconds="0.0" max_seconds="999.0" zone_name="transform_zone" />
-      </Inverter>
+      <CheckTimeInZone min_seconds="0.0" max_seconds="999.0" zone_name="transform_zone" />
 
       <ReactiveFallback name="RecoveryPhases">
         <Sequence name="Phase1">
