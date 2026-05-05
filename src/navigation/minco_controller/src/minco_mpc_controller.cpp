@@ -544,8 +544,8 @@ void MincoMpcController::applyGravityCompensation(
 
   const double true_roll = roll - lidar_roll_offset_;
   constexpr double angle_threshold = 0.05;
-  constexpr double k_gravity_x = 2.0;
-  constexpr double k_gravity_y = 15.0;
+  constexpr double k_gravity_x = 1.0;
+  constexpr double k_gravity_y = 20.0;
 
 
   double body_comp_x = 0.0;
