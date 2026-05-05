@@ -103,11 +103,11 @@ controller_server:
       lookahead_time : 0.6
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.25
+      control_delay_compensation: 0.20
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
-      Q: [1.0, 1.0, 2.0]
-      R: [4.0, 4.0, 1.0]
+      Q: [2.0, 2.0, 2.0]
+      R: [1.0, 1.0, 1.0]
 
       # Velocity bounds
       vx_min: -4.5
@@ -313,7 +313,7 @@ planner_server:
         max_acceleration: 2.5
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.2
-        turn_angle_saturation: 0.9
+        turn_angle_saturation: 1.0
         min_turn_vel: 0.8
         decay_power: 3.0
         time_allocation_iters: 15
