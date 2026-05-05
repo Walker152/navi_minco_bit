@@ -55,6 +55,9 @@ public:
     msg.coin_remaining = in.coin_remaining;
     msg.event_code = in.event_code;
     msg.game_status = in.game_status;
+    msg.manual_point_x = in.manual_point_x;
+    msg.manual_point_y = in.manual_point_y;
+    msg.manual_key = in.manual_key;
     msg.header.stamp = now();
     game_info_pub_->publish(msg);
   }
