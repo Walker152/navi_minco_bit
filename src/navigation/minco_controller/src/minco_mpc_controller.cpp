@@ -530,7 +530,7 @@ bool MincoMpcController::buildReferenceFromOptPath(
 void MincoMpcController::applyGravityCompensation(
   const nav_msgs::msg::Odometry::SharedPtr & odom, double & vx, double & vy)
 {
-  if (!odom || std::hypot(vx, vy) < 0.01) {
+  if (!odom) {
     return;
   }
 
@@ -544,16 +544,17 @@ void MincoMpcController::applyGravityCompensation(
 
   const double true_roll = roll - lidar_roll_offset_;
   constexpr double angle_threshold = 0.05;
-  constexpr double k_gravity_x = 2.0;
-  constexpr double k_gravity_y = 2.0;
+  constexpr double k_gravity_x = 1.0;
+  constexpr double k_gravity_y = 20.0;
+
 
   double body_comp_x = 0.0;
   double body_comp_y = 0.0;
   if (std::abs(pitch) > angle_threshold) {
-    body_comp_x = k_gravity_x * std::sin(pitch);
+    body_comp_x = k_gravity_x * std::sin(-pitch);
   }
   if (std::abs(true_roll) > angle_threshold) {
-    body_comp_y = k_gravity_y * std::sin(true_roll);
+    body_comp_y = k_gravity_y * std::sin(std::abs(true_roll));
   }
 
   if (body_comp_x == 0.0 && body_comp_y == 0.0) {
@@ -769,9 +770,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     vx = 0.0;
     vy = 0.0;
   }
-
   applyGravityCompensation(latest_odom, vx, vy);
-
   cmd.twist.linear.x = vx;
   cmd.twist.linear.y = vy;
   cmd.twist.angular.z = wz;
