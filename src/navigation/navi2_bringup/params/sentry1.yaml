@@ -130,7 +130,7 @@ controller_server:
       # Lidar extrinsic parameters
       lidar_offset_x: 0.0
       lidar_offset_y: 0.20
-      lidar_roll_offset: 0.174
+      lidar_roll_offset: -0.57
       
       # Frame settings
       odom_frame: "camera_init"
@@ -333,10 +333,10 @@ planner_server:
         recovery_window_sec: 3.0
         escape_speed: 0.7
       static_esdf:
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
+        # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/room_esdf.pcd"
-        # esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor_esdf.pcd"
+        esdf_pcd_path: "src/utils/pcd2esdf/maps/first_floor_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_back_esdf.pcd"
         esdf_resolution: 0.05
         dynamic_esdf_size: 8.0
