@@ -331,7 +331,7 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
         tunnel_recovery_configs[static_cast<std::size_t>(active_tunnel_idx)].tunnel_pass_yaw_target_rad);
       const double current_yaw = yawFromQuaternion(current_pose.orientation);
       const double error_forward = wrapAngle(base_target_yaw - current_yaw);
-      const double error_backward = wrapAngle(base_target_yaw + M_PI - current_yaw);
+      const double error_backward = wrapAngle(-base_target_yaw - current_yaw);
       const double error = (std::abs(error_forward) <= std::abs(error_backward))
                              ? error_forward
                              : error_backward;
