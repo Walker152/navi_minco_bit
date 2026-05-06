@@ -89,7 +89,9 @@ BT::NodeStatus SetTargetCoordinate::tick()
   if (guidance_case != last_guidance_case) {
     std::cout << CYAN << "[NAV_TREE]" << GREEN << "Target_dist(" << distance
               << "m)" << "threshold(" << tracing_dist << "m), approach target along the line"
-              << " | current_pose=(" << current_x << ", " << current_y << ")" << RESET << std::endl;
+              << " | current_pose=(" << current_x << ", " << current_y << ")" 
+              << " | target_pose=(" << target_x << ", " << target_y << ")" 
+              << RESET << std::endl;
     last_guidance_case = guidance_case;
   }
   Sentry_BT::Point2D old_goal;

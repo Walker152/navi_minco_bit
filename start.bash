@@ -15,15 +15,15 @@ sleep 1
 sleep 1
 
 # # SLAM
-# gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py; exec bash"
 # sleep 1
 
 # # Cloud Crop Filter
-# gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
 # sleep 1
 
 # # ICP
-# gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
 # sleep 1
 
 # Navigation2
