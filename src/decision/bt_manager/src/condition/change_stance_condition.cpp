@@ -159,10 +159,14 @@ BT::NodeStatus CheckTargetDistance::tick()
 
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
-
+  const auto current_mode = blackboard->get<NavMode>("current_mode");
   const float threshold = getInput<float>("threshold").value_or(1.0f);
   const std::string mode = getInput<std::string>("mode").value_or("greater");
 
+  if(current_mode != NavMode::TRACING) {
+    detail::logTransition(detail::TreeKind::STANCE, "CheckTargetDistance", false, "Not in TRACING mode", branch);
+    return BT::NodeStatus::FAILURE;
+  }
   const auto distance = static_cast<float>(std::hypot(
     target_pose.position.x - current_pose.position.x, target_pose.position.y - current_pose.position.y));
   const bool active = detail::compareByMode(distance, threshold, mode);
