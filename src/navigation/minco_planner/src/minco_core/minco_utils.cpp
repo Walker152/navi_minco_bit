@@ -334,9 +334,17 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3
       t_flat = 0.0;
     } else {
       v_peak = std::sqrt(std::max(0.0, 2.0 * total_length * a_ref)); // 纯加速 (v^2 = 2as)
-      t_acc = v_peak / a_ref;
-      t_dec = 0.0;
-      t_flat = 0.0;
+      if (v_peak > v_ref) {
+        v_peak = v_ref;
+        double d_acc = 0.5 * v_peak * v_peak / a_ref;
+        t_acc = v_peak / a_ref;
+        t_dec = 0.0;
+        t_flat = (total_length - d_acc) / v_ref;
+      } else {
+        t_acc = v_peak / a_ref;
+        t_dec = 0.0;
+        t_flat = 0.0;
+      }
     }
   }
 
@@ -553,8 +561,11 @@ double ComputeSegmentTime(
   }
 
   const double a_safe = std::max(1e-3, std::abs(amax));
-  const double t_kinematic = std::abs(v_curr - v_next) / a_safe;
-  t = std::max(t, t_kinematic);
+  const double required_dist = std::abs(v_curr * v_curr - v_next * v_next) / (2.0 * a_safe);
+  if (seg_len >= required_dist) {
+      const double t_kinematic = std::abs(v_curr - v_next) / a_safe;
+      t = std::max(t, t_kinematic);
+  }
   if (local_vmax > 1e-6 && std::abs(v_next - local_vmax) < 1e-6 && v_curr < local_vmax - 1e-6) {
     const double d_acc = (local_vmax * local_vmax - v_curr * v_curr) / (2.0 * a_safe);
     if (std::isfinite(d_acc) && d_acc > 0.0 && seg_len > d_acc) {
@@ -700,7 +711,7 @@ void compensateLeverArm(double v_lidar_x,
   double & vy_global,
   double & omega_global)
 {
-  const double v_body_x = v_lidar_x + omega_z * 0.2;
+  const double v_body_x = v_lidar_x + omega_z * (-0.2);
   const double v_body_y = v_lidar_y - omega_z * 0.0;
 
   const double cos_yaw = std::cos(yaw);

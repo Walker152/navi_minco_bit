@@ -2,7 +2,12 @@ cmake_minimum_required(VERSION 3.8)
 project(lidar_merger)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+  set(CMAKE_CXX_EXTENSIONS OFF) # 禁用编译器扩展
   add_compile_options(-Wall -Wextra -Wpedantic)
+  set(CMAKE_BUILD_TYPE "Release")
+  add_compile_options(-Werror)
 endif()
 
 find_package(ament_cmake REQUIRED)
@@ -10,6 +15,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(livox_ros_driver2 REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 find_package(OpenMP REQUIRED)
@@ -38,6 +44,7 @@ ament_target_dependencies(
   rclcpp_components
   message_filters
   livox_ros_driver2
+  sensor_msgs
 )
 
 rclcpp_components_register_nodes(lidar_merger_component

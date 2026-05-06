@@ -4,6 +4,7 @@ project(minco_controller)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_BUILD_TYPE Release)
 
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
