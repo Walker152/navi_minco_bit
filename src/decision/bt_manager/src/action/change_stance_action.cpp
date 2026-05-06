@@ -14,7 +14,8 @@ SetGyroState::SetGyroState(const std::string & name, const BT::NodeConfiguration
 BT::PortsList SetGyroState::providedPorts()
 {
   return {BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
-    BT::InputPort<float>("gyro_vel", "Gyro speed in rpm")};
+    BT::InputPort<float>("gyro_vel", "Gyro speed in rpm"),
+    BT::InputPort<float>("tunnel_speed_y", "tunnel_speed_y")};
 }
 
 BT::NodeStatus SetGyroState::tick()
@@ -22,9 +23,10 @@ BT::NodeStatus SetGyroState::tick()
   auto blackboard = config().blackboard;
   const bool use_gyro = getInput<bool>("use_gyro").value_or(blackboard->get<bool>("use_gyro_mode"));
   const float gyro_vel = getInput<float>("gyro_vel").value_or(blackboard->get<float>("gyro_vel"));
-
+  const float tunnel_speed_y = getInput<float>("tunnel_speed_y").value_or(blackboard->get<float>("tunnel_speed_y"));
   blackboard->set("use_gyro_mode", use_gyro);
   blackboard->set("gyro_vel", gyro_vel);
+  blackboard->set("tunnel_speed_y", tunnel_speed_y);
   return BT::NodeStatus::SUCCESS;
 }
 

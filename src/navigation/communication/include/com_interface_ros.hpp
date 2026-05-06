@@ -133,7 +133,7 @@ private:
     sub_opt.callback_group = sub_cb_group_;
 
     chassis_sub_ = create_subscription<geometry_msgs::msg::Twist>(
-      "/cmd_vel",
+      "/cmd_vel_mpc",
       1,
       [this](geometry_msgs::msg::Twist::ConstSharedPtr msg) {
         sendChassisCtrlCB(msg);
@@ -189,9 +189,14 @@ private:
     float current_vx = 0.0f;
     float current_vy = 0.0f;
     float current_vw = 0.0f;
+    float tunnel_speed_x = 0.0f;
+    float tunnel_speed_y = 0.0f;
     uint8_t desire_stance = 0;
     uint8_t desire_lifter_pos = 0;
     bool use_gyro_mode = false;
+    bool through_tunnel = false;
+    bool current_in_tunnel = false;
+
     float gyro_vel = 0.0f;
     bool is_aim_outpost = false;
     geometry_msgs::msg::Quaternion odom_q;
@@ -205,12 +210,20 @@ private:
       // vw_rpm = 80.0f;
       desire_stance = behavior_.desired_stance;
       desire_lifter_pos = behavior_.desire_lifter_pos;
-        use_gyro_mode = behavior_.use_gyro_mode;
-        gyro_vel = behavior_.gyro_vel;
+      use_gyro_mode = behavior_.use_gyro_mode;
+      gyro_vel = behavior_.gyro_vel;
+      tunnel_speed_x = behavior_.tunnel_speed_x;
+      tunnel_speed_y = behavior_.tunnel_speed_y;
+      through_tunnel = behavior_.through_tunnel;
+      current_in_tunnel = behavior_.current_in_tunnel;
 
-      if (use_gyro_mode) {
+      // if (use_gyro_mode) {
         vw_rpm = gyro_vel;
-      }
+        // if(current_in_tunnel) {
+        //   vx_mps = tunnel_speed_x;
+        //   vy_mps = tunnel_speed_y;
+        // }
+      // }
       // if (transform_state >= 0.85f) {
       //   vx_mps *= 1.0;
       //   vy_mps *= 1.0;
@@ -223,7 +236,7 @@ private:
       // std::cout << "vw_rpm: " << vw_rpm << ", use_gyro_mode: " << use_gyro_mode << ", gyro_vel: " << gyro_vel << std::endl;
       // vx_mps = 2.5;
       // vy_mps = 0.0;
-      // vw_rpm = 100.0f;
+      // vw_rpm = 0.0f;
     }
 
     tf2::Quaternion q;

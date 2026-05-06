@@ -151,20 +151,20 @@ inline std::vector<PatrolPoint> patrol_points_attack = {
 #ifdef TEST_AREA
 // for test
 inline std::array<Area_Square, 4> transform_zone{
-  Area_Square{Point2D{12.6, 7.3}, Point2D{9.6, 2.1}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{9.6, 2.1}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{9.6, 2.1}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{9.6, 2.1}},
+  Area_Square{Point2D{12.6, 7.3}, Point2D{8.6, 1.5}},
+  Area_Square{Point2D{12.6, 7.3}, Point2D{8.6, 1.5}},
+  Area_Square{Point2D{12.6, 7.3}, Point2D{8.6, 1.5}},
+  Area_Square{Point2D{12.6, 7.3}, Point2D{8.6, 1.5}},
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
   Area_Square{Point2D{14.7, 11.0}, Point2D{15.7, 12.0}},
 };  // 假设这是奖励区域的坐标范围
 inline std::array<Area_Square, 4> tunnel_zone = {
-  Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 3.1}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 3.1}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 3.1}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 6.3}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 6.3}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 6.3}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 6.3}, Point2D{11.4, 3.1}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
@@ -268,14 +268,14 @@ inline std::vector<Point2D> nav_points = {
   // for test
   {6.4, 2.3, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
-  {9.6, 6.6, 0.0},  // OUTPOST
+  {8.6, 6.5, 0.0},  // OUTPOST
   {6.8, 3.5, 0.0},  // OWN_FORT
   {13.7, 3.2, 0.0}   // ENEMY_FORT
 };
 
 inline std::vector<PatrolPoint> patrol_points_normal = {
   // for test
-  {{10.2, 6.8, 0.0}, 5000},
+  {{10.2, 6.7, 0.0}, 5000},
   {{12.6, 2.0, 0.0}, 5000},
   {{10.1, 2.6, 0.0}, 5000}
   };
