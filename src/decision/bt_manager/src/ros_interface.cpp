@@ -49,11 +49,6 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
       this->sentryOnlineCallback(msg);
     });
 
-  manual_override_sub = this->create_subscription<geometry_msgs::msg::PointStamped>(
-    "/sentry/manual_override_goal", 1, [this](const geometry_msgs::msg::PointStamped::SharedPtr msg) {
-      this->manualOverrideCallback(msg);
-    });
-
   odom_sub = this->create_subscription<nav_msgs::msg::Odometry>(
     "/aft_mapped_to_init", 1, [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
       geometry_msgs::msg::Pose raw_pose = msg->pose.pose;
@@ -207,6 +202,37 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   // 提取bit 25-26：己方堡垒增益点的占领状态
   uint8_t fort_occupation_status = (event_code >> 25) & 0x3;
   blackboard_->set<int>("fort_occupation_status", static_cast<int>(fort_occupation_status));
+
+  geometry_msgs::msg::Pose manual_point_in, manual_point;
+  manual_point_in.position.x = msg->manual_point_x;
+  manual_point_in.position.y = msg->manual_point_y;
+  manual_point_in.position.z = 0.0;
+  manual_point_in.orientation.w = 1.0;
+  auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  if (tf_utils) {
+    tf_utils->transformPoseToMap(manual_point_in, manual_point, "minimap");
+  }
+  Point2D manual_point_2d(manual_point.position.x, manual_point.position.y);
+  blackboard_->set<Point2D>("manual_override_goal", manual_point_2d);
+
+  static int last_manual_key = 0;
+  if (msg->manual_key == last_manual_key) {
+    return;  // 只有在manual_key发生变化时才切换控制模式，避免重复切换
+  }
+  last_manual_key = msg->manual_key;
+  switch (msg->manual_key)
+  {
+  case 65:  // 'A'键切换控制模式
+    blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
+    break;
+  case 0:  // '0'键切换回自动模式
+    blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);
+    break;
+  default:
+    break;
+  }
+  std::cout << "Received manual_key: " << static_cast<int>(msg->manual_key)
+            << std::endl;
 }
 
 // 新增：雷达信息回调函数
@@ -238,25 +264,6 @@ void ros_interface::radarInfoCallback(const ros_interfaces::msg::RadarInfo::Shar
   }
 
   blackboard_->set<std::vector<EnemyRobotInfo>>("enemies_info", enemies_info);
-}
-
-void ros_interface::manualOverrideCallback(const geometry_msgs::msg::PointStamped::SharedPtr msg)
-{
-  const auto tf_utils_node =
-    blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-  geometry_msgs::msg::Point manual_goal_in_map = msg->point;
-  if (tf_utils_node) {
-    geometry_msgs::msg::Pose input_pose;
-    input_pose.position = msg->point;
-    input_pose.orientation.w = 1.0;
-    geometry_msgs::msg::Pose output_pose;
-    if (tf_utils_node->transformPoseToMap(input_pose, output_pose, "minimap")) {
-      manual_goal_in_map = output_pose.position;
-    }
-  }
-
-  const Point2D manual_goal{manual_goal_in_map.x, manual_goal_in_map.y, 0.0};
-  blackboard_->set("manual_override_goal", manual_goal);
 }
 
 // 新增：哨兵离线信息回调函数
@@ -322,14 +329,14 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
 
   // 提取bit 0：脱战状态
   bool is_disengaged = (sentry_info_2 & 0x0001) != 0;
-  // blackboard_->set<bool>("is_disengaged", is_disengaged);
+  blackboard_->set<bool>("is_disengaged", is_disengaged);
 
   // 提取bit 12-13：哨兵当前姿态
   uint8_t current_stance = (sentry_info_2 >> 12) & 0x3;
   if (current_stance >= static_cast<uint8_t>(Sentry_BT::SentryStance::ATTACK) &&
       current_stance <= static_cast<uint8_t>(Sentry_BT::SentryStance::MOVE)) {
-    // blackboard_->set<Sentry_BT::SentryStance>(
-    //   "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
+    blackboard_->set<Sentry_BT::SentryStance>(
+      "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
   } else {
     // RCLCPP_WARN_THROTTLE(this->get_logger(),
     //   *this->get_clock(),
