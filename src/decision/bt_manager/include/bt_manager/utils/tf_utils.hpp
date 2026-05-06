@@ -7,6 +7,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>  // <---- 使用动态变换
 #include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 namespace Sentry_BT {
 
@@ -29,10 +30,13 @@ public:
     geometry_msgs::msg::Pose & output_pose,
     const std::string & target_frame);
 
-  void updateGimbalYaw(const float & yaw);
+  void updateGimbalYawInit(float yaw);
   void NormalizeAngle(float & angle);
+  void updateCurrentPose(const geometry_msgs::msg::Pose & pose);
+  float getCurrentYawDeg();
 private:
-  
+  std::mutex current_pose_mutex_;
+  geometry_msgs::msg::Pose current_pose_;
 
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;  // 动态发布器
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;

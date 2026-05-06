@@ -73,16 +73,16 @@ BT::NodeStatus SetTargetCoordinate::tick()
   double current_y = current_pose.position.y;
   double target_x = target_pose.position.x;
   double target_y = target_pose.position.y;
-  double dx = target_x - current_x;
-  double dy = target_y - current_y;
+  double dx = current_x - target_x;
+  double dy = current_y - target_y;
   double distance = std::sqrt(dx * dx + dy * dy);
 
   int guidance_case = -1;
   if (distance > 0.001) {
     double ux = dx / distance;
     double uy = dy / distance;
-    point.x = target_x - ux * tracing_dist;
-    point.y = target_y - uy * tracing_dist;
+    point.x = target_x + ux * tracing_dist;
+    point.y = target_y + uy * tracing_dist;
     guidance_case = 0;
   }
   static int last_guidance_case = -1;
@@ -104,7 +104,7 @@ BT::NodeStatus SetTargetCoordinate::tick()
     double diff_distance = std::sqrt(diff_x * diff_x + diff_y * diff_y);
 
     // 如果新目标点跟老目标点的差距小于 0.5 米，就不更新
-    if (diff_distance < 0.5) {
+    if (diff_distance < 0.001) {
       if (!last_rate_limited) {
         std::cout << CYAN << "[NAV_TREE]" << WHITE << "Target update skipped by 0.5m limiter" << RESET
                   << std::endl;
