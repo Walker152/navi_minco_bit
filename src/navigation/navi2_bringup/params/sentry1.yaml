@@ -103,17 +103,17 @@ controller_server:
       lookahead_time : 0.3
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.075
+      control_delay_compensation: 0.05
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [4.0, 4.0, 5.0]
-      R: [1.0, 1.0, 1.0]
+      R: [1.5, 1.5, 1.0]
 
       # Velocity bounds
-      vx_min: -3.5
-      vx_max: 3.5
-      vy_min: -3.5
-      vy_max: 3.5
+      vx_min: -4.5
+      vx_max: 4.5
+      vy_min: -4.5
+      vy_max: 4.5
       fixed_wz: 4.18 # rad/s, used if use_small_gyro_mode is true
       omega_min: -5.0 
       omega_max: 5.0
@@ -331,7 +331,7 @@ planner_server:
         fail_threshold: 3
         cooldown_sec: 2.0
         recovery_window_sec: 3.0
-        escape_speed: 0.4
+        escape_speed: 0.8
       static_esdf:
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
