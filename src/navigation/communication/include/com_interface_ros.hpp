@@ -220,6 +220,7 @@ private:
       current_vx = odom_.twist.twist.linear.x;
       current_vy = odom_.twist.twist.linear.y;
       current_vw = odom_.twist.twist.angular.z;
+      // std::cout << "vw_rpm: " << vw_rpm << ", use_gyro_mode: " << use_gyro_mode << ", gyro_vel: " << gyro_vel << std::endl;
       // vx_mps = 2.5;
       // vy_mps = 0.0;
       // vw_rpm = 100.0f;

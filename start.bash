@@ -21,7 +21,7 @@ sleep 1
 
 # Cluster
 gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
-sleep 1
+sleep 3
 
 # Decision
 gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
