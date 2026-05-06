@@ -1,6 +1,6 @@
 #pragma once
-#define RMUC_AREA
-// #define TEST_AREA
+// #define RMUC_AREA
+#define TEST_AREA
 #include "bt_manager/utils/nav_zone.hpp"
 
 #include <array>
@@ -161,10 +161,10 @@ inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{14.7, 11.0}, Point2D{15.7, 12.0}},
 };  // 假设这是奖励区域的坐标范围
 inline std::array<Area_Square, 4> tunnel_zone = {
-  Area_Square{Point2D{12.6, 6.3}, Point2D{11.4, 3.1}},
-  Area_Square{Point2D{12.6, 6.3}, Point2D{11.4, 3.1}},
-  Area_Square{Point2D{12.6, 6.3}, Point2D{11.4, 3.1}},
-  Area_Square{Point2D{12.6, 6.3}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.1}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
@@ -211,23 +211,23 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{12.7, 3.1},
   Point2D{12.7, 0.7},
 };
-inline Area_Square enemy_outpost_watch_zone{Point2D{9.1, 7.2}, Point2D{7.3, 6.2}};
+inline Area_Square enemy_outpost_watch_zone{Point2D{10.1, 7.2}, Point2D{8.3, 6.2}};
 
 inline AreaPolygon<6, Point2D> own_highland_buff_zone{
-  Point2D{9.1, 7.2},
-  Point2D{9.1, 6.7},
-  Point2D{9.1, 6.2},
-  Point2D{7.3, 6.2},
-  Point2D{7.3, 6.7},
-  Point2D{7.3, 7.2},
+  Point2D{10.1, 7.2},
+  Point2D{10.1, 6.7},
+  Point2D{10.1, 6.2},
+  Point2D{8.3, 6.2},
+  Point2D{8.3, 6.7},
+  Point2D{8.3, 7.2},
 };
 inline AreaPolygon<6, Point2D> enemy_highland_buff_zone{
-  Point2D{9.1, 7.2},
-  Point2D{9.1, 6.7},
-  Point2D{9.1, 6.2},
-  Point2D{7.3, 6.2},
-  Point2D{7.3, 6.7},
-  Point2D{7.3, 7.2},
+  Point2D{10.1, 7.2},
+  Point2D{10.1, 6.7},
+  Point2D{10.1, 6.2},
+  Point2D{8.3, 6.2},
+  Point2D{8.3, 6.7},
+  Point2D{8.3, 7.2},
 };
 
 inline AreaPolygon<6, Point2D> own_base_buff_zone{
@@ -247,20 +247,20 @@ inline AreaPolygon<6, Point2D> enemy_base_buff_zone{
   Point2D{12.9, 5.9},
 };
 inline AreaPolygon<6, Point2D> own_outpost_buff_zone{
-  Point2D{9.1, 7.2},
-  Point2D{9.1, 6.7},
-  Point2D{9.1, 6.2},
-  Point2D{7.3, 6.2},
-  Point2D{7.3, 6.7},
-  Point2D{7.3, 7.2},
+  Point2D{10.1, 7.2},
+  Point2D{10.1, 6.7},
+  Point2D{10.1, 6.2},
+  Point2D{8.3, 6.2},
+  Point2D{8.3, 6.7},
+  Point2D{8.3, 7.2},
 };
 inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
-  Point2D{9.1, 7.2},
-  Point2D{9.1, 6.7},
-  Point2D{9.1, 6.2},
-  Point2D{7.3, 6.2},
-  Point2D{7.3, 6.7},
-  Point2D{7.3, 7.2},
+  Point2D{10.1, 7.2},
+  Point2D{10.1, 6.7},
+  Point2D{10.1, 6.2},
+  Point2D{8.3, 6.2},
+  Point2D{8.3, 6.7},
+  Point2D{8.3, 7.2},
 };
 
 inline std::vector<Point2D> nav_points = {
@@ -268,7 +268,7 @@ inline std::vector<Point2D> nav_points = {
   // for test
   {6.4, 2.3, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
-  {8.6, 6.5, 0.0},  // OUTPOST
+  {7.1, 6.5, 0.0},  // OUTPOST
   {6.8, 3.5, 0.0},  // OWN_FORT
   {13.7, 3.2, 0.0}   // ENEMY_FORT
 };

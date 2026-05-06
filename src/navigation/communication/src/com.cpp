@@ -219,9 +219,9 @@ void Communication::stm32_read_cb(ByteArray arr)
         if (allow_debug) {
           LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Sof] ",
             NV(sentry_self_data->armor_num),
-            NV(static_cast<int>(sentry_self_data->armor_pos[0])),
-            NV(static_cast<int>(sentry_self_data->armor_pos[1])),
-            NV(static_cast<int>(sentry_self_data->armor_pos[2])),
+            NV(static_cast<float>(sentry_self_data->armor_pos[0])),
+            NV(static_cast<float>(sentry_self_data->armor_pos[1])),
+            NV(static_cast<float>(sentry_self_data->armor_pos[2])),
             NV(sentry_self_data->is_get),
             NV(sentry_self_data->is_transformable),
             NV(sentry_self_data->lifter_current_pos),
