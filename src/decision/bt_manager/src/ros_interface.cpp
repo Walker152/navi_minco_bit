@@ -84,7 +84,6 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
       blackboard_->set("cmd_vel", *msg);
     });
   // 定时发布行为状态（10Hz）
-  gimbal_yaw_pub = this->create_publisher<std_msgs::msg::Float32>("/sentry/gimbal_yaw", 10);
   behavior_pub = this->create_publisher<ros_interfaces::msg::Behavior>("/sentry/behaivor_send", 10);
   cmd_vel_pub = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
@@ -271,14 +270,13 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
 {
   // 存储哨兵离线状态信息
   blackboard_->set<bool>("target_valid", msg->is_get);
-  blackboard_->set<float>("gimbal_yaw", msg->yaw_imu);
   blackboard_->set<Sentry_BT::LifterPos>(
     "lifter_current_pos", static_cast<Sentry_BT::LifterPos>(msg->lifter_current_pos));
   blackboard_->set<bool>("is_transformable", msg->is_transformable);
   blackboard_->set<float>("transform_state", msg->transform_state);
   blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
   auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-  tf_utils->updateGimbalYaw(msg->yaw_imu);
+  tf_utils->updateGimbalYaw(msg->yaw_encoder - msg->yaw_imu);
   // 存储装甲板位置
   if (msg->is_get)
   // if(false)
@@ -307,7 +305,7 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
   blackboard_->set<int>("cooling_value", static_cast<int>(msg->cooling_value));
   blackboard_->set<int>("heat_limit", static_cast<int>(msg->heat_limit));
   blackboard_->set<int>("current_heat", static_cast<int>(msg->current_heat));
-  blackboard_->set<float>("speed_monitor_angle", msg->speed_monitor_angle);
+  blackboard_->set<float>("gimbal_yaw", msg->speed_monitor_angle);
 
   // 存储哨兵位置
   const auto tf_utils_node =
