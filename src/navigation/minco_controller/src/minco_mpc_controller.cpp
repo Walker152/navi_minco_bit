@@ -184,7 +184,6 @@ void MincoMpcController::compensateLeverArm(double v_lidar_x,
 
   const double cos_yaw = std::cos(yaw);
   const double sin_yaw = std::sin(yaw);
-
   vx_global = v_body_x * cos_yaw - v_body_y * sin_yaw;
   vy_global = v_body_x * sin_yaw + v_body_y * cos_yaw;
   omega_global = omega_z;
@@ -541,7 +540,7 @@ void MincoMpcController::applyGravityCompensation(
   double pitch = 0.0;
   double yaw = 0.0;
   tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-
+  // std::cout << "Original roll: " << roll << ", pitch: " << pitch << ", yaw: " << yaw << std::endl;
   const double true_roll = roll - lidar_roll_offset_;
   constexpr double angle_threshold = 0.05;
   constexpr double k_gravity_x = 1.0;
