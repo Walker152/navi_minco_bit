@@ -30,7 +30,7 @@ public:
     const std::string & target_frame);
 
   void updateGimbalYaw(const float & yaw);
-
+  void NormalizeAngle(float & angle);
 private:
   
 
