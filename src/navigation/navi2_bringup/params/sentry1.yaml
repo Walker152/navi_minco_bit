@@ -312,9 +312,9 @@ planner_server:
         max_velocity: 5.5
         max_acceleration: 4.5
         max_yaw_dot: 5.0
-        turn_angle_deadzone: 0.3
-        turn_angle_saturation: 1.5
-        min_turn_vel: 1.8
+        turn_angle_deadzone: 0.2
+        turn_angle_saturation: 1.2
+        min_turn_vel: 2.0
         decay_power: 2.0
         time_allocation_iters: 15
         smooth_eps: 0.01
@@ -331,7 +331,7 @@ planner_server:
         fail_threshold: 5
         cooldown_sec: 1.0
         recovery_window_sec: 3.0
-        escape_speed: 0.7
+        escape_speed: 0.5
       static_esdf:
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
