@@ -93,10 +93,10 @@ BT::NodeStatus ChangeStance::applyStanceChange()
   }
 
   blackboard->set<SentryStance>("desired_stance", desired_stance_);
-  blackboard->set<SentryStance>("current_stance", desired_stance_);
-  std::cout << MAGENTA << "[STANCE_TREE]" << GREEN << "Change from stance "
-            << stance_to_string(current_stance_) << " to stance " << stance_to_string(desired_stance_)
-            << RESET << std::endl;
+  // blackboard->set<SentryStance>("current_stance", desired_stance_);
+  // std::cout << MAGENTA << "[STANCE_TREE]" << GREEN << "Change from stance "
+  //           << stance_to_string(current_stance_) << " to stance " << stance_to_string(desired_stance_)
+  //           << RESET << std::endl;
   last_change_time_ = std::chrono::system_clock::now();
   return BT::NodeStatus::SUCCESS;
 }
