@@ -231,6 +231,7 @@ struct __attribute__((packed)) _SentryInfoOffline
   bool is_get{};                 // 视觉是否瞄准到敌人
   float armor_pos[3]{};          // 瞄准到的装甲板位置，具体坐标系询问视觉
   uint8_t armor_num{};           // 不做红蓝方区分
+  float yaw_encoder{};           // 编码器的yaw轴角度 逆时针为正
   float yaw_imu{};               // imu的yaw轴角度 逆时针为正
   uint8_t lifter_current_pos{};  // 0 -- kTop 1 -- kBottom 2 -- kMiddle
   bool is_transformable{};  // 是否能够进行变形（不止变形中不能变形，升降卡住后也无法进行变形）
@@ -240,6 +241,7 @@ struct __attribute__((packed)) _SentryInfoOffline
   _SentryInfoOffline(bool _is_get,
     float _armor_pos[3],
     uint8_t _armor_num,
+    float _yaw_encoder,
     float _yaw_imu,
     uint8_t _lifter_current_pos,
     bool _is_transformable,
@@ -251,6 +253,7 @@ struct __attribute__((packed)) _SentryInfoOffline
       armor_pos[i] = _armor_pos[i];
     }
     armor_num = _armor_num;
+    yaw_encoder = _yaw_encoder;
     yaw_imu = _yaw_imu;
     lifter_current_pos = _lifter_current_pos;
     is_transformable = _is_transformable;
