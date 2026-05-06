@@ -26,9 +26,19 @@ TransformUtils::TransformUtils()
 
 void TransformUtils::updateGimbalYaw(const float & yaw)
 {
+  NormalizeAngle((float &)yaw);
   latest_gimbal_yaw_deg_.store(yaw, std::memory_order_relaxed);
 }
 
+void TransformUtils::NormalizeAngle(float & angle)
+{
+  while (angle > 180.0f) {
+    angle -= 360.0f;
+  }
+  while (angle < -180.0f) {
+    angle += 360.0f;
+  }
+}
 void TransformUtils::publishDynamicTransform()
 {
   // 创建从base_link到gimbal的动态变换
