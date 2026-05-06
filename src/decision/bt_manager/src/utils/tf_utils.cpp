@@ -4,6 +4,7 @@
 #include <cmath>
 #include <string>
 #include <tf2/LinearMath/Quaternion.h>
+#include <tf2/utils.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 namespace Sentry_BT {
@@ -24,10 +25,33 @@ TransformUtils::TransformUtils()
   publishDynamicTransform();
 }
 
-void TransformUtils::updateGimbalYaw(const float & yaw)
+void TransformUtils::updateCurrentPose(const geometry_msgs::msg::Pose & pose)
 {
-  NormalizeAngle((float &)yaw);
-  latest_gimbal_yaw_deg_.store(yaw, std::memory_order_relaxed);
+  std::lock_guard<std::mutex> lock(current_pose_mutex_);
+  current_pose_ = pose;
+}
+void TransformUtils::updateGimbalYawInit(float yaw)
+{
+  const float current_yaw_deg = getCurrentYawDeg();
+  float delta_yaw = yaw + current_yaw_deg;
+  NormalizeAngle(delta_yaw);
+  latest_gimbal_yaw_deg_.store(delta_yaw, std::memory_order_relaxed);
+}
+
+float TransformUtils::getCurrentYawDeg()
+{
+  geometry_msgs::msg::Pose pose_copy;
+  {
+    std::lock_guard<std::mutex> lock(current_pose_mutex_);
+    pose_copy = current_pose_;
+  }
+
+  float yaw_deg = tf2::getYaw(tf2::Quaternion(
+    pose_copy.orientation.x, pose_copy.orientation.y, pose_copy.orientation.z,
+    pose_copy.orientation.w)) *
+    180.0f / static_cast<float>(M_PI);
+  NormalizeAngle(yaw_deg);
+  return yaw_deg;
 }
 
 void TransformUtils::NormalizeAngle(float & angle)

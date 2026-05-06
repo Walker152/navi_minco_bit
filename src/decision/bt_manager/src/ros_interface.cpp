@@ -57,13 +57,13 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
       if (transform_utils) {
         geometry_msgs::msg::Pose base_link_origin;
         base_link_origin.orientation.w = 1.0;
-
         geometry_msgs::msg::Pose base_link_in_map;
         if (transform_utils->transformPoseToMap(base_link_origin, base_link_in_map, "base_link")) {
           // Keep raw orientation from odom, only override base_link x/y in map frame.
           raw_pose.position.x = base_link_in_map.position.x;
           raw_pose.position.y = base_link_in_map.position.y;
         }
+        transform_utils->updateCurrentPose(raw_pose);
       }
       {
         std::lock_guard<std::mutex> lock(current_pose_mutex_);
@@ -275,8 +275,14 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
   blackboard_->set<bool>("is_transformable", msg->is_transformable);
   blackboard_->set<float>("transform_state", msg->transform_state);
   blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
+  const auto current_pose = blackboard_->get<geometry_msgs::msg::Pose>("current_pose");
   auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-  tf_utils->updateGimbalYaw(msg->yaw_encoder - msg->yaw_imu);
+  float gimbal_yaw_init = msg->yaw_encoder - msg->yaw_imu;
+  static bool gimbal_yaw_init_logged = false;
+  if (tf_utils && !gimbal_yaw_init_logged) {
+    tf_utils->updateGimbalYawInit(gimbal_yaw_init);
+    gimbal_yaw_init_logged = true;
+  }
   // 存储装甲板位置
   if (msg->is_get)
   // if(false)
