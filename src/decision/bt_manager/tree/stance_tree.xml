@@ -37,7 +37,7 @@
       <Sequence name="PursuitStanceBranch">
         <CheckTargetVisible />
         <CheckTargetDistance threshold="4.0" mode="greater" branch="PursuitStanceBranch" />
-        <SetGyroState use_gyro="true" gyro_vel="20.0" />
+        <SetGyroState use_gyro="true" gyro_vel="50.0" />
         <!-- <CheckStanceCooldown cooldown="5.0" branch="PursuitStanceBranch" /> -->
         <ChangeStance name="ChangeStancePursuit" stance="MOVE" />
       </Sequence>
@@ -45,7 +45,7 @@
       <Sequence name="CombatAttackBranch">
         <CheckEngagedStatus expected="true" branch="CombatAttackBranch" />
         <CheckHealth threshold="60" mode="greater" branch="CombatAttackBranch" />
-        <SetGyroState use_gyro="true" gyro_vel="10.0" />
+        <SetGyroState use_gyro="true" gyro_vel="50.0" />
         <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
         <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
       </Sequence>
