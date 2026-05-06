@@ -115,12 +115,12 @@ void MincoFsm::callMainFsmOnce()
     }
     if (!planner_->ReplanLocal(current_pose)) {
       Eigen::Vector3d cur_p(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
-      double dist = planner_->getEsdfDistance(cur_p);
-      if (dist < 0.10) {
+      // double dist = planner_->getEsdfDistance(cur_p);
+      // if (dist < 0.25) {
         handle_generate_replan_failure("GEN_STUCK_TRIGGER_RECOVERING", "GENERATE_RECOVERY_FAIL");
-        return;
-      }
-      recovery_server_->onReplanSuccess();
+        // return;
+      // }
+      // recovery_server_->onReplanSuccess();
       return;
     }
 
@@ -141,10 +141,10 @@ void MincoFsm::callMainFsmOnce()
 
     // 容差限停检测：到达终点且速度足够低
     if (planner_->checkGoalReached(current_pose)) {
-      if (!goal_stop_published_) {
-        planner_->publishEmergencyStop(current_pose);
-        goal_stop_published_ = true;
-      }
+      // if (!goal_stop_published_) {
+      //   planner_->publishEmergencyStop(current_pose);
+      //   goal_stop_published_ = true;
+      // }
 
       if (planner_->getCurrentSpeed().head<2>().norm() < 0.3) {
         has_goal_ = false;
@@ -180,8 +180,8 @@ void MincoFsm::callMainFsmOnce()
       double dist = planner_->getEsdfDistance(cur_p);
 
       // 2. 诊断为安全 (ESDF >= 0.25m)：纯粹前方路障，立即绕路
-      if (dist >= 0.1) {
-        recovery_server_->onReplanSuccess();  // 清空失败计数
+      if (dist >= 0.25) {
+        // recovery_server_->onReplanSuccess();  // 清空失败计数
         changeState("PATH_BLOCKED_DETOUR", State::GENERATE_TRAJ);
         return;
       }
@@ -231,7 +231,7 @@ void MincoFsm::callMainFsmOnce()
     double dist = planner_->getEsdfDistance(cur_p);
 
     // 条件1: 成功挤出泥坑 (ESDF 距离恢复安全)
-    if (dist > 0.25) {
+    if (dist > 0.40) {
       recovery_server_->finishRecovery(true, now_s);
       changeState("ESCAPE_SUCCESS", State::GENERATE_TRAJ);
       return;
@@ -245,11 +245,7 @@ void MincoFsm::callMainFsmOnce()
     }
 
     // 条件3: 持续高频下发伪指令覆盖 MPC
-    static double last_escape_pub_time = 0.0;
-    if (now_s - last_escape_pub_time > 0.2) {
-      planner_->publishEscapeCommand(current_pose, current_escape_vel_);
-      last_escape_pub_time = now_s;
-    }
+    planner_->publishEscapeCommand(current_pose, current_escape_vel_);
     return;
   }
 
@@ -268,7 +264,7 @@ void MincoFsm::callMainFsmOnce()
     // 2) Timeout protection: avoid deadlock.
     const double now_s = planner_->nowSeconds();
     if (std::isfinite(now_s) && std::isfinite(emer_stop_start_time_) &&
-        (now_s - emer_stop_start_time_) > 5.0) {
+        (now_s - emer_stop_start_time_) > 2.0) {
       // Keep mission goal so FSM can retry planning automatically after emergency stop timeout.
       changeState("EMER_TIMEOUT", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
       return;

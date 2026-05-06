@@ -8,12 +8,18 @@ uint8 CONTROL_AUTO=0
 uint8 CONTROL_MANUAL=1
 
 bool use_gyro_mode
+bool through_tunnel
+bool current_in_tunnel
 float32 gyro_vel
+float32 tunnel_speed_x
+float32 tunnel_speed_y
 
 uint8 desire_lifter_pos
 uint8 LIFTER_TOP=0
 uint8 LIFTER_BOTTOM=1
 uint8 LIFTER_MIDDLE=2
+
+uint16 ammo_purchase_request
 
 float32 scan_yaw_min
 float32 scan_yaw_max

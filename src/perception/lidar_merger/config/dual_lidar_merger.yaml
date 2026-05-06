@@ -1,7 +1,11 @@
 lidar_merger_node:
   ros__parameters:
-    front_topic: "/livox/lidar_192_168_1_10"
-    back_topic: "/livox/lidar_192_168_1_12"
-    merged_topic: "/livox/lidar_merged"
-    merged_frame_id: "livox_front_frame"
-    extrinsic_back_to_front: [-0.3, 0.0, 0.0, 0.0, 0.0, 3.1415926] # 示例值：后雷达在前雷达后方0.3米处，且旋转了180度
+    front_topic: "/livox/lidar_192_168_1_135"
+    back_topic: "/livox/lidar_192_168_1_122"
+    merged_topic: "/livox/lidar"
+    merged_frame_id: "livox_frame"
+    publish_pointcloud: false
+    front_cloud_topic: "/livox/front_cloud"
+    back_cloud_topic: "/livox/back_cloud"
+    merged_cloud_topic: "/livox/lidar_cloud"
+    extrinsic_back_to_front: [0.0, 0.4, 0.0, -0.35453, 0.0, 0.0] # x, y, z, roll, pitch, yaw (in radians)
