@@ -61,32 +61,16 @@ BT::NodeStatus CheckTimeInZone::tick()
 {
   const double min_seconds = getInput<double>("min_seconds").value_or(0.0);
   const double max_seconds = getInput<double>("max_seconds").value_or(9999.0);
-  const std::string zone_name = getInput<std::string>("zone_name").value_or("transform_zone");
   const std::string branch = getInput<std::string>("branch").value_or("");
 
   auto blackboard = config().blackboard;
-  geometry_msgs::msg::Pose current_pose;
-  if (!blackboard->get<geometry_msgs::msg::Pose>("current_pose", current_pose)) {
-    blackboard->set("current_transform_zone_index", -1);
-    was_in_zone_ = false;
-    detail::logTransition(
-      detail::TreeKind::RECOVERY,
-      "CheckTimeInZone",
-      false,
-      "current_pose unavailable",
-      branch);
-    return BT::NodeStatus::FAILURE;
-  }
+  const bool in_zone = blackboard->get<bool>("in_transform_zone");
+  const int zone_index = blackboard->get<int>("current_transform_zone_index");
 
-  const bool in_zone = isInsideZoneByName(zone_name, current_pose);
-  const int zone_index = getZoneIndexByName(zone_name, current_pose);
-  blackboard->set("current_transform_zone_index", zone_index);
   if (!in_zone) {
     was_in_zone_ = false;
-    std::ostringstream oss;
-    oss << "zone=" << zone_name << ", zone_idx=" << zone_index << ", pos=(" << current_pose.position.x
-        << ", " << current_pose.position.y << ")";
-    detail::logTransition(detail::TreeKind::RECOVERY, "CheckTimeInZone", false, oss.str(), branch);
+    detail::logTransition(detail::TreeKind::RECOVERY, "CheckTimeInZone", false,
+      "not in transform_zone", branch);
     return BT::NodeStatus::FAILURE;
   }
 
@@ -99,14 +83,14 @@ BT::NodeStatus CheckTimeInZone::tick()
   const double duration = std::chrono::duration<double>(now - entry_time_).count();
   if (duration >= min_seconds && duration < max_seconds) {
     std::ostringstream oss;
-    oss << "zone=" << zone_name << ", zone_idx=" << zone_index << ", duration=" << duration
+    oss << "zone_idx=" << zone_index << ", duration=" << duration
         << "s, window=[" << min_seconds << ", " << max_seconds << ")";
     detail::logTransition(detail::TreeKind::RECOVERY, "CheckTimeInZone", true, oss.str(), branch);
     return BT::NodeStatus::SUCCESS;
   }
 
   std::ostringstream oss;
-  oss << "zone=" << zone_name << ", zone_idx=" << zone_index << ", duration=" << duration
+  oss << "zone_idx=" << zone_index << ", duration=" << duration
       << "s, window=[" << min_seconds << ", " << max_seconds << ")";
   detail::logTransition(detail::TreeKind::RECOVERY, "CheckTimeInZone", false, oss.str(), branch);
 

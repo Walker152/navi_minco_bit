@@ -1,6 +1,7 @@
 #include "bt_manager/condition/change_stance_condition.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cctype>
 #include <limits>
 
 #include "bt_manager/action/change_stance_action.hpp"
@@ -54,12 +55,11 @@ BT::NodeStatus CheckOutpostTarget::tick()
   const auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
 
-  int current_mode = 0;
+  const auto current_mode = blackboard->get<NavMode>("current_mode");
   geometry_msgs::msg::Pose current_pose;
-  Sentry_BT::Point2D nav_goal;
-  current_mode = blackboard->get<int>("current_mode");
+  Point2D nav_goal;
   current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-  nav_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal");
+  nav_goal = blackboard->get<Point2D>("nav_goal");
 
   const bool attacking_outpost_mode = current_mode == static_cast<int>(Sentry_BT::NavMode::RESPONSE);
   const bool in_outpost_zone =
@@ -194,9 +194,7 @@ BT::PortsList CheckCrossZoneTransition::providedPorts()
     BT::InputPort<float>("max_abs_gyro_vel", 120.0f, "Max absolute gyro velocity in rpm"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
     BT::OutputPort<bool>("use_gyro", "Enable gyro output"),
-    BT::OutputPort<float>("gyro_vel", "Gyro velocity output"),
-    BT::OutputPort<float>("tunnel_speed_x", "vx tunnel"),
-    BT::OutputPort<float>("tunnel_speed_y", "vy tunnel")};
+    BT::OutputPort<float>("gyro_vel", "Gyro velocity output")};
 }
 
 float CheckCrossZoneTransition::computeTunnelGyroVelPid(double yaw_error,
@@ -279,10 +277,12 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const auto nav_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal");
   const bool through_tunnel = blackboard->get<bool>("through_tunnel");
+  const bool current_in_tunnel = blackboard->get<bool>("current_in_tunnel");
 
   const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
   const Point2D goal_point{nav_goal.x, nav_goal.y, 0.0};
 
+  // Cross-zone detection: check whether current and goal are in different zones
   const bool current_in_highland = highland_zone.contains(current_point);
   const bool current_in_own = own_defense_zone.contains(current_point);
   const bool current_in_enemy = enemy_defense_zone.contains(current_point);
@@ -292,42 +292,14 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   const bool same_zone = (current_in_highland && goal_in_highland) || (current_in_own && goal_in_own) ||
                          (current_in_enemy && goal_in_enemy);
   const bool need_cross_zone = !same_zone;
-  bool current_in_tunnel = false;
-  for (const auto & zone : tunnel_zone) {
-    if (zone.contains(current_point)) {
-      current_in_tunnel = true;
-      break;
-    }
-  }
   const bool is_tunnel_journey = (need_cross_zone && through_tunnel) || current_in_tunnel;
 
   float computed_gyro_vel = 0.0f;
   bool enable_small_gyro = false;
-  int active_tunnel_idx = -1;
-  if (is_tunnel_journey) {
-    if (through_tunnel) {
-      int nearest_tunnel_idx = -1;
-      double nearest_dist2 = std::numeric_limits<double>::infinity();
-      for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
-        const auto & zone = tunnel_zone[i];
-        const double center_x = (zone.top_left.x + zone.bottom_right.x) * 0.5;
-        const double center_y = (zone.top_left.y + zone.bottom_right.y) * 0.5;
-        const double dx = current_point.x - center_x;
-        const double dy = current_point.y - center_y;
-        const double dist2 = dx * dx + dy * dy;
-        if (dist2 < nearest_dist2) {
-          nearest_dist2 = dist2;
-          nearest_tunnel_idx = static_cast<int>(i);
-        }
-        if (tunnel_zone[i].contains(current_point)) {
-          active_tunnel_idx = static_cast<int>(i);
-          break;
-        }
-      }
-      if (active_tunnel_idx < 0) {
-        active_tunnel_idx = nearest_tunnel_idx;
-      }
+  int active_tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
 
+  if (is_tunnel_journey) {
+    if (through_tunnel && active_tunnel_idx >= 0) {
       enable_small_gyro = true;
 
       const double base_target_yaw = static_cast<double>(
@@ -337,18 +309,6 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
       const double error_backward = wrapAngle(base_target_yaw + M_PI - current_yaw);
       const double error =
         (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
-
-      float tunnel_speed_x = 0.0f;
-      float tunnel_speed_y = 3.0f;
-      if (current_in_tunnel) {
-        if (std::abs(error) < 0.1) {
-          setOutput("tunnel_speed_x", tunnel_speed_x);
-          setOutput("tunnel_speed_y", tunnel_speed_y);
-        } else {
-          setOutput("tunnel_speed_x", 0.0f);
-          setOutput("tunnel_speed_y", 0.0f);
-        }
-      }
 
       const auto now = std::chrono::steady_clock::now();
       computed_gyro_vel = computeTunnelGyroVelPid(error, kp, ki, kd, deadzone, max_abs_gyro_vel, now);
@@ -365,11 +325,7 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   setOutput("gyro_vel", computed_gyro_vel);
 
   std::ostringstream oss;
-  oss << "current_in_highland=" << current_in_highland << ", current_in_own=" << current_in_own
-      << ", current_in_enemy=" << current_in_enemy << ", goal_in_highland=" << goal_in_highland
-      << ", goal_in_own=" << goal_in_own << ", goal_in_enemy=" << goal_in_enemy
-      << ", through_tunnel=" << through_tunnel << ", current_in_tunnel=" << current_in_tunnel
-      << ", tunnel_idx=" << active_tunnel_idx << ", use_gyro_mode=" << enable_small_gyro
+  oss << "through_tunnel=" << through_tunnel << ", tunnel_idx=" << active_tunnel_idx << ", use_gyro=" << enable_small_gyro
       << ", gyro_vel=" << computed_gyro_vel;
   detail::logTransition(
     detail::TreeKind::STANCE, "CheckCrossZoneTransition", is_tunnel_journey, oss.str(), branch);
@@ -440,7 +396,56 @@ BT::NodeStatus CheckStanceCooldown::tick()
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
+// ------------------- CheckEnhanceLimit -------------------
+CheckEnhanceLimit::CheckEnhanceLimit(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckEnhanceLimit::providedPorts()
+{
+  return {BT::InputPort<std::string>("target_stance", "ATTACK", "Target stance to check"),
+    BT::InputPort<int>("max_time_sec", 180, "Max accumulated seconds")};
+}
+
+BT::NodeStatus CheckEnhanceLimit::tick()
+{
+  const auto blackboard = config().blackboard;
+  std::string target = getInput<std::string>("target_stance").value_or("ATTACK");
+  const int max_time = getInput<int>("max_time_sec").value_or(180);
+
+  std::transform(target.begin(), target.end(), target.begin(), [](unsigned char c) {
+    return static_cast<char>(std::toupper(c));
+  });
+
+  double accumulated = 0.0;
+  bool recognized = true;
+  if (target == "ATTACK") {
+    accumulated = blackboard->get<double>("attack_accumulated_time");
+  } else if (target == "DEFEND") {
+    accumulated = blackboard->get<double>("defend_accumulated_time");
+  } else if (target == "MOVE") {
+    accumulated = blackboard->get<double>("move_accumulated_time");
+  } else {
+    recognized = false;
+  }
+
+  if (!recognized) {
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckEnhanceLimit", true, "unknown target_stance", "");
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  const bool active = accumulated < static_cast<double>(max_time);
+  std::ostringstream oss;
+  oss << "target=" << target << ", accumulated=" << accumulated << ", max=" << max_time;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckEnhanceLimit", active, oss.str(), "");
+
+  return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
 // ------------------- CheckStanceRefreshRequired -------------------
+/* deprecated - replaced by accumulated time logic */
 CheckStanceRefreshRequired::CheckStanceRefreshRequired(
   const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
@@ -504,6 +509,50 @@ BT::NodeStatus CheckStanceRefreshRequired::tick()
   detail::logTransition(detail::TreeKind::STANCE, "CheckStanceRefreshRequired", false, oss.str(), branch);
 
   return BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckTunnelDeformation -------------------
+CheckTunnelDeformation::CheckTunnelDeformation(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckTunnelDeformation::providedPorts()
+{
+  return {};
+}
+
+BT::NodeStatus CheckTunnelDeformation::tick()
+{
+  auto blackboard = config().blackboard;
+  const bool through_tunnel = blackboard->get<bool>("through_tunnel");
+  const bool current_in_tunnel = blackboard->get<bool>("current_in_tunnel");
+  const float current_health = blackboard->get<float>("health");
+
+  if (current_in_tunnel) {
+    blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::BOTTOM);
+    last_health_ = current_health;
+    health_initialized_ = true;
+  } else if (through_tunnel) {
+    bool health_dropped = false;
+    if (health_initialized_) {
+      health_dropped = (last_health_ - current_health) > 5.0f;
+    }
+    last_health_ = current_health;
+    health_initialized_ = true;
+
+    if (health_dropped) {
+      blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);
+    } else {
+      blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::BOTTOM);
+    }
+  } else {
+    blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);
+    last_health_ = current_health;
+    health_initialized_ = true;
+  }
+  return BT::NodeStatus::SUCCESS;
 }
 
 }  // namespace Sentry_BT
