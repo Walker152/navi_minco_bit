@@ -91,8 +91,7 @@ public:
     msg.armor_pos.y = static_cast<double>(in.armor_pos[1]);
     msg.armor_pos.z = static_cast<double>(in.armor_pos[2]);
     msg.armor_num = in.armor_num;
-    msg.yaw_encoder = in.yaw_encoder;
-    msg.yaw_imu = in.yaw_imu;
+    msg.yaw_camerainit_to_gimbal = in.yaw_camerainit_to_gimbal;
     msg.lifter_current_pos = in.lifter_current_pos;
     msg.is_transformable = in.is_transformable;
     msg.transform_state = in.transform_state;
