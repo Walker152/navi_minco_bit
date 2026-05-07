@@ -32,18 +32,8 @@ void TransformUtils::updateCurrentPose(const geometry_msgs::msg::Pose & pose)
 }
 void TransformUtils::updateGimbalYawInit(float yaw)
 {
-  const float current_yaw_deg = getCurrentYawDeg();
-  float delta_yaw = yaw + current_yaw_deg;
-  NormalizeAngle(delta_yaw);
-  latest_gimbal_yaw_deg_.store(delta_yaw, std::memory_order_relaxed);
-
-  {
-    bool expected = false;
-    if (gimbal_yaw_initialized_.compare_exchange_strong(expected, true)) {
-      publishDynamicTransform();
-      RCLCPP_INFO(this->get_logger(), "Gimbal world-frame initialized: delta_yaw=%.2f deg", delta_yaw);
-    }
-  }
+  NormalizeAngle(yaw);
+  latest_gimbal_yaw_deg_.store(yaw, std::memory_order_relaxed);
 }
 
 float TransformUtils::getCurrentYawDeg()

@@ -146,7 +146,8 @@ enum class TreeKind
   STANCE,
   GIMBAL,
   TACTICAL,
-  RECOVERY
+  RECOVERY,
+  RESOURCE,
 };
 
 inline const std::string & treeColor(const TreeKind kind)
@@ -162,6 +163,8 @@ inline const std::string & treeColor(const TreeKind kind)
     return ::color_text::GREEN;
   case TreeKind::RECOVERY:
     return ::color_text::RED;
+  case TreeKind::RESOURCE:
+    return ::color_text::REDPURPLE;
   default:
     return ::color_text::WHITE;
   }
@@ -180,6 +183,8 @@ inline const char * treeLabel(const TreeKind kind)
     return "TACTICAL_TREE";
   case TreeKind::RECOVERY:
     return "RECOVERY_TREE";
+  case TreeKind::RESOURCE:
+    return "RESOURCE_TREE";
   default:
     return "BT_TREE";
   }
