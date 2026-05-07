@@ -74,21 +74,20 @@ public:
 
     blackboard->set("patrol_index", next_index);
     blackboard->set("nav_goal", next_goal);
-    blackboard->set<int>("current_mode", Sentry_BT::NavMode::PATROL);
+    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
     return true;
   }
 
   bool isPatrolNavigationContext() const
   {
-    int current_mode = -1;
-    config().blackboard->get<int>("current_mode", current_mode);
-    return current_mode == Sentry_BT::NavMode::PATROL;
+    const auto current_mode = config().blackboard->get<NavMode>("current_mode");
+    return current_mode == NavMode::PATROL;
   }
 
   void on_tick() override
   {
     auto blackboard = config().blackboard;
-    Sentry_BT::Point2D nav_goal;
+    Point2D nav_goal;
     if (!readGoalFromBlackboard(nav_goal)) {
       throw BT::RuntimeError("missing required input [nav_goal]");
     }
@@ -110,7 +109,7 @@ public:
   {
     auto blackboard = config().blackboard;
 
-    Sentry_BT::Point2D nav_goal;
+    Point2D nav_goal;
     if (!readGoalFromBlackboard(nav_goal)) {
       return;
     }
@@ -119,7 +118,7 @@ public:
       const auto now = std::chrono::steady_clock::now();
       const double elapsed_sec = std::chrono::duration<double>(now - nav_start_time_).count();
       if (elapsed_sec > 15.0) {
-        Sentry_BT::Point2D timeout_goal;
+        Point2D timeout_goal;
         if (selectNextPatrolGoalFromBlackboard(timeout_goal)) {
           setActionGoal(timeout_goal);
           goal_updated_ = true;

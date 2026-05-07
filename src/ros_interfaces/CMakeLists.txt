@@ -22,8 +22,6 @@ find_package(rosidl_default_generators REQUIRED)
 
 # Declare ROS2 message, service, and action files
 set(msg_files
-  "msg/Detector.msg"
-  "msg/MultiDetect.msg"
   "msg/cluster/DynamicObstacle.msg"
   "msg/cluster/DynamicObstacleArray.msg"
   "msg/minco_traj/PositionCommand.msg"

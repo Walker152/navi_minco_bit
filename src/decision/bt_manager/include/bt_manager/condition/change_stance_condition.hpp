@@ -109,6 +109,16 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class CheckEnhanceLimit : public BT::ConditionNode
+{
+public:
+  CheckEnhanceLimit(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+/* deprecated - replaced by accumulated time logic */
 class CheckStanceRefreshRequired : public BT::ConditionNode
 {
 public:
@@ -120,6 +130,20 @@ public:
 private:
   SentryStance last_stance{SentryStance::DEFEND};
   std::chrono::steady_clock::time_point hold_start{};
+};
+
+// 隧道变形控制：通过黑板标志位设置升降机构位置
+class CheckTunnelDeformation : public BT::ConditionNode
+{
+public:
+  CheckTunnelDeformation(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  float last_health_ = 100.0f;
+  bool health_initialized_ = false;
 };
 
 }  // namespace Sentry_BT
