@@ -267,11 +267,9 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
   blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
   const auto current_pose = blackboard_->get<geometry_msgs::msg::Pose>("current_pose");
   auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-  float gimbal_yaw_init = msg->yaw_encoder - msg->yaw_imu;
-  static bool gimbal_yaw_init_logged = false;
-  if (tf_utils && !gimbal_yaw_init_logged) {
+  float gimbal_yaw_init = msg->yaw_camerainit_to_gimbal;
+  if (tf_utils) {
     tf_utils->updateGimbalYawInit(gimbal_yaw_init);
-    gimbal_yaw_init_logged = true;
   }
   // 存储装甲板位置
   if (msg->is_get)

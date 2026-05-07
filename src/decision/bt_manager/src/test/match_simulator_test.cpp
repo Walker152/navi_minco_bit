@@ -62,8 +62,7 @@ struct MatchStep
   double target_x = 0.0;
   double target_y = 0.0;
   std::uint8_t armor_num = 0;
-  float yaw_encoder = 0.0f;
-  float yaw_imu = 0.0f;
+  float yaw_camerainit_to_gimbal = 0.0f;
   std::uint8_t lifter_pos = kDefaultLifterPos;
   bool is_transformable = true;
   float transform_state = 0.0f;
@@ -346,8 +345,7 @@ private:
     msg.armor_pos.y = static_cast<float>(s.target_y * 1000.0);
     msg.armor_pos.z = 0.0f;
     msg.armor_num = s.armor_num;
-    msg.yaw_encoder = s.yaw_encoder;
-    msg.yaw_imu = s.yaw_imu;
+    msg.yaw_camerainit_to_gimbal = s.yaw_camerainit_to_gimbal;
     msg.lifter_current_pos = s.lifter_pos;
     msg.is_transformable = s.is_transformable;
     msg.transform_state = s.transform_state;

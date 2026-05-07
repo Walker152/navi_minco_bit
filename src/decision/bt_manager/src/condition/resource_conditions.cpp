@@ -33,7 +33,7 @@ BT::NodeStatus CheckCoinRemaining::tick()
   const bool active = (mode == "less") ? (coin < threshold) : (coin >= threshold);
   std::ostringstream oss;
   oss << "coin=" << coin << ", threshold=" << threshold << ", mode=" << mode;
-  detail::logTransition(detail::TreeKind::NAV, "CheckCoinRemaining", active, oss.str(), branch);
+  detail::logTransition(detail::TreeKind::RESOURCE, "CheckCoinRemaining", active, oss.str(), branch);
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
@@ -83,7 +83,7 @@ BT::NodeStatus CheckEngagedSafeResponse::tick()
       std::ostringstream oss;
       oss << "cooldown active, stable_duration=" << stable_duration << ", stable_seconds=" << stable_seconds;
       detail::logTransition(
-        detail::TreeKind::NAV, "CheckEngagedSafeResponse", false, oss.str(), branch);
+        detail::TreeKind::RESOURCE, "CheckEngagedSafeResponse", false, oss.str(), branch);
       return BT::NodeStatus::FAILURE;
     }
     cooldown_active_ = false;
@@ -93,7 +93,7 @@ BT::NodeStatus CheckEngagedSafeResponse::tick()
     blackboard->set<bool>(exit_key, false);
   }
   detail::logTransition(
-    detail::TreeKind::NAV, "CheckEngagedSafeResponse", true, "safe", branch);
+    detail::TreeKind::RESOURCE, "CheckEngagedSafeResponse", true, "safe", branch);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -129,7 +129,7 @@ BT::NodeStatus CheckRemoteExchangeCooldown::tick()
   oss << "exchange_count=" << current_count << ", elapsed=" << elapsed
       << ", cooldown=" << cooldown_seconds;
   detail::logTransition(
-    detail::TreeKind::NAV, "CheckRemoteExchangeCooldown", !in_cooldown, oss.str(), branch);
+    detail::TreeKind::RESOURCE, "CheckRemoteExchangeCooldown", !in_cooldown, oss.str(), branch);
   return in_cooldown ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
 }
 
@@ -154,7 +154,7 @@ BT::NodeStatus CheckRemainingAmmoExchange::tick()
   std::ostringstream oss;
   oss << "remaining=" << remaining;
   detail::logTransition(
-    detail::TreeKind::NAV, "CheckRemainingAmmoExchange", available, oss.str(), branch);
+    detail::TreeKind::RESOURCE, "CheckRemainingAmmoExchange", available, oss.str(), branch);
   return available ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
@@ -190,7 +190,7 @@ BT::NodeStatus CheckInZone::tick()
 
   std::ostringstream oss;
   oss << "zone=" << zone_name;
-  detail::logTransition(detail::TreeKind::NAV, "CheckInZone", in_zone, oss.str(), branch);
+  detail::logTransition(detail::TreeKind::RESOURCE, "CheckInZone", in_zone, oss.str(), branch);
   return in_zone ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
@@ -235,7 +235,7 @@ BT::NodeStatus CheckEnergyActive::tick()
   std::ostringstream oss;
   oss << "big_energy_status=" << big_energy << ", small_energy_status=" << small_energy;
   detail::logTransition(
-    detail::TreeKind::NAV, "CheckEnergyActive", active, oss.str(), branch);
+    detail::TreeKind::RESOURCE, "CheckEnergyActive", active, oss.str(), branch);
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
