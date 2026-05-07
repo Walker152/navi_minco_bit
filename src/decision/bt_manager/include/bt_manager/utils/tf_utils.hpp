@@ -7,6 +7,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>  // <---- 使用动态变换
 #include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 namespace Sentry_BT {
 
@@ -19,20 +20,25 @@ public:
   // 发布动态TF变换（从base_link到gimbal）
   void publishDynamicTransform();
 
-  // 坐标转换函数（从gimbal系转换到map系）
+  // 坐标转换函数（从child系转换到map系）
   bool transformPoseToMap(const geometry_msgs::msg::Pose & input_pose,
     geometry_msgs::msg::Pose & output_pose,
     const std::string & child_frame);
 
-  // 坐标转换函数（从map系转换到body系）
+  // 坐标转换函数（从map系转换到target系）
   bool transformMapPose(const geometry_msgs::msg::Pose & input_pose,
     geometry_msgs::msg::Pose & output_pose,
     const std::string & target_frame);
 
-  void updateGimbalYaw(const float & yaw);
-
+  void updateGimbalYawInit(float yaw);
+  void NormalizeAngle(float & angle);
+  void updateCurrentPose(const geometry_msgs::msg::Pose & pose);
+  float getCurrentYawDeg();
+  bool waitForTransform(const std::string & target_frame, const std::string & source_frame);
+  void transformYaw(float yaw_in, float & yaw_out, const std::string & target_frame, const std::string & source_frame);
 private:
-  
+  std::mutex current_pose_mutex_;
+  geometry_msgs::msg::Pose current_pose_;
 
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;  // 动态发布器
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -40,6 +46,7 @@ private:
 
   rclcpp::TimerBase::SharedPtr tf_publish_timer_;
   std::atomic<float> latest_gimbal_yaw_deg_{0.0f};
+  std::atomic<bool> gimbal_yaw_initialized_{false};
 };
 
 }  // namespace Sentry_BT

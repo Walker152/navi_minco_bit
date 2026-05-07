@@ -195,6 +195,11 @@ typedef enum _LifterPos
   BOTTOM = 1,  // 云台底部
   MIDDLE = 2   // 云台升降中
 } LifterPos;
+typedef enum _PitchPos
+{
+  UP = 0,
+  DOWN = 1,
+} PitchPos;
 typedef enum _NavMode
 {
   PATROL = 0,

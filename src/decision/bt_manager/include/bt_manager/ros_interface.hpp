@@ -4,15 +4,9 @@
 #include <rclcpp/rclcpp.hpp>
 
 // ROS2 Message Libraries
-#include <geometry_msgs/msg/point_stamped.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
-#include <std_msgs/msg/bool.hpp>
-#include <std_msgs/msg/detail/float32__struct.hpp>
-#include <std_msgs/msg/float32.hpp>
-#include <std_msgs/msg/int32.hpp>
-#include <std_msgs/msg/string.hpp>
 
 #include <array>
 #include <memory>
@@ -43,11 +37,9 @@ private:
   rclcpp::Subscription<ros_interfaces::msg::RadarInfo>::SharedPtr radar_info_sub;
   rclcpp::Subscription<ros_interfaces::msg::SentryInfoOffline>::SharedPtr sentry_offline_sub;
   rclcpp::Subscription<ros_interfaces::msg::SentryInfoOnline>::SharedPtr sentry_online_sub;
-  rclcpp::Subscription<geometry_msgs::msg::PointStamped>::SharedPtr manual_override_sub;
 
   rclcpp::Publisher<ros_interfaces::msg::Behavior>::SharedPtr behavior_pub;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub;
-  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr gimbal_yaw_pub;
   rclcpp::Subscription<ros_interfaces::msg::MpcPositionCommand>::SharedPtr mpc_cmd_sub;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub;
 
@@ -73,16 +65,11 @@ private:
   void radarInfoCallback(const ros_interfaces::msg::RadarInfo::SharedPtr msg);
   void sentryOfflineCallback(const ros_interfaces::msg::SentryInfoOffline::SharedPtr msg);
   void sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOnline::SharedPtr msg);
-  void manualOverrideCallback(const geometry_msgs::msg::PointStamped::SharedPtr msg);
-
-  geometry_msgs::msg::Pose createPose(float x, float y, float z, float yaw_deg);
 
 public:
   ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr);
   ~ros_interface() override = default;
 
-  geometry_msgs::msg::Pose transformMapPose(
-    const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame);
   std::shared_ptr<ParamManager> getParamManager() const { return param_manager_; }
 
   bool isTroughZone(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg, const Area_Square & zone);

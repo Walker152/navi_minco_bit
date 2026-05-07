@@ -1,0 +1,46 @@
+<root main_tree_to_execute="ResourceTree">
+  <BehaviorTree ID="ResourceTree">
+    <ReactiveFallback name="ResourcePriorityRoot">
+
+      <!-- P0: 复活（最高优先级） -->
+      <Sequence name="ReviveBranch">
+        <CheckHealth threshold="0" mode="less" branch="ReviveBranch" />
+        <ReactiveFallback>
+          <!-- 免费复活优先 -->
+          <Sequence name="FreeRevive">
+            <CheckCanFreeResurrect />
+            <RequestReviveAction revive_type="free" />
+          </Sequence>
+          <!-- 金币复活：在敌方半场或进攻战术 + 金币充足 -->
+          <Sequence name="InstantRevive">
+            <Fallback>
+              <CheckInZone zone_name="enemy_defense" branch="InstantRevive" />
+              <CheckTacticalModeCondition mode="attack" branch="InstantRevive" />
+            </Fallback>
+            <CheckCoinRemaining threshold="{instant_resurrect_cost}" mode="greater" branch="InstantRevive" />
+            <RequestReviveAction revive_type="instant" />
+          </Sequence>
+        </ReactiveFallback>
+      </Sequence>
+
+      <!-- P1: 远程弹药兑换（交战中 + 弹药&lt;150 + 金币&gt;=150 + 6s冷却 + 有剩余次数） -->
+      <Sequence name="RemoteAmmoExchangeBranch">
+        <CheckEngagedStatus expected="true" branch="RemoteAmmoExchange" />
+        <CheckAmmoLow ammo_threshold="100" branch="RemoteAmmoExchange" />
+        <CheckCoinRemaining threshold="100" mode="greater" branch="RemoteAmmoExchange" />
+        <CheckRemainingAmmoExchange branch="RemoteAmmoExchange" />
+        <CheckRemoteExchangeCooldown cooldown_seconds="6.0" branch="RemoteAmmoExchange" />
+        <RequestRemoteAmmoExchangeAction />
+      </Sequence>
+
+      <!-- P2: 普通补给点弹药兑换（到家 + 弹药&lt;100 + 金币&gt;=10） -->
+      <Sequence name="NormalAmmoExchangeBranch">
+        <CheckInZone zone_name="own_defense" branch="NormalAmmoExchange" />
+        <CheckAmmoLow ammo_threshold="100" branch="NormalAmmoExchange" />
+        <CheckCoinRemaining threshold="10" mode="greater" branch="NormalAmmoExchange" />
+        <AccumulateAmmoPurchase step="10" />
+      </Sequence>
+
+    </ReactiveFallback>
+  </BehaviorTree>
+</root>
