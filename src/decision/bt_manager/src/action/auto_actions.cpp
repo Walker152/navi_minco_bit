@@ -73,16 +73,16 @@ BT::NodeStatus SetTargetCoordinate::tick()
   double current_y = current_pose.position.y;
   double target_x = target_pose.position.x;
   double target_y = target_pose.position.y;
-  double dx = target_x - current_x;
-  double dy = target_y - current_y;
+  double dx = current_x - target_x;
+  double dy = current_y - target_y;
   double distance = std::sqrt(dx * dx + dy * dy);
 
   int guidance_case = -1;
   if (distance > 0.001) {
     double ux = dx / distance;
     double uy = dy / distance;
-    point.x = target_x - ux * tracing_dist;
-    point.y = target_y - uy * tracing_dist;
+    point.x = target_x + ux * tracing_dist;
+    point.y = target_y + uy * tracing_dist;
     guidance_case = 0;
   }
   static int last_guidance_case = -1;
@@ -104,7 +104,7 @@ BT::NodeStatus SetTargetCoordinate::tick()
     double diff_distance = std::sqrt(diff_x * diff_x + diff_y * diff_y);
 
     // 如果新目标点跟老目标点的差距小于 0.5 米，就不更新
-    if (diff_distance < 0.5) {
+    if (diff_distance < 0.001) {
       if (!last_rate_limited) {
         std::cout << CYAN << "[NAV_TREE]" << WHITE << "Target update skipped by 0.5m limiter" << RESET
                   << std::endl;
@@ -137,11 +137,11 @@ BT::NodeStatus SetManualOverrideGoal::tick()
 {
   auto blackboard = config().blackboard;
 
-  const auto manual_goal = blackboard->get<Sentry_BT::Point2D>("manual_override_goal");
+  const auto manual_goal = blackboard->get<Point2D>("manual_override_goal");
   blackboard->set("nav_goal", manual_goal);
-  blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::MANUAL));
+  blackboard->set<NavMode>("current_mode", NavMode::MANUAL);
 
-  static Sentry_BT::Point2D last_goal;
+  static Point2D last_goal;
   static bool has_last_goal = false;
   const bool goal_changed =
     !has_last_goal || std::hypot(manual_goal.x - last_goal.x, manual_goal.y - last_goal.y) > 0.01;
@@ -169,7 +169,7 @@ BT::PortsList SelectPatrolPoint::providedPorts()
 BT::NodeStatus SelectPatrolPoint::tick()
 {
   auto blackboard = config().blackboard;
-  blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
+  blackboard->set<ControlMode>("control_mode", ControlMode::AUTO);
 
   // 获取当前巡逻索引
   int current_index = 0;
@@ -198,7 +198,7 @@ BT::NodeStatus SelectPatrolPoint::tick()
   int next_index = (current_index + 1) % patrol_points.size();
   blackboard->set("patrol_index", next_index);
   blackboard->set("nav_goal", selected_point);
-  blackboard->set<int>("current_mode", Sentry_BT::NavMode::PATROL);
+  blackboard->set<NavMode>("current_mode", NavMode::PATROL);
 
   static int last_logged_index = -1;
   if (current_index != last_logged_index) {
@@ -369,7 +369,24 @@ BT::NodeStatus AccumulateAmmoPurchase::tick()
   auto blackboard = config().blackboard;
   const int step = getInput<int>("step").value_or(100);
   const int ammo = blackboard->get<int>("bullets_remaining");
+  const int coin = blackboard->get<int>("coin_remaining");
   int total = blackboard->get<int>("ammo_purchase_total");
+
+  // Coin economy check: 10 coins = 10 bullets
+  if (coin < 10) {
+    static int insufficient_coin_logged = 0;
+    if (ammo > 0 && ++insufficient_coin_logged % 50 == 1) {
+      std::cout << YELLOW << "[NAV_TREE]" << " AccumulateAmmoPurchase => coin_remaining=" << coin
+                << " insufficient, but ammo=" << ammo << " > 0, skip purchase" << RESET << std::endl;
+    }
+    if (ammo <= 0 && ++insufficient_coin_logged % 50 == 1) {
+      std::cout << RED << "[NAV_TREE]" << " AccumulateAmmoPurchase => coin=" << coin
+                << " insufficient AND ammo=0, still requesting" << RESET << std::endl;
+    }
+    if (ammo > 0) {
+      return BT::NodeStatus::SUCCESS;  // skip purchase, go out
+    }
+  }
 
   const int shortage = std::max(0, 100 - ammo);
   const int request = std::max(step, shortage);
@@ -379,7 +396,7 @@ BT::NodeStatus AccumulateAmmoPurchase::tick()
   static int last_total = -1;
   if (total != last_total) {
     std::cout << CYAN << "[NAV_TREE]" << GREEN << "AccumulateAmmoPurchase => request=" << request
-              << ", total=" << total << RESET << std::endl;
+              << ", total=" << total << ", coin=" << coin << RESET << std::endl;
     last_total = total;
   }
   return BT::NodeStatus::SUCCESS;
