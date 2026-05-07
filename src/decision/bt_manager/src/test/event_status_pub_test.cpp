@@ -291,7 +291,7 @@ private:
     offline_msg.armor_pos.y = static_cast<float>(step.target_pos.y * 1000.0);
     offline_msg.armor_pos.z = static_cast<float>(step.target_pos.z * 1000.0);
     offline_msg.armor_num = kDefaultArmorId;
-    offline_msg.yaw_imu = kDefaultYaw;
+    offline_msg.yaw_camerainit_to_gimbal = kDefaultYaw;
     offline_msg.lifter_current_pos = step.lifter_pos;
     offline_msg.is_transformable = true;
     offline_msg.transform_state = 0.0f;

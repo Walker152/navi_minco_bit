@@ -35,8 +35,8 @@ public:
       return;
     ros_interfaces::msg::TeamInformation msg;
     for (int i = 0; i < 4; i++) {
-      msg.allies[i].armor_id = in.ally_status[i].robot_id;
-      msg.allies[i].remain_hp = in.ally_status[i].robot_hp;
+      msg.allies[i].robot_id = in.ally_status[i].robot_id;
+      msg.allies[i].robot_hp = in.ally_status[i].robot_hp;
       msg.allies[i].position.position.x = static_cast<double>(in.ally_status[i].robot_pos_x);
       msg.allies[i].position.position.y = static_cast<double>(in.ally_status[i].robot_pos_y);
     }
@@ -91,7 +91,7 @@ public:
     msg.armor_pos.y = static_cast<double>(in.armor_pos[1]);
     msg.armor_pos.z = static_cast<double>(in.armor_pos[2]);
     msg.armor_num = in.armor_num;
-    msg.yaw_imu = in.yaw_imu;
+    msg.yaw_camerainit_to_gimbal = in.yaw_camerainit_to_gimbal;
     msg.lifter_current_pos = in.lifter_current_pos;
     msg.is_transformable = in.is_transformable;
     msg.transform_state = in.transform_state;
@@ -192,16 +192,18 @@ private:
     float current_vx = 0.0f;
     float current_vy = 0.0f;
     float current_vw = 0.0f;
-    float tunnel_speed_x = 0.0f;
-    float tunnel_speed_y = 0.0f;
+    float scan_yaw_min_deg_ = 0.0f;
+    float scan_yaw_max_deg_ = 0.0f;
     uint8_t desire_stance = 0;
     uint8_t desire_lifter_pos = 0;
+    uint8_t comfirm_revive = 0;
+    uint16_t ammo_purchase_request = 0;
     bool use_gyro_mode = false;
-    bool through_tunnel = false;
-    bool current_in_tunnel = false;
-
     float gyro_vel = 0.0f;
-    bool is_aim_outpost = false;
+    uint8_t pitch_mode = 0;
+    uint8_t ammo_req = 0;
+    uint8_t revive_req = 0;
+    uint8_t health_req = 0;
     geometry_msgs::msg::Quaternion odom_q;
 
     {
@@ -215,31 +217,19 @@ private:
       desire_lifter_pos = behavior_.desire_lifter_pos;
       use_gyro_mode = behavior_.use_gyro_mode;
       gyro_vel = behavior_.gyro_vel;
-      tunnel_speed_x = behavior_.tunnel_speed_x;
-      tunnel_speed_y = behavior_.tunnel_speed_y;
-      through_tunnel = behavior_.through_tunnel;
-      current_in_tunnel = behavior_.current_in_tunnel;
-
-      // if (use_gyro_mode) {
-        vw_rpm = gyro_vel;
-        // if(current_in_tunnel) {
-        //   vx_mps = tunnel_speed_x;
-        //   vy_mps = tunnel_speed_y;
-        // }
-      // }
-      // if (transform_state >= 0.85f) {
-      //   vx_mps *= 1.0;
-      //   vy_mps *= 1.0;
-      //   vw_rpm = 0.0;
-      // }
+      scan_yaw_min_deg_ = behavior_.scan_yaw_min;
+      scan_yaw_max_deg_ = behavior_.scan_yaw_max;
+      ammo_purchase_request = behavior_.ammo_purchase_request;
+      comfirm_revive = behavior_.revive_request;
+      ammo_req = behavior_.remote_ammo_request;
+      revive_req = behavior_.remote_revive_request;
+      health_req = behavior_.remote_health_request;
+      pitch_mode = behavior_.pitch_mode;
+      vw_rpm = gyro_vel;
       odom_q = odom_.pose.pose.orientation;
       current_vx = odom_.twist.twist.linear.x;
       current_vy = odom_.twist.twist.linear.y;
       current_vw = odom_.twist.twist.angular.z;
-      // std::cout << "vw_rpm: " << vw_rpm << ", use_gyro_mode: " << use_gyro_mode << ", gyro_vel: " << gyro_vel << std::endl;
-      // vx_mps = 2.5;
-      // vy_mps = 0.0;
-      // vw_rpm = 0.0f;
     }
 
     tf2::Quaternion q;
@@ -255,9 +245,16 @@ private:
       current_vx,
       current_vy,
       current_vw,
-      is_aim_outpost,
+      pitch_mode,
       desire_stance,
-      desire_lifter_pos);
+      desire_lifter_pos,
+      scan_yaw_min_deg_,
+      scan_yaw_max_deg_,
+      ammo_purchase_request,
+      comfirm_revive,
+      revive_req,
+      ammo_req,
+      health_req);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
     if (flag == 0) {
       static auto last_send_time = this->now();
@@ -268,9 +265,16 @@ private:
           NV(target.vy_mps),
           NV(target.vw_rpm),
           NV(target.current_yaw),
-          NV(target.is_aim_outpost),
+          NV(target.pitch_mode),
           NV(static_cast<int>(target.desire_stance)),
-          NV(static_cast<int>(target.desire_lifter_pos)));
+          NV(static_cast<int>(target.desire_lifter_pos)),
+          NV(target.scan_yaw_min_deg),
+          NV(target.scan_yaw_max_deg),
+          NV(target.ammo_purchase_request),
+          NV(target.revive_request),
+          NV(target.remote_revive_request),
+          NV(target.remote_ammo_request),
+          NV(target.remote_health_request));
         last_send_time = now_time;
       }
     }
