@@ -15,7 +15,7 @@ BT::PortsList SetGyroState::providedPorts()
 {
   return {BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
     BT::InputPort<float>("gyro_vel", "Gyro speed in rpm"),
-    BT::InputPort<float>("tunnel_speed_y", "tunnel_speed_y")};
+  };
 }
 
 BT::NodeStatus SetGyroState::tick()
@@ -23,10 +23,8 @@ BT::NodeStatus SetGyroState::tick()
   auto blackboard = config().blackboard;
   const bool use_gyro = getInput<bool>("use_gyro").value_or(blackboard->get<bool>("use_gyro_mode"));
   const float gyro_vel = getInput<float>("gyro_vel").value_or(blackboard->get<float>("gyro_vel"));
-  const float tunnel_speed_y = getInput<float>("tunnel_speed_y").value_or(blackboard->get<float>("tunnel_speed_y"));
   blackboard->set("use_gyro_mode", use_gyro);
   blackboard->set("gyro_vel", gyro_vel);
-  blackboard->set("tunnel_speed_y", tunnel_speed_y);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -98,6 +96,70 @@ BT::NodeStatus ChangeStance::applyStanceChange()
   //           << stance_to_string(current_stance_) << " to stance " << stance_to_string(desired_stance_)
   //           << RESET << std::endl;
   last_change_time_ = std::chrono::system_clock::now();
+  return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- UpdateEnhanceTime -------------------
+UpdateEnhanceTime::UpdateEnhanceTime(const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
+
+BT::PortsList UpdateEnhanceTime::providedPorts()
+{
+  return {};
+}
+
+BT::NodeStatus UpdateEnhanceTime::tick()
+{
+  auto blackboard = config().blackboard;
+  const int current_time = blackboard->get<int>("game_time_remaining");
+  const int game_status = blackboard->get<int>("game_status");
+
+  constexpr int kMaxGameTime = 420;
+  const bool game_active = (game_status > 0) || (current_time > 0 && current_time <= kMaxGameTime);
+
+  if (last_game_time_ < 0) {
+    last_game_time_ = current_time;
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  if (!game_active) {
+    last_game_time_ = current_time;
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  const int raw_delta = last_game_time_ - current_time;
+  last_game_time_ = current_time;
+
+  constexpr int kMaxReasonableDelta = 5;
+  if (raw_delta <= 0 || raw_delta > kMaxReasonableDelta) {
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  const double delta = static_cast<double>(raw_delta);
+  const auto current_stance = blackboard->get<SentryStance>("current_stance");
+
+  switch (current_stance) {
+  case SentryStance::ATTACK: {
+    const double value = blackboard->get<double>("attack_accumulated_time");
+    blackboard->set("attack_accumulated_time", value + delta);
+    break;
+  }
+  case SentryStance::DEFEND: {
+    const double value = blackboard->get<double>("defend_accumulated_time");
+    blackboard->set("defend_accumulated_time", value + delta);
+    break;
+  }
+  case SentryStance::MOVE: {
+    const double value = blackboard->get<double>("move_accumulated_time");
+    blackboard->set("move_accumulated_time", value + delta);
+    break;
+  }
+  default:
+    break;
+  }
+
   return BT::NodeStatus::SUCCESS;
 }
 

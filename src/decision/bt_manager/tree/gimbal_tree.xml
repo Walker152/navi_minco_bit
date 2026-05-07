@@ -7,15 +7,29 @@
       </ReactiveSequence>
 
       <ReactiveSequence name="Priority2SpecialResponseScan">
-        <CheckOutpostSafeResponse name="CheckOutpostSafeResponseForGimbal"
-                                  stable_seconds="5.0"
-                                  require_response_mode="true"
+        <CheckEngagedSafeResponse stable_seconds="5.0"
+                                  exit_mode="-1"
+                                  exit_blackboard_key="outpost_safe_cooldown_active"
                                   branch="Priority2SpecialResponseScan" />
         <CheckNearEnemyOutpost name="CheckNearEnemyOutpost" branch="Priority2SpecialResponseScan" />
         <SetGimbalPose name="SetOutpostInspectPose" pan="0.0" tilt="18.0" />
       </ReactiveSequence>
 
-      <SetGimbalPoseByAreaAction name="SetGimbalPoseByAreaAction" />
+      <ReactiveFallback name="GimbalScanStrategy">
+        <ReactiveSequence name="EnergyGimbalScan">
+          <CheckEnergyActive branch="EnergyGimbalScan" />
+          <SetGimbalPoseByAreaAction name="SetEnergyGimbal" />
+        </ReactiveSequence>
+        <ReactiveSequence name="DefendScan">
+          <CheckTacticalModeCondition mode="defend" branch="DefendScan" />
+          <SetGimbalPoseByAreaAction name="SetDefendGimbal" />
+        </ReactiveSequence>
+        <ReactiveSequence name="AttackScan">
+          <CheckTacticalModeCondition mode="attack" branch="AttackScan" />
+          <SetGimbalPoseByAreaAction name="SetAttackGimbal" />
+        </ReactiveSequence>
+        <SetGimbalPoseByAreaAction name="SetNormalGimbal" />
+      </ReactiveFallback>
     </ReactiveFallback>
   </BehaviorTree>
 </root>

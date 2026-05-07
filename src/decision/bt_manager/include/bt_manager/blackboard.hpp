@@ -23,39 +23,42 @@ public:
     // === Tree Internal Data ===
 
     // --- Stance Tree ---
-    blackboard_->set<SentryStance>("current_stance", SentryStance::DEFEND);  // 当前姿态
     blackboard_->set<SentryStance>("desired_stance", SentryStance::DEFEND);  // 期望姿态
     blackboard_->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);       // 目标升降位置
     blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);        // 控制模式
     blackboard_->set("use_gyro_mode", false);                                 // 小陀螺开关
     blackboard_->set("gyro_vel", 80.0f);                                     // 小陀螺转速(rpm)
     blackboard_->set("current_in_tunnel", false);                            // 当前是否在隧道中
-    blackboard_->set("tunnel_speed_x", 0.0f);                                // 隧道控制x速度
-    blackboard_->set("tunnel_speed_y", 1.5f);
-    blackboard_->set("heat_attack_latched", false);  // 热量触发攻击滞回锁存
+    blackboard_->set("attack_accumulated_time", 0.0);  // ATTACK累计强化时间(秒)
+    blackboard_->set("defend_accumulated_time", 0.0);  // DEFEND累计强化时间(秒)
+    blackboard_->set("move_accumulated_time", 0.0);    // MOVE累计强化时间(秒)
     // --- Navigation Tree ---
-    blackboard_->set("current_mode", static_cast<int>(NavMode::PATROL));  // 当前模式
+    blackboard_->set<NavMode>("current_mode", NavMode::PATROL);  // 当前模式
     blackboard_->set("nav_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});      // 当前导航目标
     blackboard_->set("patrol_index", 0);                                  // 巡逻点索引
     blackboard_->set("through_tunnel", false);                            // 是否通过隧道
+    blackboard_->set("in_transform_zone", false);                        // 是否在变形区
+    blackboard_->set("current_transform_zone_index", -1);               // 变形区索引
+    blackboard_->set("nearest_tunnel_idx", -1);                          // 最近隧道索引
     blackboard_->set("cmd_vel", geometry_msgs::msg::Twist());             // 速度指令
     blackboard_->set("current_pose", geometry_msgs::msg::Pose());         // 当前位姿缓存
-    blackboard_->set("ammo_purchase_total", 0);                           // 累计买弹请求量
     blackboard_->set("manual_override_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});  // 手动接管目标点
-    blackboard_->set("outpost_safe_cooldown_active", false);  // 前哨站避险冷却状态
+    blackboard_->set("outpost_safe_cooldown_active", false);  // 前哨站安全期是否生效
 
     // --- Gimbal Tree ---
-    blackboard_->set("target_gimbal_pan", 0.0f);    // 云台目标偏航
-    blackboard_->set("target_gimbal_tilt", 0.0f);   // 云台目标俯仰
     blackboard_->set("scan_yaw_min_deg", -180.0f);  // 巡检范围最小偏航
     blackboard_->set("scan_yaw_max_deg", 180.0f);   // 巡检范围最大偏航
-    blackboard_->set("scan_pitch_min_deg", 0.0f);       // 巡检最小俯仰
-    blackboard_->set("scan_pitch_max_deg", 90.0f);      // 巡检最大俯仰
+    blackboard_->set<PitchPos>("pitch_mode", PitchPos::DOWN);      // 巡检最大俯仰
 
     // --- Tactical Tree ---
     blackboard_->set<TacticalMode>("tactical_mode", TacticalMode::BALANCED);  // 战术模式
-    blackboard_->set("stance_refresh_required", false);                       // 姿态惩罚刷新标志
 
+    // --- Resource Tree ---
+    blackboard_->set<int>("ammo_purchase_total", 0);     // 累计买弹请求量
+    blackboard_->set<uint8_t>("revive_request", 0);        // 复活请求
+    blackboard_->set<uint8_t>("remote_revive_request", 0);        // 远程复活请求
+    blackboard_->set<uint8_t>("remote_ammo_request", 0);          // 远程买弹请求
+    blackboard_->set<uint8_t>("remote_health_request", 0);        // 远程买血请求
     // === External Info (From Referee/Lower Computer) ===
 
     // --- Team Info ---
@@ -93,14 +96,16 @@ public:
     blackboard_->set("cooling_value", 0);              // 冷却值
     blackboard_->set("heat_limit", 0);                 // 热量上限
     blackboard_->set("current_heat", 0);               // 当前热量
-    blackboard_->set("speed_monitor_angle", 0.0f);     // 速度监测角度
     blackboard_->set("is_disengaged", true);           // 是否脱战状态
     blackboard_->set("can_activate_energy", false);    // 是否能激活能量机关
     blackboard_->set("can_free_resurrect", false);     // 是否能免费复活
     blackboard_->set("can_instant_resurrect", false);  // 是否能立即复活
     blackboard_->set("instant_resurrect_cost", 0);     // 立即复活的金币成本
+    blackboard_->set("ammo_exchanged_local", 0);       // 非远程兑换累计发弹量
+    blackboard_->set("remote_ammo_exchange_count", 0); // 远程兑换次数
+    blackboard_->set("remote_health_exchange_count", 0);   // 远程买血次数
+    blackboard_->set("remaining_ammo_exchange", 0);    // 团队剩余可兑换弹药数量
     blackboard_->set<SentryStance>("current_stance", SentryStance::MOVE);  // 当前姿态
-    blackboard_->set("is_disengaged", true);           // 是否脱战状态
   }
 
   template <typename T> void set(const std::string & key, const T & value) { blackboard_->set(key, value); }

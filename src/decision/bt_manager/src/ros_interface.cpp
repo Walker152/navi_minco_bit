@@ -90,37 +90,38 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
   area_visualizer_ = std::make_unique<AreaVisualizer>(*this);
 
   timer_ = this->create_wall_timer(std::chrono::milliseconds(100), [this]() {
-    const auto current_mode = blackboard_->get<int>("current_mode");
+    const auto current_mode = blackboard_->get<NavMode>("current_mode");
     const auto desired_stance = blackboard_->get<Sentry_BT::SentryStance>("desired_stance");
     const auto desired_lifter_pos = blackboard_->get<Sentry_BT::LifterPos>("desired_lifter_pos");
-    const auto control_mode = blackboard_->get<Sentry_BT::ControlMode>("control_mode");
     const auto use_gyro_mode = blackboard_->get<bool>("use_gyro_mode");
     const auto gyro_vel = blackboard_->get<float>("gyro_vel");
-    const auto ammo_purchase_request = blackboard_->get<uint16_t>("ammo_purchase_total");
+    const auto ammo_purchase_request = static_cast<uint16_t>(blackboard_->get<int>("ammo_purchase_total"));
     const auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
     const auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
-    const auto tunnel_speed_x = blackboard_->get<float>("tunnel_speed_x");
-    const auto tunnel_speed_y = blackboard_->get<float>("tunnel_speed_y");
-    const auto through_tunnel = blackboard_->get<bool>("through_tunnel");
-    const auto current_in_tunnel = blackboard_->get<bool>("current_in_tunnel");
+    const auto revive_request = blackboard_->get<uint8_t>("revive_request");
+    const auto remote_revive_request = blackboard_->get<uint8_t>("remote_revive_request");
+    const auto remote_ammo_request = blackboard_->get<uint8_t>("remote_ammo_request");
+    const auto remote_health_request = blackboard_->get<uint8_t>("remote_health_request");
+    const auto pitch_mode = blackboard_->get<PitchPos>("pitch_mode");
 
     ros_interfaces::msg::Behavior behavior_msg;
     behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
-    behavior_msg.control_mode = static_cast<uint8_t>(control_mode);
     behavior_msg.use_gyro_mode = use_gyro_mode;
     behavior_msg.gyro_vel = gyro_vel;
     behavior_msg.desire_lifter_pos = static_cast<uint8_t>(desired_lifter_pos);
     behavior_msg.scan_yaw_min = yaw_min_deg;
     behavior_msg.scan_yaw_max = yaw_max_deg;
     behavior_msg.ammo_purchase_request = ammo_purchase_request;
-    behavior_msg.tunnel_speed_x = tunnel_speed_x;
-    behavior_msg.tunnel_speed_y = tunnel_speed_y;
-    behavior_msg.through_tunnel = through_tunnel;
-    behavior_msg.current_in_tunnel = current_in_tunnel;
+    behavior_msg.revive_request = revive_request;
+    behavior_msg.remote_revive_request = remote_revive_request;
+    behavior_msg.remote_ammo_request = remote_ammo_request;
+    behavior_msg.remote_health_request = remote_health_request;
+    behavior_msg.pitch_mode = static_cast<uint8_t>(pitch_mode);
     behavior_pub->publish(behavior_msg);
 
-    const auto cmd_vel = blackboard_->get<geometry_msgs::msg::Twist>("cmd_vel");
-    cmd_vel_pub->publish(cmd_vel);
+    if (revive_request != 0) {
+      blackboard_->set<uint8_t>("revive_request", 0);
+    }
   });
 
   area_marker_timer_ = this->create_wall_timer(std::chrono::seconds(1), [this]() {
@@ -139,17 +140,6 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
   });
 }
 
-geometry_msgs::msg::Pose ros_interface::transformMapPose(
-  const geometry_msgs::msg::Pose & input_pose, const std::string & target_frame)
-{
-  auto transform_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-  geometry_msgs::msg::Pose output_pose;
-  if (transform_utils && transform_utils->transformMapPose(input_pose, output_pose, target_frame)) {
-    return output_pose;
-  }
-  return input_pose;
-}
-
 // 新增：全局信息回调函数
 void ros_interface::teamInfoCallback(const ros_interfaces::msg::TeamInformation::SharedPtr msg)
 {
@@ -166,8 +156,8 @@ void ros_interface::teamInfoCallback(const ros_interfaces::msg::TeamInformation:
 
   for (const auto & ally : msg->allies) {
     AllyRobotInfo info;
-    info.robot_id = ally.armor_id;  // 将armor_id映射到robot_id
-    info.remain_hp = static_cast<int>(ally.remain_hp);
+    info.robot_id = ally.robot_id;
+    info.remain_hp = static_cast<int>(ally.robot_hp);
     if (tf_utils_node) {
       if (tf_utils_node->transformPoseToMap(ally.position, info.position, "minimap")) {}
     }
@@ -313,21 +303,6 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
   blackboard_->set<int>("current_heat", static_cast<int>(msg->current_heat));
   blackboard_->set<float>("gimbal_yaw", msg->speed_monitor_angle);
 
-  // 存储哨兵位置
-  const auto tf_utils_node =
-    blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-  geometry_msgs::msg::Point sentry_position = msg->sentry_pos;
-  if (tf_utils_node) {
-    geometry_msgs::msg::Pose input_pose;
-    input_pose.position = msg->sentry_pos;
-    input_pose.orientation.w = 1.0;
-    geometry_msgs::msg::Pose output_pose;
-    if (tf_utils_node->transformPoseToMap(input_pose, output_pose, "minimap")) {
-      sentry_position = output_pose.position;
-    }
-  }
-  blackboard_->set<geometry_msgs::msg::Point>("sentry_position", sentry_position);
-
   // 解码sentry_info_2
   uint16_t sentry_info_2 = msg->sentry_info_2;
 
@@ -356,17 +331,17 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
   // 解码sentry_info_1的兑换信息
   uint32_t sentry_info_1 = msg->sentry_info_1;
 
-  // // bit 0-10：除远程兑换外，哨兵机器人成功兑换的允许发弹量
-  // uint16_t ammo_exchanged_local = (sentry_info_1 & 0x07FF);
-  // blackboard_->set<int>("ammo_exchanged_local", static_cast<int>(ammo_exchanged_local));
+  // bit 0-10：除远程兑换外，哨兵机器人成功兑换的允许发弹量
+  uint16_t ammo_exchanged_local = (sentry_info_1 & 0x07FF);
+  blackboard_->set<int>("ammo_exchanged_local", static_cast<int>(ammo_exchanged_local));
 
-  // // bit 11-14：哨兵机器人成功远程兑换允许发弹量的次数
-  // uint8_t remote_ammo_exchange_count = (sentry_info_1 >> 11) & 0xF;
-  // blackboard_->set<int>("remote_ammo_exchange_count", static_cast<int>(remote_ammo_exchange_count));
+  // bit 11-14：哨兵机器人成功远程兑换允许发弹量的次数
+  uint8_t remote_ammo_exchange_count = (sentry_info_1 >> 11) & 0xF;
+  blackboard_->set<int>("remote_ammo_exchange_count", static_cast<int>(remote_ammo_exchange_count));
 
-  // // bit 15-18：哨兵机器人成功远程兑换血量的次数
-  // uint8_t remote_health_exchange_count = (sentry_info_1 >> 15) & 0xF;
-  // blackboard_->set<int>("remote_health_exchange_count", static_cast<int>(remote_health_exchange_count));
+  // bit 15-18：哨兵机器人成功远程兑换血量的次数
+  uint8_t remote_health_exchange_count = (sentry_info_1 >> 15) & 0xF;
+  blackboard_->set<int>("remote_health_exchange_count", static_cast<int>(remote_health_exchange_count));
 
   // bit 19：哨兵机器人当前是否可以确认免费复活
   bool can_free_resurrect = ((sentry_info_1 >> 19) & 0x1) != 0;
@@ -380,9 +355,9 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
   uint16_t instant_resurrect_cost = (sentry_info_1 >> 21) & 0x3FF;
   blackboard_->set<int>("instant_resurrect_cost", static_cast<int>(instant_resurrect_cost));
 
-  // // bit 1-11：队伍17mm允许发弹量的剩余可兑换数
-  // uint16_t remaining_ammo_exchange = (sentry_info_2 >> 1) & 0x7FF;
-  // blackboard_->set<int>("remaining_ammo_exchange", static_cast<int>(remaining_ammo_exchange));
+  // bit 1-11：队伍17mm允许发弹量的剩余可兑换数
+  uint16_t remaining_ammo_exchange = (sentry_info_2 >> 1) & 0x7FF;
+  blackboard_->set<int>("remaining_ammo_exchange", static_cast<int>(remaining_ammo_exchange));
 }
 
 // 判断MPC轨迹是否穿过指定矩形区域
@@ -405,12 +380,38 @@ bool ros_interface::isTroughZone(
 bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg,
   const std::array<Area_Square, 4> & tunnel_areas)
 {
-  const Point2D current_point{current_pose_.position.x, current_pose_.position.y};
+  const Point2D current_point{[this]() {
+    geometry_msgs::msg::Pose snapshot;
+    {
+      std::lock_guard<std::mutex> lock(current_pose_mutex_);
+      snapshot = current_pose_;
+    }
+    return Point2D{snapshot.position.x, snapshot.position.y, 0.0};
+  }()};
   bool in_transform_zone = false;
-  for (const auto & zone : transform_zone) {
-    if (zone.contains(current_point)) {
+  int current_transform_zone_index = -1;
+  for (std::size_t i = 0; i < transform_zone.size(); ++i) {
+    if (transform_zone[i].contains(current_point)) {
       in_transform_zone = true;
+      current_transform_zone_index = static_cast<int>(i);
       break;
+    }
+  }
+
+  int nearest_tunnel_idx = -1;
+  if (!in_transform_zone) {
+    double nearest_dist2 = std::numeric_limits<double>::infinity();
+    for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
+      const auto & zone = tunnel_zone[i];
+      const double center_x = (zone.top_left.x + zone.bottom_right.x) * 0.5;
+      const double center_y = (zone.top_left.y + zone.bottom_right.y) * 0.5;
+      const double dx = current_point.x - center_x;
+      const double dy = current_point.y - center_y;
+      const double dist2 = dx * dx + dy * dy;
+      if (dist2 < nearest_dist2) {
+        nearest_dist2 = dist2;
+        nearest_tunnel_idx = static_cast<int>(i);
+      }
     }
   }
 
@@ -422,6 +423,9 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
     }
   }
   blackboard_->set("current_in_tunnel", current_in_tunnel);
+  blackboard_->set("in_transform_zone", in_transform_zone);
+  blackboard_->set("current_transform_zone_index", current_transform_zone_index);
+  blackboard_->set("nearest_tunnel_idx", nearest_tunnel_idx);
 
   bool through_tunnel_now = false;
   for (const auto & zone : tunnel_areas) {
@@ -434,6 +438,7 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
     if (!in_transform_zone) {
       tunnel_detect_latched_ = false;
     }
+    blackboard_->set("through_tunnel", in_transform_zone && tunnel_detect_latched_);
     return in_transform_zone && tunnel_detect_latched_;
   }
 
@@ -444,22 +449,7 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
   }
 
   const bool through_tunnel_stable = in_transform_zone && tunnel_detect_latched_;
+  blackboard_->set("through_tunnel", through_tunnel_stable);
   return through_tunnel_stable;
-}
-geometry_msgs::msg::Pose ros_interface::createPose(float x, float y, float z, float yaw_deg)
-{
-  geometry_msgs::msg::Pose pose;
-  pose.position.x = x;
-  pose.position.y = y;
-  pose.position.z = z;
-
-  // 将yaw角转换为四元数
-  float yaw_rad = yaw_deg * M_PI / 180.0F;
-  pose.orientation.x = 0.0F;
-  pose.orientation.y = 0.0F;
-  pose.orientation.z = std::sin(yaw_rad / 2.0F);
-  pose.orientation.w = std::cos(yaw_rad / 2.0F);
-
-  return pose;
 }
 }  // namespace Sentry_BT

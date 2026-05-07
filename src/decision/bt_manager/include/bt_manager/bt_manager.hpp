@@ -29,6 +29,7 @@ private:
   bool loadTrees(const std::shared_ptr<BT::Blackboard> & blackboard);
 
   BT::BehaviorTreeFactory factory_;
+  BT::Tree resource_tree_;
   BT::Tree nav_tree_;
   BT::Tree gimbal_tree_;
   BT::Tree stance_tree_;
