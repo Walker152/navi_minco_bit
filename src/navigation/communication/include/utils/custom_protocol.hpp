@@ -108,11 +108,16 @@ struct _ChassisTarget
   float current_vx;
   float current_vy;
   float current_vw;
-  bool is_aim_outpost;        // 是否抬头击打前哨站
-  uint8_t desire_stance;      // 哨兵姿态
-  uint8_t desire_lifter_pos;  // 云台升降状态
-  // bool buy_bullet;    // 是否购买子弹
-  // bool buy_revive;        // 是否立即复活
+  uint8_t pitch_mode;         // 云台抬头模式
+  uint8_t desire_stance;          // 哨兵姿态
+  uint8_t desire_lifter_pos;      // 云台升降状态
+  float scan_yaw_min_deg;           // 扫描最小偏航角（度）
+  float scan_yaw_max_deg;           // 扫描最大偏航角（度）
+  uint16_t ammo_purchase_request; // 弹药兑换请求（递增累计值）
+  uint8_t revive_request;         // 是否确认复活
+  uint8_t remote_revive_request;      // 远程复活请求
+  uint8_t remote_ammo_request;        // 远程买弹请求
+  uint8_t remote_health_request;      // 远程买血请求
   _ChassisTarget(
     float _vx_mps,
     float _vy_mps,
@@ -121,12 +126,23 @@ struct _ChassisTarget
     float _current_vx,
     float _current_vy,
     float _current_vw,
-    bool _is_aim_outpost,
+    uint8_t _pitch_mode,
     uint8_t _desire_stance,
-    uint8_t _desire_lifter_pos)
+    uint8_t _desire_lifter_pos,
+    float _scan_yaw_min_deg,
+    float _scan_yaw_max_deg,
+    uint16_t _ammo_purchase_request = 0,
+    uint8_t _revive_request = 0,
+    uint8_t _remote_revive_request = 0,
+    uint8_t _remote_ammo_request = 0,
+    uint8_t _remote_health_request = 0)
   : vx_mps(_vx_mps), vy_mps(_vy_mps), vw_rpm(_vw_rpm), current_yaw(_current_yaw), current_vx(_current_vx),
-    current_vy(_current_vy), current_vw(_current_vw), is_aim_outpost(_is_aim_outpost),
-    desire_stance(_desire_stance), desire_lifter_pos(_desire_lifter_pos)
+    current_vy(_current_vy), current_vw(_current_vw), pitch_mode(_pitch_mode),
+    desire_stance(_desire_stance), desire_lifter_pos(_desire_lifter_pos),
+    scan_yaw_min_deg(_scan_yaw_min_deg), scan_yaw_max_deg(_scan_yaw_max_deg),
+    ammo_purchase_request(_ammo_purchase_request), revive_request(_revive_request),
+    remote_revive_request(_remote_revive_request), remote_ammo_request(_remote_ammo_request),
+    remote_health_request(_remote_health_request)
   {
   }
 };
