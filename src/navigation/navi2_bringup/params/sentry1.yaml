@@ -127,7 +127,7 @@ controller_server:
       alpha_min: -5.0
       alpha_max: 5.0
 
-      # Lidar extrinsic parameters
+      # Lidar extrinsic parameters 此处是雷达的偏置
       lidar_offset_x: 0.0
       lidar_offset_y: 0.20
       lidar_roll_offset: -0.57
