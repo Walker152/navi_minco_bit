@@ -144,6 +144,7 @@ public:
 private:
   float last_health_ = 100.0f;
   bool health_initialized_ = false;
+  rclcpp::Time last_hurt_time_;
 };
 
 }  // namespace Sentry_BT
