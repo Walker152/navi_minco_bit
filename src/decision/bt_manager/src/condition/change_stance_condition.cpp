@@ -278,6 +278,8 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   const auto nav_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal");
   const bool through_tunnel = blackboard->get<bool>("through_tunnel");
   const bool current_in_tunnel = blackboard->get<bool>("current_in_tunnel");
+  const auto lifter_pos = blackboard->get<LifterPos>("desired_lifter_pos");
+  const bool under_attack = blackboard->get<bool>("under_attack");
 
   const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
   const Point2D goal_point{nav_goal.x, nav_goal.y, 0.0};
@@ -297,6 +299,12 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   float computed_gyro_vel = 0.0f;
   bool enable_small_gyro = false;
   int active_tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
+
+  if (is_tunnel_journey) {
+    if (lifter_pos != LifterPos::BOTTOM || under_attack) {
+      return BT::NodeStatus::FAILURE;  //若被攻击则不进入隧道
+    }
+  }
 
   if (is_tunnel_journey) {
     if (through_tunnel && active_tunnel_idx >= 0) {
@@ -530,10 +538,14 @@ BT::NodeStatus CheckTunnelDeformation::tick()
   const bool current_in_tunnel = blackboard->get<bool>("current_in_tunnel");
   const float current_health = blackboard->get<float>("health");
 
+  const rclcpp::Time now = rclcpp::Clock().now();
+
   if (current_in_tunnel) {
     blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::BOTTOM);
     last_health_ = current_health;
     health_initialized_ = true;
+    last_hurt_time_ = now;
+    blackboard->set<bool>("under_attack", false);
   } else if (through_tunnel) {
     bool health_dropped = false;
     if (health_initialized_) {
@@ -544,13 +556,23 @@ BT::NodeStatus CheckTunnelDeformation::tick()
 
     if (health_dropped) {
       blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);
+      last_hurt_time_ = now;
+      blackboard->set<bool>("under_attack", true);
     } else {
       blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::BOTTOM);
+      rclcpp::Duration stable_duration = now - last_hurt_time_;
+      if (stable_duration.seconds() >= 1.0) {
+          blackboard->set<bool>("under_attack", false);
+      } else {
+        blackboard->set<bool>("under_attack", true);
+      }
     }
   } else {
     blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);
     last_health_ = current_health;
     health_initialized_ = true;
+    last_hurt_time_ = now;
+    blackboard->set<bool>("under_attack", false);
   }
   return BT::NodeStatus::SUCCESS;
 }
