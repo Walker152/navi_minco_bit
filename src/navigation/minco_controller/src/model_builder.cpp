@@ -173,16 +173,18 @@ Eigen::Vector3d ModelBuilder::computeGravityDisturbance(const Attitude& att) con
   return Eigen::Vector3d(config_.mass * g_x, config_.mass * g_y, 0.0);
 }
 
-Eigen::Vector3d ModelBuilder::computeFrictionDisturbance(const Eigen::Vector2d& vel_ref) const
+Eigen::Vector3d ModelBuilder::computeFrictionDisturbance(const Eigen::Vector2d& vel_ref, const double& omega_ref) const
 {
   const double m = config_.mass;
   const double g = config_.g;
+  const double R = config_.chassis_radius;
   const double N_contact = m * g;  // normal force
 
   const double F_fric_x = -(config_.mu_c * N_contact * smoothSign(vel_ref.x()) + config_.C_v * vel_ref.x());
   const double F_fric_y = -(config_.mu_c * N_contact * smoothSign(vel_ref.y()) + config_.C_v * vel_ref.y());
-
-  return Eigen::Vector3d(F_fric_x, F_fric_y, 0.0);
+  const double M_fric = -(config_.mu_c * N_contact * R * smoothSign(omega_ref) + 
+                          config_.C_v * R * R * omega_ref);
+  return Eigen::Vector3d(F_fric_x, F_fric_y, M_fric);
 }
 
 Eigen::VectorXd ModelBuilder::buildDisturbanceStack(
@@ -194,7 +196,7 @@ Eigen::VectorXd ModelBuilder::buildDisturbanceStack(
   const Eigen::Vector3d D_grav = computeGravityDisturbance(attitude);
 
   for (int i = 0; i < N; ++i) {
-    const Eigen::Vector3d D_fric = computeFrictionDisturbance(ref_traj[i].vel);
+    const Eigen::Vector3d D_fric = computeFrictionDisturbance(ref_traj[i].vel, ref_traj[i].yaw_rate);
     D_stack.segment<3>(i * nu_) = D_grav + D_fric;
   }
 

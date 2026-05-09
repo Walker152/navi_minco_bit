@@ -52,7 +52,7 @@ private:
   Eigen::Vector3d computeGravityDisturbance(const Attitude& att) const;
 
   // Friction disturbance: Coulomb + viscous at reference velocity.
-  Eigen::Vector3d computeFrictionDisturbance(const Eigen::Vector2d& vel_ref) const;
+  Eigen::Vector3d computeFrictionDisturbance(const Eigen::Vector2d& vel_ref, const double& omega_ref) const;
 
   // Build stacked disturbance vector [D_0; D_1; ...; D_{N-1}] (3N x 1).
   Eigen::VectorXd buildDisturbanceStack(const Attitude& attitude,
