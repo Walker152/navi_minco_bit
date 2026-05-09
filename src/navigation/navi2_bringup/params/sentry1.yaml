@@ -118,8 +118,8 @@ controller_server:
       # rated torque: 2.21Nm, tire radius: 0.065m => rated force: 34N.
       f_max: 34.0               # max force per motor (N)
       chassis_radius: 0.2755      # chassis radius for Mz coupling (m)
-      M_max: 5.5                # max yaw torque (N·m)
-      P_limit: 50.0            # max translational power (W)
+      M_max: 6.0                # max yaw torque (N·m)
+      P_limit: 120.0            # max translational power (W)
 
       # --- Force Governor ---
       V_max: 5.0                # max allowed velocity (m/s)
@@ -142,8 +142,8 @@ controller_server:
 
       # --- Lidar extrinsic ---
       lidar_offset_x: 0.0
-      lidar_offset_y: -0.20
-      lidar_roll_offset: 0.174
+      lidar_offset_y: 0.20
+      lidar_roll_offset: -0.35
 
       # --- Frame settings ---
       odom_frame: "camera_init"

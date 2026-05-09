@@ -7,7 +7,7 @@ source ./install/setup.bash
 # sleep 2
 
 # # MID360 
-# gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_MID360_launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_MID360_launch.py; exec bash"
 # sleep 1
 
 # # Lidar Merger
@@ -15,11 +15,11 @@ source ./install/setup.bash
 # sleep 1
 
 # # # SLAM
-# gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py; exec bash"
 # # sleep 1
 
 # # # Cloud Crop Filter
-# gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
 # # sleep 1
 
 # # # ICP
@@ -35,7 +35,7 @@ gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bas
 sleep 1
 
 # Communication
-# gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
 
 # Rosbag record
 # gnome-terminal -- bash -c "mkdir -p ~/roslaunchbag && ros2 bag record -a -o ~/rosbag/$(date +%Y%m%d_%H%M%S); exec bash"
