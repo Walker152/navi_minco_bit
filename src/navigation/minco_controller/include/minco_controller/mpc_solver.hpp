@@ -1,57 +1,30 @@
 #pragma once
 
-#include <vector>
-
 #include <Eigen/Core>
 
-#include "minco_controller/mpc_types.hpp"
+#include "minco_controller/data_types.hpp"
 
 namespace minco_controller {
 
-// 纯 C++ MPC 求解器：不依赖 ROS，仅依赖 Eigen 与 qpOASES。
+// Lightweight qpOASES wrapper — pure C++ / Eigen, zero ROS dependencies.
+// No physics, no model building, no constraint math.
+// Sole responsibility: convert Eigen QPProblem to qpOASES arrays and solve.
 class MpcSolver
 {
 public:
-  explicit MpcSolver(const MPCConfig & config);
+  MpcSolver() = default;
 
-  void setConfig(const MPCConfig & config);
+  void setSolverParams(int max_wsr, double eps_reg);
 
-  // @brief 求解一次 MPC。
-  // @param curr 当前状态 (map)
-  // @param ref_traj 参考轨迹 (horizon 个点，若不足由插件层补齐)
-  // @param out_u 输出控制 (map)
-  // @param out_pred (可选) 输出预测轨迹
-  // @return 是否求解成功
-  bool solve(const State & curr,
-    const std::vector<ReferencePoint> & ref_traj,
-    Control & out_u,
-    std::vector<State> * out_pred = nullptr);
+  // Solve the QP. Returns delay_idx-th control [F_gx, F_gy, M_gz] in out_u.
+  bool solve(const QPProblem& qp, Eigen::Vector3d& out_u, int delay_idx = 0);
 
-  Eigen::Vector3d getLastControl() const { return last_u_global_; }
+  const Eigen::VectorXd& getFullSolution() const { return full_solution_; }
 
 private:
-  // 构建离散线性模型：x_{k+1} = A x_k + B_k u_k
-  // 状态为 [x,y,yaw]，控制变量 u_k 为 map/global 系 [vx, vy, omega]
-  void buildStepModel(double yaw_ref, Eigen::Matrix3d & A, Eigen::Matrix<double, 3, 3> & B) const;
-
-  // 组装 MPC 的 condensed QP：0.5*U^T H U + g^T U
-  // 其中 U 堆叠了 horizon 个控制量 [vx, vy, omega] (map/global)
-  bool buildCondensedQP(const State & curr,
-    const std::vector<ReferencePoint> & ref_traj,
-    Eigen::MatrixXd & H,
-    Eigen::VectorXd & g,
-    Eigen::VectorXd & lb,
-    Eigen::VectorXd & ub,
-    Eigen::MatrixXd & A_con,
-    Eigen::VectorXd & lbA,
-    Eigen::VectorXd & ubA);
-
-private:
-  MPCConfig config_;
-
-  // 用于加速度约束的上一时刻 global 控制量
-  Eigen::Vector3d last_u_global_{0.0, 0.0, 0.0};
-  bool has_last_u_{false};
+  int max_wsr_{200};
+  double eps_reg_{1e-9};
+  Eigen::VectorXd full_solution_;
 };
 
 }  // namespace minco_controller

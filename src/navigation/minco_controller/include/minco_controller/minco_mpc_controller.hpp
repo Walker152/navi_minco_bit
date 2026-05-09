@@ -11,6 +11,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/twist_stamped.hpp"
+#include "geometry_msgs/msg/wrench_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "nav_msgs/msg/path.hpp"
 
@@ -21,6 +22,8 @@
 #include "ros_interfaces/msg/mpc_position_command.hpp"
 
 #include "log.hpp"
+#include "minco_controller/data_types.hpp"
+#include "minco_controller/model_builder.hpp"
 #include "minco_controller/mpc_solver.hpp"
 
 namespace minco_controller {
@@ -28,83 +31,69 @@ namespace minco_controller {
 class MincoMpcController : public nav2_core::Controller
 {
 public:
-  // === Constructor & Lifecycle ===
   MincoMpcController() = default;
   ~MincoMpcController() override = default;
 
-  void configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-    std::string name,
-    std::shared_ptr<tf2_ros::Buffer> tf,
-    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
+  void configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr& parent,
+                 std::string name,
+                 std::shared_ptr<tf2_ros::Buffer> tf,
+                 std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
 
   void cleanup() override;
   void activate() override;
   void deactivate() override;
 
-  // === Core Planning Interfaces ===
-  geometry_msgs::msg::TwistStamped computeVelocityCommands(const geometry_msgs::msg::PoseStamped & pose,
-    const geometry_msgs::msg::Twist & velocity,
-    nav2_core::GoalChecker * goal_checker) override;
+  geometry_msgs::msg::TwistStamped computeVelocityCommands(
+      const geometry_msgs::msg::PoseStamped& pose,
+      const geometry_msgs::msg::Twist& velocity,
+      nav2_core::GoalChecker* goal_checker) override;
 
-  void applyGravityCompensation(const nav_msgs::msg::Odometry::SharedPtr & odom, double & vx, double & vy);
+  void setPlan(const nav_msgs::msg::Path& path) override;
 
-  void setPlan(const nav_msgs::msg::Path & path) override;
-
-  void setSpeedLimit(const double & speed_limit, const bool & percentage) override;
+  void setSpeedLimit(const double& speed_limit, const bool& percentage) override;
 
 private:
-  // === Callbacks ===
+  // Parameter callback for runtime hot-reload
+  rcl_interfaces::msg::SetParametersResult onSetParameters(
+      const std::vector<rclcpp::Parameter>& parameters);
+
+  // Callbacks
   void onOptPath(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg);
   void onOdom(const nav_msgs::msg::Odometry::SharedPtr msg);
 
-  // === Utility & Helper Functions ===
-  // --- Reference and Path Processing ---
-  // Find the nearest point on cached trajectory and build horizon reference sequence.
-  bool buildReferenceFromOptPath(const State & curr, std::vector<ReferencePoint> & out_ref) const;
+  // State fusion: extract attitude (roll, pitch, yaw) from odometry
+  void extractAttitudeFromOdom(const nav_msgs::msg::Odometry::SharedPtr& odom,
+                               Attitude& attitude) const;
 
-  bool transformPathToOdom(const ros_interfaces::msg::MpcPositionCommand::SharedPtr & opt,
-    std::vector<ros_interfaces::msg::PositionCommand> & out_cmds) const;
+  // Reference trajectory building from planner output
+  bool buildReferenceFromOptPath(const State& curr,
+                                 std::vector<ReferencePoint>& out_ref) const;
 
-  // --- Motion and Frame Utilities ---
-  void compensateLeverArm(double v_lidar_x,
-    double v_lidar_y,
-    double omega_z,
-    double yaw,
-    double & vx_global,
-    double & vy_global,
-    double & omega_global) const;
+  // Coordinate transform for planner path
+  bool transformPathToOdom(const ros_interfaces::msg::MpcPositionCommand::SharedPtr& opt,
+                           std::vector<ros_interfaces::msg::PositionCommand>& out_cmds) const;
 
-  void extractGlobalVelocityAndYaw(const nav_msgs::msg::Odometry::SharedPtr & odom,
-    double & vx_global,
-    double & vy_global,
-    double & omega_global,
-    double & yaw_global) const;
+  // Interpolation utilities
+  static double normalizeAngle(double angle);
+  static double interpolateYaw(double yaw1, double yaw2, double alpha);
+  static double interpolate(double v1, double v2, double alpha);
+  static Eigen::Vector2d interpolate(const Eigen::Vector2d& v1, const Eigen::Vector2d& v2, double alpha);
 
-  // --- Interpolation Utilities ---
-  static double normalizeYaw(double yaw);
-  inline static double interpolateYaw(double yaw1, double yaw2, double alpha)
-  {
-    double diff = std::atan2(std::sin(yaw2 - yaw1), std::cos(yaw2 - yaw1));
-    return yaw1 + diff * alpha;
-  }
+  // Visualization
+  void publishVisualization(const State& curr_state);
 
-  inline static double interpolate(double v1, double v2, double alpha) { return v1 + (v2 - v1) * alpha; }
+  // Sync model_builder_ with model_config_ after parameter change
+  void syncModelConfig();
 
-  inline static Eigen::Vector2d interpolate(
-    const Eigen::Vector2d & v1, const Eigen::Vector2d & v2, double alpha)
-  {
-    return v1 + (v2 - v1) * alpha;
-  }
-
-  // --- Visualization ---
-  void publishVisualization(const std::vector<State> & pred_path, const State & curr_state);
-
-  // === ROS 2 Interfaces (Publishers, Subscribers, Timers) ===
+  // === ROS 2 Interfaces ===
   rclcpp::Subscription<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mpc_predict_path_pub_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr mpc_real_path_pub_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_mpc_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr cmd_force_pub_;
+
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;
 
   // === TF & Costmap & Frames ===
   rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
@@ -120,42 +109,38 @@ private:
   std::string map_frame_;
 
   // === State Variables & Caches ===
-  // --- Visualization Cache ---
   std::vector<geometry_msgs::msg::PoseStamped> real_path_history_;
   rclcpp::Time last_real_path_pub_time_;
 
-  // --- Runtime Data Cache ---
   mutable std::mutex data_mtx_;
   ros_interfaces::msg::MpcPositionCommand::SharedPtr latest_opt_path_;
   nav_msgs::msg::Odometry::SharedPtr latest_odom_;
 
-  // --- Reference Tracking State ---
-  // Track reference index over time when trajectory is not updated to avoid jumping back to start.
   mutable double tracked_ref_idx_{0.0};
   mutable rclcpp::Time tracked_ref_time_;
   mutable uint32_t tracked_opt_traj_id_{0};
   mutable bool has_tracked_ref_{false};
 
-  // --- Nav2 Plan Cache ---
   nav_msgs::msg::Path global_plan_;
   mutable std::mutex plan_mtx_;
 
-  // === Core Modules (Pointers to FSM, Optimizers, etc.) ===
-  MPCConfig mpc_config_;
+  // === Core Modules ===
+  ModelConfig model_config_;
+  std::unique_ptr<ModelBuilder> model_builder_;
   std::unique_ptr<MpcSolver> solver_;
 
-  // === Configurations & Parameters ===
-  // Dynamic speed limit from Nav2 setSpeedLimit().
+  // === Controller Parameters ===
   double speed_limit_{0.0};
   bool speed_limit_percentage_{false};
 
-  // Other controller parameters.
+  double lookahead_time_{0.5};
+  double V_max_{5.0};
   double fixed_wz_{0.0};
   double deadzone_speed_threshold_{0.02};
   double control_delay_compensation_{0.25};
   double lidar_offset_x_{0.0};
   double lidar_offset_y_{0.0};
-  double lidar_roll_offset_ = 0.0;
+  double lidar_roll_offset_{0.0};
   bool use_small_gyro_mode_{true};
 };
 

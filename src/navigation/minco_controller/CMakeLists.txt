@@ -21,6 +21,7 @@ endif()
 
 ament_auto_add_library(${PROJECT_NAME} SHARED
   src/mpc_solver.cpp
+  src/model_builder.cpp
   src/minco_mpc_controller.cpp
 )
 

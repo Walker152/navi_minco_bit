@@ -98,41 +98,52 @@ controller_server:
     
     FollowPath:
       plugin: "minco_controller::MincoMpcController"
-      # MPC sampling period (s) and lookahead time (s)
-      dt: 0.01
-      lookahead_time : 0.05
+
+      # --- Time ---
+      dt: 0.01                  # MPC sampling period (s)
+      lookahead_time: 0.1       # prediction horizon = ceil(lookahead_time / dt)
+      planner_freq: 20.0        # planner output frequency (Hz)
+
+      # --- Physical parameters ---
+      mass: 20.0                # robot total mass (kg)
+      inertia_z: 1.0            # yaw moment of inertia (kg·m²)
+      g: 9.81                   # gravitational acceleration (m/s²)
+
+      # --- Friction coefficients ---
+      mu_c: 0.1                 # Coulomb friction coefficient
+      C_v: 0.5                  # viscous friction coefficient
+
+      # --- Force / torque limits ---
+      f_max: 50.0               # max force per motor (N)
+      chassis_radius: 0.25      # chassis radius for Mz coupling (m)
+      M_max: 5.0                # max yaw torque (N·m)
+      P_limit: 50.0            # max translational power (W)
+
+      # --- Force Governor ---
+      V_max: 5.0                # max allowed velocity (m/s)
+
+      # --- Cost weights ---
+      # Q: 6D state [px, py, yaw, vx, vy, omega]
+      # R: 3D control [F_gx, F_gy, M_gz]
+      Q: [10.0, 10.0, 2.0, 1.0, 1.0, 1.0]
+      R: [1.0, 1.0, 0.5]
+
+      # --- qpOASES solver ---
+      max_wsr: 200
+      eps_reg: 1.0e-9
+
+      # --- Controller ---
+      fixed_wz: 4.18            # rad/s, used if use_small_gyro_mode is true
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
       control_delay_compensation: 0.20
 
-      # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
-      Q: [3.0, 3.0, 2.0]
-      R: [1.0, 1.0, 1.0]
-
-      # Velocity bounds
-      vx_min: -5.5
-      vx_max: 5.5
-      vy_min: -5.5
-      vy_max: 5.5
-      fixed_wz: 4.18 # rad/s, used if use_small_gyro_mode is true
-      omega_min: -5.0 
-      omega_max: 5.0
-
-      # Optional acceleration constraints
-      use_acc_constraints: true
-      ax_min: -6.0
-      ax_max: 6.0
-      ay_min: -6.0
-      ay_max: 6.0
-      alpha_min: -5.0
-      alpha_max: 5.0
-
-      # Lidar extrinsic parameters
+      # --- Lidar extrinsic ---
       lidar_offset_x: 0.0
       lidar_offset_y: -0.20
       lidar_roll_offset: 0.174
-      
-      # Frame settings
+
+      # --- Frame settings ---
       odom_frame: "camera_init"
       map_frame: "map"
 
