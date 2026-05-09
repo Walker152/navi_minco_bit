@@ -91,10 +91,15 @@ void ModelBuilder::updateCostWeights(const Eigen::Matrix<double, 6, 1>& Q,
   H_ += config_.eps_reg * Eigen::MatrixXd::Identity(nU_, nU_);
 }
 
-void ModelBuilder::updateForceLimits(double f_max, double chassis_radius)
+void ModelBuilder::updateForceLimits(const ModelConfig& config)
 {
-  config_.f_max = f_max;
-  config_.chassis_radius = chassis_radius;
+  config_.f_max = config.f_max;
+  config_.chassis_radius = config.chassis_radius;
+  config_.M_max = config.M_max;
+  config_.P_limit = config.P_limit;
+  config_.mu_c = config.mu_c;
+  config_.C_v = config.C_v;
+  config_.g = config.g;
 }
 
 bool ModelBuilder::buildQP(const Eigen::Matrix<double, 6, 1>& x0,

@@ -26,7 +26,7 @@ public:
                          const Eigen::Matrix<double, 3, 1>& R);
 
   // Lightweight: update only force limit config fields (no LTI rebuild).
-  void updateForceLimits(double f_max, double chassis_radius);
+  void updateForceLimits(const ModelConfig& config);
 
   // Build QP matrices for the current control cycle.
   // x0: 6D state [px, py, yaw, vx, vy, omega] in map frame
