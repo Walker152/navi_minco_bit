@@ -32,6 +32,7 @@ public:
     blackboard_->set("attack_accumulated_time", 0.0);  // ATTACK累计强化时间(秒)
     blackboard_->set("defend_accumulated_time", 0.0);  // DEFEND累计强化时间(秒)
     blackboard_->set("move_accumulated_time", 0.0);    // MOVE累计强化时间(秒)
+    blackboard_->set("under_attack", false);              // 是否受到攻击
     // --- Navigation Tree ---
     blackboard_->set<NavMode>("current_mode", NavMode::PATROL);  // 当前模式
     blackboard_->set("nav_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});      // 当前导航目标
