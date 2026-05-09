@@ -101,7 +101,7 @@ controller_server:
 
       # --- Time ---
       dt: 0.01                  # MPC sampling period (s)
-      lookahead_time: 0.1       # prediction horizon = ceil(lookahead_time / dt)
+      lookahead_time: 0.5       # prediction horizon = ceil(lookahead_time / dt)
       planner_freq: 20.0        # planner output frequency (Hz)
 
       # --- Physical parameters ---
@@ -116,9 +116,9 @@ controller_server:
 
       # --- Force / torque limits ---
       # rated torque: 2.21Nm, tire radius: 0.065m => rated force: 34N.
-      f_max: 34.0               # max force per motor (N)
-      chassis_radius: 0.2755      # chassis radius for Mz coupling (m)
-      M_max: 6.0                # max yaw torque (N·m)
+      f_max: 40.0               # max force per motor (N)
+      chassis_radius: 0.27055      # chassis radius for Mz coupling (m)
+      M_max: 5.5                # max yaw torque (N·m)
       P_limit: 120.0            # max translational power (W)
 
       # --- Force Governor ---
@@ -127,8 +127,8 @@ controller_server:
       # --- Cost weights ---
       # Q: 6D state [px, py, yaw, vx, vy, omega]
       # R: 3D control [F_gx, F_gy, M_gz]
-      Q: [10.0, 10.0, 2.0, 1.0, 1.0, 1.0]
-      R: [1.0, 1.0, 0.5]
+      Q: [5000.0, 5000.0, 1000.0, 500.0, 500.0, 100.0]
+      R: [0.001, 0.001, 0.0005]
 
       # --- qpOASES solver ---
       max_wsr: 200
