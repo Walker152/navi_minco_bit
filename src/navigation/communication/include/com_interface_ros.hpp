@@ -142,6 +142,13 @@ private:
         sendChassisCtrlCB(msg);
       },
       sub_opt);
+    cmd_wrench_sub_ = create_subscription<geometry_msgs::msg::WrenchStamped>(
+      "/cmd_force_mpc",
+      1,
+      [this](geometry_msgs::msg::WrenchStamped::ConstSharedPtr msg) {
+        sendCmdWrenchCB(msg);
+      },
+      sub_opt);
     odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
       "/aft_mapped_to_init",
       1,
@@ -186,24 +193,32 @@ private:
 
   void communicationLoop()
   {
+    // Chassis control variables
     float vx_mps = 0.0f;
     float vy_mps = 0.0f;
     float vw_rpm = 0.0f;
     float current_vx = 0.0f;
     float current_vy = 0.0f;
     float current_vw = 0.0f;
+    float fx_global = 0.0f;
+    float fy_global = 0.0f;
+    float fw_global = 0.0f;
+
+    // Behavior-related variables
+    uint8_t pitch_mode = 0;
     float scan_yaw_min_deg_ = 0.0f;
     float scan_yaw_max_deg_ = 0.0f;
     uint8_t desire_stance = 0;
     uint8_t desire_lifter_pos = 0;
     uint8_t comfirm_revive = 0;
     uint16_t ammo_purchase_request = 0;
-    bool use_gyro_mode = false;
-    float gyro_vel = 0.0f;
-    uint8_t pitch_mode = 0;
     uint8_t ammo_req = 0;
     uint8_t revive_req = 0;
     uint8_t health_req = 0;
+    uint8_t use_limited_scan = 0;
+
+    bool use_gyro_mode = false;
+    float gyro_vel = 0.0f;
     geometry_msgs::msg::Quaternion odom_q;
 
     {
@@ -213,6 +228,16 @@ private:
       vy_mps = cmd_vel_.linear.y;
       vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
       // vw_rpm = 80.0f;
+      vw_rpm = gyro_vel;
+      current_vx = odom_.twist.twist.linear.x;
+      current_vy = odom_.twist.twist.linear.y;
+      current_vw = odom_.twist.twist.angular.z;
+      odom_q = odom_.pose.pose.orientation;
+      fx_global = cmd_wrench_.force.x;
+      fy_global = cmd_wrench_.force.y;
+      fw_global = cmd_wrench_.torque.z;
+
+      pitch_mode = behavior_.pitch_mode;
       desire_stance = behavior_.desired_stance;
       desire_lifter_pos = behavior_.desire_lifter_pos;
       use_gyro_mode = behavior_.use_gyro_mode;
@@ -224,12 +249,7 @@ private:
       ammo_req = behavior_.remote_ammo_request;
       revive_req = behavior_.remote_revive_request;
       health_req = behavior_.remote_health_request;
-      pitch_mode = behavior_.pitch_mode;
-      vw_rpm = gyro_vel;
-      odom_q = odom_.pose.pose.orientation;
-      current_vx = odom_.twist.twist.linear.x;
-      current_vy = odom_.twist.twist.linear.y;
-      current_vw = odom_.twist.twist.angular.z;
+      use_limited_scan = behavior_.use_limited_scan;
     }
 
     tf2::Quaternion q;
@@ -245,6 +265,11 @@ private:
       current_vx,
       current_vy,
       current_vw,
+      fx_global,
+      fy_global,
+      fw_global);
+    
+    BehaviorData behavior_data(
       pitch_mode,
       desire_stance,
       desire_lifter_pos,
@@ -254,7 +279,8 @@ private:
       comfirm_revive,
       revive_req,
       ammo_req,
-      health_req);
+      health_req,
+      use_limited_scan);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
     if (flag == 0) {
       static auto last_send_time = this->now();
@@ -265,16 +291,32 @@ private:
           NV(target.vy_mps),
           NV(target.vw_rpm),
           NV(target.current_yaw),
-          NV(target.pitch_mode),
-          NV(static_cast<int>(target.desire_stance)),
-          NV(static_cast<int>(target.desire_lifter_pos)),
-          NV(target.scan_yaw_min_deg),
-          NV(target.scan_yaw_max_deg),
-          NV(target.ammo_purchase_request),
-          NV(target.revive_request),
-          NV(target.remote_revive_request),
-          NV(target.remote_ammo_request),
-          NV(target.remote_health_request));
+          NV(target.current_vx),
+          NV(target.current_vy),
+          NV(target.current_vw),
+          NV(target.fx_global),
+          NV(target.fy_global),
+          NV(target.fw_global));
+        last_send_time = now_time;
+      }
+    }
+    auto flag2 = Communication::send2stm32<BehaviorData>(behavior_data, ENUM_PACKET_BEHAVIOR_DATA);
+    if (flag2 == 0) {
+      static auto last_send_time = this->now();
+      auto now_time = this->now();
+      if ((now_time - last_send_time).seconds() >= 1.0) {
+        LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM][BehaviorData] ",
+          NV(behavior_data.pitch_mode),
+          NV(static_cast<int>(behavior_data.desire_stance)),
+          NV(static_cast<int>(behavior_data.desire_lifter_pos)),
+          NV(behavior_data.scan_yaw_min_deg),
+          NV(behavior_data.scan_yaw_max_deg),
+          NV(behavior_data.ammo_purchase_request),
+          NV(behavior_data.revive_request),
+          NV(behavior_data.remote_revive_request),
+          NV(behavior_data.remote_ammo_request),
+          NV(behavior_data.remote_health_request),
+          NV(behavior_data.use_limited_scan));
         last_send_time = now_time;
       }
     }
@@ -439,6 +481,12 @@ private:
     cmd_vel_ = *velPtr;
   }
 
+  void sendCmdWrenchCB(const geometry_msgs::msg::WrenchStamped::ConstSharedPtr & wrenchPtr)
+  {
+    std::lock_guard<std::mutex> lk(state_mutex_);
+    cmd_wrench_ = wrenchPtr->wrench;
+  }
+
   void odomCB(const nav_msgs::msg::Odometry::ConstSharedPtr & odomPtr)
   {
     std::lock_guard<std::mutex> lk(state_mutex_);
@@ -447,6 +495,7 @@ private:
 
   // Subscriptions
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr chassis_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr cmd_wrench_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr astar_path_sub_;
   rclcpp::Subscription<ros_interfaces::msg::Behavior>::SharedPtr behavior_sub_;
@@ -481,6 +530,7 @@ private:
 
   // State
   geometry_msgs::msg::Twist cmd_vel_;
+  geometry_msgs::msg::Wrench cmd_wrench_;
   nav_msgs::msg::Odometry odom_;
   float transform_state = 0.0f;
 };
