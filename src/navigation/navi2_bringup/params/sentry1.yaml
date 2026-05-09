@@ -142,7 +142,7 @@ controller_server:
 
       # --- Lidar extrinsic ---
       lidar_offset_x: 0.0
-      lidar_offset_y: -0.20
+      lidar_offset_y: 0.20
       lidar_roll_offset: 0.174
 
       # --- Frame settings ---

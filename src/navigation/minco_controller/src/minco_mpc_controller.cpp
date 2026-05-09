@@ -251,11 +251,12 @@ rcl_interfaces::msg::SetParametersResult MincoMpcController::onSetParameters(
 
   bool lti_changed = false;
   bool weights_changed = false;
+  bool constraints_changed = false; // 新增：约束参数改变标志位
 
   for (const auto& param : parameters) {
     const std::string& pname = param.get_name();
 
-    // LTI structural params (require full reinit)
+    // --- LTI Constructor parameters ---
     if (pname == name_ + ".dt") {
       model_config_.dt = param.as_double();
       model_config_.horizon = static_cast<int>(std::ceil(lookahead_time_ / model_config_.dt));
@@ -271,7 +272,7 @@ rcl_interfaces::msg::SetParametersResult MincoMpcController::onSetParameters(
       model_config_.inertia_z = param.as_double();
       lti_changed = true;
     }
-    // Weights (require H recompute only)
+    // --- Weight parameters ---
     else if (pname == name_ + ".Q") {
       auto qv = param.as_double_array();
       if (qv.size() == 6) {
@@ -285,57 +286,49 @@ rcl_interfaces::msg::SetParametersResult MincoMpcController::onSetParameters(
         weights_changed = true;
       }
     }
-    // Force limit params (trigger lightweight update, not LTI reinit)
+    // --- Constraint parameters ---
     else if (pname == name_ + ".f_max") {
       model_config_.f_max = param.as_double();
-      if (model_builder_) model_builder_->updateForceLimits(model_config_.f_max, model_config_.chassis_radius);
+      constraints_changed = true;
     } else if (pname == name_ + ".chassis_radius") {
       model_config_.chassis_radius = param.as_double();
-      if (model_builder_) model_builder_->updateForceLimits(model_config_.f_max, model_config_.chassis_radius);
-    }
-    // Constraint / coefficient params (read live from model_config_)
-    else if (pname == name_ + ".M_max") {
+      constraints_changed = true;
+    } else if (pname == name_ + ".M_max") {
       model_config_.M_max = param.as_double();
+      constraints_changed = true;
     } else if (pname == name_ + ".P_limit") {
       model_config_.P_limit = param.as_double();
+      constraints_changed = true;
     } else if (pname == name_ + ".mu_c") {
       model_config_.mu_c = param.as_double();
+      constraints_changed = true;
     } else if (pname == name_ + ".C_v") {
       model_config_.C_v = param.as_double();
+      constraints_changed = true;
     } else if (pname == name_ + ".g") {
       model_config_.g = param.as_double();
-    } else if (pname == name_ + ".eps_reg") {
-      model_config_.eps_reg = param.as_double();
+      constraints_changed = true;
     }
-    // Solver params
+    // --- Solver and other parameters ---
     else if (pname == name_ + ".max_wsr") {
       model_config_.max_wsr = param.as_int();
       if (solver_) solver_->setSolverParams(model_config_.max_wsr, model_config_.eps_reg);
-    }
-    // Controller params
-    else if (pname == name_ + ".fixed_wz") {
-      fixed_wz_ = param.as_double();
-    } else if (pname == name_ + ".deadzone_speed_threshold") {
-      deadzone_speed_threshold_ = param.as_double();
-    } else if (pname == name_ + ".control_delay_compensation") {
-      control_delay_compensation_ = param.as_double();
-    } else if (pname == name_ + ".use_small_gyro_mode") {
-      use_small_gyro_mode_ = param.as_bool();
+    } else if (pname == name_ + ".eps_reg") {
+      model_config_.eps_reg = param.as_double();
     } else if (pname == name_ + ".V_max") {
       V_max_ = param.as_double();
-    } else if (pname == name_ + ".lidar_offset_x") {
-      lidar_offset_x_ = param.as_double();
-    } else if (pname == name_ + ".lidar_offset_y") {
-      lidar_offset_y_ = param.as_double();
-    } else if (pname == name_ + ".lidar_roll_offset") {
-      lidar_roll_offset_ = param.as_double();
     }
   }
 
   if (lti_changed) {
     syncModelConfig();
-  } else if (weights_changed) {
-    model_builder_->updateCostWeights(model_config_.Q, model_config_.R);
+  } else {
+    if (weights_changed && model_builder_) {
+      model_builder_->updateCostWeights(model_config_.Q, model_config_.R);
+    }
+    if (constraints_changed && model_builder_) {
+      model_builder_->updateForceLimits(model_config_);
+    }
   }
 
   return result;

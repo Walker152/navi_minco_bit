@@ -28,7 +28,8 @@ enum PacketTypeEnum
   ENUM_PACKET_SENTRY_SELF_DATA,    // 机器人自身状态等信息
   ENUM_PACKET_RADAR,               // 雷达发送的消息
   ENUM_PACKET_GLOBAL_PATH_X,       // 全局路径X分包
-  ENUM_PACKET_GLOBAL_PATH_Y        // 全局路径Y分包
+  ENUM_PACKET_GLOBAL_PATH_Y,       // 全局路径Y分包
+  ENUM_PACKET_BEHAVIOR_DATA,        // 行为树决策结果
 };
 
 // from to 类型
@@ -101,23 +102,17 @@ using GlobalPathY = struct _GlobalPathY;
 // 2.
 struct _ChassisTarget
 {
-  float vx_mps;               // 前进方向速度(m/s)
-  float vy_mps;               // 左侧方向速度(m/s)
-  float vw_rpm;               // 小陀螺速度(rpm)
-  float current_yaw;          // 当前朝向角(rad)
-  float current_vx;
-  float current_vy;
-  float current_vw;
-  uint8_t pitch_mode;         // 云台抬头模式
-  uint8_t desire_stance;          // 哨兵姿态
-  uint8_t desire_lifter_pos;      // 云台升降状态
-  float scan_yaw_min_deg;           // 扫描最小偏航角（度）
-  float scan_yaw_max_deg;           // 扫描最大偏航角（度）
-  uint16_t ammo_purchase_request; // 弹药兑换请求（递增累计值）
-  uint8_t revive_request;         // 是否确认复活
-  uint8_t remote_revive_request;      // 远程复活请求
-  uint8_t remote_ammo_request;        // 远程买弹请求
-  uint8_t remote_health_request;      // 远程买血请求
+  float vx_mps{};               // 前进方向速度(m/s)
+  float vy_mps{};               // 左侧方向速度(m/s)
+  float vw_rpm{};               // 小陀螺速度(rpm)
+  float current_yaw{};          // 当前朝向角(rad)
+  float current_vx{};
+  float current_vy{};
+  float current_vw{};
+  float fx_global{};
+  float fy_global{};
+  float fw_global{};
+  
   _ChassisTarget(
     float _vx_mps,
     float _vy_mps,
@@ -126,28 +121,48 @@ struct _ChassisTarget
     float _current_vx,
     float _current_vy,
     float _current_vw,
-    uint8_t _pitch_mode,
-    uint8_t _desire_stance,
-    uint8_t _desire_lifter_pos,
-    float _scan_yaw_min_deg,
-    float _scan_yaw_max_deg,
-    uint16_t _ammo_purchase_request = 0,
-    uint8_t _revive_request = 0,
-    uint8_t _remote_revive_request = 0,
-    uint8_t _remote_ammo_request = 0,
-    uint8_t _remote_health_request = 0)
+    float _fx_global,
+    float _fy_global,
+    float _fw_global)
   : vx_mps(_vx_mps), vy_mps(_vy_mps), vw_rpm(_vw_rpm), current_yaw(_current_yaw), current_vx(_current_vx),
-    current_vy(_current_vy), current_vw(_current_vw), pitch_mode(_pitch_mode),
-    desire_stance(_desire_stance), desire_lifter_pos(_desire_lifter_pos),
-    scan_yaw_min_deg(_scan_yaw_min_deg), scan_yaw_max_deg(_scan_yaw_max_deg),
-    ammo_purchase_request(_ammo_purchase_request), revive_request(_revive_request),
-    remote_revive_request(_remote_revive_request), remote_ammo_request(_remote_ammo_request),
-    remote_health_request(_remote_health_request)
+    current_vy(_current_vy), current_vw(_current_vw), fx_global(_fx_global), fy_global(_fy_global), fw_global(_fw_global)
   {
   }
 };
 using ChassisTarget = struct _ChassisTarget;
 
+struct __attribute__((packed, aligned(1))) _BehaviorData
+{
+  uint8_t pitch_mode{};         // 云台抬头模式
+  uint8_t desire_stance{};          // 哨兵姿态
+  uint8_t desire_lifter_pos{};      // 云台升降状态
+  float scan_yaw_min_deg{};           // 扫描最小偏航角（度）
+  float scan_yaw_max_deg{};           // 扫描最大偏航角（度）
+  uint16_t ammo_purchase_request{}; // 弹药兑换请求（递增累计值）
+  uint8_t revive_request{};         // 是否确认复活
+  uint8_t remote_revive_request{};      // 远程复活请求
+  uint8_t remote_ammo_request{};        // 远程买弹请求
+  uint8_t remote_health_request{};      // 远程买血请求
+  bool use_limited_scan{};              // 是否使用限制性扫描模式
+
+  _BehaviorData(uint8_t _pitch_mode,
+    uint8_t _desire_stance,
+    uint8_t _desire_lifter_pos,
+    float _scan_yaw_min_deg,
+    float _scan_yaw_max_deg,
+    uint16_t _ammo_purchase_request,
+    uint8_t _revive_request,
+    uint8_t _remote_revive_request,
+    uint8_t _remote_ammo_request,
+    uint8_t _remote_health_request,
+    bool _use_limited_scan)
+  : pitch_mode(_pitch_mode), desire_stance(_desire_stance), desire_lifter_pos(_desire_lifter_pos), scan_yaw_min_deg(_scan_yaw_min_deg), scan_yaw_max_deg(_scan_yaw_max_deg),
+    ammo_purchase_request(_ammo_purchase_request), revive_request(_revive_request), remote_revive_request(_remote_revive_request), remote_ammo_request(_remote_ammo_request),
+    remote_health_request(_remote_health_request), use_limited_scan(_use_limited_scan)
+  {
+  }
+};
+using BehaviorData = struct _BehaviorData;
 struct __attribute__((packed)) AllyRobotStatus
 {
   uint8_t robot_id{};   // 机器人ID，蓝方=红方+100
