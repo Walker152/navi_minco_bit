@@ -22,8 +22,10 @@ uint8 remote_revive_request
 uint8 remote_ammo_request
 uint8 remote_health_request
 
+bool use_limited_scan
 float32 scan_yaw_min
 float32 scan_yaw_max
+
 uint8 pitch_mode
 uint8 PITCH_TOP=0
 uint8 PITCH_BOTTOM=1

@@ -397,22 +397,22 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
   }
 
   int nearest_tunnel_idx = -1;
-  if (!in_transform_zone) {
-    double nearest_dist2 = std::numeric_limits<double>::infinity();
-    for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
-      const auto & zone = tunnel_zone[i];
-      const double center_x = (zone.top_left.x + zone.bottom_right.x) * 0.5;
-      const double center_y = (zone.top_left.y + zone.bottom_right.y) * 0.5;
-      const double dx = current_point.x - center_x;
-      const double dy = current_point.y - center_y;
-      const double dist2 = dx * dx + dy * dy;
-      if (dist2 < nearest_dist2) {
-        nearest_dist2 = dist2;
-        nearest_tunnel_idx = static_cast<int>(i);
-      }
+  double nearest_dist2 = std::numeric_limits<double>::infinity();
+  for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
+    const auto & zone = tunnel_zone[i];
+    const double center_x = (zone.top_left.x + zone.bottom_right.x) * 0.5;
+    const double center_y = (zone.top_left.y + zone.bottom_right.y) * 0.5;
+    const double dx = current_point.x - center_x;
+    const double dy = current_point.y - center_y;
+    const double dist2 = dx * dx + dy * dy;
+    if (dist2 < nearest_dist2) {
+      nearest_dist2 = dist2;
+      nearest_tunnel_idx = static_cast<int>(i);
     }
   }
-
+  // std::cout << "Current position: (" << current_point.x << ", " << current_point.y << "), in_transform_zone: "
+  //           << in_transform_zone << ", current_transform_zone_index: " << current_transform_zone_index
+  //           << ", nearest_tunnel_idx: " << nearest_tunnel_idx << std::endl;
   bool current_in_tunnel = false;
   for (const auto & zone : tunnel_zone) {
     if (zone.contains(current_point)) {
