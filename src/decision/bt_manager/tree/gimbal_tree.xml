@@ -16,10 +16,10 @@
       </ReactiveSequence>
 
       <ReactiveFallback name="GimbalScanStrategy">
-        <ReactiveSequence name="EnergyGimbalScan">
+        <!-- <ReactiveSequence name="EnergyGimbalScan">
           <CheckEnergyActive branch="EnergyGimbalScan" />
           <SetGimbalPoseByAreaAction name="SetEnergyGimbal" />
-        </ReactiveSequence>
+        </ReactiveSequence> -->
         <ReactiveSequence name="DefendScan">
           <CheckTacticalModeCondition mode="defend" branch="DefendScan" />
           <SetGimbalPoseByAreaAction name="SetDefendGimbal" />
