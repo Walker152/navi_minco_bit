@@ -540,7 +540,7 @@ void MincoMpcController::applyGravityCompensation(
   double pitch = 0.0;
   double yaw = 0.0;
   tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-  std::cout << "Original roll: " << roll << ", pitch: " << pitch << ", yaw: " << yaw << std::endl;
+  // std::cout << "Original roll: " << roll << ", pitch: " << pitch << ", yaw: " << yaw << std::endl;
   const double true_roll = roll - lidar_roll_offset_;
   constexpr double angle_threshold = 0.05;
   constexpr double k_gravity_x = 1.0;
