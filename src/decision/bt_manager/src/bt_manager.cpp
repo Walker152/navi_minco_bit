@@ -61,6 +61,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckAmmoLow>("CheckAmmoLow");
   factory_.registerNodeType<CheckTacticalModeCondition>("CheckTacticalModeCondition");
   factory_.registerNodeType<CheckOwnFortIdle>("CheckOwnFortIdle");
+  factory_.registerNodeType<EmergencyStop>("EmergencyStop");
   // resource / exchange
   factory_.registerNodeType<CheckCoinRemaining>("CheckCoinRemaining");
   factory_.registerNodeType<CheckEngagedSafeResponse>("CheckEngagedSafeResponse");

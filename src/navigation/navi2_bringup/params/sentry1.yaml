@@ -107,7 +107,7 @@ controller_server:
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [3.0, 3.0, 2.0]
-      R: [0.01, 0.01, 1.0]
+      R: [1.0, 1.0, 1.0]
 
       # Velocity bounds
       vx_min: -5.5
