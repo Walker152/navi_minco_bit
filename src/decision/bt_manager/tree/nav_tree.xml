@@ -17,7 +17,7 @@
           <CheckRetreatCondition name="CheckRetreatCondition"
                                  health_threshold="30"
                                  recovery_threshold="80"
-                                 ammo_threshold="100"
+                                 ammo_threshold="0"
                                  ammo_recovery_threshold="200"
                                  branch="Priority1Survival" />
           <!-- <ChangeMapAction name="SwitchToRetreatMap"
@@ -75,6 +75,7 @@
                                          exit_blackboard_key="outpost_safe_cooldown_active"
                                          branch="NormalOutpostResponse" />
               <SetCoordinate name="SetEnemyOutpostGoal" goal="2" />
+              <EmergencyStop name="EmergencyStop" />
               <NavigateToPoseAction name="NavigateEnemyOutpost" />
             </ReactiveSequence>
 
