@@ -55,7 +55,7 @@
                              map_name="rmuc2026" /> -->
           <ReactiveSequence name="TargetPursuit">
             <CheckTargetLocked name="CheckTargetLocked" branch="Priority2TargetAttack" />
-            <SetTargetCoordinate name="SetTargetCoordinate" tracing_dist="1.2"/>
+            <SetTargetCoordinate name="SetTargetCoordinate" tracing_dist="1.5"/>
             <NavigateToPoseAction name="NavigateTrackingTarget" />
           </ReactiveSequence>
         </ReactiveSequence>
@@ -75,7 +75,6 @@
                                          exit_blackboard_key="outpost_safe_cooldown_active"
                                          branch="NormalOutpostResponse" />
               <SetCoordinate name="SetEnemyOutpostGoal" goal="2" />
-              <EmergencyStop name="EmergencyStop" />
               <NavigateToPoseAction name="NavigateEnemyOutpost" />
             </ReactiveSequence>
 

@@ -32,7 +32,6 @@ public:
     blackboard_->set("attack_accumulated_time", 0.0);  // ATTACK累计强化时间(秒)
     blackboard_->set("defend_accumulated_time", 0.0);  // DEFEND累计强化时间(秒)
     blackboard_->set("move_accumulated_time", 0.0);    // MOVE累计强化时间(秒)
-    blackboard_->set("under_attack", false);              // 是否受到攻击
     // --- Navigation Tree ---
     blackboard_->set<NavMode>("current_mode", NavMode::PATROL);  // 当前模式
     blackboard_->set("nav_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});      // 当前导航目标
@@ -50,6 +49,7 @@ public:
     blackboard_->set("scan_yaw_min_deg", -180.0f);  // 巡检范围最小偏航
     blackboard_->set("scan_yaw_max_deg", 180.0f);   // 巡检范围最大偏航
     blackboard_->set<PitchPos>("pitch_mode", PitchPos::DOWN);      // 巡检最大俯仰
+    blackboard_->set("use_limited_scan", false);                   // 是否限制云台扫描范围
 
     // --- Tactical Tree ---
     blackboard_->set<TacticalMode>("tactical_mode", TacticalMode::BALANCED);  // 战术模式
