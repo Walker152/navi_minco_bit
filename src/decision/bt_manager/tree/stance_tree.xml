@@ -24,7 +24,7 @@
                                     use_gyro="{use_gyro}"
                                     gyro_vel="{gyro_vel}" />
           <SetGyroState use_gyro="{use_gyro}" gyro_vel="{gyro_vel}"/>
-          <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
+          <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" />
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
         </Sequence>
 
@@ -49,7 +49,7 @@
 
         <Sequence name="CombatAttackBranch">
           <CheckEngagedStatus expected="true" branch="CombatAttackBranch" />
-          <CheckHealth threshold="60" mode="greater" branch="CombatAttackBranch" />
+          <CheckHealth threshold="50" mode="greater" branch="CombatAttackBranch" />
           <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" />
           <SetGyroState use_gyro="true" gyro_vel="50.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->

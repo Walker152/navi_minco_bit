@@ -66,7 +66,6 @@ public:
   template <typename T> static int send2stm32(const T & data_packet, const PacketTypeEnum packet_type)
   {
     PacketHeader header(packet_type, sizeof(PacketHeader) + sizeof(T));
-    header.packet_type = static_cast<uint8_t>(PacketTraits<T>::packet_type);
     header.start1 = 0xa5;
     header.start2 = 0x5a;
     header.from = static_cast<uint8_t>(ArmEnum::ENUM_ARM_SENTRY);
@@ -102,28 +101,6 @@ private:
 
   // ROS 接口指针
   static std::shared_ptr<ComInterfaceRos> ros_if_;
-};
-
-// 数据包类型映射：默认不支持，为每个可发送类型提供特化。
-template <typename T> struct PacketTraits
-{
-  static_assert(sizeof(T) == 0, "PacketTraits<T> 未特化，无法确定 packet_type");
-  static constexpr uint8_t packet_type = 0;
-};
-
-template <> struct PacketTraits<ChassisTarget>
-{
-  static constexpr uint8_t packet_type = static_cast<uint8_t>(ENUM_PACKET_NAV_DATA);
-};
-
-template <> struct PacketTraits<GlobalPathX>
-{
-  static constexpr uint8_t packet_type = static_cast<uint8_t>(ENUM_PACKET_GLOBAL_PATH_X);
-};
-
-template <> struct PacketTraits<GlobalPathY>
-{
-  static constexpr uint8_t packet_type = static_cast<uint8_t>(ENUM_PACKET_GLOBAL_PATH_Y);
 };
 
 }  // namespace ns_com

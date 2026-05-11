@@ -129,4 +129,12 @@ private:
   bool has_params(std::vector<std::string> param_names);
   rclcpp::AsyncParametersClient::SharedPtr parameters_client_;
 };
+
+class EmergencyStop : public BT::SyncActionNode
+{
+public:
+  EmergencyStop(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
 }  // namespace Sentry_BT
