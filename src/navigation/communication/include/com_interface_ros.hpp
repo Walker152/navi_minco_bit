@@ -1,6 +1,7 @@
 #pragma once
 
 #include "header.hpp"
+#include "thread"
 
 #include "ros_interfaces/msg/ally_robot_status.hpp"
 #include "ros_interfaces/msg/behavior.hpp"
@@ -228,7 +229,6 @@ private:
       vy_mps = cmd_vel_.linear.y;
       vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
       // vw_rpm = 80.0f;
-      vw_rpm = gyro_vel;
       current_vx = odom_.twist.twist.linear.x;
       current_vy = odom_.twist.twist.linear.y;
       current_vw = odom_.twist.twist.angular.z;
@@ -250,6 +250,8 @@ private:
       revive_req = behavior_.remote_revive_request;
       health_req = behavior_.remote_health_request;
       use_limited_scan = behavior_.use_limited_scan;
+
+      vw_rpm = gyro_vel;
     }
 
     tf2::Quaternion q;
@@ -300,6 +302,7 @@ private:
         last_send_time = now_time;
       }
     }
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));  // Avoid sending two packets in the same millisecond, which can cause issues for STM32's UART DMA parsing.
     auto flag2 = Communication::send2stm32<BehaviorData>(behavior_data, ENUM_PACKET_BEHAVIOR_DATA);
     if (flag2 == 0) {
       static auto last_send_time = this->now();
