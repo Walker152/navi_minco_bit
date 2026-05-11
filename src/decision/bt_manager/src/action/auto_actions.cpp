@@ -104,7 +104,7 @@ BT::NodeStatus SetTargetCoordinate::tick()
     double diff_distance = std::sqrt(diff_x * diff_x + diff_y * diff_y);
 
     // 如果新目标点跟老目标点的差距小于 0.5 米，就不更新
-    if (diff_distance < 0.001) {
+    if (diff_distance < 0.5) {
       if (!last_rate_limited) {
         std::cout << CYAN << "[NAV_TREE]" << WHITE << "Target update skipped by 0.5m limiter" << RESET
                   << std::endl;
@@ -633,18 +633,12 @@ BT::NodeStatus EmergencyStop::tick()
 {
   auto blackboard = config().blackboard;
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-  const bool under_attack = blackboard->get<bool>("under_attack");
-
-  if (under_attack) {
-      return BT::NodeStatus::FAILURE;  
 
   Sentry_BT::Point2D goal_point;
   goal_point.x = current_pose.position.x;
   goal_point.y = current_pose.position.y;
 
   blackboard->set("nav_goal", goal_point);
-  return BT::NodeStatus::SUCCESS;  
- }
 
   return BT::NodeStatus::SUCCESS;
 }

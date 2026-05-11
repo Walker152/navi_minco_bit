@@ -98,6 +98,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto ammo_purchase_request = static_cast<uint16_t>(blackboard_->get<int>("ammo_purchase_total"));
     const auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
     const auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
+    const auto use_limited_scan = blackboard_->get<bool>("use_limited_scan");
     const auto revive_request = blackboard_->get<uint8_t>("revive_request");
     const auto remote_revive_request = blackboard_->get<uint8_t>("remote_revive_request");
     const auto remote_ammo_request = blackboard_->get<uint8_t>("remote_ammo_request");
@@ -111,6 +112,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.desire_lifter_pos = static_cast<uint8_t>(desired_lifter_pos);
     behavior_msg.scan_yaw_min = yaw_min_deg;
     behavior_msg.scan_yaw_max = yaw_max_deg;
+    behavior_msg.use_limited_scan = use_limited_scan;
     behavior_msg.ammo_purchase_request = ammo_purchase_request;
     behavior_msg.revive_request = revive_request;
     behavior_msg.remote_revive_request = remote_revive_request;

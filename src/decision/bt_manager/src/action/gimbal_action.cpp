@@ -98,75 +98,36 @@ BT::PortsList SetGimbalPoseByAreaAction::providedPorts()
 BT::NodeStatus SetGimbalPoseByAreaAction::tick()
 {
   auto blackboard = config().blackboard;
-  const auto pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-  const auto enemy_outpost_remain = !blackboard->get<bool>("enemy_outpost_destroyed");
-  const auto tactical_mode = blackboard->get<TacticalMode>("tactical_mode");
+  auto mode = blackboard->get<TacticalMode>("tactical_mode");
+  auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
 
-  float yaw_min = -180.0f;
-  float yaw_max = 180.0f;
-  PitchPos pitch_mode = PitchPos::DOWN;
+  Point2D current_pt{current_pose.position.x, current_pose.position.y, 0.0};
+  bool is_in_zone = false;
+  PatrolZoneType target_zone;
 
-  const Point2D p{pose.position.x, pose.position.y, 0.0};
-  auto gimbal_it = tactical_gimbal_map.find(tactical_mode);
-  // if (highland_zone.contains(p)) {
-  //   yaw_min = -50.0f;
-  //   yaw_max = 50.0f;
-  //   pitch_min = 15.0f;
-  //   pitch_max = 60.0f;
-  // } else if (own_defense_zone.contains(p)) {
-  //   yaw_min = -120.0f;
-  //   yaw_max = 20.0f;
-  //   pitch_min = 8.0f;
-  //   pitch_max = 60.0f;
-  // } else if (enemy_defense_zone.contains(p)) {
-  //   yaw_min = -20.0f;
-  //   yaw_max = 120.0f;
-  //   pitch_min = 5.0f;
-  //   pitch_max = 60.0f;
-  // } else {
-  //   auto gimbal_it = tactical_gimbal_map.find(tactical_mode);
-  //   if (gimbal_it != tactical_gimbal_map.end() && !gimbal_it->second.empty()) {
-  //     const auto & rule = gimbal_it->second.front();
-  //     yaw_min = rule.yaw_lower_bound_deg;
-  //     yaw_max = rule.yaw_upper_bound_deg;
-  //     pitch_min = rule.pitch_up ? 12.0f : 0.0f;
-  //     pitch_max = rule.pitch_up ? 60.0f : 90.0f;
-  //   }
-  // }
-  if (highland_zone.contains(p)) {
-    if ((enemy_outpost_buff_zone.contains(p) || enemy_outpost_watch_zone.contains(p)) &&
-        enemy_outpost_remain) {
-      // 前哨站区域内优先使用敌方前哨站的巡逻规则
-      geometry_msgs::msg::Pose outpost_in_map_frame;
-      outpost_in_map_frame.position.x = nav_points[2].x;
-      outpost_in_map_frame.position.y = nav_points[2].y;
-      geometry_msgs::msg::Pose outpost_in_body_frame;
-      auto transform_utils = blackboard->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-      if (transform_utils) {
-        transform_utils->transformMapPose(outpost_in_map_frame, outpost_in_body_frame, "body");
-      }
-      float outpost_theta_rad =
-        std::atan2(outpost_in_body_frame.position.y, outpost_in_body_frame.position.x);
-      yaw_min = -50.0f + outpost_theta_rad * 180.0f / static_cast<float>(M_PI);
-      yaw_max = 50.0f + outpost_theta_rad * 180.0f / static_cast<float>(M_PI);
-      pitch_mode = PitchPos::UP;  // 高地区域优先抬头观察
-    } else {
-      if (gimbal_it != tactical_gimbal_map.end() && !gimbal_it->second.empty()) {
-        const auto & rule = gimbal_it->second.front();
-        yaw_min = rule.yaw_lower_bound_deg;
-        yaw_max = rule.yaw_upper_bound_deg;
-      }
-    }
-  } else if (own_defense_zone.contains(p)) {
-    yaw_min = -180.0f;
-    yaw_max = 180.0f;
-  } else if (enemy_defense_zone.contains(p)) {
-    yaw_min = -180.0f;
-    yaw_max = 180.0f;
+  if (enemy_defense_zone.contains(current_pt)) {
+    target_zone = PatrolZoneType::ENEMY_DEFENSE;
+    is_in_zone = true;
+  } else if (own_defense_zone.contains(current_pt)) {
+    target_zone = PatrolZoneType::OWN_DEFENSE;
+    is_in_zone = true;
+  } else if (highland_zone.contains(current_pt)) {
+    target_zone = PatrolZoneType::HIGHLAND;
+    is_in_zone = true;
   }
-  blackboard->set<float>("scan_yaw_min_deg", yaw_min);
-  blackboard->set<float>("scan_yaw_max_deg", yaw_max);
-  blackboard->set<PitchPos>("pitch_mode", pitch_mode);
+
+  if (is_in_zone) {
+    auto config = tactical_area_gimbal_map[mode][target_zone];
+    blackboard->set<float>("scan_yaw_min_deg", config.scan_yaw_min);
+    blackboard->set<float>("scan_yaw_max_deg", config.scan_yaw_max);
+    blackboard->set<bool>("use_limited_scan", true);
+  } else {
+    blackboard->set<float>("scan_yaw_min_deg", -180.0f);
+    blackboard->set<float>("scan_yaw_max_deg", 180.0f);
+    blackboard->set<bool>("use_limited_scan", false);
+  }
+
+  blackboard->set<PitchPos>("pitch_mode", PitchPos::DOWN);
 
   return BT::NodeStatus::SUCCESS;
 }
