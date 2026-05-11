@@ -1,10 +1,8 @@
 #include "bt_manager/action/gimbal_action.hpp"
 
-#include "bt_manager/utils/area.hpp"
-#include "bt_manager/utils/nav_zone.hpp"
-
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 
 namespace Sentry_BT {
 TrackTargetAction::TrackTargetAction(const std::string & name, const BT::NodeConfiguration & config)
@@ -128,7 +126,10 @@ BT::NodeStatus SetGimbalPoseByAreaAction::tick()
   }
 
   blackboard->set<PitchPos>("pitch_mode", PitchPos::DOWN);
-
+  std::ostringstream oss;
+  oss << "scan_yaw_range=[" << (is_in_zone ? std::to_string(tactical_area_gimbal_map[mode][target_zone].scan_yaw_min) : "-180.0")
+      << ", " << (is_in_zone ? std::to_string(tactical_area_gimbal_map[mode][target_zone].scan_yaw_max) : "180.0") << "]";
+  detail::logTransition(detail::TreeKind::GIMBAL, "SetGimbalPoseByAreaAction", is_in_zone, oss.str(), "");
   return BT::NodeStatus::SUCCESS;
 }
 
