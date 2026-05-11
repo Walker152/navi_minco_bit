@@ -5,19 +5,19 @@
 
       <ReactiveFallback name="RecoveryPhases">
         <Sequence name="Phase1">
-          <CheckTimeInZone min_seconds="20.0" max_seconds="25.0" />
+          <CheckTimeInZone min_seconds="30.0" max_seconds="40.0" />
           <SetTunnelRecoveryAttemptPoint />
           <NavigateToPoseAction />
         </Sequence>
 
         <Sequence name="Phase2">
-          <CheckTimeInZone min_seconds="25.0" max_seconds="30.0" />
+          <CheckTimeInZone min_seconds="40.0" max_seconds="50.0" />
           <SetTunnelRecoveryRetreatPoint />
           <NavigateToPoseAction />
         </Sequence>
 
         <Sequence name="Phase3">
-          <CheckTimeInZone min_seconds="30.0" max_seconds="999.0" />
+          <CheckTimeInZone min_seconds="50.0" max_seconds="999.0" />
           <SetGlobalVelocity global_vx="0.0" use_tunnel_profile="true" />
           <Wait milliseconds="100" />
         </Sequence>

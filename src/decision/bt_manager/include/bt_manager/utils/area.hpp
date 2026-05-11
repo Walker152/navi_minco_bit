@@ -161,10 +161,10 @@ inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{14.7, 11.0}, Point2D{15.7, 12.0}},
 };  // 假设这是奖励区域的坐标范围
 inline std::array<Area_Square, 4> tunnel_zone = {
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.1}},
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.1}},
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.1}},
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.1}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.1}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.1}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.1}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
@@ -192,14 +192,14 @@ inline AreaPolygon<8, Point2D> highland_zone{
   Point2D{12.3, 6.2},
 };
 inline AreaPolygon<8, Point2D> own_defense_zone{
-  Point2D{11.4, 4.5}, 
+  Point2D{12.4, 4.5}, 
   Point2D{9.6, 4.5},
   Point2D{7.8, 4.5},
-  Point2D{6.0, 4.5},
-  Point2D{6.0, 0.5},
+  Point2D{5.0, 4.5},
+  Point2D{5.0, 0.5},
   Point2D{7.8, 0.5},
   Point2D{9.6, 0.5},
-  Point2D{11.4, 0.5},
+  Point2D{12.4, 0.5},
 };
 inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{15.8, 0.7}, 
@@ -266,7 +266,7 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 inline std::vector<Point2D> nav_points = {
 
   // for test
-  {6.4, 2.3, 0.0},  // HOME
+  {8.1, 1.1, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
   {9.1, 6.5, 0.0},  // OUTPOST
   {6.8, 3.5, 0.0},  // OWN_FORT
@@ -275,8 +275,8 @@ inline std::vector<Point2D> nav_points = {
 
 inline std::vector<PatrolPoint> patrol_points_normal = {
   // for test
-  {{10.2, 6.7, 0.0}, 5000},
-  {{12.6, 2.0, 0.0}, 5000},
+  {{9.0, 2.3, 0.0}, 5000},
+  {{13.6, 2.0, 0.0}, 5000},
   {{10.1, 2.6, 0.0}, 5000}
   };
 
@@ -314,8 +314,8 @@ inline std::unordered_map<TacticalMode, GimbalPatrolAreaList> tactical_gimbal_ma
 
 // clang-format on
 inline const std::unordered_map<TacticalMode, std::vector<AreaPolygon<8, Point2D>>> tracking_areas = {
-  {TacticalMode::DEFENSIVE, {own_defense_zone, highland_zone}},
-  {TacticalMode::BALANCED, {own_defense_zone, highland_zone}},
+  {TacticalMode::DEFENSIVE, {own_defense_zone, highland_zone, enemy_defense_zone}},
+  {TacticalMode::BALANCED, {own_defense_zone, highland_zone, enemy_defense_zone}},
   {TacticalMode::OFFENSIVE, {own_defense_zone, highland_zone, enemy_defense_zone}},
 };
 

@@ -439,11 +439,10 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     // transform_inverse.transform.translation.x = -0.00;
     // transform_inverse.transform.translation.y = 0.21;
     // transform_inverse.transform.translation.z = 0.0;
-
     tf2::Quaternion q;
     q.setRPY(0, 0, yaw_pose);
     // tf2::Vector3 offset_vec(0.0, 0.15, 0.0);
-    tf2::Vector3 offset_vec(0.0, 0.20, 0.0);  // 变形哨
+    tf2::Vector3 offset_vec(0.0, -0.20, 0.0);  // 变形哨
     tf2::Vector3 base_pose =
       tf2::Vector3(odomAftMapped.pose.pose.position.x, odomAftMapped.pose.pose.position.y, 0) +
       tf2::quatRotate(q, offset_vec);
