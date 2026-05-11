@@ -138,12 +138,12 @@ controller_server:
       fixed_wz: 4.18            # rad/s, used if use_small_gyro_mode is true
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.20
+      control_delay_compensation: 0.30
 
       # --- Lidar extrinsic ---
       lidar_offset_x: 0.0
       lidar_offset_y: 0.20
-      lidar_roll_offset: -0.35
+      lidar_roll_offset: -0.55
 
       # --- Frame settings ---
       odom_frame: "camera_init"
@@ -325,9 +325,9 @@ planner_server:
         max_velocity: 5.5
         max_acceleration: 4.5
         max_yaw_dot: 5.0
-        turn_angle_deadzone: 0.2
+        turn_angle_deadzone: 0.8
         turn_angle_saturation: 1.2
-        min_turn_vel: 2.0
+        min_turn_vel: 2.5
         decay_power: 2.0
         time_allocation_iters: 15
         smooth_eps: 0.01

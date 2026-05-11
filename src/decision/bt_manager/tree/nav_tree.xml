@@ -75,6 +75,7 @@
                                          exit_blackboard_key="outpost_safe_cooldown_active"
                                          branch="NormalOutpostResponse" />
               <SetCoordinate name="SetEnemyOutpostGoal" goal="2" />
+              <EmergencyStop name="EmergencyStop" />
               <NavigateToPoseAction name="NavigateEnemyOutpost" />
             </ReactiveSequence>
 

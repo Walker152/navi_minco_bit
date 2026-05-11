@@ -8,7 +8,11 @@ source ./install/setup.bash
 
 # # MID360 
 gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_MID360_launch.py; exec bash"
+<<<<<<< HEAD
 # sleep 1
+=======
+sleep 1
+>>>>>>> develop_reset
 
 # # Lidar Merger
 # gnome-terminal -- bash -c "ros2 launch lidar_merger dual_lidar_merger.launch.py; exec bash"
