@@ -69,8 +69,6 @@ void YawTrajOpt::getYawWaypointAllocation(const Eigen::Vector4d & init_state,
     Eigen::Vector3d pt_g;
     if (eval_t + 0.5 >= pos_traj_duration) {
       pt_g = pos_traj.getPos(pos_traj_duration);
-      const double t_back = std::max(pos_traj_duration - 0.5, 0.0);
-      pt_i = pos_traj.getPos(t_back);
     } else {
       pt_g = pos_traj.getPos(eval_t + 0.5);
     }

@@ -1504,6 +1504,15 @@ bool MincoPlanner::checkCollision()
     if (cost == nav2_costmap_2d::LETHAL_OBSTACLE || cost == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
       return false;
     }
+    // ESDF check for dynamic obstacles not in the costmap
+    if (esdf_map_) {
+      double esdf_dist = 0.0;
+      Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
+      esdf_map_->evaluate(pos, esdf_dist, esdf_grad);
+      if (esdf_dist <= 0.0) {
+        return false;
+      }
+    }
   }
 
   return true;
@@ -1533,6 +1542,15 @@ bool MincoPlanner::checkCollision(const traj_opt::Trajectory & traj)
     const unsigned char cost = costmap_->getCost(mx, my);
     if (cost == nav2_costmap_2d::LETHAL_OBSTACLE || cost == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
       return false;
+    }
+    // ESDF check for dynamic obstacles not in the costmap
+    if (esdf_map_) {
+      double esdf_dist = 0.0;
+      Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
+      esdf_map_->evaluate(pos, esdf_dist, esdf_grad);
+      if (esdf_dist <= 0.0) {
+        return false;
+      }
     }
   }
 

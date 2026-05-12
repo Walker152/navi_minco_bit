@@ -287,8 +287,7 @@ void ModelBuilder::buildConstraintMatrix(const std::vector<ReferencePoint>& ref_
     A_con(base_row + 16, col_offset + 1) = ref_traj[i].vel.y();
   }
 
-  // All constraints are one-sided (upper bound only)
-  lbA = Eigen::VectorXd::Constant(nC, -std::numeric_limits<double>::infinity());
+  lbA = Eigen::VectorXd::Constant(nC, -1.0e12);
   ubA = Eigen::VectorXd::Zero(nC);
 
   for (int i = 0; i < N; ++i) {
@@ -333,7 +332,7 @@ void ModelBuilder::clampCoupledForce(Eigen::Vector3d& force, double f_max, doubl
     const double val_pos = proj + coupling_coeff * Mz;
     const double val_neg = proj - coupling_coeff * Mz;
 
-    if (val_pos > F_bound && std::abs(proj) > 1e-12) {
+    if ((val_pos > F_bound || val_neg > F_bound) && std::abs(proj) > 1e-12) {
       const double max_proj = F_bound - coupling_coeff * std::abs(Mz);
       if (max_proj > 1e-12) {
         scale = std::min(scale, max_proj / std::abs(proj));
@@ -345,6 +344,9 @@ void ModelBuilder::clampCoupledForce(Eigen::Vector3d& force, double f_max, doubl
 
   force(0) *= scale;
   force(1) *= scale;
+
+  const double max_Mz_from_coupling = 2.0 * chassis_radius * F_bound;
+  force(2) = std::max(-max_Mz_from_coupling, std::min(max_Mz_from_coupling, force(2)));
 }
 
 /* static */
