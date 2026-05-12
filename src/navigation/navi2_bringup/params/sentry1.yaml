@@ -111,7 +111,7 @@ controller_server:
       g: 9.81                   # gravitational acceleration (m/s²)
 
       # --- Friction coefficients ---
-      mu_c: 0.1                 # Coulomb friction coefficient
+      mu_c: 0.3                 # Coulomb friction coefficient
       C_v: 0.5                  # viscous friction coefficient
 
       # --- Force / torque limits ---
@@ -127,8 +127,8 @@ controller_server:
       # --- Cost weights ---
       # Q: 6D state [px, py, yaw, vx, vy, omega]
       # R: 3D control [F_gx, F_gy, M_gz]
-      Q: [5000.0, 5000.0, 1000.0, 500.0, 500.0, 100.0]
-      R: [0.001, 0.001, 0.0005]
+      Q: [500.0, 500.0, 100.0, 50.0, 50.0, 10.0]
+      R: [0.01, 0.01, 0.005]
 
       # --- qpOASES solver ---
       max_wsr: 200
