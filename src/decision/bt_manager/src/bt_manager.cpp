@@ -15,7 +15,6 @@
 #include "bt_manager/condition/recovery_conditions.hpp"
 #include "bt_manager/condition/resource_conditions.hpp"
 #include "bt_manager/condition/tactical_condition.hpp"
-#include "bt_manager/new_test.hpp"
 
 namespace Sentry_BT {
 namespace {
@@ -61,6 +60,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckAmmoLow>("CheckAmmoLow");
   factory_.registerNodeType<CheckTacticalModeCondition>("CheckTacticalModeCondition");
   factory_.registerNodeType<CheckOwnFortIdle>("CheckOwnFortIdle");
+  factory_.registerNodeType<EmergencyStop>("EmergencyStop");
   // resource / exchange
   factory_.registerNodeType<CheckCoinRemaining>("CheckCoinRemaining");
   factory_.registerNodeType<CheckEngagedSafeResponse>("CheckEngagedSafeResponse");
@@ -109,8 +109,6 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<SetTacticalMode>("SetTacticalMode");
   factory_.registerNodeType<ChangeTacticalAction>("ChangeTacticalAction");
 
-  // debug
-  factory_.registerNodeType<BlackboardTestNode>("BlackboardTestNode");
 }
 
 bool SentryBTManager::loadTrees(const std::shared_ptr<BT::Blackboard> & blackboard)
