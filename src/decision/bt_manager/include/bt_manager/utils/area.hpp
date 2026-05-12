@@ -161,10 +161,10 @@ inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{14.7, 11.0}, Point2D{15.7, 12.0}},
 };  // 假设这是奖励区域的坐标范围
 inline std::array<Area_Square, 4> tunnel_zone = {
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.1}},
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.1}},
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.1}},
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.1}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.1}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.1}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.1}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.1}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
@@ -192,14 +192,14 @@ inline AreaPolygon<8, Point2D> highland_zone{
   Point2D{12.3, 6.2},
 };
 inline AreaPolygon<8, Point2D> own_defense_zone{
-  Point2D{11.4, 4.5}, 
+  Point2D{12.4, 4.5}, 
   Point2D{9.6, 4.5},
   Point2D{7.8, 4.5},
-  Point2D{6.0, 4.5},
-  Point2D{6.0, 0.5},
+  Point2D{5.0, 4.5},
+  Point2D{5.0, 0.5},
   Point2D{7.8, 0.5},
   Point2D{9.6, 0.5},
-  Point2D{11.4, 0.5},
+  Point2D{12.4, 0.5},
 };
 inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{15.8, 0.7}, 
@@ -266,7 +266,7 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 inline std::vector<Point2D> nav_points = {
 
   // for test
-  {4.1, 6.0, 0.0},  // HOME
+  {8.1, 1.1, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
   {9.1, 6.5, 0.0},  // OUTPOST
   {6.8, 3.5, 0.0},  // OWN_FORT
@@ -275,8 +275,8 @@ inline std::vector<Point2D> nav_points = {
 
 inline std::vector<PatrolPoint> patrol_points_normal = {
   // for test
-  {{10.2, 6.7, 0.0}, 5000},
-  {{12.6, 2.0, 0.0}, 5000},
+  {{9.0, 2.3, 0.0}, 5000},
+  {{13.6, 2.0, 0.0}, 5000},
   {{10.1, 2.6, 0.0}, 5000}
   };
 
@@ -289,33 +289,55 @@ inline std::vector<PatrolPoint> patrol_points_attack = {
 using PatrolList = std::vector<PatrolPoint>;
 using GimbalPatrolAreaList = std::vector<GimbalPatrolPoint>;
 
+// 云台单区域扫描配置
+struct GimbalPatrolConfig {
+  float scan_yaw_min;
+  float scan_yaw_max;
+};
+
+// 巡检区域枚举
+enum class PatrolZoneType {
+  ENEMY_DEFENSE,
+  OWN_DEFENSE,
+  HIGHLAND
+};
+
+struct PatrolZoneTypeHash {
+  std::size_t operator()(PatrolZoneType t) const {
+    return static_cast<std::size_t>(t);
+  }
+};
+
+// 云台巡检区域映射表 (TacticalMode -> (PatrolZoneType -> GimbalPatrolConfig))
+inline std::unordered_map<TacticalMode, std::unordered_map<PatrolZoneType, GimbalPatrolConfig, PatrolZoneTypeHash>> tactical_area_gimbal_map = {
+  {TacticalMode::OFFENSIVE, {
+    {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
+    {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
+    {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}}
+  }},
+  {TacticalMode::DEFENSIVE, {
+    {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
+    {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
+    {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}}
+  }},
+  {TacticalMode::BALANCED, {
+    {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
+    {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
+    {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}}
+  }}
+};
+
 // 1. 底盘巡逻点映射表 (TacticalMode -> PatrolList)
 inline std::unordered_map<TacticalMode, PatrolList> tactical_patrol_map = {
   {TacticalMode::OFFENSIVE, patrol_points_attack},
   {TacticalMode::DEFENSIVE, patrol_points_normal},
-  {TacticalMode::BALANCED, patrol_points_normal}};
-
-// 2. 云台巡检区域映射表 (TacticalMode -> GimbalPatrolAreaList)
-inline std::unordered_map<TacticalMode, GimbalPatrolAreaList> tactical_gimbal_map = {
-  {TacticalMode::OFFENSIVE,
-    {
-      {-180.0f, 180.0f, false},  // 直视前方扫射范围
-      {-30.0f, 30.0f, true}      // 抬头重点区域
-    }},
-  {TacticalMode::DEFENSIVE,
-    {
-      {-180.0f, 180.0f, false},  // 360度全方位戒备
-      {90.0f, 180.0f, true}      // 背后抬头观察高塔等
-    }},
-  {TacticalMode::BALANCED,
-    {
-      {-180.0f, 180.0f, false}  // 兼顾前后
-    }}};
+  {TacticalMode::BALANCED, patrol_points_normal}
+};
 
 // clang-format on
 inline const std::unordered_map<TacticalMode, std::vector<AreaPolygon<8, Point2D>>> tracking_areas = {
-  {TacticalMode::DEFENSIVE, {own_defense_zone, highland_zone}},
-  {TacticalMode::BALANCED, {own_defense_zone, highland_zone}},
+  {TacticalMode::DEFENSIVE, {own_defense_zone, highland_zone, enemy_defense_zone}},
+  {TacticalMode::BALANCED, {own_defense_zone, highland_zone, enemy_defense_zone}},
   {TacticalMode::OFFENSIVE, {own_defense_zone, highland_zone, enemy_defense_zone}},
 };
 

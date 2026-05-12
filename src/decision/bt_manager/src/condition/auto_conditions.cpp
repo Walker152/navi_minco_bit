@@ -81,6 +81,9 @@ BT::NodeStatus CheckTargetLocked::tick()
   static std::chrono::time_point<std::chrono::system_clock> last_seen_time =
     std::chrono::system_clock::now();
 
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const Point2D robot_point{current_pose.position.x, current_pose.position.y, 0.0};
+
   bool target_valid = blackboard->get<bool>("target_valid");
   target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
 
@@ -89,9 +92,14 @@ BT::NodeStatus CheckTargetLocked::tick()
   const auto & include_areas = tracking_areas.at(tactical_mode);
 
   bool in_attack_area = false;
+  int target_area_index = -1;
   for (std::size_t i = 0; i < include_areas.size(); ++i) {
     if (include_areas[i].contains(target_point)) {
+      target_area_index = static_cast<int>(i);
       in_attack_area = true;
+      if (!include_areas[i].contains(robot_point)) {
+        return BT::NodeStatus::SUCCESS;
+      }
       break;
     }
   }

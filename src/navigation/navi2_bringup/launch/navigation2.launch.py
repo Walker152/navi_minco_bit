@@ -35,7 +35,7 @@ def generate_launch_description():
             # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
             # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['1', '3', '0', '0', '0', '0', 'map', 'camera_init'],
-            arguments=['6.7', '4.3', '0', '0', '0', '0', 'map', 'camera_init'],
+            arguments=['6.7', '4.1', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['10', '4.5', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['9', '6.0', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
@@ -51,20 +51,20 @@ def generate_launch_description():
             output='screen'),
 
         # # 静态TF: camera_init -> body
-        launch_ros.actions.Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_tf_camera_init_to_body',
-            arguments=['0', '0', '0', '0', '0', '0', 'camera_init', 'body'],
-            output='screen'),
+        # launch_ros.actions.Node(
+        #     package='tf2_ros',
+        #     executable='static_transform_publisher',
+        #     name='static_tf_camera_init_to_body',
+        #     arguments=['0', '0', '0', '0', '0', '0', 'camera_init', 'body'],
+        #     output='screen'),
 
-        # 静态TF: body -> base_link
-        launch_ros.actions.Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_tf_body_to_base_link',
-            arguments=['0', '-0.20', '0', '0', '0', '0', 'body', 'base_link'],
-            output='screen'),
+        # # 静态TF: body -> base_link
+        # launch_ros.actions.Node(
+        #     package='tf2_ros',
+        #     executable='static_transform_publisher',
+        #     name='static_tf_body_to_base_link',
+        #     arguments=['0', '-0.20', '0', '0', '0', '0', 'body', 'base_link'],
+        #     output='screen'),
         # 声明新的 Launch 参数
         launch.actions.DeclareLaunchArgument('use_sim_time', default_value=use_sim_time,
                                              description='Use simulation (Gazebo) clock if true'),
