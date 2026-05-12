@@ -2,7 +2,7 @@
 #include "com_interface_ros.hpp"
 #include <chrono>
 #include <cstdint>
-
+// #define COM_DEBUG
 // 日志输出落地函数（由头文件模板调用）
 void com_log::log_info_line(std::string_view text)
 {
@@ -137,15 +137,12 @@ void Communication::stm32_read_cb(ByteArray arr)
       return;
     }
     if (check(buf, full_len)) {
-      if (allow_debug) {
-        LOG_DEBUG_BLOCK(std::string(BLUE) + "[COM] ", NV(header->packet_type), NV(header->data_len));
-      }
       // std::cout << static_cast<int>(header->packet_type) << std::endl;
       switch (header->packet_type) {
         // 校验通过，根据报文类型解析数据并发布ROS消息
       case ENUM_PACKET_ALLY_STATUS: {
         const TeamInfo * team_data = (const TeamInfo *)(buf + sizeof(PacketHeader));
-        if (allow_debug) {
+#ifdef COM_DEBUG
           LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Team] ",
             NV(static_cast<int>(team_data->ally_status[0].robot_id)),
             NV(team_data->ally_status[0].robot_hp),
@@ -165,9 +162,8 @@ void Communication::stm32_read_cb(ByteArray arr)
             NV(team_data->ally_status[3].robot_pos_y),
             NV(team_data->outpost_hp),
             NV(team_data->base_hp)
-
           );
-        }
+#endif
         auto ros_ptr = ros_if_;
         if (ros_ptr)
           ros_ptr->publishTeamInfo(*team_data);
@@ -177,14 +173,13 @@ void Communication::stm32_read_cb(ByteArray arr)
       case ENUM_PACKET_GAMESTATUS_DATA: {
         // std::cout << YELLOW << "[COM] Received GameInfo packet." << RESET << std::endl;
         const GameInfo * game_data = (const GameInfo *)(buf + sizeof(PacketHeader));
-
-        if (allow_debug) {
+#ifdef COM_DEBUG
           LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Game] ",
             NV(static_cast<int>(game_data->coin_remaining)),
             NV(static_cast<int>(game_data->event_code)),
             NV(static_cast<int>(game_data->game_status)),
             NV(static_cast<int>(game_data->game_time_remaining)));
-        }
+#endif
         auto ros_ptr = ros_if_;
         if (ros_ptr)
           ros_ptr->publishGameInfo(*game_data);
@@ -194,7 +189,7 @@ void Communication::stm32_read_cb(ByteArray arr)
       case ENUM_PACKET_SENTRY_SERVER_DATA: {
         const SentryInfoOnline * sentry_server_data =
           (const SentryInfoOnline *)(buf + sizeof(PacketHeader));
-        if (allow_debug) {
+#ifdef COM_DEBUG
           LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Sol] ",
             NV(sentry_server_data->bullets_remaining),
             NV(sentry_server_data->cooling_value),
@@ -206,7 +201,7 @@ void Communication::stm32_read_cb(ByteArray arr)
             NV(sentry_server_data->sentry_pos_x),
             NV(sentry_server_data->sentry_pos_y),
             NV(sentry_server_data->speed_monitor_angle));
-        }
+#endif
         auto ros_ptr = ros_if_;
         if (ros_ptr)
           ros_ptr->publishSentryInfoOnline(*sentry_server_data);
@@ -216,7 +211,7 @@ void Communication::stm32_read_cb(ByteArray arr)
       case ENUM_PACKET_SENTRY_SELF_DATA: {
         const SentryInfoOffline * sentry_self_data =
           (const SentryInfoOffline *)(buf + sizeof(PacketHeader));
-        if (allow_debug) {
+#ifdef COM_DEBUG
           LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Sof] ",
             NV(sentry_self_data->armor_num),
             NV(static_cast<float>(sentry_self_data->armor_pos[0])),
@@ -228,7 +223,7 @@ void Communication::stm32_read_cb(ByteArray arr)
             NV(sentry_self_data->transform_state),
             NV(sentry_self_data->yaw_camerainit_to_gimbal),
             NV(sentry_self_data->capacitor_capacity));
-        }
+#endif
         auto ros_ptr = ros_if_;
         if (ros_ptr)
           ros_ptr->publishSentryInfoOffline(*sentry_self_data);
@@ -238,7 +233,7 @@ void Communication::stm32_read_cb(ByteArray arr)
       case ENUM_PACKET_RADAR: {
         const RadarInfo * radar_data = (const RadarInfo *)(buf + sizeof(PacketHeader));
         // TODO:还没写完调试日志输出，待写
-        if (allow_debug) {
+#ifdef COM_DEBUG
           LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Rdr] ",
             NV(static_cast<int>(radar_data->enemy_status[0].robot_id)),
             NV(radar_data->enemy_status[0].robot_hp),
@@ -273,7 +268,7 @@ void Communication::stm32_read_cb(ByteArray arr)
             NV(radar_data->enemy_coin_accumulated),
             NV(radar_data->enemy_coin_left),
             NV(radar_data->is_enemy_outpost_sensed));
-        }
+#endif
         auto ros_ptr = ros_if_;
         if (ros_ptr)
           ros_ptr->publishRadarInfo(*radar_data);
@@ -281,9 +276,9 @@ void Communication::stm32_read_cb(ByteArray arr)
       }
 
       default: {
-        if (allow_debug) {
+#ifdef COM_DEBUG
           LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM][Warn] ", NV(header->packet_type));
-        }
+#endif
       }
       }
     } else {

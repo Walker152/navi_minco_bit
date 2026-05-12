@@ -50,7 +50,7 @@ def generate_launch_description():
             # arguments=['28', '15', '0', '3.14', '0', '0', 'map', 'minimap'],
             output='screen'),
 
-        # # # 静态TF: camera_init -> body
+        # # 静态TF: camera_init -> body
         # launch_ros.actions.Node(
         #     package='tf2_ros',
         #     executable='static_transform_publisher',
