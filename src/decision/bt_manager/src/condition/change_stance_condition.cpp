@@ -292,14 +292,14 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   const bool same_zone = (current_in_highland && goal_in_highland) || (current_in_own && goal_in_own) ||
                          (current_in_enemy && goal_in_enemy);
   const bool need_cross_zone = !same_zone;
-  const bool is_tunnel_journey = (need_cross_zone && through_tunnel) || current_in_tunnel;
+  const bool is_tunnel_journey = (need_cross_zone) || current_in_tunnel;
 
   float computed_gyro_vel = 0.0f;
   bool enable_small_gyro = false;
   int active_tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
 
   if (is_tunnel_journey) {
-    if (through_tunnel && active_tunnel_idx >= 0) {
+    if (active_tunnel_idx >= 0) {
       enable_small_gyro = true;
 
       const double base_target_yaw = static_cast<double>(

@@ -51,7 +51,7 @@
           <CheckEngagedStatus expected="true" branch="CombatAttackBranch" />
           <CheckHealth threshold="50" mode="greater" branch="CombatAttackBranch" />
           <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" />
-          <SetGyroState use_gyro="true" gyro_vel="50.0" />
+          <SetGyroState use_gyro="true" gyro_vel="0.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
           <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
         </Sequence>
