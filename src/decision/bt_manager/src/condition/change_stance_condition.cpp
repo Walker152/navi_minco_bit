@@ -326,7 +326,7 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
 
   std::ostringstream oss;
   oss << "through_tunnel=" << through_tunnel << ", tunnel_idx=" << active_tunnel_idx << ", use_gyro=" << enable_small_gyro
-      << ", gyro_vel=" << computed_gyro_vel;
+      << ", gyro_vel=" << computed_gyro_vel << ", current_in_tunnel=" << current_in_tunnel << ", need_cross_zone=" << need_cross_zone;
   detail::logTransition(
     detail::TreeKind::STANCE, "CheckCrossZoneTransition", is_tunnel_journey, oss.str(), branch);
 
@@ -528,44 +528,32 @@ BT::NodeStatus CheckTunnelDeformation::tick()
   auto blackboard = config().blackboard;
   const bool through_tunnel = blackboard->get<bool>("through_tunnel");
   const bool current_in_tunnel = blackboard->get<bool>("current_in_tunnel");
-  const float current_health = blackboard->get<float>("health");
+  const bool is_disengaged = blackboard->get<bool>("is_disengaged");
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  LifterPos desired_pos = LifterPos::TOP;
 
   const rclcpp::Time now = rclcpp::Clock().now();
 
   if (current_in_tunnel) {
-    blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::BOTTOM);
-    last_health_ = current_health;
-    health_initialized_ = true;
-    last_hurt_time_ = now;
-    blackboard->set<bool>("under_attack", false);
-  } else if (through_tunnel) {
-    bool health_dropped = false;
-    if (health_initialized_) {
-      health_dropped = (last_health_ - current_health) > 5.0f;
-    }
-    last_health_ = current_health;
-    health_initialized_ = true;
-
-    if (health_dropped) {
-      blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);
-      last_hurt_time_ = now;
-      blackboard->set<bool>("under_attack", true);
-    } else {
-      blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::BOTTOM);
-      rclcpp::Duration stable_duration = now - last_hurt_time_;
-      if (stable_duration.seconds() >= 1.0) {
-          blackboard->set<bool>("under_attack", false);
-      } else {
-        blackboard->set<bool>("under_attack", true);
-      }
+    desired_pos = LifterPos::BOTTOM;
+  }
+  
+  if(is_disengaged) {
+    if(through_tunnel) {
+      desired_pos = LifterPos::BOTTOM;
     }
   } else {
-    blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);
-    last_health_ = current_health;
-    health_initialized_ = true;
-    last_hurt_time_ = now;
-    blackboard->set<bool>("under_attack", false);
+    if(through_tunnel) {
+      Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
+      blackboard->set<Point2D>("nav_goal", current_point);
+    }
   }
+
+
+  blackboard->set<LifterPos>("desired_lifter_pos", desired_pos);
+  detail::logTransition(detail::TreeKind::STANCE, "CheckTunnelDeformation", true,
+    "through_tunnel=" + std::to_string(through_tunnel) + ", current_in_tunnel=" + std::to_string(current_in_tunnel) +
+    ", is_disengaged=" + std::to_string(is_disengaged) + ", desired_pos=" + std::to_string(static_cast<int>(desired_pos)), "");
   return BT::NodeStatus::SUCCESS;
 }
 

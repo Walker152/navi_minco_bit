@@ -49,6 +49,7 @@ public:
     blackboard_->set("scan_yaw_min_deg", -180.0f);  // 巡检范围最小偏航
     blackboard_->set("scan_yaw_max_deg", 180.0f);   // 巡检范围最大偏航
     blackboard_->set<PitchPos>("pitch_mode", PitchPos::DOWN);      // 巡检最大俯仰
+    blackboard_->set("use_limited_scan", false);                   // 是否限制云台扫描范围
 
     // --- Tactical Tree ---
     blackboard_->set<TacticalMode>("tactical_mode", TacticalMode::BALANCED);  // 战术模式

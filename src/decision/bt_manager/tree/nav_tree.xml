@@ -17,7 +17,11 @@
           <CheckRetreatCondition name="CheckRetreatCondition"
                                  health_threshold="30"
                                  recovery_threshold="80"
+<<<<<<< HEAD
                                  ammo_threshold="0`"
+=======
+                                 ammo_threshold="0"
+>>>>>>> 7de41ed2648545512f910e58cfbb97fda988db91
                                  ammo_recovery_threshold="200"
                                  branch="Priority1Survival" />
           <!-- <ChangeMapAction name="SwitchToRetreatMap"
@@ -55,8 +59,7 @@
                              map_name="rmuc2026" /> -->
           <ReactiveSequence name="TargetPursuit">
             <CheckTargetLocked name="CheckTargetLocked" branch="Priority2TargetAttack" />
-            <SetTargetCoordinate name="SetTargetCoordinate" tracing_dist="1.2"/>
-            <EmergencyStop name="EmergencyStop" />
+            <SetTargetCoordinate name="SetTargetCoordinate" tracing_dist="1.5"/>
             <NavigateToPoseAction name="NavigateTrackingTarget" />
           </ReactiveSequence>
         </ReactiveSequence>
