@@ -1,6 +1,7 @@
 #pragma once
-
+// #define COMMUNICATION_DEBUG
 #include "header.hpp"
+#include "thread"
 
 #include "ros_interfaces/msg/ally_robot_status.hpp"
 #include "ros_interfaces/msg/behavior.hpp"
@@ -184,7 +185,7 @@ private:
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
     com_timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(3), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
+      std::chrono::milliseconds(5), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
     path_timer_ = this->create_wall_timer(std::chrono::milliseconds(1000),
       std::bind(&ComInterfaceRos::sendGlobalPathLoop, this),
       comm_cb_group_);
@@ -228,7 +229,6 @@ private:
       vy_mps = cmd_vel_.linear.y;
       vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
       // vw_rpm = 80.0f;
-      
       current_vx = odom_.twist.twist.linear.x;
       current_vy = odom_.twist.twist.linear.y;
       current_vw = odom_.twist.twist.angular.z;
@@ -250,6 +250,10 @@ private:
       revive_req = behavior_.remote_revive_request;
       health_req = behavior_.remote_health_request;
       use_limited_scan = behavior_.use_limited_scan;
+<<<<<<< HEAD
+=======
+
+>>>>>>> 7de41ed2648545512f910e58cfbb97fda988db91
       vw_rpm = gyro_vel;
     }
 
@@ -283,6 +287,7 @@ private:
       health_req,
       use_limited_scan);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
+#ifdef COMMUNICATION_DEBUG
     if (flag == 0) {
       static auto last_send_time = this->now();
       auto now_time = this->now();
@@ -298,6 +303,7 @@ private:
           NV(target.fx_global),
           NV(target.fy_global),
           NV(target.fw_global));
+<<<<<<< HEAD
         last_send_time = now_time;
       }
     }
@@ -319,9 +325,35 @@ private:
           NV(behavior_data.remote_ammo_request),
           NV(behavior_data.remote_health_request),
           NV(behavior_data.use_limited_scan));
+=======
+>>>>>>> 7de41ed2648545512f910e58cfbb97fda988db91
         last_send_time = now_time;
       }
     }
+#endif
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));  // Avoid sending two packets in the same millisecond, which can cause issues for STM32's UART DMA parsing.
+    auto flag2 = Communication::send2stm32<BehaviorData>(behavior_data, ENUM_PACKET_BEHAVIOR_DATA);
+#ifdef COMMUNICATION_DEBUG
+    if (flag2 == 0) {
+      static auto last_send_time = this->now();
+      auto now_time = this->now();
+      if ((now_time - last_send_time).seconds() >= 1.0) {
+        LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM][BehaviorData] ",
+          NV(behavior_data.pitch_mode),
+          NV(static_cast<int>(behavior_data.desire_stance)),
+          NV(static_cast<int>(behavior_data.desire_lifter_pos)),
+          NV(behavior_data.scan_yaw_min_deg),
+          NV(behavior_data.scan_yaw_max_deg),
+          NV(behavior_data.ammo_purchase_request),
+          NV(behavior_data.revive_request),
+          NV(behavior_data.remote_revive_request),
+          NV(behavior_data.remote_ammo_request),
+          NV(behavior_data.remote_health_request),
+          NV(behavior_data.use_limited_scan));
+        last_send_time = now_time;
+      }
+    }
+#endif
   }
 
   void sendGlobalPathLoop()
