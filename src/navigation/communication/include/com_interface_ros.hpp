@@ -250,10 +250,6 @@ private:
       revive_req = behavior_.remote_revive_request;
       health_req = behavior_.remote_health_request;
       use_limited_scan = behavior_.use_limited_scan;
-<<<<<<< HEAD
-=======
-
->>>>>>> 7de41ed2648545512f910e58cfbb97fda988db91
       vw_rpm = gyro_vel;
     }
 
@@ -303,30 +299,6 @@ private:
           NV(target.fx_global),
           NV(target.fy_global),
           NV(target.fw_global));
-<<<<<<< HEAD
-        last_send_time = now_time;
-      }
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));  // 避免过快发送导致stm32处理不过来
-    auto flag2 = Communication::send2stm32<BehaviorData>(behavior_data, ENUM_PACKET_BEHAVIOR_DATA);
-    if (flag2 == 0) {
-      static auto last_send_time = this->now();
-      auto now_time = this->now();
-      if ((now_time - last_send_time).seconds() >= 1.0) {
-        LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM][BehaviorData] ",
-          NV(behavior_data.pitch_mode),
-          NV(static_cast<int>(behavior_data.desire_stance)),
-          NV(static_cast<int>(behavior_data.desire_lifter_pos)),
-          NV(behavior_data.scan_yaw_min_deg),
-          NV(behavior_data.scan_yaw_max_deg),
-          NV(behavior_data.ammo_purchase_request),
-          NV(behavior_data.revive_request),
-          NV(behavior_data.remote_revive_request),
-          NV(behavior_data.remote_ammo_request),
-          NV(behavior_data.remote_health_request),
-          NV(behavior_data.use_limited_scan));
-=======
->>>>>>> 7de41ed2648545512f910e58cfbb97fda988db91
         last_send_time = now_time;
       }
     }

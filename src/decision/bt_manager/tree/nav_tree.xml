@@ -17,11 +17,7 @@
           <CheckRetreatCondition name="CheckRetreatCondition"
                                  health_threshold="30"
                                  recovery_threshold="80"
-<<<<<<< HEAD
-                                 ammo_threshold="0`"
-=======
                                  ammo_threshold="0"
->>>>>>> 7de41ed2648545512f910e58cfbb97fda988db91
                                  ammo_recovery_threshold="200"
                                  branch="Priority1Survival" />
           <!-- <ChangeMapAction name="SwitchToRetreatMap"
