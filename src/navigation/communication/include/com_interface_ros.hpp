@@ -1,5 +1,5 @@
 #pragma once
-
+// #define COMMUNICATION_DEBUG
 #include "header.hpp"
 #include "thread"
 
@@ -185,7 +185,7 @@ private:
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
     com_timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(3), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
+      std::chrono::milliseconds(5), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
     path_timer_ = this->create_wall_timer(std::chrono::milliseconds(1000),
       std::bind(&ComInterfaceRos::sendGlobalPathLoop, this),
       comm_cb_group_);
@@ -281,6 +281,7 @@ private:
       health_req,
       use_limited_scan);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
+#ifdef COMMUNICATION_DEBUG
     if (flag == 0) {
       static auto last_send_time = this->now();
       auto now_time = this->now();
@@ -299,8 +300,10 @@ private:
         last_send_time = now_time;
       }
     }
+#endif
     std::this_thread::sleep_for(std::chrono::milliseconds(2));  // Avoid sending two packets in the same millisecond, which can cause issues for STM32's UART DMA parsing.
     auto flag2 = Communication::send2stm32<BehaviorData>(behavior_data, ENUM_PACKET_BEHAVIOR_DATA);
+#ifdef COMMUNICATION_DEBUG
     if (flag2 == 0) {
       static auto last_send_time = this->now();
       auto now_time = this->now();
@@ -320,6 +323,7 @@ private:
         last_send_time = now_time;
       }
     }
+#endif
   }
 
   void sendGlobalPathLoop()

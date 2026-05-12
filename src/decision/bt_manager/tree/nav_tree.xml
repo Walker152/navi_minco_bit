@@ -41,12 +41,12 @@
           <NavigateToPoseAction name="NavigateHome" />
         </ReactiveSequence>
 
-        <ReactiveSequence name="Priority1_5TunnelRecovery">
+        <!-- <ReactiveSequence name="Priority1_5TunnelRecovery">
           <CheckTimeInZone min_seconds="20.0" max_seconds="50.0" zone_name="transform_zone" />
           <SubTree ID="TunnelRecoverySubTree"
                    __shared_blackboard="true"
                    __autoremap="true" />
-        </ReactiveSequence>
+        </ReactiveSequence> -->
 
         <ReactiveSequence name="Priority2TargetAttack">
           <!-- <ChangeMapAction name="SwitchToMainMapForSpecial"
@@ -55,7 +55,7 @@
                              map_name="rmuc2026" /> -->
           <ReactiveSequence name="TargetPursuit">
             <CheckTargetLocked name="CheckTargetLocked" branch="Priority2TargetAttack" />
-            <SetTargetCoordinate name="SetTargetCoordinate" tracing_dist="1.2"/>
+            <SetTargetCoordinate name="SetTargetCoordinate" tracing_dist="1.5"/>
             <NavigateToPoseAction name="NavigateTrackingTarget" />
           </ReactiveSequence>
         </ReactiveSequence>
@@ -75,7 +75,6 @@
                                          exit_blackboard_key="outpost_safe_cooldown_active"
                                          branch="NormalOutpostResponse" />
               <SetCoordinate name="SetEnemyOutpostGoal" goal="2" />
-              <EmergencyStop name="EmergencyStop" />
               <NavigateToPoseAction name="NavigateEnemyOutpost" />
             </ReactiveSequence>
 

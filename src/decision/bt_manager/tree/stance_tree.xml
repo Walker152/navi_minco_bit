@@ -19,12 +19,12 @@
                                     kp="1.5"
                                     ki="0.1"
                                     kd="0.0"
-                                    deadzone_rad="0.1"
+                                    deadzone_rad="0.05"
                                     max_abs_gyro_vel="100.0"
                                     use_gyro="{use_gyro}"
                                     gyro_vel="{gyro_vel}" />
           <SetGyroState use_gyro="{use_gyro}" gyro_vel="{gyro_vel}"/>
-          <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" />
+          <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
         </Sequence>
 
@@ -40,7 +40,7 @@
         </Sequence>
 
         <Sequence name="PursuitStanceBranch">
-          <CheckTargetVisible />
+          <CheckTargetLocked name="CheckTargetLocked" branch="PursuitStance"/>
           <CheckTargetDistance threshold="4.0" mode="greater" branch="PursuitStanceBranch" />
           <SetGyroState use_gyro="true" gyro_vel="50.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="PursuitStanceBranch" /> -->
@@ -51,7 +51,7 @@
           <CheckEngagedStatus expected="true" branch="CombatAttackBranch" />
           <CheckHealth threshold="50" mode="greater" branch="CombatAttackBranch" />
           <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" />
-          <SetGyroState use_gyro="true" gyro_vel="50.0" />
+          <SetGyroState use_gyro="true" gyro_vel="0.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
           <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
         </Sequence>
