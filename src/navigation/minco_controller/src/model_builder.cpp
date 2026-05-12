@@ -135,6 +135,7 @@ bool ModelBuilder::buildQP(const Eigen::Matrix<double, 6, 1>& x0,
   for (int i = 0; i < N; ++i) {
     U_ref.segment<3>(i * nu_) << m * ref_traj[i].acc.x(), m * ref_traj[i].acc.y(),
                                  Iz * ref_traj[i].yaw_acc;
+    U_ref.segment<3>(i * nu_) -= D_stack.segment<3>(i * nu_);
   }
 
   // --- Build Q_bar and R_bar for g computation ---
