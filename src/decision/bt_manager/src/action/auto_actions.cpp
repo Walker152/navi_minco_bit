@@ -617,4 +617,35 @@ void ControlThroughTunnel::onHalted()
 {
   return;
 }
+
+// ------------------- EmergencyStop -------------------
+EmergencyStop::EmergencyStop(const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
+
+BT::PortsList EmergencyStop::providedPorts()
+{
+  return {};
+}
+
+BT::NodeStatus EmergencyStop::tick()
+{
+  auto blackboard = config().blackboard;
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const bool under_attack = blackboard->get<bool>("under_attack");
+
+  if (under_attack) {
+      return BT::NodeStatus::FAILURE;  
+
+  Sentry_BT::Point2D goal_point;
+  goal_point.x = current_pose.position.x;
+  goal_point.y = current_pose.position.y;
+
+  blackboard->set("nav_goal", goal_point);
+  return BT::NodeStatus::SUCCESS;  
+ }
+
+  return BT::NodeStatus::SUCCESS;
+}
 }  // namespace Sentry_BT
