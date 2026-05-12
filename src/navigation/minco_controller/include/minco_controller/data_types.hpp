@@ -84,6 +84,12 @@ struct ModelConfig
 
   // Cost weights: Q (6D state), R (3D control)
   Eigen::Matrix<double, 6, 1> Q{{10.0, 10.0, 2.0, 1.0, 1.0, 1.0}};
+  // P1: Cross-track decomposition — rotated to align with reference heading.
+  // Higher cross-track weight enforces precision on curves and narrow passages.
+  double q_along_p{3.0};   // position along-track
+  double q_cross_p{12.0};  // position cross-track (4x → precision)
+  double q_along_v{1.0};   // velocity along-track
+  double q_cross_v{3.0};   // velocity cross-track (3x)
   Eigen::Matrix<double, 3, 1> R{{1.0, 1.0, 0.5}};
 
   // qpOASES solver parameters
