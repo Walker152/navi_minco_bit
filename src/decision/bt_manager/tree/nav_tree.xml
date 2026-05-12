@@ -41,12 +41,12 @@
           <NavigateToPoseAction name="NavigateHome" />
         </ReactiveSequence>
 
-        <ReactiveSequence name="Priority1_5TunnelRecovery">
+        <!-- <ReactiveSequence name="Priority1_5TunnelRecovery">
           <CheckTimeInZone min_seconds="20.0" max_seconds="50.0" zone_name="transform_zone" />
           <SubTree ID="TunnelRecoverySubTree"
                    __shared_blackboard="true"
                    __autoremap="true" />
-        </ReactiveSequence>
+        </ReactiveSequence> -->
 
         <ReactiveSequence name="Priority2TargetAttack">
           <!-- <ChangeMapAction name="SwitchToMainMapForSpecial"

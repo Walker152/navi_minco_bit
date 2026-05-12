@@ -101,7 +101,7 @@ controller_server:
 
       # --- Time ---
       dt: 0.01                  # MPC sampling period (s)
-      lookahead_time: 0.5       # prediction horizon = ceil(lookahead_time / dt)
+      lookahead_time: 0.1       # prediction horizon = ceil(lookahead_time / dt)
       planner_freq: 20.0        # planner output frequency (Hz)
 
       # --- Physical parameters ---
@@ -127,8 +127,8 @@ controller_server:
       # --- Cost weights ---
       # Q: 6D state [px, py, yaw, vx, vy, omega]
       # R: 3D control [F_gx, F_gy, M_gz]
-      Q: [500.0, 500.0, 100.0, 50.0, 50.0, 10.0]
-      R: [0.01, 0.01, 0.005]
+      Q: [15.0, 15.0, 5.0, 2.0, 2.0, 0.5]
+      R: [1.0, 1.0, 0.5]
 
       # --- qpOASES solver ---
       max_wsr: 200
@@ -138,7 +138,7 @@ controller_server:
       fixed_wz: 4.18            # rad/s, used if use_small_gyro_mode is true
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.2
+      control_delay_compensation: 0.03
 
       # --- Lidar extrinsic ---
       lidar_offset_x: 0.0
@@ -320,14 +320,14 @@ planner_server:
         opt_freq: 10.0
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
-        safe_dist: 0.4
+        safe_dist: 0.35
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
-        max_velocity: 5.5
-        max_acceleration: 4.5
+        max_velocity: 4.5
+        max_acceleration: 3.5
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.8
         turn_angle_saturation: 1.57
-        min_turn_vel: 2.5
+        min_turn_vel: 2.0
         decay_power: 1.3
         time_allocation_iters: 15
         smooth_eps: 0.01

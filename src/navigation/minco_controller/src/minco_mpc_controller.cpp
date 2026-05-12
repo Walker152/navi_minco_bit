@@ -504,7 +504,12 @@ bool MincoMpcController::buildReferenceFromOptPath(
   const uint32_t current_traj_id = (!opt->cmds.empty()) ? opt->cmds.front().trajectory_id : 0u;
   double current_idx_float = nearest_idx_float;
   current_idx_float = std::min(current_idx_float, static_cast<double>(n_cmds - 1));
-
+  double time_tracked = (now.seconds() - tracked_ref_time_.seconds());
+  if(time_tracked > 0.0 && std::hypot(curr.vx, curr.vy) < 0.05)
+  {
+    double forced_idx = (time_tracked / planner_dt) * 0.5;
+    current_idx_float = std::max(current_idx_float, tracked_ref_idx + forced_idx);
+  }
   {
     std::lock_guard<std::mutex> lk(data_mtx_);
     tracked_ref_idx_ = current_idx_float;
