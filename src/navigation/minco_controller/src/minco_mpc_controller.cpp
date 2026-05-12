@@ -741,6 +741,15 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   // 7) Post-solve coupled polytope safety clip
   ModelBuilder::clampCoupledForce(optimal_force, model_config_.f_max, model_config_.chassis_radius);
 
+  // 7.5) Low-pass filter to prevent stick-slip force oscillation on slopes.
+  // The MPC re-optimizes every cycle; adjacent QP solutions can differ
+  // significantly on inclines where gravity creates a large steady-state
+  // disturbance. Smoothing the force command breaks the move-stop cycle.
+  if (prev_force_.squaredNorm() > 1e-12) {
+    optimal_force = force_smooth_alpha_ * optimal_force + (1.0 - force_smooth_alpha_) * prev_force_;
+  }
+  prev_force_ = optimal_force;
+
   // 8) Publish force command on /cmd_force_mpc
   geometry_msgs::msg::WrenchStamped wrench_msg;
   wrench_msg.header.stamp = now;

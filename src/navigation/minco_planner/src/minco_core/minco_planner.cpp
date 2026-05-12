@@ -720,6 +720,17 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   //           << "), vel=(" << start_state.col(1).x() << ", " << start_state.col(1).y()
   //           << "), acc=(" << start_state.col(2).x() << ", " << start_state.col(2).y() << ")"
   //           << RESET << std::endl;
+  if (esdf_map_) {
+    double start_esdf_dist = 0.0;
+    Eigen::Vector3d start_esdf_grad = Eigen::Vector3d::Zero();
+    esdf_map_->evaluate(start_state.col(0), start_esdf_dist, start_esdf_grad);
+    if (start_esdf_dist < 0.0 && start_esdf_grad.norm() > 1e-6) {
+      // Walk along the gradient to the nearest free-space boundary with a small margin.
+      constexpr double kMargin = 0.05;
+      start_state.col(0) += (kMargin - start_esdf_dist) * start_esdf_grad.normalized();
+    }
+  }
+
   // 6. Generate backup trajectory (safety).
   traj_opt::Trajectory backup_traj = generateBackupTraj(start_state);
 
@@ -1039,6 +1050,46 @@ void MincoPlanner::PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path
 // -----------------------------------------------------------------------------
 // 4) Internal implementation logic / algorithms
 // -----------------------------------------------------------------------------
+static bool projectStartToFreeCell(nav2_costmap_2d::Costmap2D * costmap,
+                                   unsigned int & mx,
+                                   unsigned int & my)
+{
+  const unsigned int nx = costmap->getSizeInCellsX();
+  const unsigned int ny = costmap->getSizeInCellsY();
+
+  auto isFree = [costmap](unsigned int x, unsigned int y) {
+    return costmap->getCost(x, y) < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+  };
+
+  // Fast path: any 4-connected neighbor is free → A* can expand from start.
+  const int dx4[4] = {1, -1, 0, 0};
+  const int dy4[4] = {0, 0, 1, -1};
+  for (int k = 0; k < 4; ++k) {
+    int sx = static_cast<int>(mx) + dx4[k];
+    int sy = static_cast<int>(my) + dy4[k];
+    if (sx < 0 || sy < 0 || sx >= static_cast<int>(nx) || sy >= static_cast<int>(ny)) continue;
+    if (isFree(static_cast<unsigned int>(sx), static_cast<unsigned int>(sy))) return false;
+  }
+
+  // Spiral outward to find nearest free cell.
+  constexpr int kMaxRadius = 50;
+  for (int r = 1; r <= kMaxRadius; ++r) {
+    for (int dy = -r; dy <= r; ++dy) {
+      for (int dx = -r; dx <= r; ++dx) {
+        if (std::abs(dx) != r && std::abs(dy) != r) continue;  // perimeter only
+        int cx = static_cast<int>(mx) + dx;
+        int cy = static_cast<int>(my) + dy;
+        if (cx < 0 || cy < 0 || cx >= static_cast<int>(nx) || cy >= static_cast<int>(ny)) continue;
+        if (isFree(static_cast<unsigned int>(cx), static_cast<unsigned int>(cy))) {
+          mx = static_cast<unsigned int>(cx);
+          my = static_cast<unsigned int>(cy);
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
 
 bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
   const geometry_msgs::msg::Pose & goal,
@@ -1063,6 +1114,13 @@ bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
     return false;
   }
   utils::clearRobotCell(costmap_, mx_start, my_start);
+
+  // P1a: If the start cell is surrounded by inflated obstacles, spiral-search
+  // outward to find the nearest free cell so A* can expand from the start.
+  {
+    std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
+    projectStartToFreeCell(costmap_, mx_start, my_start);
+  }
 
   wx = goal.position.x;
   wy = goal.position.y;
@@ -1308,7 +1366,7 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
     }
   }
 
-  // constexpr double slope_threshold = 0.05;
+  constexpr double slope_threshold = 0.05;
   if (has_valid_odom && sparse_path.size() >= 2) {
     const tf2::Quaternion q(odom_q.x, odom_q.y, odom_q.z, odom_q.w);
     double roll = 0.0;
@@ -1316,21 +1374,21 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
     double yaw = 0.0;
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
 
-    // if (std::abs(pitch) > slope_threshold) {
-    //   Eigen::Vector2d local_dir = (sparse_path[1] - sparse_path[0]).head<2>();
-    //   const double norm = local_dir.norm();
-    //   if (norm > 0.1) {
-    //     local_dir /= norm;
-    //     constexpr double min_climb_speed = 4.0;
-    //     constexpr double min_climb_acc = 4.0;
-    //     if (std::hypot(real_speed.x(), real_speed.y()) < min_climb_speed) {
-    //       real_speed.x() = local_dir.x() * min_climb_speed;
-    //       real_speed.y() = local_dir.y() * min_climb_speed;
-    //       start_state.col(2) =
-    //         Eigen::Vector3d(local_dir.x() * min_climb_acc, local_dir.y() * min_climb_acc, 0.0);
-    //     }
-    //   }
-    // }
+    if (std::abs(pitch) > slope_threshold) {
+      Eigen::Vector2d path_dir = (sparse_path[1] - sparse_path[0]).head<2>();
+      const double dir_norm = path_dir.norm();
+      if (dir_norm > 0.1) {
+        path_dir /= dir_norm;
+        const double min_climb_speed = std::max(2.0, minco_config.max_vel * 0.5);
+        const double cur_spd = std::hypot(real_speed.x(), real_speed.y());
+        if (cur_spd < min_climb_speed) {
+          real_speed.x() = path_dir.x() * min_climb_speed;
+          real_speed.y() = path_dir.y() * min_climb_speed;
+          start_state.col(2) = Eigen::Vector3d(
+              path_dir.x() * minco_config.max_acc, path_dir.y() * minco_config.max_acc, 0.0);
+        }
+      }
+    }
   }
 
   start_state.col(1) = real_speed;
@@ -1343,8 +1401,29 @@ void MincoPlanner::prepareHotStart(
   // start_state.col(0) = last_traj_.getPos(t_dur);
   start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
   // start_state.col(1) = last_traj_.getVel(t_dur);
-  start_state.col(1) = getCurrentSpeed();
+  Eigen::Vector3d real_speed = getCurrentSpeed();
   start_state.col(2) = last_traj_.getAcc(t_dur);
+
+  // Slope-aware minimum speed: enforce min climb speed to prevent stalling on inclines.
+  const tf2::Quaternion q(
+      start_pose.orientation.x, start_pose.orientation.y,
+      start_pose.orientation.z, start_pose.orientation.w);
+  double roll = 0.0, pitch = 0.0, yaw = 0.0;
+  tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+  constexpr double slope_threshold = 0.05;
+  if (std::abs(pitch) > slope_threshold) {
+    const Eigen::Vector2d path_dir(std::cos(yaw), std::sin(yaw));
+    const double min_climb_speed = std::max(2.0, minco_config.max_vel * 0.5);
+    const double cur_spd = std::hypot(real_speed.x(), real_speed.y());
+    if (cur_spd < min_climb_speed) {
+      real_speed.x() = path_dir.x() * min_climb_speed;
+      real_speed.y() = path_dir.y() * min_climb_speed;
+      start_state.col(2) = Eigen::Vector3d(
+          path_dir.x() * minco_config.max_acc, path_dir.y() * minco_config.max_acc, 0.0);
+    }
+  }
+
+  start_state.col(1) = real_speed;
 }
 
 bool MincoPlanner::optimizeYaw(const Eigen::Matrix3d & start_state,

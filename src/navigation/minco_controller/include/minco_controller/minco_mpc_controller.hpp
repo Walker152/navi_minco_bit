@@ -142,6 +142,10 @@ private:
   double lidar_offset_y_{0.0};
   double lidar_roll_offset_{0.0};
   bool use_small_gyro_mode_{true};
+
+  // Low-pass filter for MPC output force to prevent stick-slip oscillation on slopes.
+  mutable Eigen::Vector3d prev_force_{0.0, 0.0, 0.0};
+  double force_smooth_alpha_{0.3};
 };
 
 }  // namespace minco_controller
