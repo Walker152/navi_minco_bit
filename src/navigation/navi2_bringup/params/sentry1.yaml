@@ -111,7 +111,7 @@ controller_server:
       g: 9.81                   # gravitational acceleration (m/s²)
 
       # --- Friction coefficients ---
-      mu_c: 0.05                 # Coulomb friction coefficient
+      mu_c: 0.08                 # Coulomb friction coefficient
       C_v: 0.2                  # viscous friction coefficient
 
       # --- Force / torque limits ---

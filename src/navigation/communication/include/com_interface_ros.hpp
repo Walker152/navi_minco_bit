@@ -235,6 +235,8 @@ private:
       odom_q = odom_.pose.pose.orientation;
       fx_global = cmd_wrench_.force.x;
       fy_global = cmd_wrench_.force.y;
+      // fx_global = 20.0;
+      // fy_global = 0.0;
       fw_global = cmd_wrench_.torque.z;
 
       pitch_mode = behavior_.pitch_mode;
