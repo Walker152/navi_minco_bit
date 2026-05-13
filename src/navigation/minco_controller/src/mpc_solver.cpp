@@ -108,10 +108,27 @@ bool MpcSolver::buildCondensedQP(const State & curr,
   }
 
   // Q_bar / R_bar (对角块)
+  // P1: Rotate Q at each horizon step to decompose tracking penalty
+  // into along-track (heading direction) and cross-track (perpendicular).
+  // Higher cross-track weight enforces precision on curves/narrow passages.
   Eigen::MatrixXd Q_bar = Eigen::MatrixXd::Zero(nX, nX);
   Eigen::MatrixXd R_bar = Eigen::MatrixXd::Zero(nU, nU);
   for (int i = 0; i < N; ++i) {
-    Q_bar.block<3, 3>(i * nx, i * nx) = config_.Q.asDiagonal();
+    const double yaw_ref = ref_traj[i].yaw;
+    const double c = std::cos(yaw_ref);
+    const double s = std::sin(yaw_ref);
+    // Q_xy = R^T * diag(q_along, q_cross) * R  (R is 2D rotation by yaw_ref)
+    // R = [c, -s; s, c], so:
+    // Q_xy = [c*q_along*c + s*q_cross*s,   c*q_along*(-s) + s*q_cross*c;
+    //         (-s)*q_along*c + c*q_cross*s, (-s)*q_along*(-s) + c*q_cross*c]
+    const double qa = config_.q_along;
+    const double qc = config_.q_cross;
+    Q_bar(i * nx + 0, i * nx + 0) = qa * c * c + qc * s * s;
+    Q_bar(i * nx + 0, i * nx + 1) = (qc - qa) * c * s;
+    Q_bar(i * nx + 1, i * nx + 0) = (qc - qa) * c * s;
+    Q_bar(i * nx + 1, i * nx + 1) = qa * s * s + qc * c * c;
+    Q_bar(i * nx + 2, i * nx + 2) = config_.Q.z();  // yaw weight unchanged
+
     R_bar.block<3, 3>(i * nu, i * nu) = config_.R.asDiagonal();
   }
 
@@ -129,8 +146,10 @@ bool MpcSolver::buildCondensedQP(const State & curr,
   g = 2.0 * (B_hat.transpose() * Q_bar * d - R_bar * U_ref);
 
   // 变量边界（速度约束，map/global 系）
-  lb = Eigen::VectorXd::Constant(nU, -std::numeric_limits<double>::infinity());
-  ub = Eigen::VectorXd::Constant(nU, std::numeric_limits<double>::infinity());
+  // Use -1e12 instead of -inf: qpOASES defines INFTY=1e20 internally.
+  // IEEE -inf causes NaN in active-set arithmetic.
+  lb = Eigen::VectorXd::Constant(nU, -1.0e12);
+  ub = Eigen::VectorXd::Constant(nU, 1.0e12);
   for (int i = 0; i < N; ++i) {
     lb(i * nu + 0) = config_.vx_min;
     ub(i * nu + 0) = config_.vx_max;
