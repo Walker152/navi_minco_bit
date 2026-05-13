@@ -16,10 +16,10 @@
 
         <Sequence name="MoveStanceNoGyroBranch">
           <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch"
-                                    kp="1.0"
-                                    ki="0.2"
+                                    kp="1.5"
+                                    ki="0.1"
                                     kd="0.0"
-                                    deadzone_rad="0.05"
+                                    deadzone_rad="0.1"
                                     max_abs_gyro_vel="100.0"
                                     use_gyro="{use_gyro}"
                                     gyro_vel="{gyro_vel}" />
