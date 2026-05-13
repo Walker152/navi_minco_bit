@@ -1373,7 +1373,7 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
       const double dir_norm = path_dir.norm();
       if (dir_norm > 0.1) {
         path_dir /= dir_norm;
-        const double min_climb_speed = std::max(1.0, minco_config.max_vel * 0.5);
+        const double min_climb_speed = std::max(1.0, minco_config.max_vel * 0.8);
         const double cur_spd = std::hypot(real_speed.x(), real_speed.y());
         if (cur_spd < min_climb_speed) {
           real_speed.x() = path_dir.x() * min_climb_speed;
@@ -1394,7 +1394,7 @@ void MincoPlanner::prepareHotStart(
   start_state.setZero();
   // start_state.col(0) = last_traj_.getPos(t_dur);
   start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
-  // start_state.col(1) = last_traj_.getVel(t_dur);
+  start_state.col(1) = last_traj_.getVel(t_dur);
   Eigen::Vector3d real_speed = getCurrentSpeed();
   start_state.col(2) = last_traj_.getAcc(t_dur);
 
@@ -1407,7 +1407,7 @@ void MincoPlanner::prepareHotStart(
   constexpr double slope_threshold = 0.05;
   if (std::abs(pitch) > slope_threshold) {
     const Eigen::Vector2d path_dir(std::cos(yaw), std::sin(yaw));
-    const double min_climb_speed = std::max(1.0, minco_config.max_vel * 0.5);
+    const double min_climb_speed = std::max(1.0, minco_config.max_vel * 0.8);
     const double cur_spd = std::hypot(real_speed.x(), real_speed.y());
     if (cur_spd < min_climb_speed) {
       real_speed.x() = path_dir.x() * min_climb_speed;
@@ -1415,9 +1415,8 @@ void MincoPlanner::prepareHotStart(
       start_state.col(2) = Eigen::Vector3d(
           path_dir.x() * minco_config.max_acc, path_dir.y() * minco_config.max_acc, 0.0);
     }
+    start_state.col(1) = real_speed;
   }
-
-  start_state.col(1) = real_speed;
 }
 
 bool MincoPlanner::optimizeYaw(const Eigen::Matrix3d & start_state,
