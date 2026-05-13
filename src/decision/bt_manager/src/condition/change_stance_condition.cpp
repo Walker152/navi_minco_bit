@@ -534,7 +534,7 @@ BT::NodeStatus CheckTunnelDeformation::tick()
 
   const rclcpp::Time now = rclcpp::Clock().now();
 
-  if (current_in_tunnel) {
+  if (current_in_tunnel || through_tunnel) {
     desired_pos = LifterPos::BOTTOM;
   }
   
@@ -543,10 +543,10 @@ BT::NodeStatus CheckTunnelDeformation::tick()
       desired_pos = LifterPos::BOTTOM;
     }
   } else {
-    if(through_tunnel) {
-      Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
-      blackboard->set<Point2D>("nav_goal", current_point);
-    }
+    // if(through_tunnel) {
+    //   Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
+    //   blackboard->set<Point2D>("nav_goal", current_point);
+    // }
   }
 
 
