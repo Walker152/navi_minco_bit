@@ -369,7 +369,8 @@ void MincoMpcController::extractAttitudeFromOdom(
   double roll = 0.0, pitch = 0.0, yaw = 0.0;
   tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
 
-  attitude.roll = normalizeAngle(roll - lidar_roll_offset_);
+  // attitude.roll = normalizeAngle(roll - lidar_roll_offset_);
+  attitude.roll = 0.0;
   attitude.pitch = pitch;
   attitude.yaw = yaw;
 }
@@ -746,14 +747,6 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
 
   // 7) Post-solve coupled polytope safety clip
   ModelBuilder::clampCoupledForce(optimal_force, model_config_.f_max, model_config_.chassis_radius);
-
-  // 7.5) Low-pass filter to prevent stick-slip force oscillation on slopes.
-  // The MPC re-optimizes every cycle; adjacent QP solutions can differ
-  // significantly on inclines where gravity creates a large steady-state
-  // disturbance. Smoothing the force command breaks the move-stop cycle.
-  if (prev_force_.squaredNorm() > 1e-12) {
-    optimal_force = force_smooth_alpha_ * optimal_force + (1.0 - force_smooth_alpha_) * prev_force_;
-  }
   prev_force_ = optimal_force;
 
   // 8) Publish force command on /cmd_force_mpc
