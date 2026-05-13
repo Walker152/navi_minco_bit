@@ -107,23 +107,23 @@ controller_server:
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [3.0, 3.0, 2.0]
-      R: [0.5, 0.5, 1.0]
+      R: [6.0, 6.0, 1.0]
 
       # Velocity bounds
-      vx_min: -5.5
-      vx_max: 5.5
-      vy_min: -5.5
-      vy_max: 5.5
+      vx_min: -3.5
+      vx_max: 3.5
+      vy_min: -3.5
+      vy_max: 3.5
       fixed_wz: 4.18 # rad/s, used if use_small_gyro_mode is true
       omega_min: -5.0 
       omega_max: 5.0
 
       # Optional acceleration constraints
       use_acc_constraints: true
-      ax_min: -6.0
-      ax_max: 6.0
-      ay_min: -6.0
-      ay_max: 6.0
+      ax_min: -2.0
+      ax_max: 2.0
+      ay_min: -2.0
+      ay_max: 2.0
       alpha_min: -5.0
       alpha_max: 5.0
 
@@ -307,15 +307,15 @@ planner_server:
         opt_freq: 10.0
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
-        safe_dist: 0.4
+        safe_dist: 0.35
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
-        max_velocity: 6.5
-        max_acceleration: 5.5
+        max_velocity: 3.5
+        max_acceleration: 1.5
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.8
         turn_angle_saturation: 1.57
-        min_turn_vel: 3.5
-        decay_power: 1.3
+        min_turn_vel: 2.0
+        decay_power: 1.5
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16

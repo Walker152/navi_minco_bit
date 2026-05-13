@@ -427,15 +427,15 @@ bool MincoMpcController::buildReferenceFromOptPath(
   const uint32_t current_traj_id = (!opt->cmds.empty()) ? opt->cmds.front().trajectory_id : 0u;
 
   // 轨迹未更新时，按时间持续向前推进参考索引，且不允许回退
-  const bool same_opt_traj = has_tracked_ref && tracked_opt_traj_id == current_traj_id;
+  // const bool same_opt_traj = has_tracked_ref && tracked_opt_traj_id == current_traj_id;
 
-  double progress_idx_float = nearest_idx_float;
-  if (same_opt_traj) {
-    double dt_pass = (now - tracked_ref_time).seconds();
-    dt_pass = std::max(0.0, dt_pass);
-    progress_idx_float = tracked_ref_idx + dt_pass / planner_dt;
-  }
-  double current_idx_float = std::max(nearest_idx_float, progress_idx_float);
+  // double progress_idx_float = nearest_idx_float;
+  // if (same_opt_traj) {
+  //   double dt_pass = (now - tracked_ref_time).seconds();
+  //   dt_pass = std::max(0.0, dt_pass);
+  //   progress_idx_float = tracked_ref_idx + dt_pass / planner_dt;
+  // }
+  // double current_idx_float = std::max(nearest_idx_float, progress_idx_float);
 
   // // 同一条轨迹若超过阈值仍未更新，判定规划器卡死
   // const double traj_stamp_sec =
@@ -445,7 +445,7 @@ bool MincoMpcController::buildReferenceFromOptPath(
   //   return false;
   // }
 
-  // double current_idx_float = nearest_idx_float;
+  double current_idx_float = nearest_idx_float;
   current_idx_float = std::min(current_idx_float, static_cast<double>(n_cmds - 1));
 
   {
@@ -728,41 +728,41 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   // The MPC re-optimizes every cycle; adjacent QP solutions can differ
   // significantly on inclines where gravity creates a large steady-state
   // disturbance. Smoothing the velocity command breaks the move-stop cycle.
-  if (prev_u_global_.squaredNorm() > 1e-12) {
-    u_global.vx = vel_smooth_alpha_ * u_global.vx + (1.0 - vel_smooth_alpha_) * prev_u_global_.x();
-    u_global.vy = vel_smooth_alpha_ * u_global.vy + (1.0 - vel_smooth_alpha_) * prev_u_global_.y();
-  }
+  // if (prev_u_global_.squaredNorm() > 1e-12) {
+  //   u_global.vx = vel_smooth_alpha_ * u_global.vx + (1.0 - vel_smooth_alpha_) * prev_u_global_.x();
+  //   u_global.vy = vel_smooth_alpha_ * u_global.vy + (1.0 - vel_smooth_alpha_) * prev_u_global_.y();
+  // }
   prev_u_global_ = Eigen::Vector3d(u_global.vx, u_global.vy, u_global.omega);
 
   // P0: Integral action for unmodeled steady-state disturbances (gravity on slopes,
   // rolling resistance, slip). Decomposes position error into along-track and
   // cross-track components, maintains leaky integrals, adds velocity correction.
-  {
-    const double ref_yaw = ref[0].yaw;
-    const Eigen::Vector2d along_dir(std::cos(ref_yaw), std::sin(ref_yaw));
-    const Eigen::Vector2d cross_dir(-along_dir.y(), along_dir.x());
-    const Eigen::Vector2d pos_err(curr.x - ref[0].pos.x(), curr.y - ref[0].pos.y());
+  // {
+  //   const double ref_yaw = ref[0].yaw;
+  //   const Eigen::Vector2d along_dir(std::cos(ref_yaw), std::sin(ref_yaw));
+  //   const Eigen::Vector2d cross_dir(-along_dir.y(), along_dir.x());
+  //   const Eigen::Vector2d pos_err(curr.x - ref[0].pos.x(), curr.y - ref[0].pos.y());
 
-    const double along_err = pos_err.dot(along_dir);
-    const double cross_err = pos_err.dot(cross_dir);
+  //   const double along_err = pos_err.dot(along_dir);
+  //   const double cross_err = pos_err.dot(cross_dir);
 
-    // Leaky integrator with anti-windup
-    const double dt = mpc_config_.dt;
-    integral_err_.x() = integral_decay_ * integral_err_.x() + (1.0 - integral_decay_) * along_err * dt;
-    integral_err_.y() = integral_decay_ * integral_err_.y() + (1.0 - integral_decay_) * cross_err * dt;
+  //   // Leaky integrator with anti-windup
+  //   const double dt = mpc_config_.dt;
+  //   integral_err_.x() = integral_decay_ * integral_err_.x() + (1.0 - integral_decay_) * along_err * dt;
+  //   integral_err_.y() = integral_decay_ * integral_err_.y() + (1.0 - integral_decay_) * cross_err * dt;
 
-    constexpr double kMaxIntegral = 0.5;
-    const double int_norm = integral_err_.norm();
-    if (int_norm > kMaxIntegral) {
-      integral_err_ *= kMaxIntegral / int_norm;
-    }
+  //   constexpr double kMaxIntegral = 0.5;
+  //   const double int_norm = integral_err_.norm();
+  //   if (int_norm > kMaxIntegral) {
+  //     integral_err_ *= kMaxIntegral / int_norm;
+  //   }
 
-    // Add integral correction in global frame
-    u_global.vx += k_i_along_ * integral_err_.x() * along_dir.x() +
-                   k_i_cross_ * integral_err_.y() * cross_dir.x();
-    u_global.vy += k_i_along_ * integral_err_.x() * along_dir.y() +
-                   k_i_cross_ * integral_err_.y() * cross_dir.y();
-  }
+  //   // Add integral correction in global frame
+  //   u_global.vx += k_i_along_ * integral_err_.x() * along_dir.x() +
+  //                  k_i_cross_ * integral_err_.y() * cross_dir.x();
+  //   u_global.vy += k_i_along_ * integral_err_.x() * along_dir.y() +
+  //                  k_i_cross_ * integral_err_.y() * cross_dir.y();
+  // }
 
   // 5) 直接下发全局坐标系速度
   double vx_mpc = u_global.vx;
