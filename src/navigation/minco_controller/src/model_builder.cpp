@@ -139,35 +139,32 @@ bool ModelBuilder::buildQP(const Eigen::Matrix<double, 6, 1>& x0,
   }
 
   // --- Build Q_bar (6N x 6N) and R_bar (3N x 3N) with rotated Q ---
-  // P1: Rotate position [px,py] and velocity [vx,vy] blocks by reference
-  // heading to decompose tracking penalty into along-track and cross-track.
-  // Higher cross-track weights enforce precision on curves and narrow passages.
   Eigen::MatrixXd Q_bar = Eigen::MatrixXd::Zero(nX_, nX_);
   Eigen::MatrixXd R_bar = Eigen::MatrixXd::Zero(nU_, nU_);
   for (int i = 0; i < N; ++i) {
     const double y = ref_traj[i].yaw;
     const double c = std::cos(y), s = std::sin(y);
-    const double qap = config_.q_along_p, qcp = config_.q_cross_p;
-    const double qav = config_.q_along_v, qcv = config_.q_cross_v;
+    // const double qap = config_.q_along_p, qcp = config_.q_cross_p;
+    // const double qav = config_.q_along_v, qcv = config_.q_cross_v;
 
-    // Position 2x2: R^T * diag(q_along_p, q_cross_p) * R
-    Q_bar(i * nx_ + 0, i * nx_ + 0) = qap * c * c + qcp * s * s;
-    Q_bar(i * nx_ + 0, i * nx_ + 1) = (qcp - qap) * c * s;
-    Q_bar(i * nx_ + 1, i * nx_ + 0) = (qcp - qap) * c * s;
-    Q_bar(i * nx_ + 1, i * nx_ + 1) = qap * s * s + qcp * c * c;
+    // // Position 2x2: R^T * diag(q_along_p, q_cross_p) * R
+    // Q_bar(i * nx_ + 0, i * nx_ + 0) = qap * c * c + qcp * s * s;
+    // Q_bar(i * nx_ + 0, i * nx_ + 1) = (qcp - qap) * c * s;
+    // Q_bar(i * nx_ + 1, i * nx_ + 0) = (qcp - qap) * c * s;
+    // Q_bar(i * nx_ + 1, i * nx_ + 1) = qap * s * s + qcp * c * c;
 
-    // Yaw: unchanged
-    Q_bar(i * nx_ + 2, i * nx_ + 2) = config_.Q(2);
+    // // Yaw: unchanged
+    // Q_bar(i * nx_ + 2, i * nx_ + 2) = config_.Q(2);
 
-    // Velocity 2x2: R^T * diag(q_along_v, q_cross_v) * R
-    Q_bar(i * nx_ + 3, i * nx_ + 3) = qav * c * c + qcv * s * s;
-    Q_bar(i * nx_ + 3, i * nx_ + 4) = (qcv - qav) * c * s;
-    Q_bar(i * nx_ + 4, i * nx_ + 3) = (qcv - qav) * c * s;
-    Q_bar(i * nx_ + 4, i * nx_ + 4) = qav * s * s + qcv * c * c;
+    // // Velocity 2x2: R^T * diag(q_along_v, q_cross_v) * R
+    // Q_bar(i * nx_ + 3, i * nx_ + 3) = qav * c * c + qcv * s * s;
+    // Q_bar(i * nx_ + 3, i * nx_ + 4) = (qcv - qav) * c * s;
+    // Q_bar(i * nx_ + 4, i * nx_ + 3) = (qcv - qav) * c * s;
+    // Q_bar(i * nx_ + 4, i * nx_ + 4) = qav * s * s + qcv * c * c;
 
-    // Omega: unchanged
-    Q_bar(i * nx_ + 5, i * nx_ + 5) = config_.Q(5);
-
+    // // Omega: unchanged
+    // Q_bar(i * nx_ + 5, i * nx_ + 5) = config_.Q(5);
+    Q_bar.block<6, 6>(i * nx_, i * nx_) = config_.Q.asDiagonal();
     R_bar.block<3, 3>(i * nu_, i * nu_) = config_.R.asDiagonal();
   }
 

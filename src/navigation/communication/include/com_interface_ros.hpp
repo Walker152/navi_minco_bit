@@ -250,7 +250,7 @@ private:
       revive_req = behavior_.remote_revive_request;
       health_req = behavior_.remote_health_request;
       use_limited_scan = behavior_.use_limited_scan;
-      // vw_rpm = gyro_vel;
+      vw_rpm = gyro_vel;
     }
     tf2::Quaternion q;
     tf2::fromMsg(odom_q, q);

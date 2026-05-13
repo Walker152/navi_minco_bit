@@ -101,7 +101,7 @@ controller_server:
 
       # --- Time ---
       dt: 0.01                  # MPC sampling period (s)
-      lookahead_time: 0.5       # prediction horizon = ceil(lookahead_time / dt)
+      lookahead_time: 0.3       # prediction horizon = ceil(lookahead_time / dt)
       planner_freq: 20.0        # planner output frequency (Hz)
 
       # --- Physical parameters ---
@@ -111,7 +111,7 @@ controller_server:
       g: 9.81                   # gravitational acceleration (m/s²)
 
       # --- Friction coefficients ---
-      mu_c: 0.1                 # Coulomb friction coefficient
+      mu_c: 0.05                 # Coulomb friction coefficient
       C_v: 0.2                  # viscous friction coefficient
 
       # --- Force / torque limits ---
@@ -127,8 +127,8 @@ controller_server:
       # --- Cost weights ---
       # Q: 6D state [px, py, yaw, vx, vy, omega]
       # R: 3D control [F_gx, F_gy, M_gz]
-      Q: [12.0, 12.0, 15.0, 1.0, 1.0, 0.33]
-      R: [3.0, 3.0, 0.3]
+      Q: [12.0, 12.0, 9.0, 1.0, 1.0, 1.0]
+      R: [4.0, 4.0, 1.0]
 
       # --- qpOASES solver ---
       max_wsr: 200
@@ -138,7 +138,7 @@ controller_server:
       fixed_wz: 4.18            # rad/s, used if use_small_gyro_mode is true
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.03
+      control_delay_compensation: 0.2
 
       # --- Lidar extrinsic ---
       lidar_offset_x: 0.0
@@ -322,10 +322,10 @@ planner_server:
         enable_yaw_opt: true
         safe_dist: 0.40
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
-        max_velocity: 4.5
-        max_acceleration: 2.5
+        max_velocity: 3.0
+        max_acceleration: 1.5
         max_yaw_dot: 5.0
-        turn_angle_deadzone: 0.3
+        turn_angle_deadzone: 0.5
         turn_angle_saturation: 1.57
         min_turn_vel: 1.5
         decay_power: 1.5

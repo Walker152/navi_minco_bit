@@ -534,7 +534,7 @@ BT::NodeStatus CheckTunnelDeformation::tick()
 
   const rclcpp::Time now = rclcpp::Clock().now();
 
-  if (current_in_tunnel) {
+  if (current_in_tunnel || through_tunnel) {
     desired_pos = LifterPos::BOTTOM;
   }
   
