@@ -16,8 +16,8 @@
 
         <Sequence name="MoveStanceNoGyroBranch">
           <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch"
-                                    kp="1.5"
-                                    ki="0.1"
+                                    kp="1.0"
+                                    ki="0.2"
                                     kd="0.0"
                                     deadzone_rad="0.05"
                                     max_abs_gyro_vel="100.0"
