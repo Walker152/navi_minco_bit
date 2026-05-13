@@ -19,9 +19,9 @@
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
           <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch"
                                  kp="1.5"
-                                 ki="0.1"
+                                 ki="0.2"
                                  kd="0.0"
-                                 deadzone_rad="0.1"
+                                 deadzone_rad="0.02"
                                  max_abs_gyro_vel="100.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
         </ReactiveSequence>

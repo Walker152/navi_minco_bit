@@ -1092,38 +1092,38 @@ static bool projectStartToFreeCell(nav2_costmap_2d::Costmap2D * costmap,
   return false;
 }
 
-static bool projectStartToFreeCell(nav2_costmap_2d::Costmap2D * costmap,
-                                   unsigned int & mx, unsigned int & my)
-{
-  const unsigned int nx = costmap->getSizeInCellsX();
-  const unsigned int ny = costmap->getSizeInCellsY();
-  auto isFree = [costmap](unsigned int x, unsigned int y) {
-    return costmap->getCost(x, y) < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
-  };
-  const int dx4[4] = {1, -1, 0, 0};
-  const int dy4[4] = {0, 0, 1, -1};
-  for (int k = 0; k < 4; ++k) {
-    int sx = static_cast<int>(mx) + dx4[k];
-    int sy = static_cast<int>(my) + dy4[k];
-    if (sx < 0 || sy < 0 || sx >= static_cast<int>(nx) || sy >= static_cast<int>(ny)) continue;
-    if (isFree(static_cast<unsigned int>(sx), static_cast<unsigned int>(sy))) return false;
-  }
-  constexpr int kMaxRadius = 50;
-  for (int r = 1; r <= kMaxRadius; ++r) {
-    for (int dy = -r; dy <= r; ++dy) {
-      for (int dx = -r; dx <= r; ++dx) {
-        if (std::abs(dx) != r && std::abs(dy) != r) continue;
-        int cx = static_cast<int>(mx) + dx;
-        int cy = static_cast<int>(my) + dy;
-        if (cx < 0 || cy < 0 || cx >= static_cast<int>(nx) || cy >= static_cast<int>(ny)) continue;
-        if (isFree(static_cast<unsigned int>(cx), static_cast<unsigned int>(cy))) {
-          mx = static_cast<unsigned int>(cx); my = static_cast<unsigned int>(cy); return true;
-        }
-      }
-    }
-  }
-  return false;
-}
+// static bool projectStartToFreeCell(nav2_costmap_2d::Costmap2D * costmap,
+//                                    unsigned int & mx, unsigned int & my)
+// {
+//   const unsigned int nx = costmap->getSizeInCellsX();
+//   const unsigned int ny = costmap->getSizeInCellsY();
+//   auto isFree = [costmap](unsigned int x, unsigned int y) {
+//     return costmap->getCost(x, y) < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+//   };
+//   const int dx4[4] = {1, -1, 0, 0};
+//   const int dy4[4] = {0, 0, 1, -1};
+//   for (int k = 0; k < 4; ++k) {
+//     int sx = static_cast<int>(mx) + dx4[k];
+//     int sy = static_cast<int>(my) + dy4[k];
+//     if (sx < 0 || sy < 0 || sx >= static_cast<int>(nx) || sy >= static_cast<int>(ny)) continue;
+//     if (isFree(static_cast<unsigned int>(sx), static_cast<unsigned int>(sy))) return false;
+//   }
+//   constexpr int kMaxRadius = 50;
+//   for (int r = 1; r <= kMaxRadius; ++r) {
+//     for (int dy = -r; dy <= r; ++dy) {
+//       for (int dx = -r; dx <= r; ++dx) {
+//         if (std::abs(dx) != r && std::abs(dy) != r) continue;
+//         int cx = static_cast<int>(mx) + dx;
+//         int cy = static_cast<int>(my) + dy;
+//         if (cx < 0 || cy < 0 || cx >= static_cast<int>(nx) || cy >= static_cast<int>(ny)) continue;
+//         if (isFree(static_cast<unsigned int>(cx), static_cast<unsigned int>(cy))) {
+//           mx = static_cast<unsigned int>(cx); my = static_cast<unsigned int>(cy); return true;
+//         }
+//       }
+//     }
+//   }
+//   return false;
+// }
 
 bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
   const geometry_msgs::msg::Pose & goal,
