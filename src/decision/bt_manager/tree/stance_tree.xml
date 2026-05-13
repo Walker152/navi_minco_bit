@@ -14,19 +14,17 @@
           <ChangeStance name="ChangeStanceRefresh" stance="{target_stance}" />
         </Sequence> -->
 
-        <Sequence name="MoveStanceNoGyroBranch">
-          <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch"
-                                    kp="1.5"
-                                    ki="0.1"
-                                    kd="0.0"
-                                    deadzone_rad="0.05"
-                                    max_abs_gyro_vel="100.0"
-                                    use_gyro="{use_gyro}"
-                                    gyro_vel="{gyro_vel}" />
-          <SetGyroState use_gyro="{use_gyro}" gyro_vel="{gyro_vel}"/>
-          <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
+        <ReactiveSequence name="MoveStanceNoGyroBranch">
+          <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch" />
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
-        </Sequence>
+          <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch"
+                                 kp="1.5"
+                                 ki="0.1"
+                                 kd="0.0"
+                                 deadzone_rad="0.1"
+                                 max_abs_gyro_vel="100.0" />
+          <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
+        </ReactiveSequence>
 
         <Sequence name="AbsoluteAttackBranch">
           <Fallback name="AbsoluteAttackConditions">

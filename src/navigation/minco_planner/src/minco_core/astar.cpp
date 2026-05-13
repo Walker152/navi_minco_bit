@@ -176,25 +176,20 @@ bool Astar::calcPath(int /*nplan*/)
     npath++;
   }
 
+  // Only append the goal if the line from the last path point is free of obstacles.
   if (npath < ns && (pathx[npath - 1] != goal[0] || pathy[npath - 1] != goal[1])) {
-    // Bresenham-style line check using the costmap
     int x0 = static_cast<int>(pathx[npath - 1]);
     int y0 = static_cast<int>(pathy[npath - 1]);
-    int x1 = goal[0];
-    int y1 = goal[1];
-    int dx = std::abs(x1 - x0);
-    int dy = std::abs(y1 - y0);
-    int sx = (x0 < x1) ? 1 : -1;
-    int sy = (y0 < y1) ? 1 : -1;
+    int x1 = goal[0], y1 = goal[1];
+    int dx = std::abs(x1 - x0), dy = std::abs(y1 - y0);
+    int sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
     int err = dx - dy;
     bool line_clear = true;
     while (x0 != x1 || y0 != y1) {
       int idx = y0 * static_cast<int>(nx) + x0;
       if (idx >= 0 && idx < static_cast<int>(ns) &&
-          costarr[idx] >= COST_OBS_ROS &&
-          !(allow_unknown && costarr[idx] == 255)) {
-        line_clear = false;
-        break;
+          costarr[idx] >= COST_OBS_ROS && !(allow_unknown && costarr[idx] == 255)) {
+        line_clear = false; break;
       }
       int e2 = 2 * err;
       if (e2 > -dy) { err -= dy; x0 += sx; }

@@ -69,6 +69,7 @@ void YawTrajOpt::getYawWaypointAllocation(const Eigen::Vector4d & init_state,
     Eigen::Vector3d pt_g;
     if (eval_t + 0.15 >= pos_traj_duration) {
       pt_g = pos_traj.getPos(pos_traj_duration);
+      // Keep pt_i at eval_t — progressively shorter lookahead near the end.
     } else {
       pt_g = pos_traj.getPos(eval_t + 0.15);
     }

@@ -147,10 +147,6 @@ private:
   mutable Eigen::Vector3d prev_force_{0.0, 0.0, 0.0};
   double force_smooth_alpha_{0.3};
 
-  // P0: Integral action for unmodeled disturbances (gravity mismatch, slip).
-  // Leaky integrators of along-track and cross-track position errors, converted
-  // to force correction via F_corr = mass * kI * integral / dt.
-  mutable Eigen::Vector2d integral_err_{0.0, 0.0};
   double k_i_along_{0.8};
   double k_i_cross_{1.5};
   double integral_decay_{0.98};
