@@ -91,6 +91,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckEnhanceLimit>("CheckEnhanceLimit");
   factory_.registerNodeType<CheckStanceRefreshRequired>("CheckStanceRefreshRequired");
   factory_.registerNodeType<SetGyroState>("SetGyroState");
+  factory_.registerNodeType<TunnelGyroAlignAction>("TunnelGyroAlignAction");
   factory_.registerNodeType<ChangeStance>("ChangeStance");
   factory_.registerNodeType<UpdateEnhanceTime>("UpdateEnhanceTime");
   factory_.registerNodeType<CheckTunnelDeformation>("CheckTunnelDeformation");
