@@ -269,7 +269,8 @@ private:
       current_vw,
       fx_global,
       fy_global,
-      fw_global);
+      fw_global,
+      0);
     
     BehaviorData behavior_data(
       pitch_mode,
