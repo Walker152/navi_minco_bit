@@ -250,7 +250,6 @@ private:
       revive_req = behavior_.remote_revive_request;
       health_req = behavior_.remote_health_request;
       use_limited_scan = behavior_.use_limited_scan;
-
       vw_rpm = gyro_vel;
     }
 
@@ -270,7 +269,7 @@ private:
       fx_global,
       fy_global,
       fw_global,
-      0);
+      1);
     
     BehaviorData behavior_data(
       pitch_mode,
