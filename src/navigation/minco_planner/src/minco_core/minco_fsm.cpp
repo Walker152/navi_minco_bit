@@ -175,7 +175,12 @@ void MincoFsm::callMainFsmOnce()
     }
 
     if (!planner_->ReplanLocal(current_pose)) {
-      // 1. 失败诊断：区分是“前方路被挡”还是“自身被卡死”
+      // P0: If the old trajectory still has remaining time, keep following it.
+      if (!planner_->isTrajectoryTimeExpired(now_s)) {
+        return;
+      }
+
+      // 1. 失败诊断：区分是”前方路被挡”还是”自身被卡死”
       Eigen::Vector3d cur_p(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
       double dist = planner_->getEsdfDistance(cur_p);
 
