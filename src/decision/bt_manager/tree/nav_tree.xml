@@ -2,6 +2,9 @@
   <include path="recovery_tree.xml" />
   <BehaviorTree ID="MainTree">
     <ReactiveSequence name="MainReactiveSequence">
+      <ForceSuccess>
+        <CheckTunnelDeformation />
+      </ForceSuccess>
       <ReactiveFallback name="NavPriorityRoot">
         <ReactiveSequence name="Priority0ManualOverride">
           <CheckManualOverride name="CheckManualOverride" timeout_seconds="30.0" same_goal_eps="0.05" branch="Priority0ManualOverride" />
