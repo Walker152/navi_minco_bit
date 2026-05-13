@@ -199,8 +199,8 @@ Eigen::Vector3d ModelBuilder::computeGravityDisturbance(const Attitude& att) con
   // Body-frame gravity [0, 0, -g] rotated to map frame via Rz(yaw)*Ry(pitch)*Rx(roll)
   // g_map_x = -g * (cos(yaw)*sin(pitch)*cos(roll) + sin(yaw)*sin(roll))
   // g_map_y = -g * (sin(yaw)*sin(pitch)*cos(roll) - cos(yaw)*sin(roll))
-  const double g_x = -config_.g * (cy * sp * cr + sy * sr);
-  const double g_y = -config_.g * (sy * sp * cr - cy * sr);
+  const double g_x = config_.g * (cy * sp * cr + sy * sr);
+  const double g_y = config_.g * (sy * sp * cr - cy * sr);
 
   return Eigen::Vector3d(config_.mass * g_x, config_.mass * g_y, 0.0);
 }
