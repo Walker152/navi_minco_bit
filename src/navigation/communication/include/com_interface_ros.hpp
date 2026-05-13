@@ -250,9 +250,10 @@ private:
       revive_req = behavior_.remote_revive_request;
       health_req = behavior_.remote_health_request;
       use_limited_scan = behavior_.use_limited_scan;
-      vw_rpm = gyro_vel;
+      // vw_rpm = gyro_vel;
     }
     tf2::Quaternion q;
+    tf2::fromMsg(odom_q, q);
     double roll, pitch, yaw;
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
     const float current_yaw_deg = static_cast<float>(yaw * 180.0 / M_PI);
@@ -267,8 +268,7 @@ private:
       fx_global,
       fy_global,
       fw_global,
-      1);
-    
+      false);
     BehaviorData behavior_data(
       pitch_mode,
       desire_stance,

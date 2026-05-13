@@ -127,7 +127,7 @@ struct _ChassisTarget
     float _fw_global,
     bool _use_speed_control)
   : vx_mps(_vx_mps), vy_mps(_vy_mps), vw_rpm(_vw_rpm), current_yaw(_current_yaw), current_vx(_current_vx),
-    current_vy(_current_vy), current_vw(_current_vw), fx_global(_fx_global), fy_global(_fy_global), fw_global(_fw_global)，
+    current_vy(_current_vy), current_vw(_current_vw), fx_global(_fx_global), fy_global(_fy_global), fw_global(_fw_global),
     use_speed_control(_use_speed_control)
   {
   }

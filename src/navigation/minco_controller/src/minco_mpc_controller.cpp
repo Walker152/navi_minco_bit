@@ -504,12 +504,12 @@ bool MincoMpcController::buildReferenceFromOptPath(
   const uint32_t current_traj_id = (!opt->cmds.empty()) ? opt->cmds.front().trajectory_id : 0u;
   double current_idx_float = nearest_idx_float;
   current_idx_float = std::min(current_idx_float, static_cast<double>(n_cmds - 1));
-  double time_tracked = (now.seconds() - tracked_ref_time_.seconds());
-  if(time_tracked > 0.0 && std::hypot(curr.vx, curr.vy) < 0.05)
-  {
-    double forced_idx = (time_tracked / planner_dt) * 0.5;
-    current_idx_float = std::max(current_idx_float, tracked_ref_idx + forced_idx);
-  }
+  // double time_tracked = (now.seconds() - tracked_ref_time_.seconds());
+  // if(time_tracked > 0.0 && std::hypot(curr.vx, curr.vy) < 0.05)
+  // {
+  //   double forced_idx = (time_tracked / planner_dt) * 0.5;
+  //   current_idx_float = std::max(current_idx_float, tracked_ref_idx + forced_idx);
+  // }
   {
     std::lock_guard<std::mutex> lk(data_mtx_);
     tracked_ref_idx_ = current_idx_float;
@@ -718,36 +718,6 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
       NV(optimal_force(0)), NV(optimal_force(1)), NV(optimal_force(2)),
       NV(dt_ms));
 #endif
-
-  // P0: Integral action for unmodeled disturbances (gravity mismatch, slip, rolling
-  // resistance). Decomposes position error into along-track and cross-track,
-  // maintains leaky integrals, and converts to force correction via F = m * a.
-  {
-    const double ref_yaw = ref[0].yaw;
-    const Eigen::Vector2d along_dir(std::cos(ref_yaw), std::sin(ref_yaw));
-    const Eigen::Vector2d cross_dir(-along_dir.y(), along_dir.x());
-    const Eigen::Vector2d pos_err(curr.px - ref[0].pos.x(), curr.py - ref[0].pos.y());
-
-    const double along_err = pos_err.dot(along_dir);
-    const double cross_err = pos_err.dot(cross_dir);
-
-    const double dt_i = model_config_.dt;
-    integral_err_.x() = integral_decay_ * integral_err_.x() + (1.0 - integral_decay_) * along_err * dt_i;
-    integral_err_.y() = integral_decay_ * integral_err_.y() + (1.0 - integral_decay_) * cross_err * dt_i;
-
-    constexpr double kMaxIntegral = 0.3;
-    const double int_norm = integral_err_.norm();
-    if (int_norm > kMaxIntegral) {
-      integral_err_ *= kMaxIntegral / int_norm;
-    }
-
-    // Convert integral error to force: F_corr = m * kI * integral / dt
-    const double k_f = model_config_.mass / dt_i;
-    optimal_force(0) += k_f * (k_i_along_ * integral_err_.x() * along_dir.x() +
-                               k_i_cross_ * integral_err_.y() * cross_dir.x());
-    optimal_force(1) += k_f * (k_i_along_ * integral_err_.x() * along_dir.y() +
-                               k_i_cross_ * integral_err_.y() * cross_dir.y());
-  }
 
   // 6) Force Governor: predict velocity → clamp to V_max → back-compute safe force
   const double mass_inv = 1.0 / model_config_.mass;
