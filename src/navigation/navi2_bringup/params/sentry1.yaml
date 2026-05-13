@@ -95,7 +95,7 @@ controller_server:
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.3
       yaw_goal_tolerance: 6.28
-    
+
     FollowPath:
       plugin: "minco_controller::MincoMpcController"
       # MPC sampling period (s) and lookahead time (s)
@@ -103,35 +103,35 @@ controller_server:
       lookahead_time : 0.1
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.30
+      control_delay_compensation: 0.25
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [3.0, 3.0, 2.0]
-      R: [1.0, 1.0, 1.0]
+      R: [6.0, 6.0, 1.0]
 
       # Velocity bounds
-      vx_min: -5.5
-      vx_max: 5.5
-      vy_min: -5.5
-      vy_max: 5.5
+      vx_min: -3.5
+      vx_max: 3.5
+      vy_min: -3.5
+      vy_max: 3.5
       fixed_wz: 4.18 # rad/s, used if use_small_gyro_mode is true
       omega_min: -5.0 
       omega_max: 5.0
 
       # Optional acceleration constraints
       use_acc_constraints: true
-      ax_min: -6.0
-      ax_max: 6.0
-      ay_min: -6.0
-      ay_max: 6.0
+      ax_min: -2.0
+      ax_max: 2.0
+      ay_min: -2.0
+      ay_max: 2.0
       alpha_min: -5.0
       alpha_max: 5.0
 
       # Lidar extrinsic parameters
       lidar_offset_x: 0.0
-      lidar_offset_y: 0.20
-      lidar_roll_offset: -0.55
-      
+      lidar_offset_y: -0.20
+      lidar_roll_offset: 0.1745
+
       # Frame settings
       odom_frame: "camera_init"
       map_frame: "map"
@@ -307,24 +307,24 @@ planner_server:
         opt_freq: 10.0
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
-        safe_dist: 0.4
+        safe_dist: 0.35
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
-        max_velocity: 5.5
-        max_acceleration: 4.5
+        max_velocity: 3.5
+        max_acceleration: 1.5
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.8
-        turn_angle_saturation: 1.2
-        min_turn_vel: 2.5
-        decay_power: 1.3
+        turn_angle_saturation: 1.57
+        min_turn_vel: 2.0
+        decay_power: 1.5
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
         opt_accuracy: 0.001
         print_optimizer_log: false
-        penalty_weight_time: 100.0
+        penalty_weight_time: 300.0
         penalty_weight_pos: 50000.0
-        penalty_weight_vel: 2000.0
-        penalty_weight_acc: 2000.0
+        penalty_weight_vel: 1500.0
+        penalty_weight_acc: 1500.0
         penalty_weight_att: 500.0
         penalty_weight_time_barrier: 50.0
       recovery_server:
