@@ -555,6 +555,12 @@ bool MincoMpcController::buildReferenceFromOptPath(
       rp.acc = a_i + j_i * dt_interp;
 
       rp.yaw = interpolateYaw(cmds[target_idx].yaw, cmds[next_idx].yaw, alpha);
+      if (!use_small_gyro_mode_ && rp.vel.norm() > 0.2) {
+        double tangent_yaw = std::atan2(rp.vel.y(), rp.vel.x());
+        double diff = std::atan2(std::sin(tangent_yaw - rp.yaw), std::cos(tangent_yaw - rp.yaw));
+        // 将参考 Yaw 强行向物理运动方向拉近，消除多项式偏差
+        rp.yaw = rp.yaw + diff * 0.85; 
+      }
       rp.yaw_rate = interpolate(cmds[target_idx].yaw_dot, cmds[next_idx].yaw_dot, alpha);
       // yaw_acc: finite difference of yaw_dot
       rp.yaw_acc = (cmds[next_idx].yaw_dot - cmds[target_idx].yaw_dot) * model_config_.planner_freq;

@@ -67,10 +67,10 @@ void YawTrajOpt::getYawWaypointAllocation(const Eigen::Vector4d & init_state,
     eval_t += times(i);
     Eigen::Vector3d pt_i = pos_traj.getPos(eval_t);
     Eigen::Vector3d pt_g;
-    if (eval_t + 0.5 >= pos_traj_duration) {
+    if (eval_t + 0.15 >= pos_traj_duration) {
       pt_g = pos_traj.getPos(pos_traj_duration);
     } else {
-      pt_g = pos_traj.getPos(eval_t + 0.5);
+      pt_g = pos_traj.getPos(eval_t + 0.15);
     }
 
     const Eigen::Vector3d dir = pt_g - pt_i;
@@ -110,7 +110,7 @@ bool YawTrajOpt::optimize(const Eigen::Vector4d & istate_in,
   if (free_start) {
     Eigen::Vector3d pt_i = pos_traj.getPos(0);
 
-    double t_g = std::min(0.5, pos_traj_dur);
+    double t_g = std::min(0.15, pos_traj_dur);
     Eigen::Vector3d pt_g = pos_traj.getPos(t_g);
     Eigen::Vector3d dir = pt_g - pt_i;
     while (dir.norm() < 0.5 && t_g < pos_traj_dur) {
@@ -122,7 +122,7 @@ bool YawTrajOpt::optimize(const Eigen::Vector4d & istate_in,
   }
   if (free_goal_) {
     Eigen::Vector3d pt_g = pos_traj.getPos(pos_traj_dur);
-    double t_i = pos_traj_dur - 0.5 > 0 ? pos_traj_dur - 0.5 : 0;
+    double t_i = pos_traj_dur - 0.15 > 0 ? pos_traj_dur - 0.15 : 0;
     Eigen::Vector3d pt_i = pos_traj.getPos(t_i);
     Eigen::Vector3d dir = pt_g - pt_i;
     while (dir.norm() < 0.5 && t_i > 0) {

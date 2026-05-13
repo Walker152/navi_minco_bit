@@ -127,8 +127,8 @@ controller_server:
       # --- Cost weights ---
       # Q: 6D state [px, py, yaw, vx, vy, omega]
       # R: 3D control [F_gx, F_gy, M_gz]
-      Q: [12.0, 12.0, 4.0, 1.0, 1.0, 0.33]
-      R: [3.0, 3.0, 1.0]
+      Q: [12.0, 12.0, 15.0, 1.0, 1.0, 0.33]
+      R: [3.0, 3.0, 0.3]
 
       # --- qpOASES solver ---
       max_wsr: 200
