@@ -1,5 +1,8 @@
 #include "bt_manager/action/change_stance_action.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 using namespace color_text;
 namespace Sentry_BT {
 std::chrono::time_point<std::chrono::system_clock> ChangeStance::last_change_time_ =
@@ -26,6 +29,143 @@ BT::NodeStatus SetGyroState::tick()
   blackboard->set("use_gyro_mode", use_gyro);
   blackboard->set("gyro_vel", gyro_vel);
   return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- TunnelGyroAlignAction -------------------
+TunnelGyroAlignAction::TunnelGyroAlignAction(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ActionNodeBase(name, config)
+{
+}
+
+BT::PortsList TunnelGyroAlignAction::providedPorts()
+{
+  return {BT::InputPort<float>("kp", 35.0f, "PID Kp for tunnel gyro control"),
+    BT::InputPort<float>("ki", 0.5f, "PID Ki for tunnel gyro control"),
+    BT::InputPort<float>("kd", 5.0f, "PID Kd for tunnel gyro control"),
+    BT::InputPort<float>("deadzone_rad", 0.03f, "Yaw deadzone in radians (~1.7 deg)"),
+    BT::InputPort<float>("max_abs_gyro_vel", 120.0f, "Max absolute gyro velocity in rpm"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
+    BT::OutputPort<bool>("use_gyro", "Enable gyro output"),
+    BT::OutputPort<float>("gyro_vel", "Gyro velocity output")};
+}
+
+float TunnelGyroAlignAction::computeTunnelGyroVelPid(double yaw_error,
+  float kp,
+  float ki,
+  float kd,
+  float deadzone,
+  float max_abs_gyro_vel,
+  const std::chrono::steady_clock::time_point & now)
+{
+  if (!pid_initialized_) {
+    pid_initialized_ = true;
+    integral_error_ = 0.0;
+    last_error_ = yaw_error;
+    last_pid_time_ = now;
+  }
+
+  double dt = std::chrono::duration<double>(now - last_pid_time_).count();
+  if (dt > 2.0) {
+    integral_error_ = 0.0;
+    last_error_ = yaw_error;
+    dt = 1e-3;
+  } else {
+    dt = std::clamp(dt, 1e-3, 0.2);
+  }
+  last_pid_time_ = now;
+
+  const bool in_deadzone = std::fabs(yaw_error) <= static_cast<double>(deadzone);
+  if (!in_deadzone) {
+    integral_error_ += yaw_error * dt;
+  }
+
+  constexpr double kMaxIntegral = 8.0;
+  integral_error_ = std::clamp(integral_error_, -kMaxIntegral, kMaxIntegral);
+
+  const double error_for_pid = in_deadzone ? 0.0 : yaw_error;
+  const double derivative = in_deadzone ? 0.0 : (yaw_error - last_error_) / dt;
+  const double pid_out_rad = static_cast<double>(kp) * error_for_pid +
+                             static_cast<double>(ki) * integral_error_ +
+                             static_cast<double>(kd) * derivative;
+  last_error_ = yaw_error;
+
+  constexpr double kRadPerSecToRpm = 60.0 / (2.0 * M_PI);
+  const double pid_out_rpm = pid_out_rad * kRadPerSecToRpm;
+
+  return static_cast<float>(
+    std::clamp(pid_out_rpm, -static_cast<double>(max_abs_gyro_vel), static_cast<double>(max_abs_gyro_vel)));
+}
+
+void TunnelGyroAlignAction::resetPidState()
+{
+  pid_initialized_ = false;
+  integral_error_ = 0.0;
+  last_error_ = 0.0;
+}
+
+BT::NodeStatus TunnelGyroAlignAction::tick()
+{
+  auto wrapAngle = [](double angle) {
+    while (angle > M_PI) {
+      angle -= 2.0 * M_PI;
+    }
+    while (angle < -M_PI) {
+      angle += 2.0 * M_PI;
+    }
+    return angle;
+  };
+  auto yawFromQuaternion = [](const geometry_msgs::msg::Quaternion & q) {
+    const double siny_cosp = 2.0 * (q.w * q.z + q.x * q.y);
+    const double cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z);
+    return std::atan2(siny_cosp, cosy_cosp);
+  };
+
+  const auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const float kp = getInput<float>("kp").value_or(35.0f);
+  const float ki = getInput<float>("ki").value_or(0.5f);
+  const float kd = getInput<float>("kd").value_or(5.0f);
+  const float deadzone = getInput<float>("deadzone_rad").value_or(0.03f);
+  const float max_abs_gyro_vel = getInput<float>("max_abs_gyro_vel").value_or(120.0f);
+
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const int active_tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
+  if (active_tunnel_idx < 0) {
+    resetPidState();
+    detail::logTransition(
+      detail::TreeKind::STANCE, "TunnelGyroAlignAction", false, "invalid tunnel_idx", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  const double base_target_yaw = static_cast<double>(
+    tunnel_recovery_configs[static_cast<std::size_t>(active_tunnel_idx)].tunnel_pass_yaw_target_rad);
+  const double current_yaw = yawFromQuaternion(current_pose.orientation);
+  const double error_forward = wrapAngle(base_target_yaw - current_yaw);
+  const double error_backward = wrapAngle(base_target_yaw + M_PI - current_yaw);
+  const double yaw_error =
+    (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
+
+  const auto now = std::chrono::steady_clock::now();
+  const float computed_gyro_vel =
+    computeTunnelGyroVelPid(yaw_error, kp, ki, kd, deadzone, max_abs_gyro_vel, now);
+
+  blackboard->set("use_gyro_mode", true);
+  blackboard->set("gyro_vel", computed_gyro_vel);
+  setOutput("use_gyro", true);
+  setOutput("gyro_vel", computed_gyro_vel);
+
+  std::ostringstream oss;
+  oss << "tunnel_idx=" << active_tunnel_idx << ", gyro_vel=" << computed_gyro_vel
+      << ", yaw_error=" << yaw_error;
+  detail::logTransition(
+    detail::TreeKind::STANCE, "TunnelGyroAlignAction", true, oss.str(), branch);
+
+  return BT::NodeStatus::RUNNING;
+}
+
+void TunnelGyroAlignAction::halt()
+{
+  resetPidState();
 }
 
 // ------------------- ChangeStance -------------------
