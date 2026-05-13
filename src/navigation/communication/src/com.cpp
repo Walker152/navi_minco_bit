@@ -47,6 +47,7 @@ void Communication::__open(const std::string & name,
   int stop_length,
   char check_type)
 {
+  
   if (fd_manager.exist(name))
     return;
   int fd = MyUtils::Net::SerialPort::open(port, baud_rate, n_bits, stop_length, check_type);
