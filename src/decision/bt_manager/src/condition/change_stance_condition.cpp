@@ -188,9 +188,9 @@ CheckCrossZoneTransition::CheckCrossZoneTransition(
 BT::PortsList CheckCrossZoneTransition::providedPorts()
 {
   return {BT::InputPort<float>("kp", 35.0f, "PID Kp for tunnel gyro control"),
-    BT::InputPort<float>("ki", 0.0f, "PID Ki for tunnel gyro control"),
+    BT::InputPort<float>("ki", 0.5f, "PID Ki for tunnel gyro control"),
     BT::InputPort<float>("kd", 5.0f, "PID Kd for tunnel gyro control"),
-    BT::InputPort<float>("deadzone_rad", 0.08f, "Yaw deadzone in radians"),
+    BT::InputPort<float>("deadzone_rad", 0.03f, "Yaw deadzone in radians (~1.7 deg)"),
     BT::InputPort<float>("max_abs_gyro_vel", 120.0f, "Max absolute gyro velocity in rpm"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
     BT::OutputPort<bool>("use_gyro", "Enable gyro output"),
@@ -213,7 +213,7 @@ float CheckCrossZoneTransition::computeTunnelGyroVelPid(double yaw_error,
   }
 
   double dt = std::chrono::duration<double>(now - last_pid_time_).count();
-  if (dt > 0.5) {
+  if (dt > 2.0) {
     integral_error_ = 0.0;
     last_error_ = yaw_error;
     dt = 1e-3;
@@ -229,6 +229,8 @@ float CheckCrossZoneTransition::computeTunnelGyroVelPid(double yaw_error,
   }
 
   integral_error_ += yaw_error * dt;
+  constexpr double kMaxIntegral = 8.0;
+  integral_error_ = std::clamp(integral_error_, -kMaxIntegral, kMaxIntegral);
   const double derivative = (yaw_error - last_error_) / dt;
   const double pid_out_rad = static_cast<double>(kp) * yaw_error +
                              static_cast<double>(ki) * integral_error_ +
@@ -313,7 +315,6 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
       const auto now = std::chrono::steady_clock::now();
       computed_gyro_vel = computeTunnelGyroVelPid(error, kp, ki, kd, deadzone, max_abs_gyro_vel, now);
     } else {
-      resetPidState();
       enable_small_gyro = false;
       computed_gyro_vel = 0.0f;
     }
