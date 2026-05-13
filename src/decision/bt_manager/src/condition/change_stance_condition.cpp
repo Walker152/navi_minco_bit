@@ -187,94 +187,13 @@ CheckCrossZoneTransition::CheckCrossZoneTransition(
 
 BT::PortsList CheckCrossZoneTransition::providedPorts()
 {
-  return {BT::InputPort<float>("kp", 35.0f, "PID Kp for tunnel gyro control"),
-    BT::InputPort<float>("ki", 0.5f, "PID Ki for tunnel gyro control"),
-    BT::InputPort<float>("kd", 5.0f, "PID Kd for tunnel gyro control"),
-    BT::InputPort<float>("deadzone_rad", 0.03f, "Yaw deadzone in radians (~1.7 deg)"),
-    BT::InputPort<float>("max_abs_gyro_vel", 120.0f, "Max absolute gyro velocity in rpm"),
-    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
-    BT::OutputPort<bool>("use_gyro", "Enable gyro output"),
-    BT::OutputPort<float>("gyro_vel", "Gyro velocity output")};
-}
-
-float CheckCrossZoneTransition::computeTunnelGyroVelPid(double yaw_error,
-  float kp,
-  float ki,
-  float kd,
-  float deadzone,
-  float max_abs_gyro_vel,
-  const std::chrono::steady_clock::time_point & now)
-{
-  if (!pid_initialized_) {
-    pid_initialized_ = true;
-    integral_error_ = 0.0;
-    last_error_ = yaw_error;
-    last_pid_time_ = now;
-  }
-
-  double dt = std::chrono::duration<double>(now - last_pid_time_).count();
-  if (dt > 2.0) {
-    integral_error_ = 0.0;
-    last_error_ = yaw_error;
-    dt = 1e-3;
-  } else {
-    dt = std::clamp(dt, 1e-3, 0.2);
-  }
-  last_pid_time_ = now;
-
-  if (std::fabs(yaw_error) <= static_cast<double>(deadzone)) {
-    integral_error_ = 0.0;
-    last_error_ = yaw_error;
-    return 0.0f;
-  }
-
-  integral_error_ += yaw_error * dt;
-  constexpr double kMaxIntegral = 8.0;
-  integral_error_ = std::clamp(integral_error_, -kMaxIntegral, kMaxIntegral);
-  const double derivative = (yaw_error - last_error_) / dt;
-  const double pid_out_rad = static_cast<double>(kp) * yaw_error +
-                             static_cast<double>(ki) * integral_error_ +
-                             static_cast<double>(kd) * derivative;
-  last_error_ = yaw_error;
-
-  constexpr double kRadPerSecToRpm = 60.0 / (2.0 * M_PI);
-  const double pid_out_rpm = pid_out_rad * kRadPerSecToRpm;
-
-  return static_cast<float>(
-    std::clamp(pid_out_rpm, -static_cast<double>(max_abs_gyro_vel), static_cast<double>(max_abs_gyro_vel)));
-}
-
-void CheckCrossZoneTransition::resetPidState()
-{
-  pid_initialized_ = false;
-  integral_error_ = 0.0;
-  last_error_ = 0.0;
+  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
 BT::NodeStatus CheckCrossZoneTransition::tick()
 {
-  auto wrapAngle = [](double angle) {
-    while (angle > M_PI) {
-      angle -= 2.0 * M_PI;
-    }
-    while (angle < -M_PI) {
-      angle += 2.0 * M_PI;
-    }
-    return angle;
-  };
-  auto yawFromQuaternion = [](const geometry_msgs::msg::Quaternion & q) {
-    const double siny_cosp = 2.0 * (q.w * q.z + q.x * q.y);
-    const double cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z);
-    return std::atan2(siny_cosp, cosy_cosp);
-  };
-
   const auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
-  const float kp = getInput<float>("kp").value_or(35.0f);
-  const float ki = getInput<float>("ki").value_or(0.0f);
-  const float kd = getInput<float>("kd").value_or(5.0f);
-  const float deadzone = getInput<float>("deadzone_rad").value_or(0.08f);
-  const float max_abs_gyro_vel = getInput<float>("max_abs_gyro_vel").value_or(120.0f);
 
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const auto nav_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal");
@@ -296,38 +215,11 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   const bool need_cross_zone = !same_zone;
   const bool is_tunnel_journey = (need_cross_zone) || current_in_tunnel;
 
-  float computed_gyro_vel = 0.0f;
-  bool enable_small_gyro = false;
-  int active_tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
-
-  if (is_tunnel_journey) {
-    if (active_tunnel_idx >= 0) {
-      enable_small_gyro = true;
-
-      const double base_target_yaw = static_cast<double>(
-        tunnel_recovery_configs[static_cast<std::size_t>(active_tunnel_idx)].tunnel_pass_yaw_target_rad);
-      const double current_yaw = yawFromQuaternion(current_pose.orientation);
-      const double error_forward = wrapAngle(base_target_yaw - current_yaw);
-      const double error_backward = wrapAngle(base_target_yaw + M_PI - current_yaw);
-      const double error =
-        (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
-
-      const auto now = std::chrono::steady_clock::now();
-      computed_gyro_vel = computeTunnelGyroVelPid(error, kp, ki, kd, deadzone, max_abs_gyro_vel, now);
-    } else {
-      enable_small_gyro = false;
-      computed_gyro_vel = 0.0f;
-    }
-  } else {
-    resetPidState();
-  }
-
-  setOutput("use_gyro", enable_small_gyro);
-  setOutput("gyro_vel", computed_gyro_vel);
+  const int active_tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
 
   std::ostringstream oss;
-  oss << "through_tunnel=" << through_tunnel << ", tunnel_idx=" << active_tunnel_idx << ", use_gyro=" << enable_small_gyro
-      << ", gyro_vel=" << computed_gyro_vel << ", current_in_tunnel=" << current_in_tunnel << ", need_cross_zone=" << need_cross_zone;
+  oss << "through_tunnel=" << through_tunnel << ", tunnel_idx=" << active_tunnel_idx
+      << ", current_in_tunnel=" << current_in_tunnel << ", need_cross_zone=" << need_cross_zone;
   detail::logTransition(
     detail::TreeKind::STANCE, "CheckCrossZoneTransition", is_tunnel_journey, oss.str(), branch);
 
