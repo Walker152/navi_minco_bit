@@ -221,7 +221,7 @@ void ModelBuilder::buildVariableBounds(Eigen::VectorXd& lb, Eigen::VectorXd& ub)
   lb = Eigen::VectorXd::Zero(nU_);
   ub = Eigen::VectorXd::Zero(nU_);
 
-  const double F_bound = 2.0 * config_.f_max;
+  const double F_bound = 2.828 * config_.f_max;
 
   for (int i = 0; i < N; ++i) {
     lb(i * nu_ + 0) = -F_bound;
