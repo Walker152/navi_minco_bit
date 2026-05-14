@@ -5,13 +5,14 @@
       
       <ReactiveFallback name="NavPriorityRoot">
         <ReactiveSequence name="Priority0ManualOverride">
-          <CheckManualOverride name="CheckManualOverride" timeout_seconds="30.0" same_goal_eps="0.05" branch="Priority0ManualOverride" />
+          <CheckManualOverride name="CheckManualOverride" branch="Priority0ManualOverride" />
           <!-- <ChangeMapAction name="SwitchToMainMapForManual"
                            map_dir="src/navigation/navi2_bringup/maps/2026"
                            pcd_dir="src/utils/pcd2esdf/maps"
                            map_name="rmuc2026" /> -->
           <SetManualOverrideGoal name="SetManualOverrideGoal" />
           <NavigateToPoseAction name="NavigateManualOverrideGoal" />
+          <WaitManual name="WaitManual" wait_duration_s="5.0" goal_radius="0.5" fallback_timeout_s="60.0" />
         </ReactiveSequence>
 
         <ReactiveSequence name="Priority1Survival">
