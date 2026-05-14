@@ -1,6 +1,6 @@
 <root main_tree_to_execute="StanceTree">
   <BehaviorTree ID="StanceTree">
-    <Sequence name="StanceTreeRoot">
+    <ReactiveSequence name="StanceTreeRoot">
       <ForceSuccess>
         <CheckTunnelDeformation />
       </ForceSuccess>
@@ -80,6 +80,6 @@
         </Sequence>
 
       </ReactiveFallback>
-    </Sequence>
+    </ReactiveSequence>
   </BehaviorTree>
 </root>

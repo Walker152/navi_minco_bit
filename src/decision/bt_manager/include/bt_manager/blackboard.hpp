@@ -38,7 +38,6 @@ public:
     blackboard_->set("patrol_index", 0);                                  // 巡逻点索引
     blackboard_->set("through_tunnel", false);                            // 是否通过隧道
     blackboard_->set("in_transform_zone", false);                        // 是否在变形区
-    blackboard_->set("current_transform_zone_index", -1);               // 变形区索引
     blackboard_->set("nearest_tunnel_idx", -1);                          // 最近隧道索引
     blackboard_->set("cmd_vel", geometry_msgs::msg::Twist());             // 速度指令
     blackboard_->set("current_pose", geometry_msgs::msg::Pose());         // 当前位姿缓存

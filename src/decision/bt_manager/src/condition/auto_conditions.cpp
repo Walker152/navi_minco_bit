@@ -191,7 +191,6 @@ BT::NodeStatus CheckManualOverride::tick()
 
   const auto current_control_mode = blackboard->get<ControlMode>("control_mode");
   if (current_control_mode != ControlMode::MANUAL_CONTROL) {
-    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
      detail::logTransition(
       detail::TreeKind::NAV, "CheckManualOverride", false, "not in manual control mode", branch);
     return BT::NodeStatus::FAILURE;
