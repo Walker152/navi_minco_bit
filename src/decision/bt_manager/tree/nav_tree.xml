@@ -20,7 +20,7 @@
                                  health_threshold="30"
                                  recovery_threshold="80"
                                  ammo_threshold="0"
-                                 ammo_recovery_threshold="200"
+                                 ammo_recovery_threshold="0"
                                  branch="Priority1Survival" />
           <!-- <ChangeMapAction name="SwitchToRetreatMap"
                            map_dir="src/navigation/navi2_bringup/maps/2026"
