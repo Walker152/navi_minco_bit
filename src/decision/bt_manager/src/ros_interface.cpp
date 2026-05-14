@@ -308,7 +308,7 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
 
   // 提取bit 0：脱战状态
   bool is_disengaged = (sentry_info_2 & 0x0001) != 0;
-  blackboard_->set<bool>("is_disengaged", is_disengaged);
+  // blackboard_->set<bool>("is_disengaged", is_disengaged);
 
   // 提取bit 12-13：哨兵当前姿态
   uint8_t current_stance = (sentry_info_2 >> 12) & 0x3;
@@ -389,11 +389,9 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
     return Point2D{snapshot.position.x, snapshot.position.y, 0.0};
   }()};
   bool in_transform_zone = false;
-  int current_transform_zone_index = -1;
   for (std::size_t i = 0; i < transform_zone.size(); ++i) {
     if (transform_zone[i].contains(current_point)) {
       in_transform_zone = true;
-      current_transform_zone_index = static_cast<int>(i);
       break;
     }
   }
@@ -424,7 +422,6 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
   }
   blackboard_->set("current_in_tunnel", current_in_tunnel);
   blackboard_->set("in_transform_zone", in_transform_zone);
-  blackboard_->set("current_transform_zone_index", current_transform_zone_index);
   blackboard_->set("nearest_tunnel_idx", nearest_tunnel_idx);
 
   bool through_tunnel_now = false;
