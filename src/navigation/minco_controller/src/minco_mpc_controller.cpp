@@ -770,7 +770,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     vx = 0.0;
     vy = 0.0;
   }
-  applyGravityCompensation(latest_odom, vx, vy);
+  // applyGravityCompensation(latest_odom, vx, vy);
   cmd.twist.linear.x = vx;
   cmd.twist.linear.y = vy;
   cmd.twist.angular.z = wz;
