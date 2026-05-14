@@ -199,6 +199,7 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   const auto nav_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal");
   const bool through_tunnel = blackboard->get<bool>("through_tunnel");
   const bool current_in_tunnel = blackboard->get<bool>("current_in_tunnel");
+  const bool is_disengaged = blackboard->get<bool>("is_disengaged");
 
   const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
   const Point2D goal_point{nav_goal.x, nav_goal.y, 0.0};
@@ -213,10 +214,17 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   const bool same_zone = (current_in_highland && goal_in_highland) || (current_in_own && goal_in_own) ||
                          (current_in_enemy && goal_in_enemy);
   const bool need_cross_zone = !same_zone;
-  const bool is_tunnel_journey = (need_cross_zone) || current_in_tunnel;
-
+  const bool in_transform_zone = blackboard->get<bool>("in_transform_zone");
+  bool is_tunnel_journey = false;
   const int active_tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
 
+  if(current_in_tunnel) {
+    is_tunnel_journey = true;
+  } else if (in_transform_zone) {
+    is_tunnel_journey = is_disengaged;
+  } else {
+    is_tunnel_journey = need_cross_zone && is_disengaged;
+  }
   std::ostringstream oss;
   oss << "through_tunnel=" << through_tunnel << ", tunnel_idx=" << active_tunnel_idx
       << ", current_in_tunnel=" << current_in_tunnel << ", need_cross_zone=" << need_cross_zone;
@@ -422,26 +430,18 @@ BT::NodeStatus CheckTunnelDeformation::tick()
   const bool through_tunnel = blackboard->get<bool>("through_tunnel");
   const bool current_in_tunnel = blackboard->get<bool>("current_in_tunnel");
   const bool is_disengaged = blackboard->get<bool>("is_disengaged");
+  const bool in_transform_zone = blackboard->get<bool>("in_transform_zone");
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   LifterPos desired_pos = LifterPos::TOP;
 
   const rclcpp::Time now = rclcpp::Clock().now();
-
-  if (current_in_tunnel || through_tunnel) {
+  if (current_in_tunnel) {
     desired_pos = LifterPos::BOTTOM;
-  }
-  
-  if(is_disengaged) {
-    if(through_tunnel) {
+  } else if (in_transform_zone) {
+    if(is_disengaged) {
       desired_pos = LifterPos::BOTTOM;
-    }
-  } else {
-    // if(through_tunnel) {
-    //   Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
-    //   blackboard->set<Point2D>("nav_goal", current_point);
-    // }
+    } 
   }
-
 
   blackboard->set<LifterPos>("desired_lifter_pos", desired_pos);
   detail::logTransition(detail::TreeKind::STANCE, "CheckTunnelDeformation", true,

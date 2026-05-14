@@ -79,9 +79,6 @@ float TunnelGyroAlignAction::computeTunnelGyroVelPid(double yaw_error,
     integral_error_ += yaw_error * dt;
   }
 
-  constexpr double kMaxIntegral = 8.0;
-  integral_error_ = std::clamp(integral_error_, -kMaxIntegral, kMaxIntegral);
-
   const double error_for_pid = in_deadzone ? 0.0 : yaw_error;
   const double derivative = in_deadzone ? 0.0 : (yaw_error - last_error_) / dt;
   const double pid_out_rad = static_cast<double>(kp) * error_for_pid +
