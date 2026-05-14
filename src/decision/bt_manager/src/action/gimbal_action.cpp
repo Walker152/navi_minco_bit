@@ -75,7 +75,6 @@ BT::NodeStatus SetGimbalPose::tick()
 
   const auto pan = getInput<float>("pan");
   const auto tilt = getInput<float>("tilt");
-
   const float target_pan = pan ? pan.value() : 0.0f;
   const float target_tilt = tilt ? tilt.value() : 0.0f;
 
@@ -116,6 +115,14 @@ BT::NodeStatus SetGimbalPoseByAreaAction::tick()
 
   if (is_in_zone) {
     auto config = tactical_area_gimbal_map[mode][target_zone];
+    auto tf_utils = blackboard->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+    float transformed_yaw = 0.0f;
+    if (tf_utils) {
+      tf_utils->transformYaw(config.scan_yaw_min, transformed_yaw, "body", "map");
+      config.scan_yaw_min = transformed_yaw;
+      tf_utils->transformYaw(config.scan_yaw_max, transformed_yaw, "body", "map");
+      config.scan_yaw_max = transformed_yaw;
+    }
     blackboard->set<float>("scan_yaw_min_deg", config.scan_yaw_min);
     blackboard->set<float>("scan_yaw_max_deg", config.scan_yaw_max);
     blackboard->set<bool>("use_limited_scan", true);
