@@ -380,14 +380,8 @@ bool ros_interface::isTroughZone(
 bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand::SharedPtr msg,
   const std::array<Area_Square, 4> & tunnel_areas)
 {
-  const Point2D current_point{[this]() {
-    geometry_msgs::msg::Pose snapshot;
-    {
-      std::lock_guard<std::mutex> lock(current_pose_mutex_);
-      snapshot = current_pose_;
-    }
-    return Point2D{snapshot.position.x, snapshot.position.y, 0.0};
-  }()};
+  const auto current_pose = blackboard_->get<geometry_msgs::msg::Pose>("current_pose");
+  const Point2D current_point{current_pose.position.x, current_pose.position.y};
   bool in_transform_zone = false;
   for (std::size_t i = 0; i < transform_zone.size(); ++i) {
     if (transform_zone[i].contains(current_point)) {

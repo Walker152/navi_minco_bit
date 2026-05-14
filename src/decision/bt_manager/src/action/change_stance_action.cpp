@@ -77,10 +77,18 @@ float TunnelGyroAlignAction::computeTunnelGyroVelPid(double yaw_error,
   const bool in_deadzone = std::fabs(yaw_error) <= static_cast<double>(deadzone);
   if (!in_deadzone) {
     integral_error_ += yaw_error * dt;
+    integral_error_ = std::clamp(integral_error_, -2.0, 2.0);
   }
 
   const double error_for_pid = in_deadzone ? 0.0 : yaw_error;
-  const double derivative = in_deadzone ? 0.0 : (yaw_error - last_error_) / dt;
+  double delta_error = yaw_error - last_error_;
+  while (delta_error > M_PI / 2.0) {
+    delta_error -= M_PI;
+  }
+  while (delta_error < -M_PI / 2.0) {
+    delta_error += M_PI;
+  }
+  const double derivative = in_deadzone ? 0.0 : (delta_error / dt);
   const double pid_out_rad = static_cast<double>(kp) * error_for_pid +
                              static_cast<double>(ki) * integral_error_ +
                              static_cast<double>(kd) * derivative;
@@ -139,8 +147,23 @@ BT::NodeStatus TunnelGyroAlignAction::tick()
   const double current_yaw = yawFromQuaternion(current_pose.orientation);
   const double error_forward = wrapAngle(base_target_yaw - current_yaw);
   const double error_backward = wrapAngle(base_target_yaw + M_PI - current_yaw);
-  const double yaw_error =
-    (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
+  double yaw_error = 0.0;
+  if (!pid_initialized_) {
+    yaw_error =
+      (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
+  } else {
+    const double forward_abs = std::abs(error_forward);
+    const double backward_abs = std::abs(error_backward);
+    if (forward_abs < (backward_abs - 0.5)) {
+      yaw_error = error_forward;
+    } else if (backward_abs < (forward_abs - 0.5)) {
+      yaw_error = error_backward;
+    } else {
+      const double forward_delta = std::abs(wrapAngle(error_forward - last_error_));
+      const double backward_delta = std::abs(wrapAngle(error_backward - last_error_));
+      yaw_error = (forward_delta <= backward_delta) ? error_forward : error_backward;
+    }
+  }
 
   const auto now = std::chrono::steady_clock::now();
   const float computed_gyro_vel =
