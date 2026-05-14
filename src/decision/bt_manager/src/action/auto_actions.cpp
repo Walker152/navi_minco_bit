@@ -87,11 +87,10 @@ BT::NodeStatus SetTargetCoordinate::tick()
   }
   static int last_guidance_case = -1;
   if (guidance_case != last_guidance_case) {
-    std::cout << CYAN << "[NAV_TREE]" << GREEN << "Target_dist(" << distance
-              << "m)" << "threshold(" << tracing_dist << "m), approach target along the line"
-              << " | current_pose=(" << current_x << ", " << current_y << ")" 
-              << " | target_pose=(" << target_x << ", " << target_y << ")" 
-              << RESET << std::endl;
+    std::cout << CYAN << "[NAV_TREE]" << GREEN << "Target_dist(" << distance << "m)"
+              << "threshold(" << tracing_dist << "m), approach target along the line"
+              << " | current_pose=(" << current_x << ", " << current_y << ")"
+              << " | target_pose=(" << target_x << ", " << target_y << ")" << RESET << std::endl;
     last_guidance_case = guidance_case;
   }
   Sentry_BT::Point2D old_goal;
@@ -376,11 +375,13 @@ BT::NodeStatus AccumulateAmmoPurchase::tick()
   if (coin < 10) {
     static int insufficient_coin_logged = 0;
     if (ammo > 0 && ++insufficient_coin_logged % 50 == 1) {
-      std::cout << YELLOW << "[NAV_TREE]" << " AccumulateAmmoPurchase => coin_remaining=" << coin
+      std::cout << YELLOW << "[NAV_TREE]"
+                << " AccumulateAmmoPurchase => coin_remaining=" << coin
                 << " insufficient, but ammo=" << ammo << " > 0, skip purchase" << RESET << std::endl;
     }
     if (ammo <= 0 && ++insufficient_coin_logged % 50 == 1) {
-      std::cout << RED << "[NAV_TREE]" << " AccumulateAmmoPurchase => coin=" << coin
+      std::cout << RED << "[NAV_TREE]"
+                << " AccumulateAmmoPurchase => coin=" << coin
                 << " insufficient AND ammo=0, still requesting" << RESET << std::endl;
     }
     if (ammo > 0) {
@@ -518,7 +519,7 @@ BT::NodeStatus ControlThroughTunnel::onRunning()
     return BT::NodeStatus::SUCCESS;
   }
   auto current_orientation = blackboard->get<geometry_msgs::msg::Pose>("current_pose").orientation;
-  
+
   // 将四元数转换为欧拉角
   tf2::Quaternion quat(
     current_orientation.x, current_orientation.y, current_orientation.z, current_orientation.w);
@@ -618,6 +619,88 @@ void ControlThroughTunnel::onHalted()
   return;
 }
 
+// ------------------- WaitManual -------------------
+WaitManual::WaitManual(const std::string & name, const BT::NodeConfiguration & config)
+: BT::StatefulActionNode(name, config), wait_duration_s_(3.0), goal_radius_(0.5), fallback_timeout_s_(60.0)
+{
+}
+
+BT::PortsList WaitManual::providedPorts()
+{
+  return {BT::InputPort<double>("wait_duration_s", 3.0, "Wait duration at goal in seconds"),
+    BT::InputPort<double>("goal_radius", 0.5, "Radius tolerance to goal"),
+    BT::InputPort<double>("fallback_timeout_s", 60.0, "Fallback timeout in seconds")};
+}
+
+BT::NodeStatus WaitManual::onStart()
+{
+  wait_duration_s_ = getInput<double>("wait_duration_s").value_or(3.0);
+  goal_radius_ = getInput<double>("goal_radius").value_or(0.5);
+  fallback_timeout_s_ = getInput<double>("fallback_timeout_s").value_or(60.0);
+  start_time_ = std::chrono::steady_clock::now();
+  arrival_time_ = std::chrono::steady_clock::time_point{};
+
+  std::ostringstream detail;
+  detail << "duration=" << wait_duration_s_ << "s, radius=" << goal_radius_
+         << ", fallback=" << fallback_timeout_s_ << "s";
+  detail::logTransition(detail::TreeKind::NAV, "WaitManual", true, detail.str());
+  return BT::NodeStatus::RUNNING;
+}
+
+BT::NodeStatus WaitManual::onRunning()
+{
+  auto blackboard = config().blackboard;
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const auto manual_goal = blackboard->get<Point2D>("manual_override_goal");
+
+  auto now = std::chrono::steady_clock::now();
+
+  double total_elapsed = std::chrono::duration<double>(now - start_time_).count();
+  if (total_elapsed >= fallback_timeout_s_) {
+    blackboard->set<ControlMode>("control_mode", ControlMode::AUTO);
+    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
+    std::ostringstream detail;
+    detail << "fallback timeout, elapsed=" << total_elapsed << "s, switching to AUTO";
+    detail::logTransition(detail::TreeKind::NAV, "WaitManual", false, detail.str());
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  double goal_delta = std::hypot(manual_goal.x - last_goal_.x, manual_goal.y - last_goal_.y);
+  if (goal_delta > goal_radius_) {
+    arrival_time_ = std::chrono::steady_clock::time_point{};
+  }
+  last_goal_ = manual_goal;
+
+  double distance =
+    std::hypot(current_pose.position.x - manual_goal.x, current_pose.position.y - manual_goal.y);
+
+  if (distance > goal_radius_) {
+    arrival_time_ = std::chrono::steady_clock::time_point{};
+    return BT::NodeStatus::RUNNING;
+  }
+
+  if (arrival_time_ == std::chrono::steady_clock::time_point{}) {
+    arrival_time_ = now;
+  }
+
+  double elapsed = std::chrono::duration<double>(now - arrival_time_).count();
+  if (elapsed >= wait_duration_s_) {
+    blackboard->set<ControlMode>("control_mode", ControlMode::AUTO);
+    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
+    std::ostringstream detail;
+    detail << "elapsed=" << elapsed << "s, switching to AUTO";
+    detail::logTransition(detail::TreeKind::NAV, "WaitManual", false, detail.str());
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  return BT::NodeStatus::RUNNING;
+}
+
+void WaitManual::onHalted()
+{
+  arrival_time_ = std::chrono::steady_clock::time_point{};
+}
+
 // ------------------- EmergencyStop -------------------
 EmergencyStop::EmergencyStop(const std::string & name, const BT::NodeConfiguration & config)
 : BT::SyncActionNode(name, config)
@@ -641,8 +724,7 @@ BT::NodeStatus EmergencyStop::tick()
   const bool should_stop = in_transform_zone && !current_in_tunnel && engaged;
   std::ostringstream detail;
   detail << std::boolalpha << "in_transform_zone=" << in_transform_zone
-         << ", current_in_tunnel=" << current_in_tunnel
-         << ", is_disengaged=" << is_disengaged;
+         << ", current_in_tunnel=" << current_in_tunnel << ", is_disengaged=" << is_disengaged;
   detail::logTransition(detail::TreeKind::NAV, "EmergencyStop", should_stop, detail.str());
 
   if (should_stop) {
@@ -652,8 +734,8 @@ BT::NodeStatus EmergencyStop::tick()
     goal_point.y = current_pose.position.y;
     blackboard->set("nav_goal", goal_point);
 
-    return BT::NodeStatus::SUCCESS; 
+    return BT::NodeStatus::SUCCESS;
   }
-  return BT::NodeStatus::FAILURE; 
+  return BT::NodeStatus::FAILURE;
 }
 }  // namespace Sentry_BT
