@@ -399,8 +399,7 @@ BT::NodeStatus CheckAmmoLow::tick()
   const std::string branch = getInput<std::string>("branch").value_or("");
   const int threshold = getInput<int>("ammo_threshold").value_or(100);
   const int ammo = blackboard->get<int>("bullets_remaining");
-  const int coin = blackboard->get<int>("coin_remaining");
-  const bool low = ammo < threshold && coin >= 10;
+  const bool low = ammo < threshold;
 
   {
     std::ostringstream ammo_detail;
