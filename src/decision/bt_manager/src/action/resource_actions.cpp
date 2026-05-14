@@ -21,14 +21,14 @@ BT::NodeStatus RequestReviveAction::tick()
 {
   auto blackboard = config().blackboard;
   const std::string revive_type = getInput<std::string>("revive_type").value_or("free");
-  if (!blackboard->get<bool>("can_free_resurrect")) {
+  if (revive_type == "free") {
+    if (!blackboard->get<bool>("can_free_resurrect")) {
     detail::logTransition(detail::TreeKind::RESOURCE,
       "RequestReviveAction",
       false,
       "can_free_resurrect=false, revive_type=" + revive_type);
     return BT::NodeStatus::FAILURE;
   }
-  if (revive_type == "free") {
     blackboard->set<uint8_t>("revive_request", 1);
     detail::logTransition(
       detail::TreeKind::RESOURCE, "RequestReviveAction", true, "revive_type=free");
