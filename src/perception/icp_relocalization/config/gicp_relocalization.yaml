@@ -24,18 +24,18 @@ gicp_relocalization_node:
     converged_count_threshold: 2
 
     # Continuous low-frequency relocalization
-    enable_continuous_relocalization: true
+    enable_continuous_relocalization: false
     max_tracking_lost_count: 3
     continuous_relocalization:
       max_translation_jump: 0.1  # meter
       max_yaw_jump: 0.1         # rad
 
-    timeout_seconds: 5.0  # 超时时间（秒）
+    timeout_seconds: 10.0  # 超时时间（秒）
     # default_pose_on_timeout: [5.0, 7.0, 0.0, 0.0, 0.0, 0.0]  # 超时后发布的默认位姿
-    default_pose_on_timeout: [6.8, 3.9, 0.0, 0.0, 0.0, 0.0]  # 超时后发布的默认位姿
+    default_pose_on_timeout: [6.7, 3.9, 0.0, 0.0, 0.0, 0.0]  # 超时后发布的默认位姿
 
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
-    initial_pose: [6.8, 3.9, 0.0, 0.0, 0.0, 0.0]
+    initial_pose: [6.7, 3.9, 0.0, 0.0, 0.0, 0.0]
     # initial_pose: [7.3, 3.5, 0.0, 0.0, 0.0, 0.0]
     # initial_pose: [5.0, 7.0, 0.0, 0.0, 0.0, 0.4]
     # Multi-Guess Parameters
