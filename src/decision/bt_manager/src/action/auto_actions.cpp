@@ -632,14 +632,28 @@ BT::PortsList EmergencyStop::providedPorts()
 BT::NodeStatus EmergencyStop::tick()
 {
   auto blackboard = config().blackboard;
-  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const bool current_in_tunnel = blackboard->get<bool>("current_in_tunnel");
+  const bool in_transform_zone = blackboard->get<bool>("in_transform_zone");
+  const bool is_disengaged = blackboard->get<bool>("is_disengaged");
+  const bool engaged = !is_disengaged;
 
-  Sentry_BT::Point2D goal_point;
-  goal_point.x = current_pose.position.x;
-  goal_point.y = current_pose.position.y;
+  // 触发条件：在变形区、没进隧道、正在挨打
+  const bool should_stop = in_transform_zone && !current_in_tunnel && engaged;
+  std::ostringstream detail;
+  detail << std::boolalpha << "in_transform_zone=" << in_transform_zone
+         << ", current_in_tunnel=" << current_in_tunnel
+         << ", is_disengaged=" << is_disengaged;
+  detail::logTransition(detail::TreeKind::NAV, "EmergencyStop", should_stop, detail.str());
 
-  blackboard->set("nav_goal", goal_point);
+  if (should_stop) {
+    const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+    Sentry_BT::Point2D goal_point;
+    goal_point.x = current_pose.position.x;
+    goal_point.y = current_pose.position.y;
+    blackboard->set("nav_goal", goal_point);
 
-  return BT::NodeStatus::SUCCESS;
+    return BT::NodeStatus::SUCCESS; 
+  }
+  return BT::NodeStatus::FAILURE; 
 }
 }  // namespace Sentry_BT
