@@ -99,15 +99,15 @@ controller_server:
     FollowPath:
       plugin: "minco_controller::MincoMpcController"
       # MPC sampling period (s) and lookahead time (s)
-      dt: 0.01
-      lookahead_time : 0.1
+      dt: 0.05
+      lookahead_time : 2.0
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.10 
+      control_delay_compensation: 0.20 
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [3.0, 3.0, 2.0]
-      R: [1.5, 1.5, 1.0]
+      R: [1.0, 1.0, 1.0]
 
       # Velocity bounds
       vx_min: -3.5
@@ -120,10 +120,10 @@ controller_server:
 
       # Optional acceleration constraints
       use_acc_constraints: true
-      ax_min: -3.0
-      ax_max: 3.0
-      ay_min: -3.0
-      ay_max: 3.0
+      ax_min: -2.0
+      ax_max: 2.0
+      ay_min: -2.0
+      ay_max: 2.0
       alpha_min: -5.0
       alpha_max: 5.0
 
@@ -307,14 +307,14 @@ planner_server:
         opt_freq: 10.0
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
-        safe_dist: 0.35
+        safe_dist: 0.40
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
-        max_velocity: 3.5
+        max_velocity: 3.0
         max_acceleration: 2.0
         max_yaw_dot: 5.0
-        turn_angle_deadzone: 0.5
-        turn_angle_saturation: 1.57
-        min_turn_vel: 1.5
+        turn_angle_deadzone: 0.2
+        turn_angle_saturation: 1.2
+        min_turn_vel: 1.0
         decay_power: 2.0
         time_allocation_iters: 15
         smooth_eps: 0.01
