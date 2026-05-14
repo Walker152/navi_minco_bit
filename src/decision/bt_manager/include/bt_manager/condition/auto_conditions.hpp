@@ -6,6 +6,7 @@
 #include "bt_manager/utils/log.hpp"
 #include <behaviortree_cpp_v3/condition_node.h>
 #include <chrono>
+#include <limits>
 
 namespace Sentry_BT {
 class CheckRetreatCondition : public BT::ConditionNode
@@ -51,7 +52,7 @@ public:
   BT::NodeStatus tick() override;
 
 private:
-  float last_health_ = 100.0f;
+  float last_health_ = std::numeric_limits<float>::max();
   std::chrono::steady_clock::time_point last_health_change_time_;
   bool cooldown_active_ = false;
 };
