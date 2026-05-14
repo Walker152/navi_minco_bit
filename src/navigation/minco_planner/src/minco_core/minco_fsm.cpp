@@ -24,7 +24,9 @@ void MincoFsm::cancelGoal()
   if (recovery_server_) {
     recovery_server_->clearMissionGoal();
   }
-  changeState("CANCEL_GOAL", State::EMER_STOP);
+  // Disabled to prevent zero-velocity deadlock
+  // changeState("CANCEL_GOAL", State::EMER_STOP);
+  changeState("CANCEL_GOAL", State::WAIT_GOAL);
 }
 
 // -----------------------------------------------------------------------------
@@ -38,7 +40,9 @@ void MincoFsm::callMainFsmOnce()
   }
 
   // Consume latest goal (createPlan only sets this flag).
-  if (state_ != State::EMER_STOP && state_ != State::RECOVERING) {
+  // Disabled to prevent zero-velocity deadlock
+  // if (state_ != State::EMER_STOP && state_ != State::RECOVERING) {
+  if (state_ != State::RECOVERING) {
     geometry_msgs::msg::PoseStamped new_goal;
     if (planner_->consumePendingGoal(new_goal)) {
       goal_ = new_goal;
@@ -97,15 +101,18 @@ void MincoFsm::callMainFsmOnce()
       }
 
       if (decision == RecoverServer::RecoveryDecision::ENTER_EMER_STOP) {
-        changeState(emer_reason, State::EMER_STOP);
+        // Disabled to prevent zero-velocity deadlock
+        // changeState(emer_reason, State::EMER_STOP);
+        changeState(emer_reason, State::GENERATE_TRAJ);
         return;
       }
 
       // Recovery threshold not reached yet: stay in GENERATE_TRAJ and keep accumulating failures.
-      if (!stop_published_) {
-        planner_->publishEmergencyStop(current_pose);
-        stop_published_ = true;
-      }
+      // Disabled to prevent zero-velocity deadlock
+      // if (!stop_published_) {
+      //   planner_->publishEmergencyStop(current_pose);
+      //   stop_published_ = true;
+      // }
     };
 
     if (!planner_->PlanGlobalPath(current_pose, goal_)) {
@@ -154,7 +161,8 @@ void MincoFsm::callMainFsmOnce()
       return;
     }
 
-    goal_stop_published_ = false;
+    // Disabled to prevent zero-velocity deadlock
+    // goal_stop_published_ = false;
 
     const double now_s = planner_->nowSeconds();
 
@@ -208,15 +216,18 @@ void MincoFsm::callMainFsmOnce()
       }
 
       if (decision == RecoverServer::RecoveryDecision::ENTER_EMER_STOP) {
-        changeState("FOLLOW_REPLAN_RECOVERY", State::EMER_STOP);
+        // Disabled to prevent zero-velocity deadlock
+        // changeState("FOLLOW_REPLAN_RECOVERY", State::EMER_STOP);
+        changeState("FOLLOW_REPLAN_RECOVERY", State::GENERATE_TRAJ);
         return;
       }
 
       // 4. 处于 NONE 状态
-      if (!stop_published_) {
-        planner_->publishEmergencyStop(current_pose);
-        stop_published_ = true;
-      }
+      // Disabled to prevent zero-velocity deadlock
+      // if (!stop_published_) {
+      //   planner_->publishEmergencyStop(current_pose);
+      //   stop_published_ = true;
+      // }
       return;
     }
 
@@ -245,7 +256,9 @@ void MincoFsm::callMainFsmOnce()
     // 条件2: 挣扎超时保护
     if (!recovery_server_->inRecovery(now_s)) {
       recovery_server_->finishRecovery(false, now_s);
-      changeState("ESCAPE_TIMEOUT", State::EMER_STOP);
+      // Disabled to prevent zero-velocity deadlock
+      // changeState("ESCAPE_TIMEOUT", State::EMER_STOP);
+      changeState("ESCAPE_TIMEOUT", State::GENERATE_TRAJ);
       return;
     }
 
@@ -254,6 +267,8 @@ void MincoFsm::callMainFsmOnce()
     return;
   }
 
+  // Disabled to prevent zero-velocity deadlock
+  /*
   case State::EMER_STOP: {
     if (!has_odom) {
       return;
@@ -301,6 +316,7 @@ void MincoFsm::callMainFsmOnce()
     changeState("EMER_SAFE", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
     return;
   }
+  */
 
   default:
     break;
@@ -325,8 +341,9 @@ namespace {
     return "FOLLOW_TRAJ";
   case MincoFsm::State::RECOVERING:
     return "RECOVERING";
-  case MincoFsm::State::EMER_STOP:
-    return "EMER_STOP";
+  // Disabled to prevent zero-velocity deadlock
+  // case MincoFsm::State::EMER_STOP:
+  //   return "EMER_STOP";
   default:
     return "UNKNOWN";
   }
@@ -341,8 +358,10 @@ void MincoFsm::changeState(const char * caller, State new_state)
   }
 
   // Leaving recovery-related states: clear debug visualization and reset recovery runtime.
-  if ((state_ == State::RECOVERING || state_ == State::EMER_STOP) && new_state != State::RECOVERING &&
-      new_state != State::EMER_STOP) {
+  // Disabled to prevent zero-velocity deadlock
+  // if ((state_ == State::RECOVERING || state_ == State::EMER_STOP) && new_state != State::RECOVERING &&
+  //     new_state != State::EMER_STOP) {
+  if (state_ == State::RECOVERING && new_state != State::RECOVERING) {
     planner_->clearRecoveryDebugVisualization();
     recovery_server_->reset();
   }
@@ -354,8 +373,9 @@ void MincoFsm::changeState(const char * caller, State new_state)
 
   last_state_ = state_;
   state_ = new_state;
-  stop_published_ = false;
-  goal_stop_published_ = false;
+  // Disabled to prevent zero-velocity deadlock
+  // stop_published_ = false;
+  // goal_stop_published_ = false;
 }
 
 }  // namespace minco_planner
