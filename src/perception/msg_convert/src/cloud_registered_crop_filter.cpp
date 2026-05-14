@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <Eigen/Geometry>
 #include <pcl/common/point_tests.h>
@@ -20,6 +22,12 @@ namespace msg_convert {
 class CloudRegisteredCropFilterNode : public rclcpp::Node
 {
 public:
+  struct CropRegion
+  {
+    Eigen::Vector3f center{0.0f, 0.0f, 0.0f};
+    Eigen::Vector3f half_size{6.0f, 3.0f, 1.75f};
+  };
+
   CloudRegisteredCropFilterNode() : Node("cloud_registered_crop_filter")
   {
     const auto input_topic = this->declare_parameter<std::string>("input_topic", "/cloud_registered");
@@ -27,9 +35,6 @@ public:
       this->declare_parameter<std::string>("output_topic", "/cloud_registered_filtered");
     const auto queue_size = this->declare_parameter<int>("queue_size", 10);
 
-    center_x_ = static_cast<float>(this->declare_parameter<double>("position.x", 0.0));
-    center_y_ = static_cast<float>(this->declare_parameter<double>("position.y", 0.0));
-    center_z_ = static_cast<float>(this->declare_parameter<double>("position.z", 0.0));
     position_frame_ = this->declare_parameter<std::string>("position_frame", "camera_init");
 
     filter_mode_ = this->declare_parameter<std::string>("filter_mode", "transform_cloud");
@@ -44,19 +49,32 @@ public:
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
     tf_buffer_->setUsingDedicatedThread(true);
 
-    size_x_ = static_cast<float>(this->declare_parameter<double>("box_size.x", 12.0));
-    size_y_ = static_cast<float>(this->declare_parameter<double>("box_size.y", 6.0));
-    size_z_ = static_cast<float>(this->declare_parameter<double>("box_size.z", 3.5));
+    const auto centers_x = this->declare_parameter<std::vector<double>>("centers_x", std::vector<double>{});
+    const auto centers_y = this->declare_parameter<std::vector<double>>("centers_y", std::vector<double>{});
+    const auto centers_z = this->declare_parameter<std::vector<double>>("centers_z", std::vector<double>{});
+    const auto boundaries_x =
+      this->declare_parameter<std::vector<double>>("boundaries_x", std::vector<double>{});
+    const auto boundaries_y =
+      this->declare_parameter<std::vector<double>>("boundaries_y", std::vector<double>{});
+    const auto boundaries_z =
+      this->declare_parameter<std::vector<double>>("boundaries_z", std::vector<double>{});
 
-    if (size_x_ <= 0.0f || size_y_ <= 0.0f || size_z_ <= 0.0f) {
-      RCLCPP_WARN(this->get_logger(),
-        "box_size must be positive. Using absolute value: (%.3f, %.3f, %.3f)",
-        size_x_,
-        size_y_,
-        size_z_);
-      size_x_ = std::abs(size_x_);
-      size_y_ = std::abs(size_y_);
-      size_z_ = std::abs(size_z_);
+    const std::size_t region_count = std::min(centers_x.size(),
+      std::min(centers_y.size(),
+        std::min(centers_z.size(),
+          std::min(boundaries_x.size(), std::min(boundaries_y.size(), boundaries_z.size())))));
+
+    crop_regions_.reserve(region_count);
+    for (std::size_t i = 0; i < region_count; ++i) {
+      const float bx = static_cast<float>(boundaries_x[i]);
+      const float by = static_cast<float>(boundaries_y[i]);
+      const float bz = static_cast<float>(boundaries_z[i]);
+      CropRegion region;
+      region.center = Eigen::Vector3f(static_cast<float>(centers_x[i]),
+        static_cast<float>(centers_y[i]),
+        static_cast<float>(centers_z[i]));
+      region.half_size = Eigen::Vector3f(std::abs(bx), std::abs(by), std::abs(bz)) * 0.5f;
+      crop_regions_.push_back(region);
     }
 
     cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(input_topic,
@@ -67,19 +85,13 @@ public:
       output_topic, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
 
     RCLCPP_INFO(this->get_logger(),
-      "Crop filter started. input=%s output=%s center=(%.3f, %.3f, %.3f) frame=%s mode=%s remove_inside=%s "
-      "box_size=(%.3f, %.3f, %.3f)",
+      "Crop filter started. input=%s output=%s frame=%s mode=%s remove_inside=%s regions=%zu",
       input_topic.c_str(),
       output_topic.c_str(),
-      center_x_,
-      center_y_,
-      center_z_,
       position_frame_.c_str(),
       filter_mode_.c_str(),
       remove_inside_ ? "true" : "false",
-      size_x_,
-      size_y_,
-      size_z_);
+      crop_regions_.size());
   }
 
 private:
@@ -144,7 +156,7 @@ private:
     }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_for_filter = cloud_input;
-    Eigen::Vector3f center(center_x_, center_y_, center_z_);
+    std::vector<CropRegion> active_regions = crop_regions_;
 
     if (filter_mode_ == "transform_cloud") {
       if (filter_frame != cloud_frame) {
@@ -162,23 +174,15 @@ private:
         if (!lookupTransform(cloud_frame, filter_frame, msg->header.stamp, tf_filter_to_cloud)) {
           return;
         }
-        center = transformPoint(transformToMatrix(tf_filter_to_cloud), center);
+        const auto tf = transformToMatrix(tf_filter_to_cloud);
+        for (auto & region : active_regions) {
+          region.center = transformPoint(tf, region.center);
+        }
       }
       filter_frame = cloud_frame;
     }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out(new pcl::PointCloud<pcl::PointXYZ>());
-
-    const float half_x = 0.5f * size_x_;
-    const float half_y = 0.5f * size_y_;
-    const float half_z = 0.5f * size_z_;
-
-    const float min_x = center.x() - half_x;
-    const float max_x = center.x() + half_x;
-    const float min_y = center.y() - half_y;
-    const float max_y = center.y() + half_y;
-    const float min_z = center.z() - half_z;
-    const float max_z = center.z() + half_z;
 
     cloud_out->points.reserve(cloud_for_filter->points.size());
     for (const auto & p : cloud_for_filter->points) {
@@ -186,8 +190,21 @@ private:
         continue;
       }
 
-      const bool inside =
-        (p.x >= min_x && p.x <= max_x) && (p.y >= min_y && p.y <= max_y) && (p.z >= min_z && p.z <= max_z);
+      bool inside = false;
+      for (const auto & region : active_regions) {
+        const float min_x = region.center.x() - region.half_size.x();
+        const float max_x = region.center.x() + region.half_size.x();
+        const float min_y = region.center.y() - region.half_size.y();
+        const float max_y = region.center.y() + region.half_size.y();
+        const float min_z = region.center.z() - region.half_size.z();
+        const float max_z = region.center.z() + region.half_size.z();
+        const bool inside_region = (p.x >= min_x && p.x <= max_x) && (p.y >= min_y && p.y <= max_y) &&
+                                   (p.z >= min_z && p.z <= max_z);
+        if (inside_region) {
+          inside = true;
+          break;
+        }
+      }
 
       const bool keep = remove_inside_ ? !inside : inside;
       if (keep) {
@@ -208,15 +225,10 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_pub_;
 
-  float center_x_{0.0f};
-  float center_y_{0.0f};
-  float center_z_{0.0f};
+  std::vector<CropRegion> crop_regions_;
   std::string position_frame_;
   std::string filter_mode_;
   bool remove_inside_{true};
-  float size_x_{12.0f};
-  float size_y_{6.0f};
-  float size_z_{3.5f};
 
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;

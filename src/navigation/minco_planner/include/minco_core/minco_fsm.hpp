@@ -22,7 +22,8 @@ public:
     GENERATE_TRAJ,
     FOLLOW_TRAJ,
     RECOVERING,
-    EMER_STOP
+    // Disabled to prevent zero-velocity deadlock
+    // EMER_STOP
   };
 
   using PlannerPtr = std::shared_ptr<MincoPlanner>;
