@@ -177,54 +177,24 @@ CheckManualOverride::CheckManualOverride(const std::string & name, const BT::Nod
 
 BT::PortsList CheckManualOverride::providedPorts()
 {
-  return {BT::InputPort<double>("timeout_seconds", 4.0, "Manual override timeout when goal is unchanged"),
-    BT::InputPort<double>("same_goal_eps", 0.05, "Position epsilon to consider goal unchanged"),
-    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
 BT::NodeStatus CheckManualOverride::tick()
 {
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
-  const double timeout_seconds = getInput<double>("timeout_seconds").value_or(4.0);
-  const double same_goal_eps = getInput<double>("same_goal_eps").value_or(0.05);
 
   const auto current_control_mode = blackboard->get<ControlMode>("control_mode");
   if (current_control_mode != ControlMode::MANUAL_CONTROL) {
-    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
-     detail::logTransition(
+    detail::logTransition(
       detail::TreeKind::NAV, "CheckManualOverride", false, "not in manual control mode", branch);
     return BT::NodeStatus::FAILURE;
   }
 
-  const auto manual_goal = blackboard->get<Point2D>("manual_override_goal");
-  const auto now = std::chrono::steady_clock::now();
-
-  last_goal_ = manual_goal;
-  last_goal_change_time_ = now;
-
-  const double delta = std::hypot(manual_goal.x - last_goal_.x, manual_goal.y - last_goal_.y);
-  if (delta > same_goal_eps) {
-    last_goal_ = manual_goal;
-    last_goal_change_time_ = now;
-  }
-
-  const double unchanged_seconds = std::chrono::duration<double>(now - last_goal_change_time_).count();
-  if (unchanged_seconds >= timeout_seconds) {
-    blackboard->set<ControlMode>("control_mode", ControlMode::AUTO);
-    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
-    detail::logTransition(
-      detail::TreeKind::NAV, "CheckManualOverride", false, "manual timeout reached", branch);
-    return BT::NodeStatus::FAILURE;
-  }
-
   blackboard->set<NavMode>("current_mode", NavMode::MANUAL);
-  {
-    std::ostringstream manual_detail;
-    manual_detail << "goal=(" << manual_goal.x << ", " << manual_goal.y << ")"
-                  << ", unchanged_seconds=" << unchanged_seconds << ", timeout_seconds=" << timeout_seconds;
-    detail::logTransition(detail::TreeKind::NAV, "CheckManualOverride", true, manual_detail.str(), branch);
-  }
+  detail::logTransition(
+    detail::TreeKind::NAV, "CheckManualOverride", true, "manual control active", branch);
   return BT::NodeStatus::SUCCESS;
 }
 
