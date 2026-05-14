@@ -35,7 +35,7 @@ gicp_relocalization_node:
     default_pose_on_timeout: [6.8, 4.3, 0.0, 0.0, 0.0, 0.0]  # 超时后发布的默认位姿
 
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
-    initial_pose: [6.8, 4.3, 0.0, 0.0, 0.0, 0.0]
+    initial_pose: [6.8, 3.9, 0.0, 0.0, 0.0, 0.0]
     # initial_pose: [7.3, 3.5, 0.0, 0.0, 0.0, 0.0]
     # initial_pose: [5.0, 7.0, 0.0, 0.0, 0.0, 0.4]
     # Multi-Guess Parameters

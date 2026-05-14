@@ -28,17 +28,17 @@ def generate_launch_description():
 
     return launch.LaunchDescription([
         # 静态TF: map -> camera_init
-        launch_ros.actions.Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_tf_map_to_camera_init',
-            # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
-            # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
-            # arguments=['1', '3', '0', '0', '0', '0', 'map', 'camera_init'],
-            arguments=['6.8', '3.9', '0', '0', '0', '0', 'map', 'camera_init'],
-            # arguments=['10', '4.5', '0', '0', '0', '0', 'map', 'camera_init'],
-            # arguments=['9', '6.0', '0', '0', '0', '0', 'map', 'camera_init'],
-            output='screen'),
+        # launch_ros.actions.Node(
+        #     package='tf2_ros',
+        #     executable='static_transform_publisher',
+        #     name='static_tf_map_to_camera_init',
+        #     # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
+        #     # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
+        #     # arguments=['1', '3', '0', '0', '0', '0', 'map', 'camera_init'],
+        #     arguments=['6.7', '3.9', '0', '0', '0', '0', 'map', 'camera_init'],
+        #     # arguments=['12', '5.0', '0', '1.57', '0', '0', 'map', 'camera_init'],
+        #     # arguments=['9', '6.0', '0', '0', '0', '0', 'map', 'camera_init'],
+        #     output='screen'),
 
         # 静态TF: map -> minimap
         launch_ros.actions.Node(
