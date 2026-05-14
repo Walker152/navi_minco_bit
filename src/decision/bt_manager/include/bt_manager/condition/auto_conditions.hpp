@@ -37,10 +37,6 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
-
-private:
-  Point2D last_goal_;
-  std::chrono::steady_clock::time_point last_goal_change_time_;
 };
 
 class CheckOutpostSafeResponse : public BT::ConditionNode
