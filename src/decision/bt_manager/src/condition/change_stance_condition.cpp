@@ -442,15 +442,8 @@ BT::NodeStatus CheckTunnelDeformation::tick()
     }
   }
 
-  static int cnt = 0;
-  if (++cnt % 10 == 1) {
-    std::cout << "[CheckTunnelDeformation] in_tf=" << in_transform_zone
-              << ", in_tunnel=" << current_in_tunnel
-              << ", disengaged=" << is_disengaged
-              << ", desired_pos=" << static_cast<int>(desired_pos) << std::endl;
-  }
-  std::cout << " in_transform_zone=" << in_transform_zone << "current_pose= (" 
-  << current_pose.position.x << ", " << current_pose.position.y << ")" << std::endl;
+  // std::cout << " in_transform_zone=" << in_transform_zone << "current_pose= (" 
+  // << current_pose.position.x << ", " << current_pose.position.y << ")" << std::endl;
   blackboard->set<LifterPos>("desired_lifter_pos", desired_pos);
   detail::logTransition(detail::TreeKind::STANCE, "CheckTunnelDeformation", true,
     "through_tunnel=" + std::to_string(through_tunnel) + ", current_in_tunnel=" + std::to_string(current_in_tunnel) +
