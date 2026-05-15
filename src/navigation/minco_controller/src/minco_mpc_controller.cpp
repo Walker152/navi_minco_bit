@@ -187,6 +187,10 @@ void MincoMpcController::compensateLeverArm(double v_lidar_x,
   vx_global = v_body_x * cos_yaw - v_body_y * sin_yaw;
   vy_global = v_body_x * sin_yaw + v_body_y * cos_yaw;
   omega_global = omega_z;
+  // std::cout << "Raw velocities: vx_lidar=" << v_lidar_x << ", vy_lidar=" << v_lidar_y
+  //           << ", omega_z=" << omega_z << ", yaw=" << yaw << std::endl;
+  // std::cout << "Compensated velocities: vx_global=" << vx_global << ", vy_global=" << vy_global
+  //           << ", omega_global=" << omega_global << std::endl;
 }
 
 void MincoMpcController::extractGlobalVelocityAndYaw(const nav_msgs::msg::Odometry::SharedPtr & odom,
@@ -215,7 +219,6 @@ void MincoMpcController::extractGlobalVelocityAndYaw(const nav_msgs::msg::Odomet
   // 5. 计算全局杆臂补偿 (将底盘水平安装偏置旋转到全局系)
   double offset_global_x = std::cos(yaw_global) * lidar_offset_x_ - std::sin(yaw_global) * lidar_offset_y_;
   double offset_global_y = std::sin(yaw_global) * lidar_offset_x_ + std::cos(yaw_global) * lidar_offset_y_;
-
   // 6. 计算底盘旋转中心的全局速度
   vx_global = v_imu_global.x() + omega_global * offset_global_y;
   vy_global = v_imu_global.y() - omega_global * offset_global_x;
@@ -590,16 +593,17 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   curr.y = pose.pose.position.y;
   curr.yaw = normalizeYaw(tf2::getYaw(pose.pose.orientation));
   if (latest_odom) {
-    double vx = 0.0;
-    double vy = 0.0;
-    double omega = 0.0;
-    double yaw = 0.0;
-    extractGlobalVelocityAndYaw(latest_odom, vx, vy, omega, yaw);
+    double vx = latest_odom->twist.twist.linear.x;
+    double vy = latest_odom->twist.twist.linear.y;
+    double omega = latest_odom->twist.twist.angular.z;
+    double yaw = normalizeYaw(tf2::getYaw(latest_odom->pose.pose.orientation));
+    // extractGlobalVelocityAndYaw(latest_odom, vx, vy, omega, yaw);
+    compensateLeverArm(vx, vy, omega, yaw, curr.vx, curr.vy, curr.omega);
 
-    curr.yaw = normalizeYaw(yaw);
-    curr.vx = vx;
-    curr.vy = vy;
-    curr.omega = omega;
+    // curr.yaw = normalizeYaw(yaw);
+    // curr.vx = vx;
+    // curr.vy = vy;
+    // curr.omega = omega;
 
     const double noise_threshold = 0.03;
     if (std::abs(curr.vx) < noise_threshold) {

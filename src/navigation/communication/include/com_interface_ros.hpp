@@ -225,12 +225,13 @@ private:
     {
       // Snapshot shared state to avoid data races.
       std::lock_guard<std::mutex> lk(state_mutex_);
-      vx_mps = cmd_vel_.linear.x;
-      // vx_mps = 3.0f;
-      vy_mps = cmd_vel_.linear.y;
-      // vy_mps = 0.0f;
+      // vx_mps = cmd_vel_.linear.x;
+      vx_mps = 3.0f;
+      // vy_mps = cmd_vel_.linear.y;
+      vy_mps = 0.0f;
+
       vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
-      // vw_rpm = 80.0f;
+      
       current_vx = odom_.twist.twist.linear.x;
       current_vy = odom_.twist.twist.linear.y;
       current_vw = odom_.twist.twist.angular.z;
@@ -253,6 +254,8 @@ private:
       health_req = behavior_.remote_health_request;
       use_limited_scan = behavior_.use_limited_scan;
       vw_rpm = gyro_vel;
+      vw_rpm = -80.0f;
+      
     }
 
     tf2::Quaternion q;
@@ -284,7 +287,7 @@ private:
       revive_req,
       ammo_req,
       health_req,
-      use_limited_scan);
+      0);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
 #ifdef COMMUNICATION_DEBUG
     if (flag == 0) {
