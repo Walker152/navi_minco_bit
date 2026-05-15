@@ -2,6 +2,9 @@
 // #define COMMUNICATION_DEBUG
 #include "header.hpp"
 #include "thread"
+#include <deque>
+#include <limits>
+#include <cstdlib>
 
 #include "ros_interfaces/msg/ally_robot_status.hpp"
 #include "ros_interfaces/msg/behavior.hpp"
@@ -97,9 +100,18 @@ public:
     msg.is_transformable = in.is_transformable;
     msg.transform_state = in.transform_state;
     transform_state = in.transform_state;
-    msg.header.stamp = now();
+    const auto stamp = now();
+    msg.header.stamp = stamp;
     msg.capacitor_capacity = in.capacitor_capacity;
     offline_info_pub_->publish(msg);
+
+    {
+      std::lock_guard<std::mutex> lk(imu_mutex_);
+      if (chassis_imu_history_.size() >= kImuHistoryCapacity) {
+        chassis_imu_history_.pop_front();
+      }
+      chassis_imu_history_.push_back(ImuYawSample{stamp, in.chassis_imu_yaw});
+    }
   }
 
   void publishRadarInfo(const RadarInfo & in)
@@ -181,6 +193,7 @@ private:
 
     map_frame_ = this->declare_parameter<std::string>("global_path.map_frame", "map");
     minimap_frame_ = this->declare_parameter<std::string>("global_path.minimap_frame", "minimap");
+    imu_yaw_window_ms_ = this->declare_parameter<int64_t>("communication.imu_yaw_window_ms", 20);
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
@@ -204,6 +217,7 @@ private:
     float fx_global = 0.0f;
     float fy_global = 0.0f;
     float fw_global = 0.0f;
+    float delta_yaw = 0.0f;
 
     // Behavior-related variables
     uint8_t pitch_mode = 0;
@@ -221,7 +235,6 @@ private:
     bool use_gyro_mode = false;
     float gyro_vel = 0.0f;
     geometry_msgs::msg::Quaternion odom_q;
-
     {
       // Snapshot shared state to avoid data races.
       std::lock_guard<std::mutex> lk(state_mutex_);
@@ -239,6 +252,7 @@ private:
       fx_global = cmd_wrench_.force.x;
       fy_global = cmd_wrench_.force.y;
       fw_global = cmd_wrench_.torque.z;
+      delta_yaw = delta_yaw_;
 
       pitch_mode = behavior_.pitch_mode;
       desire_stance = behavior_.desired_stance;
@@ -274,7 +288,8 @@ private:
       fx_global,
       fy_global,
       fw_global,
-      1);
+      1,
+      delta_yaw);
     
     BehaviorData behavior_data(
       pitch_mode,
@@ -501,8 +516,51 @@ private:
 
   void odomCB(const nav_msgs::msg::Odometry::ConstSharedPtr & odomPtr)
   {
-    std::lock_guard<std::mutex> lk(state_mutex_);
-    odom_ = *odomPtr;
+    {
+      std::lock_guard<std::mutex> lk(state_mutex_);
+      odom_ = *odomPtr;
+    }
+    updateDeltaYaw(odomPtr->header.stamp, odomPtr->pose.pose.orientation);
+  }
+
+  void updateDeltaYaw(const builtin_interfaces::msg::Time & stamp_msg,
+    const geometry_msgs::msg::Quaternion & orientation)
+  {
+    const rclcpp::Time stamp(stamp_msg);
+    const int64_t window_ns = imu_yaw_window_ms_ * 1000000L;
+    float matched_imu_yaw = 0.0f;
+    bool found = false;
+
+    {
+      std::lock_guard<std::mutex> lk(imu_mutex_);
+      int64_t best_abs_ns = std::numeric_limits<int64_t>::max();
+      for (const auto & sample : chassis_imu_history_) {
+        const int64_t dt_ns = (sample.stamp - stamp).nanoseconds();
+        const int64_t abs_ns = std::llabs(dt_ns);
+        if (abs_ns <= window_ns && abs_ns < best_abs_ns) {
+          best_abs_ns = abs_ns;
+          matched_imu_yaw = sample.yaw;
+          found = true;
+        }
+      }
+    }
+
+    float delta = 0.0f;
+    if (found) {
+      tf2::Quaternion q;
+      tf2::fromMsg(orientation, q);
+      double roll = 0.0;
+      double pitch = 0.0;
+      double yaw = 0.0;
+      tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+      const float odom_yaw_deg = static_cast<float>(yaw * 180.0 / M_PI);
+      delta = odom_yaw_deg - matched_imu_yaw;
+    }
+
+    {
+      std::lock_guard<std::mutex> lk(state_mutex_);
+      delta_yaw_ = delta;
+    }
   }
 
   // Subscriptions
@@ -530,6 +588,16 @@ private:
   // Shared state mutex
   std::mutex state_mutex_;
   std::mutex path_mutex_;
+  std::mutex imu_mutex_;
+
+  struct ImuYawSample
+  {
+    rclcpp::Time stamp;
+    float yaw;
+  };
+  static constexpr size_t kImuHistoryCapacity = 200;
+  std::deque<ImuYawSample> chassis_imu_history_;
+  int64_t imu_yaw_window_ms_{20};
 
   // Latest global path packet cache
   GlobalPath pending_global_path_{};
@@ -545,6 +613,7 @@ private:
   geometry_msgs::msg::Wrench cmd_wrench_;
   nav_msgs::msg::Odometry odom_;
   float transform_state = 0.0f;
+  float delta_yaw_{0.0f};
 };
 
 }  // namespace ns_com
