@@ -113,6 +113,7 @@ struct _ChassisTarget
   float fy_global{};
   float fw_global{};
   bool use_speed_control{};  // 是否使用速度控制模式，true为使用，false为使用力控制模式
+  float delta_yaw{};
   
   _ChassisTarget(
     float _vx_mps,
@@ -125,10 +126,11 @@ struct _ChassisTarget
     float _fx_global,
     float _fy_global,
     float _fw_global,
-    bool _use_speed_control)
+    bool _use_speed_control,
+    float _delta_yaw)
   : vx_mps(_vx_mps), vy_mps(_vy_mps), vw_rpm(_vw_rpm), current_yaw(_current_yaw), current_vx(_current_vx),
     current_vy(_current_vy), current_vw(_current_vw), fx_global(_fx_global), fy_global(_fy_global), fw_global(_fw_global),
-    use_speed_control(_use_speed_control)
+    use_speed_control(_use_speed_control), delta_yaw(_delta_yaw)
   {
   }
 };
@@ -270,6 +272,7 @@ struct __attribute__((packed)) _SentryInfoOffline
   bool is_transformable{};  // 是否能够进行变形（不止变形中不能变形，升降卡住后也无法进行变形）
   float transform_state{};  // 变形状态，0-1，0%为未变形，100%为完全变形，过渡状态根据实际情况变化
   uint8_t capacitor_capacity{};  // 电容容量百分比，0-100
+  float chassis_imu_yaw{};  // 底盘IMU的yaw轴角度 逆时针为正
 
   _SentryInfoOffline(bool _is_get,
     float _armor_pos[3],
@@ -278,7 +281,8 @@ struct __attribute__((packed)) _SentryInfoOffline
     uint8_t _lifter_current_pos,
     bool _is_transformable,
     float _transform_state,
-    uint8_t _capacitor_capacity)
+    uint8_t _capacitor_capacity,
+    float _chassis_imu_yaw)
   {
     is_get = _is_get;
     for (int i = 0; i < 3; ++i) {
@@ -290,6 +294,7 @@ struct __attribute__((packed)) _SentryInfoOffline
     is_transformable = _is_transformable;
     transform_state = _transform_state;
     capacitor_capacity = _capacitor_capacity;
+    chassis_imu_yaw = _chassis_imu_yaw;
   }
 };
 using SentryInfoOffline = struct _SentryInfoOffline;
