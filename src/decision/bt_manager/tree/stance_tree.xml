@@ -1,7 +1,7 @@
 <root main_tree_to_execute="StanceTree">
   <BehaviorTree ID="StanceTree">
     <ReactiveSequence name="StanceTreeRoot">
-      <!-- <CheckTunnelDeformation /> -->
+      <CheckTunnelDeformation />
       <UpdateEnhanceTime />
       <ReactiveFallback name="StancePriorityRoot">
         
@@ -12,7 +12,7 @@
           <ChangeStance name="ChangeStanceRefresh" stance="{target_stance}" />
         </Sequence> -->
 
-        <!-- <ReactiveSequence name="MoveStanceNoGyroBranch">
+        <ReactiveSequence name="MoveStanceNoGyroBranch">
           <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch" />
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
           <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch"
@@ -21,8 +21,8 @@
                                  kd="0.0"
                                  deadzone_rad="0.05"
                                  max_abs_gyro_vel="50.0" />
-          <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" />
-        </ReactiveSequence> -->
+          <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
+        </ReactiveSequence>
 
         <Sequence name="AbsoluteAttackBranch">
           <Fallback name="AbsoluteAttackConditions">
