@@ -100,20 +100,20 @@ controller_server:
       plugin: "minco_controller::MincoMpcController"
       # MPC sampling period (s) and lookahead time (s)
       dt: 0.05
-      lookahead_time : 2.0
+      lookahead_time : 0.5
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.20 
+      control_delay_compensation: 0.15 
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [3.0, 3.0, 2.0]
       R: [1.0, 1.0, 1.0]
 
       # Velocity bounds
-      vx_min: -3.5
-      vx_max: 3.5
-      vy_min: -3.5
-      vy_max: 3.5
+      vx_min: -3.0
+      vx_max: 3.0
+      vy_min: -3.0
+      vy_max: 3.0
       fixed_wz: 4.18 # rad/s, used if use_small_gyro_mode is true
       omega_min: -5.0 
       omega_max: 5.0
@@ -312,9 +312,9 @@ planner_server:
         max_velocity: 3.0
         max_acceleration: 2.0
         max_yaw_dot: 5.0
-        turn_angle_deadzone: 0.2
-        turn_angle_saturation: 1.2
-        min_turn_vel: 1.0
+        turn_angle_deadzone: 0.1
+        turn_angle_saturation: 1.0
+        min_turn_vel: 0.5
         decay_power: 2.0
         time_allocation_iters: 15
         smooth_eps: 0.01
