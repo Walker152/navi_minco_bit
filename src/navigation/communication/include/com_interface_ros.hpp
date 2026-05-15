@@ -238,10 +238,10 @@ private:
     {
       // Snapshot shared state to avoid data races.
       std::lock_guard<std::mutex> lk(state_mutex_);
-      // vx_mps = cmd_vel_.linear.x;
-      vx_mps = 3.0f;
-      // vy_mps = cmd_vel_.linear.y;
-      vy_mps = 0.0f;
+      vx_mps = cmd_vel_.linear.x;
+      // vx_mps = 3.0f;
+      vy_mps = cmd_vel_.linear.y;
+      // vy_mps = 0.0f;
 
       vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
       
@@ -268,8 +268,7 @@ private:
       health_req = behavior_.remote_health_request;
       use_limited_scan = behavior_.use_limited_scan;
       vw_rpm = gyro_vel;
-      vw_rpm = -80.0f;
-      
+      // vw_rpm = -80.0f;
     }
 
     tf2::Quaternion q;
@@ -555,11 +554,20 @@ private:
       tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
       const float odom_yaw_deg = static_cast<float>(yaw * 180.0 / M_PI);
       delta = odom_yaw_deg - matched_imu_yaw;
+      while (delta > 180.0f) {
+        delta -= 360.0f;
+      }
+      while (delta < -180.0f) {
+        delta += 360.0f;
+      }
     }
 
     {
       std::lock_guard<std::mutex> lk(state_mutex_);
       delta_yaw_ = delta;
+      std::cout << "Delta yaw updated: " << delta_yaw_ << " degrees (matched_imu_yaw=" << matched_imu_yaw
+                << ", found=" << found << ")" << std::endl;
+                
     }
   }
 
