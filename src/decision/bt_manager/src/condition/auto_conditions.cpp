@@ -91,7 +91,7 @@ BT::NodeStatus CheckTargetLocked::tick()
   const auto tactical_mode = blackboard->get<TacticalMode>("tactical_mode");
   const auto & include_areas = tracking_areas.at(tactical_mode);
 
-  bool in_attack_area = false;
+  bool in_attack_area = true;
   int target_area_index = -1;
   for (std::size_t i = 0; i < include_areas.size(); ++i) {
     if (include_areas[i].contains(target_point)) {

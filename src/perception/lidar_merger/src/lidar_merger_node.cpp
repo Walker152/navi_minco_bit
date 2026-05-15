@@ -160,6 +160,7 @@ sensor_msgs::msg::PointCloud2 LidarMergerNode::customMsgToPointCloud2(
 {
   sensor_msgs::msg::PointCloud2 cloud;
   cloud.header = header;
+  cloud.header.stamp = header.stamp;
   cloud.height = 1;
   cloud.is_bigendian = false;
   cloud.is_dense = false;
@@ -221,7 +222,14 @@ void LidarMergerNode::syncCallback(const livox_ros_driver2::msg::CustomMsg::Cons
   livox_ros_driver2::msg::CustomMsg msg_merged = *msg_front;
   msg_merged.header.frame_id = merged_frame_id_;
 
-  const uint64_t min_timebase = std::min(msg_front->timebase, msg_back->timebase);
+  uint64_t min_timebase = 0.0;
+  if(msg_front->timebase <= msg_back->timebase) {
+    min_timebase = msg_front->timebase;
+    msg_merged.header = msg_front->header;
+  } else {
+    min_timebase = msg_back->timebase;
+    msg_merged.header = msg_back->header;
+  }
   msg_merged.timebase = min_timebase;
 
   const size_t n_front = msg_front->points.size();
@@ -256,7 +264,7 @@ void LidarMergerNode::syncCallback(const livox_ros_driver2::msg::CustomMsg::Cons
   }
 
   msg_merged.point_num = static_cast<uint32_t>(n_front + n_back);
-
+  // msg_merged.header.stamp = rclcpp::Time(msg_merged.timebase);
   // 点云格式转换及发布
   if (publish_pointcloud_) {
     pub_front_cloud_->publish(customMsgToPointCloud2(*msg_front, msg_front->header));

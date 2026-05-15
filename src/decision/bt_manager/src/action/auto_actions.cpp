@@ -103,7 +103,7 @@ BT::NodeStatus SetTargetCoordinate::tick()
     double diff_distance = std::sqrt(diff_x * diff_x + diff_y * diff_y);
 
     // 如果新目标点跟老目标点的差距小于 0.5 米，就不更新
-    if (diff_distance < 0.5) {
+    if (diff_distance < 0.3) {
       if (!last_rate_limited) {
         std::cout << CYAN << "[NAV_TREE]" << WHITE << "Target update skipped by 0.5m limiter" << RESET
                   << std::endl;
