@@ -97,6 +97,7 @@ public:
     blackboard_->set("heat_limit", 0);                 // 热量上限
     blackboard_->set("current_heat", 0);               // 当前热量
     blackboard_->set("is_disengaged", true);           // 是否脱战状态
+    blackboard_->set("is_aim_enemy", true);           // 是否瞄准敌方（工程区禁止瞄准）
     blackboard_->set("can_activate_energy", false);    // 是否能激活能量机关
     blackboard_->set("can_free_resurrect", false);     // 是否能免费复活
     blackboard_->set("can_instant_resurrect", false);  // 是否能立即复活
