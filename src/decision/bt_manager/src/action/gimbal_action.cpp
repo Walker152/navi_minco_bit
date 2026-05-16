@@ -40,7 +40,7 @@ BT::NodeStatus TrackTargetAction::onRunning()
   const auto target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   float target_yaw = std::atan2(target_pose.position.y - current_pose.position.y,
-                                target_pose.position.x - current_pose.position.x) *
+                       target_pose.position.x - current_pose.position.x) *
                      180.0f / static_cast<float>(M_PI);
   float gimbal_aim_yaw = 0.0f;
   auto transform_utils = blackboard->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
@@ -134,8 +134,11 @@ BT::NodeStatus SetGimbalPoseByAreaAction::tick()
 
   blackboard->set<PitchPos>("pitch_mode", PitchPos::DOWN);
   std::ostringstream oss;
-  oss << "scan_yaw_range=[" << (is_in_zone ? std::to_string(tactical_area_gimbal_map[mode][target_zone].scan_yaw_min) : "-180.0")
-      << ", " << (is_in_zone ? std::to_string(tactical_area_gimbal_map[mode][target_zone].scan_yaw_max) : "180.0") << "]";
+  oss << "scan_yaw_range=["
+      << (is_in_zone ? std::to_string(tactical_area_gimbal_map[mode][target_zone].scan_yaw_min) : "-180.0")
+      << ", "
+      << (is_in_zone ? std::to_string(tactical_area_gimbal_map[mode][target_zone].scan_yaw_max) : "180.0")
+      << "]";
   detail::logTransition(detail::TreeKind::GIMBAL, "SetGimbalPoseByAreaAction", is_in_zone, oss.str(), "");
   return BT::NodeStatus::SUCCESS;
 }
