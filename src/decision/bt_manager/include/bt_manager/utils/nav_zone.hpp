@@ -268,6 +268,13 @@ struct PolygonVizConfig
   std::array<float, 3> color;
 };
 
+struct CircleVizConfig
+{
+  std::string name;
+  Area_Circle area;
+  std::array<float, 3> color;
+};
+
 template <std::size_t N>
 inline PolygonVizConfig makePolygonVizConfig(
   const std::string & name, const AreaPolygon<N, Point2D> & polygon, const std::array<float, 3> & color)
