@@ -76,11 +76,11 @@
             <ReactiveSequence name="NormalOutpostResponse">
               <CheckTacticalModeCondition name="CheckNormalMode" mode="normal" branch="NormalOutpostResponse" />
               <CheckOutpostRemained name="CheckOutpostRemained" branch="NormalOutpostResponse" />
-              <!-- <CheckEngagedSafeResponse name="CheckEngagedSafeResponseForNav"
+              <CheckEngagedSafeResponse name="CheckEngagedSafeResponseForNav"
                                          stable_seconds="5.0"
                                          exit_mode="4"
                                          exit_blackboard_key="outpost_safe_cooldown_active"
-                                         branch="NormalOutpostResponse" /> -->
+                                         branch="NormalOutpostResponse" />
               <SetCoordinate name="SetEnemyOutpostGoal" goal="2" />
               <NavigateToPoseAction name="NavigateEnemyOutpost" />
             </ReactiveSequence>
