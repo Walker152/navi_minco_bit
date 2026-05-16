@@ -104,6 +104,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto remote_ammo_request = blackboard_->get<uint8_t>("remote_ammo_request");
     const auto remote_health_request = blackboard_->get<uint8_t>("remote_health_request");
     const auto pitch_mode = blackboard_->get<PitchPos>("pitch_mode");
+    const auto is_aim_enemy = blackboard_->get<bool>("is_aim_enemy");
 
     ros_interfaces::msg::Behavior behavior_msg;
     behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
@@ -119,6 +120,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.remote_ammo_request = remote_ammo_request;
     behavior_msg.remote_health_request = remote_health_request;
     behavior_msg.pitch_mode = static_cast<uint8_t>(pitch_mode);
+    behavior_msg.is_aim_enemy = is_aim_enemy;
     behavior_pub->publish(behavior_msg);
 
     if (revive_request != 0) {

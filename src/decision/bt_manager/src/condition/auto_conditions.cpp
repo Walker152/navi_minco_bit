@@ -103,28 +103,31 @@ BT::NodeStatus CheckTargetLocked::tick()
       break;
     }
   }
-  if (engineering_zone.contains(target_point))
   bool condition_met = false;
+  const bool target_in_engineering = engineering_zone.contains(target_point);
+  blackboard->set("is_aim_enemy", !target_in_engineering);
 
-  if (in_attack_area && target_valid) {
-    last_seen_time = std::chrono::system_clock::now();
-    blackboard->set<NavMode>("current_mode", NavMode::TRACING);
-    condition_met = true;
-    tick_count = 0;
-  } else if (in_attack_area) {
-    auto now = std::chrono::system_clock::now();
-    double lost_duration = std::chrono::duration<double>(now - last_seen_time).count();
-
-    // 容忍 1.0 秒内的视觉丢失
-    if (lost_duration < 1.0) {
-      tick_count++;
+  if (!target_in_engineering) {
+    if (in_attack_area && target_valid) {
+      last_seen_time = std::chrono::system_clock::now();
       blackboard->set<NavMode>("current_mode", NavMode::TRACING);
       condition_met = true;
+      tick_count = 0;
+    } else if (in_attack_area) {
+      auto now = std::chrono::system_clock::now();
+      double lost_duration = std::chrono::duration<double>(now - last_seen_time).count();
+
+      // 容忍 1.0 秒内的视觉丢失
+      if (lost_duration < 1.0) {
+        tick_count++;
+        blackboard->set<NavMode>("current_mode", NavMode::TRACING);
+        condition_met = true;
+      } else {
+        tick_count = 0;
+      }
     } else {
       tick_count = 0;
     }
-  } else {
-    tick_count = 0;
   }
 
   std::ostringstream lock_detail;
