@@ -3,6 +3,7 @@
 #include "bt_manager/utils/area.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace Sentry_BT {
@@ -11,7 +12,8 @@ namespace {
 
 bool shouldFillBasePolygon(const std::string & name)
 {
-  return name != "own_defense_zone" && name != "enemy_defense_zone" && name != "highland_zone";
+  return name != "own_defense_zone" && name != "enemy_defense_zone" && name != "highland_zone" &&
+         name != "engeneering_zone";
 }
 
 void appendPolygonFillTriangles(
@@ -44,6 +46,23 @@ void appendPolygonFillTriangles(
   }
 }
 
+void appendCircleLineStrip(
+  visualization_msgs::msg::Marker & line_marker, const Sentry_BT::Area_Circle & circle, double z)
+{
+  constexpr std::size_t kSegments = 48;
+  const double step = 2.0 * M_PI / static_cast<double>(kSegments);
+
+  line_marker.points.reserve(kSegments + 1);
+  for (std::size_t i = 0; i <= kSegments; ++i) {
+    const double angle = step * static_cast<double>(i);
+    geometry_msgs::msg::Point p;
+    p.x = circle.center.x + circle.radius * std::cos(angle);
+    p.y = circle.center.y + circle.radius * std::sin(angle);
+    p.z = z;
+    line_marker.points.push_back(p);
+  }
+}
+
 }  // namespace
 
 AreaVisualizer::AreaVisualizer(rclcpp::Node & node)
@@ -64,6 +83,7 @@ void AreaVisualizer::publishAreaMarkers(const rclcpp::Time & now)
   const auto square_areas = getAreaVizConfigs();
   const auto base_polygon_areas = getBasePolygonVizConfigs();
   const auto tracking_polygon_areas = getTrackingPolygonVizConfigs();
+  const auto circle_areas = getCircleVizConfigs();
 
   int marker_id = 0;
   for (const auto & cfg : square_areas) {
@@ -232,6 +252,43 @@ void AreaVisualizer::publishAreaMarkers(const rclcpp::Time & now)
     text_marker.color.b = cfg.color[2];
     text_marker.color.a = 1.0F;
     text_marker.text = "tracking_" + cfg.name;
+    marker_array.markers.push_back(text_marker);
+  }
+
+  for (const auto & cfg : circle_areas) {
+    visualization_msgs::msg::Marker line_marker;
+    line_marker.header.frame_id = "map";
+    line_marker.header.stamp = now;
+    line_marker.ns = "sentry_area_circle/" + cfg.name;
+    line_marker.id = marker_id++;
+    line_marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    line_marker.action = visualization_msgs::msg::Marker::ADD;
+    line_marker.pose.orientation.w = 1.0;
+    line_marker.scale.x = 0.08;
+    line_marker.color.r = cfg.color[0];
+    line_marker.color.g = cfg.color[1];
+    line_marker.color.b = cfg.color[2];
+    line_marker.color.a = 1.0F;
+    appendCircleLineStrip(line_marker, cfg.area, 0.18);
+    marker_array.markers.push_back(line_marker);
+
+    visualization_msgs::msg::Marker text_marker;
+    text_marker.header.frame_id = "map";
+    text_marker.header.stamp = now;
+    text_marker.ns = "sentry_area_circle_label/" + cfg.name;
+    text_marker.id = marker_id++;
+    text_marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+    text_marker.action = visualization_msgs::msg::Marker::ADD;
+    text_marker.pose.position.x = cfg.area.center.x;
+    text_marker.pose.position.y = cfg.area.center.y;
+    text_marker.pose.position.z = 0.45;
+    text_marker.pose.orientation.w = 1.0;
+    text_marker.scale.z = 0.25;
+    text_marker.color.r = cfg.color[0];
+    text_marker.color.g = cfg.color[1];
+    text_marker.color.b = cfg.color[2];
+    text_marker.color.a = 1.0F;
+    text_marker.text = cfg.name;
     marker_array.markers.push_back(text_marker);
   }
 

@@ -21,6 +21,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(livox_ros_driver2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(pcl_conversions REQUIRED)
@@ -40,6 +41,7 @@ add_executable(cloud_registered_crop_filter src/cloud_registered_crop_filter.cpp
 ament_target_dependencies(cloud_registered_crop_filter
   rclcpp
   sensor_msgs
+  nav_msgs
   tf2_ros
   pcl_conversions
 )

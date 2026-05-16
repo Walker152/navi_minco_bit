@@ -1,6 +1,6 @@
 #pragma once
-// #define RMUC_AREA
-#define TEST_AREA
+#define RMUC_AREA
+// #define TEST_AREA
 #include "bt_manager/utils/nav_zone.hpp"
 
 #include <array>
@@ -12,10 +12,10 @@ namespace Sentry_BT {
 #ifdef RMUC_AREA
 // for rmuc
 inline std::array<Area_Square, 4> transform_zone{
-  Area_Square{Point2D{10.5, 5.0}, Point2D{8.0, 1.3}}, // Home Right Tunnel
-  Area_Square{Point2D{21.0, 13.2}, Point2D{18.5, 10.0}}, // Enemy Right Tunnel
-  Area_Square{Point2D{15.7, 13.8}, Point2D{10.4, 12.3}}, // Home Left Tunnel
-  Area_Square{Point2D{18.6, 2.7}, Point2D{13.3, 1.2}}, // Enemy Left Tunnel
+  Area_Square{Point2D{11.5, 5.0}, Point2D{8.5, 1.0}}, // Home Right Tunnel
+  Area_Square{Point2D{20.5, 14.0}, Point2D{17.5, 10.0}}, // Enemy Right Tunnel
+  Area_Square{Point2D{16.7, 13.8}, Point2D{10.4, 12.3}}, // Home Left Tunnel
+  Area_Square{Point2D{18.6, 2.7}, Point2D{12.3, 1.2}}, // Enemy Left Tunnel
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
@@ -74,6 +74,17 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
 };
 inline Area_Square enemy_outpost_watch_zone{Point2D{16.7, 12.5}, Point2D{13.5, 10.1}};
 
+inline AreaPolygon<8, Point2D> engineering_zone{
+  Point2D{16.7, 7.8},
+  Point2D{16.7, 6.3},
+  Point2D{15.7, 5.3},
+  Point2D{14.3, 5.3},
+  Point2D{12.3, 7.2},
+  Point2D{12.3, 8.7},
+  Point2D{13.3, 9.7},
+  Point2D{14.7, 9.7},
+};
+inline Area_Circle engeneering_blind_zone{Point2D{14.5, 7.5}, 2.0};
 inline AreaPolygon<6, Point2D> own_highland_buff_zone{
   Point2D{13.0, 12.3},
   Point2D{13.0, 11.1},
@@ -212,6 +223,17 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{12.7, 0.7},
 };
 inline Area_Square enemy_outpost_watch_zone{Point2D{10.1, 7.2}, Point2D{8.3, 6.2}};
+
+inline AreaPolygon<8, Point2D> engineering_zone{
+  Point2D{12.0, 2.0},
+  Point2D{11.0, 2.0},
+  Point2D{10.0, 2.0},
+  Point2D{10.0, 3.0},
+  Point2D{10.0, 4.0},
+  Point2D{11.0, 4.0},
+  Point2D{12.0, 4.0},
+  Point2D{12.0, 3.0},
+};
 
 inline AreaPolygon<6, Point2D> own_highland_buff_zone{
   Point2D{10.1, 7.2},
@@ -377,12 +399,20 @@ inline std::vector<AreaVizConfig> getAreaVizConfigs()
   };
 }
 
+inline std::vector<CircleVizConfig> getCircleVizConfigs()
+{
+  return {
+    {"engeneering_blind_zone", engeneering_blind_zone, {0.7F, 0.2F, 1.0F}},
+  };
+}
+
 inline std::vector<PolygonVizConfig> getBasePolygonVizConfigs()
 {
   return {
     makePolygonVizConfig("highland_zone", highland_zone, {0.2F, 0.6F, 1.0F}),
     makePolygonVizConfig("own_defense_zone", own_defense_zone, {0.6F, 0.4F, 1.0F}),
     makePolygonVizConfig("enemy_defense_zone", enemy_defense_zone, {1.0F, 0.2F, 1.0F}),
+    makePolygonVizConfig("engineering_zone", engineering_zone, {1.0F, 1.0F, 0.0F}),
     makePolygonVizConfig("own_highland_buff_zone", own_highland_buff_zone, {0.3F, 0.9F, 0.3F}),
     makePolygonVizConfig("enemy_highland_buff_zone", enemy_highland_buff_zone, {1.0F, 0.4F, 0.2F}),
     makePolygonVizConfig("own_base_buff_zone", own_base_buff_zone, {0.3F, 0.9F, 0.3F}),
