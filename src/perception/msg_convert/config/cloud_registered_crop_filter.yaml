@@ -3,18 +3,14 @@ cloud_registered_crop_filter:
     input_topic: /cloud_registered
     output_topic: /cloud_registered_filtered
     queue_size: 10
-    odom_topic: /aft_mapped_to_init
     filter_mode: transform_center   # transform_cloud | transform_center
     remove_inside: true             # true: remove points inside box, false: keep points inside box
     position_frame: map
-    passthrough:
-      enabled: true
-      z_offset: 0.1
-    # Multi-region crop. Each array index forms a region.
-    regions:
-      center_x: [12.0]
-      center_y: [6.0]
-      center_z: [0.0]
-      bound_x: [3.0]
-      bound_y: [3.0]
-      bound_z: [0.8]
+    positions:
+      x: [12.0, 8.0]
+      y: [6.0, 4.0]
+      z: [0.0, 0.0]
+    box_sizes:
+      x: [3.0, 2.0]
+      y: [3.0, 2.0]
+      z: [0.8, 0.8]
