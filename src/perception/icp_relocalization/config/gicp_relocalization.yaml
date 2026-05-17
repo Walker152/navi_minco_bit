@@ -11,7 +11,7 @@ gicp_relocalization_node:
     source_cloud_topic: "/cloud_registered_dense"
     alignment_frequency: 5.0
     accumulate_frames: 3
-    tf_publish_frequency: 30.0
+    tf_publish_frequency: 100.0
     # Convergence Criteria (small_gicp score, lower is better)
     gicp:
       score_threshold: 200.0
