@@ -91,15 +91,12 @@ BT::NodeStatus CheckTargetLocked::tick()
   const auto tactical_mode = blackboard->get<TacticalMode>("tactical_mode");
   const auto & include_areas = tracking_areas.at(tactical_mode);
 
-  bool in_attack_area = true;
+  bool in_attack_area = false;
   int target_area_index = -1;
   for (std::size_t i = 0; i < include_areas.size(); ++i) {
     if (include_areas[i].contains(target_point) && include_areas[i].contains(robot_point)) {
       target_area_index = static_cast<int>(i);
       in_attack_area = true;
-      if (!include_areas[i].contains(robot_point)) {
-        return BT::NodeStatus::SUCCESS;
-      }
       break;
     }
   }
@@ -266,8 +263,7 @@ BT::NodeStatus CheckOutpostSafeResponse::tick()
   }
 
   blackboard->set("outpost_safe_cooldown_active", false);
-  const bool active =
-    require_response_mode ? (current_mode == static_cast<int>(NavMode::RESPONSE)) : true;
+  const bool active = require_response_mode ? (current_mode == static_cast<int>(NavMode::RESPONSE)) : true;
   {
     std::ostringstream safe_detail;
     safe_detail << "health=" << health << ", current_mode=" << current_mode
