@@ -91,7 +91,7 @@ BT::NodeStatus CheckTargetLocked::tick()
   const auto tactical_mode = blackboard->get<TacticalMode>("tactical_mode");
   const auto & include_areas = tracking_areas.at(tactical_mode);
 
-  bool in_attack_area = true;
+  bool in_attack_area = false;
   int target_area_index = -1;
   for (std::size_t i = 0; i < include_areas.size(); ++i) {
     if (include_areas[i].contains(target_point)) {
@@ -104,26 +104,30 @@ BT::NodeStatus CheckTargetLocked::tick()
     }
   }
   bool condition_met = false;
+  const bool target_in_engineering = engineering_zone.contains(target_point);
+  blackboard->set("is_aim_enemy", !target_in_engineering);
 
-  if (in_attack_area && target_valid) {
-    last_seen_time = std::chrono::system_clock::now();
-    blackboard->set<NavMode>("current_mode", NavMode::TRACING);
-    condition_met = true;
-    tick_count = 0;
-  } else if (in_attack_area) {
-    auto now = std::chrono::system_clock::now();
-    double lost_duration = std::chrono::duration<double>(now - last_seen_time).count();
-
-    // 容忍 1.0 秒内的视觉丢失
-    if (lost_duration < 1.0) {
-      tick_count++;
+  if (!target_in_engineering) {
+    if (in_attack_area && target_valid) {
+      last_seen_time = std::chrono::system_clock::now();
       blackboard->set<NavMode>("current_mode", NavMode::TRACING);
       condition_met = true;
+      tick_count = 0;
+    } else if (in_attack_area) {
+      auto now = std::chrono::system_clock::now();
+      double lost_duration = std::chrono::duration<double>(now - last_seen_time).count();
+
+      // 容忍 1.0 秒内的视觉丢失
+      if (lost_duration < 1.0) {
+        tick_count++;
+        blackboard->set<NavMode>("current_mode", NavMode::TRACING);
+        condition_met = true;
+      } else {
+        tick_count = 0;
+      }
     } else {
       tick_count = 0;
     }
-  } else {
-    tick_count = 0;
   }
 
   std::ostringstream lock_detail;
