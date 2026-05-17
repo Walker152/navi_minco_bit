@@ -57,7 +57,7 @@
             <CheckCapacitorCapacity threshold="0" mode="less" branch="MoveStanceGyroBranch" />
             <CheckEngagedStatus expected="false" branch="MoveStanceGyroBranch" />
           </Fallback>
-          <SetGyroState use_gyro="true" gyro_vel="50.0" />
+          <SetGyroState use_gyro="true" gyro_vel="30.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
           <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
         </Sequence>
