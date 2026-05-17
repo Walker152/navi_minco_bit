@@ -91,16 +91,14 @@ BT::NodeStatus CheckTargetLocked::tick()
   const auto tactical_mode = blackboard->get<TacticalMode>("tactical_mode");
   const auto & include_areas = tracking_areas.at(tactical_mode);
 
-  bool in_attack_area = false;
+  bool in_attack_area = true;
   int target_area_index = -1;
   for (std::size_t i = 0; i < include_areas.size(); ++i) {
-    if (include_areas[i].contains(target_point)) {
+    if (include_areas[i].contains(target_point) && include_areas[i].contains(robot_point)) {
       target_area_index = static_cast<int>(i);
-      // 只有当机器人和目标都在同一区域时才认定为 in_attack_area
-      if (include_areas[i].contains(robot_point)) {
-        in_attack_area = true;
-      } else {
-        in_attack_area = false;
+      in_attack_area = true;
+      if (!include_areas[i].contains(robot_point)) {
+        return BT::NodeStatus::SUCCESS;
       }
       break;
     }
