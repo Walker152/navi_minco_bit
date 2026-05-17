@@ -2,15 +2,21 @@ cloud_registered_crop_filter:
   ros__parameters:
     input_topic: /cloud_registered
     output_topic: /cloud_registered_filtered
+    odom_topic: /aft_mapped_to_init
     queue_size: 10
+    
     filter_mode: transform_center   # transform_cloud | transform_center
-    remove_inside: true             # true: remove points inside box, false: keep points inside box
     position_frame: map
-    position:
-      x: 12.0
-      y: 6.0
-      z: 0.0
-    box_size:
-      x: 3.0
-      y: 3.0
-      z: 0.8
+    
+    # Z轴高度截断的偏移量，相对于 odom 实际高度 (Z < odom_z + offset 将被剔除)
+    z_truncation_offset: 0.1
+    
+    # 多区域裁减配置 (数组形式，可填入多个值以定义多个裁减框)
+    crop_boxes:
+      centers_x: [12.0]
+      centers_y: [6.0]
+      centers_z: [0.0]
+      sizes_x: [3.0]
+      sizes_y: [3.0]
+      sizes_z: [0.8]
+      remove_inside: [true]
