@@ -1,5 +1,4 @@
 #include <cmath>
-#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -7,12 +6,10 @@
 #include <Eigen/Geometry>
 #include <pcl/common/point_tests.h>
 #include <pcl/common/transforms.h>
-#include <pcl/filters/passthrough.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 
-#include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
@@ -30,14 +27,14 @@ public:
     const auto output_topic =
       this->declare_parameter<std::string>("output_topic", "/cloud_registered_filtered");
     const auto queue_size = this->declare_parameter<int>("queue_size", 10);
-    const auto odom_topic = this->declare_parameter<std::string>("odom_topic", "/aft_mapped_to_init");
 
-    position_frame_ = this->declare_parameter<std::string>("position_frame", "map");
+    center_x_ = static_cast<float>(this->declare_parameter<double>("position.x", 0.0));
+    center_y_ = static_cast<float>(this->declare_parameter<double>("position.y", 0.0));
+    center_z_ = static_cast<float>(this->declare_parameter<double>("position.z", 0.0));
+    position_frame_ = this->declare_parameter<std::string>("position_frame", "camera_init");
 
     filter_mode_ = this->declare_parameter<std::string>("filter_mode", "transform_cloud");
     remove_inside_ = this->declare_parameter<bool>("remove_inside", true);
-    passthrough_enabled_ = this->declare_parameter<bool>("passthrough.enabled", true);
-    passthrough_offset_ = static_cast<float>(this->declare_parameter<double>("passthrough.z_offset", 0.0));
     if (filter_mode_ != "transform_cloud" && filter_mode_ != "transform_center") {
       RCLCPP_WARN(
         this->get_logger(), "Unknown filter_mode='%s', fallback to transform_cloud", filter_mode_.c_str());
@@ -48,17 +45,67 @@ public:
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
     tf_buffer_->setUsingDedicatedThread(true);
 
-    const auto centers_x = this->declare_parameter<std::vector<double>>("regions.center_x", {});
-    const auto centers_y = this->declare_parameter<std::vector<double>>("regions.center_y", {});
-    const auto centers_z = this->declare_parameter<std::vector<double>>("regions.center_z", {});
-    const auto bounds_x = this->declare_parameter<std::vector<double>>("regions.bound_x", {});
-    const auto bounds_y = this->declare_parameter<std::vector<double>>("regions.bound_y", {});
-    const auto bounds_z = this->declare_parameter<std::vector<double>>("regions.bound_z", {});
-    loadRegions(centers_x, centers_y, centers_z, bounds_x, bounds_y, bounds_z);
+    size_x_ = static_cast<float>(this->declare_parameter<double>("box_size.x", 12.0));
+    size_y_ = static_cast<float>(this->declare_parameter<double>("box_size.y", 6.0));
+    size_z_ = static_cast<float>(this->declare_parameter<double>("box_size.z", 3.5));
 
-    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(odom_topic,
-      rclcpp::QoS(rclcpp::KeepLast(queue_size)),
-      std::bind(&CloudRegisteredCropFilterNode::odomCallback, this, std::placeholders::_1));
+    const auto centers_x = this->declare_parameter<std::vector<double>>("positions.x", {});
+    const auto centers_y = this->declare_parameter<std::vector<double>>("positions.y", {});
+    const auto centers_z = this->declare_parameter<std::vector<double>>("positions.z", {});
+    const auto sizes_x = this->declare_parameter<std::vector<double>>("box_sizes.x", {});
+    const auto sizes_y = this->declare_parameter<std::vector<double>>("box_sizes.y", {});
+    const auto sizes_z = this->declare_parameter<std::vector<double>>("box_sizes.z", {});
+
+    if (!centers_x.empty() || !centers_y.empty() || !centers_z.empty()) {
+      if (centers_x.size() == centers_y.size() && centers_x.size() == centers_z.size()) {
+        centers_.reserve(centers_x.size());
+        for (size_t i = 0; i < centers_x.size(); ++i) {
+          centers_.emplace_back(
+            static_cast<float>(centers_x[i]),
+            static_cast<float>(centers_y[i]),
+            static_cast<float>(centers_z[i]));
+        }
+      } else {
+        RCLCPP_WARN(this->get_logger(),
+          "positions.* size mismatch, fallback to single center.");
+      }
+    }
+
+    if (size_x_ <= 0.0f || size_y_ <= 0.0f || size_z_ <= 0.0f) {
+      RCLCPP_WARN(this->get_logger(),
+        "box_size must be positive. Using absolute value: (%.3f, %.3f, %.3f)",
+        size_x_,
+        size_y_,
+        size_z_);
+      size_x_ = std::abs(size_x_);
+      size_y_ = std::abs(size_y_);
+      size_z_ = std::abs(size_z_);
+    }
+
+    if (!centers_.empty()) {
+      if (!sizes_x.empty() || !sizes_y.empty() || !sizes_z.empty()) {
+        if (sizes_x.size() == sizes_y.size() && sizes_x.size() == sizes_z.size() &&
+          sizes_x.size() == centers_.size()) {
+          sizes_.reserve(sizes_x.size());
+          for (size_t i = 0; i < sizes_x.size(); ++i) {
+            const float sx = std::abs(static_cast<float>(sizes_x[i]));
+            const float sy = std::abs(static_cast<float>(sizes_y[i]));
+            const float sz = std::abs(static_cast<float>(sizes_z[i]));
+            sizes_.emplace_back(sx, sy, sz);
+          }
+        } else {
+          RCLCPP_WARN(this->get_logger(),
+            "box_sizes.* size mismatch, fallback to single box_size for all centers.");
+        }
+      }
+
+      if (sizes_.empty()) {
+        sizes_.reserve(centers_.size());
+        for (size_t i = 0; i < centers_.size(); ++i) {
+          sizes_.emplace_back(size_x_, size_y_, size_z_);
+        }
+      }
+    }
 
     cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(input_topic,
       rclcpp::QoS(rclcpp::KeepLast(queue_size)),
@@ -68,17 +115,19 @@ public:
       output_topic, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
 
     RCLCPP_INFO(this->get_logger(),
-        "Crop filter started. input=%s output=%s mode=%s remove_inside=%s regions=%zu frame=%s "
-        "passthrough=%s odom=%s z_offset=%.3f",
+      "Crop filter started. input=%s output=%s center=(%.3f, %.3f, %.3f) frame=%s mode=%s remove_inside=%s "
+      "box_size=(%.3f, %.3f, %.3f)",
       input_topic.c_str(),
       output_topic.c_str(),
+      center_x_,
+      center_y_,
+      center_z_,
+      position_frame_.c_str(),
       filter_mode_.c_str(),
       remove_inside_ ? "true" : "false",
-      regions_.size(),
-      position_frame_.c_str(),
-      passthrough_enabled_ ? "true" : "false",
-      odom_topic.c_str(),
-      passthrough_offset_);
+      size_x_,
+      size_y_,
+      size_z_);
   }
 
 private:
@@ -125,86 +174,12 @@ private:
     return out.head<3>();
   }
 
-  struct Region
-  {
-    Eigen::Vector3f center;
-    Eigen::Vector3f size;
-    std::string frame;
-  };
-
-  struct RegionBounds
-  {
-    float min_x;
-    float max_x;
-    float min_y;
-    float max_y;
-    float min_z;
-    float max_z;
-  };
-
-  void loadRegions(const std::vector<double> & centers_x,
-    const std::vector<double> & centers_y,
-    const std::vector<double> & centers_z,
-    const std::vector<double> & bounds_x,
-    const std::vector<double> & bounds_y,
-    const std::vector<double> & bounds_z)
-  {
-    regions_.clear();
-    if (centers_x.empty() || centers_y.empty() || centers_z.empty() ||
-      bounds_x.empty() || bounds_y.empty() || bounds_z.empty()) {
-      RCLCPP_WARN(this->get_logger(), "Region parameters are empty. No filtering will be applied.");
-      return;
-    }
-
-    const size_t region_count = std::min({
-      centers_x.size(),
-      centers_y.size(),
-      centers_z.size(),
-      bounds_x.size(),
-      bounds_y.size(),
-      bounds_z.size()});
-    if (region_count == 0) {
-      RCLCPP_WARN(this->get_logger(), "Region parameters are empty. No filtering will be applied.");
-      return;
-    }
-
-    regions_.reserve(region_count);
-    for (size_t i = 0; i < region_count; ++i) {
-      Region region;
-      region.center = Eigen::Vector3f(
-        static_cast<float>(centers_x[i]),
-        static_cast<float>(centers_y[i]),
-        static_cast<float>(centers_z[i]));
-      region.size = Eigen::Vector3f(
-        static_cast<float>(bounds_x[i]),
-        static_cast<float>(bounds_y[i]),
-        static_cast<float>(bounds_z[i]));
-      if (region.size.x() <= 0.0f || region.size.y() <= 0.0f || region.size.z() <= 0.0f) {
-        RCLCPP_WARN(this->get_logger(),
-          "Region %zu box_size must be positive. Using absolute value: (%.3f, %.3f, %.3f)",
-          i,
-          region.size.x(),
-          region.size.y(),
-          region.size.z());
-        region.size = region.size.cwiseAbs();
-      }
-      region.frame = position_frame_;
-      regions_.push_back(region);
-    }
-  }
-
   void cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
   {
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_input(new pcl::PointCloud<pcl::PointXYZ>());
     pcl::fromROSMsg(*msg, *cloud_input);
 
     if (cloud_input->empty()) {
-      sensor_msgs::msg::PointCloud2 filtered_msg = *msg;
-      cloud_pub_->publish(filtered_msg);
-      return;
-    }
-
-    if (regions_.empty()) {
       sensor_msgs::msg::PointCloud2 filtered_msg = *msg;
       cloud_pub_->publish(filtered_msg);
       return;
@@ -217,11 +192,18 @@ private:
     }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_for_filter = cloud_input;
-    std::string effective_mode = filter_mode_;
-    const std::string common_frame = position_frame_.empty() ? cloud_frame : position_frame_;
+    std::vector<Eigen::Vector3f> centers;
+    std::vector<Eigen::Vector3f> sizes;
 
-    if (effective_mode == "transform_cloud") {
-      filter_frame = common_frame.empty() ? cloud_frame : common_frame;
+    if (!centers_.empty()) {
+      centers = centers_;
+      sizes = sizes_;
+    } else {
+      centers.emplace_back(center_x_, center_y_, center_z_);
+      sizes.emplace_back(size_x_, size_y_, size_z_);
+    }
+
+    if (filter_mode_ == "transform_cloud") {
       if (filter_frame != cloud_frame) {
         geometry_msgs::msg::TransformStamped tf_cloud_to_filter;
         if (!lookupTransform(filter_frame, cloud_frame, msg->header.stamp, tf_cloud_to_filter)) {
@@ -232,53 +214,19 @@ private:
         pcl::transformPointCloud(*cloud_input, *cloud_for_filter, transformToMatrix(tf_cloud_to_filter));
       }
     } else {  // transform_center
+      if (filter_frame != cloud_frame) {
+        geometry_msgs::msg::TransformStamped tf_filter_to_cloud;
+        if (!lookupTransform(cloud_frame, filter_frame, msg->header.stamp, tf_filter_to_cloud)) {
+          return;
+        }
+        for (auto & c : centers) {
+          c = transformPoint(transformToMatrix(tf_filter_to_cloud), c);
+        }
+      }
       filter_frame = cloud_frame;
     }
 
-    if (passthrough_enabled_) {
-      if (!have_odom_z_) {
-        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
-          "Passthrough enabled but no odom received yet. Skipping passthrough.");
-      } else {
-        const float max_z = last_odom_z_ + passthrough_offset_;
-        pcl::PassThrough<pcl::PointXYZ> pass;
-        pass.setInputCloud(cloud_for_filter);
-        pass.setFilterFieldName("z");
-        pass.setFilterLimits(-std::numeric_limits<float>::max(), max_z);
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_pass(new pcl::PointCloud<pcl::PointXYZ>());
-        pass.filter(*cloud_pass);
-        cloud_for_filter = cloud_pass;
-      }
-    }
-
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out(new pcl::PointCloud<pcl::PointXYZ>());
-
-    std::vector<RegionBounds> bounds;
-    bounds.reserve(regions_.size());
-    for (const auto & region : regions_) {
-      Eigen::Vector3f center = region.center;
-      if (effective_mode != "transform_cloud") {
-        const std::string region_frame = region.frame.empty() ? cloud_frame : region.frame;
-        if (region_frame != cloud_frame) {
-          geometry_msgs::msg::TransformStamped tf_region_to_cloud;
-          if (!lookupTransform(cloud_frame, region_frame, msg->header.stamp, tf_region_to_cloud)) {
-            return;
-          }
-          center = transformPoint(transformToMatrix(tf_region_to_cloud), center);
-        }
-      }
-
-      const float half_x = 0.5f * region.size.x();
-      const float half_y = 0.5f * region.size.y();
-      const float half_z = 0.5f * region.size.z();
-      bounds.push_back(RegionBounds{
-        center.x() - half_x,
-        center.x() + half_x,
-        center.y() - half_y,
-        center.y() + half_y,
-        center.z() - half_z,
-        center.z() + half_z});
-    }
 
     cloud_out->points.reserve(cloud_for_filter->points.size());
     for (const auto & p : cloud_for_filter->points) {
@@ -287,10 +235,22 @@ private:
       }
 
       bool inside_any = false;
-      for (const auto & region : bounds) {
-        if ((p.x >= region.min_x && p.x <= region.max_x) &&
-          (p.y >= region.min_y && p.y <= region.max_y) &&
-          (p.z >= region.min_z && p.z <= region.max_z)) {
+      for (size_t i = 0; i < centers.size(); ++i) {
+        const float half_x = 0.5f * sizes[i].x();
+        const float half_y = 0.5f * sizes[i].y();
+        const float half_z = 0.5f * sizes[i].z();
+
+        const float min_x = centers[i].x() - half_x;
+        const float max_x = centers[i].x() + half_x;
+        const float min_y = centers[i].y() - half_y;
+        const float max_y = centers[i].y() + half_y;
+        const float min_z = centers[i].z() - half_z;
+        const float max_z = centers[i].z() + half_z;
+
+        const bool inside = (p.x >= min_x && p.x <= max_x) &&
+          (p.y >= min_y && p.y <= max_y) &&
+          (p.z >= min_z && p.z <= max_z);
+        if (inside) {
           inside_any = true;
           break;
         }
@@ -314,25 +274,21 @@ private:
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_pub_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
 
+  float center_x_{0.0f};
+  float center_y_{0.0f};
+  float center_z_{0.0f};
   std::string position_frame_;
   std::string filter_mode_;
   bool remove_inside_{true};
-  bool passthrough_enabled_{true};
-  float passthrough_offset_{0.0f};
-  float last_odom_z_{0.0f};
-  bool have_odom_z_{false};
-  std::vector<Region> regions_;
+  float size_x_{12.0f};
+  float size_y_{6.0f};
+  float size_z_{3.5f};
+  std::vector<Eigen::Vector3f> centers_;
+  std::vector<Eigen::Vector3f> sizes_;
 
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
-
-  void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
-  {
-    last_odom_z_ = static_cast<float>(msg->pose.pose.position.z);
-    have_odom_z_ = true;
-  }
 };
 
 }  // namespace msg_convert
