@@ -1,36 +1,21 @@
 #include <cmath>
 #include <memory>
 #include <string>
-#include <vector>
-#include <algorithm>
 
 #include <Eigen/Geometry>
 #include <pcl/common/point_tests.h>
 #include <pcl/common/transforms.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/filters/crop_box.h>
-#include <pcl/filters/passthrough.h>
 #include <pcl_conversions/pcl_conversions.h>
 
 #include "geometry_msgs/msg/transform_stamped.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 
 namespace msg_convert {
-
-struct BoxParam {
-  float center_x;
-  float center_y;
-  float center_z;
-  float size_x;
-  float size_y;
-  float size_z;
-  bool remove_inside;
-};
 
 class CloudRegisteredCropFilterNode : public rclcpp::Node
 {
@@ -40,82 +25,39 @@ public:
     const auto input_topic = this->declare_parameter<std::string>("input_topic", "/cloud_registered");
     const auto output_topic =
       this->declare_parameter<std::string>("output_topic", "/cloud_registered_filtered");
-    const auto odom_topic = this->declare_parameter<std::string>("odom_topic", "/aft_mapped_to_init");
     const auto queue_size = this->declare_parameter<int>("queue_size", 10);
 
+    center_x_ = static_cast<float>(this->declare_parameter<double>("position.x", 0.0));
+    center_y_ = static_cast<float>(this->declare_parameter<double>("position.y", 0.0));
+    center_z_ = static_cast<float>(this->declare_parameter<double>("position.z", 0.0));
     position_frame_ = this->declare_parameter<std::string>("position_frame", "camera_init");
+
     filter_mode_ = this->declare_parameter<std::string>("filter_mode", "transform_cloud");
-    
+    remove_inside_ = this->declare_parameter<bool>("remove_inside", true);
     if (filter_mode_ != "transform_cloud" && filter_mode_ != "transform_center") {
       RCLCPP_WARN(
         this->get_logger(), "Unknown filter_mode='%s', fallback to transform_cloud", filter_mode_.c_str());
       filter_mode_ = "transform_cloud";
     }
 
-    // Z高度截断参数 (新加功能)
-    enable_z_truncation_ = this->declare_parameter<bool>("enable_z_truncation", false);
-    z_truncation_offset_ = this->declare_parameter<double>("z_truncation_offset", 0.0);
-
-    // ==========================================
-    // 严格保留原版的 TF 初始化逻辑，不做任何修改
-    // ==========================================
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
     tf_buffer_->setUsingDedicatedThread(true);
 
-    // ==========================================
-    // 参数读取：兼容原版的单盒子参数和新的多盒子数组参数
-    // ==========================================
-    double legacy_cx = this->declare_parameter<double>("position.x", 0.0);
-    double legacy_cy = this->declare_parameter<double>("position.y", 0.0);
-    double legacy_cz = this->declare_parameter<double>("position.z", 0.0);
-    double legacy_sx = this->declare_parameter<double>("box_size.x", 12.0);
-    double legacy_sy = this->declare_parameter<double>("box_size.y", 6.0);
-    double legacy_sz = this->declare_parameter<double>("box_size.z", 3.5);
-    bool legacy_rm = this->declare_parameter<bool>("remove_inside", true);
+    size_x_ = static_cast<float>(this->declare_parameter<double>("box_size.x", 12.0));
+    size_y_ = static_cast<float>(this->declare_parameter<double>("box_size.y", 6.0));
+    size_z_ = static_cast<float>(this->declare_parameter<double>("box_size.z", 3.5));
 
-    std::vector<double> def_arr;
-    std::vector<bool> def_bool;
-    auto cx = this->declare_parameter<std::vector<double>>("crop_boxes.centers_x", def_arr);
-    auto cy = this->declare_parameter<std::vector<double>>("crop_boxes.centers_y", def_arr);
-    auto cz = this->declare_parameter<std::vector<double>>("crop_boxes.centers_z", def_arr);
-    auto sx = this->declare_parameter<std::vector<double>>("crop_boxes.sizes_x", def_arr);
-    auto sy = this->declare_parameter<std::vector<double>>("crop_boxes.sizes_y", def_arr);
-    auto sz = this->declare_parameter<std::vector<double>>("crop_boxes.sizes_z", def_arr);
-    auto rm = this->declare_parameter<std::vector<bool>>("crop_boxes.remove_inside", def_bool);
-
-    size_t num_boxes = std::min({cx.size(), cy.size(), cz.size(), sx.size(), sy.size(), sz.size(), rm.size()});
-
-    if (num_boxes > 0) {
-      for (size_t i = 0; i < num_boxes; ++i) {
-        BoxParam b;
-        b.center_x = static_cast<float>(cx[i]);
-        b.center_y = static_cast<float>(cy[i]);
-        b.center_z = static_cast<float>(cz[i]);
-        b.size_x = std::abs(static_cast<float>(sx[i]));
-        b.size_y = std::abs(static_cast<float>(sy[i]));
-        b.size_z = std::abs(static_cast<float>(sz[i]));
-        b.remove_inside = rm[i];
-        boxes_.push_back(b);
-      }
-      RCLCPP_INFO(this->get_logger(), "Loaded %zu crop boxes from array parameters.", boxes_.size());
-    } else {
-      // 回退使用遗留单体配置，完美兼容你现有的 YAML
-      BoxParam b;
-      b.center_x = static_cast<float>(legacy_cx);
-      b.center_y = static_cast<float>(legacy_cy);
-      b.center_z = static_cast<float>(legacy_cz);
-      b.size_x = std::abs(static_cast<float>(legacy_sx));
-      b.size_y = std::abs(static_cast<float>(legacy_sy));
-      b.size_z = std::abs(static_cast<float>(legacy_sz));
-      b.remove_inside = legacy_rm;
-      boxes_.push_back(b);
-      RCLCPP_INFO(this->get_logger(), "No multi-box array found. Loaded 1 legacy crop box.");
+    if (size_x_ <= 0.0f || size_y_ <= 0.0f || size_z_ <= 0.0f) {
+      RCLCPP_WARN(this->get_logger(),
+        "box_size must be positive. Using absolute value: (%.3f, %.3f, %.3f)",
+        size_x_,
+        size_y_,
+        size_z_);
+      size_x_ = std::abs(size_x_);
+      size_y_ = std::abs(size_y_);
+      size_z_ = std::abs(size_z_);
     }
-
-    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      odom_topic, rclcpp::QoS(rclcpp::KeepLast(queue_size)),
-      std::bind(&CloudRegisteredCropFilterNode::odomCallback, this, std::placeholders::_1));
 
     cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(input_topic,
       rclcpp::QoS(rclcpp::KeepLast(queue_size)),
@@ -125,14 +67,22 @@ public:
       output_topic, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
 
     RCLCPP_INFO(this->get_logger(),
-      "Crop filter started. mode=%s z_trunc=%s(offset=%.2f)",
-      filter_mode_.c_str(), enable_z_truncation_ ? "true" : "false", z_truncation_offset_);
+      "Crop filter started. input=%s output=%s center=(%.3f, %.3f, %.3f) frame=%s mode=%s remove_inside=%s "
+      "box_size=(%.3f, %.3f, %.3f)",
+      input_topic.c_str(),
+      output_topic.c_str(),
+      center_x_,
+      center_y_,
+      center_z_,
+      position_frame_.c_str(),
+      filter_mode_.c_str(),
+      remove_inside_ ? "true" : "false",
+      size_x_,
+      size_y_,
+      size_z_);
   }
 
 private:
-  // ==========================================
-  // 严格保留原版转换矩阵计算
-  // ==========================================
   static Eigen::Matrix4f transformToMatrix(const geometry_msgs::msg::TransformStamped & tf)
   {
     const auto & t = tf.transform.translation;
@@ -148,9 +98,6 @@ private:
     return m;
   }
 
-  // ==========================================
-  // 严格保留原版 TF 查询，不再自作主张加回退机制
-  // ==========================================
   bool lookupTransform(const std::string & target_frame,
     const std::string & source_frame,
     const rclcpp::Time & stamp,
@@ -172,20 +119,11 @@ private:
     }
   }
 
-  // ==========================================
-  // 严格保留原版点转换计算
-  // ==========================================
   static Eigen::Vector3f transformPoint(const Eigen::Matrix4f & tf, const Eigen::Vector3f & p)
   {
     const Eigen::Vector4f hp(p.x(), p.y(), p.z(), 1.0f);
     const Eigen::Vector4f out = tf * hp;
     return out.head<3>();
-  }
-
-  void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
-  {
-    current_odom_z_ = msg->pose.pose.position.z;
-    has_odom_ = true;
   }
 
   void cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
@@ -199,34 +137,14 @@ private:
       return;
     }
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_for_filter = cloud_input;
-
-    // ----------------------------------------------------
-    // 新增功能: Z轴 PassThrough 截断
-    // ----------------------------------------------------
-    if (enable_z_truncation_ && has_odom_) {
-      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_passthrough(new pcl::PointCloud<pcl::PointXYZ>());
-      pcl::PassThrough<pcl::PointXYZ> pass;
-      pass.setInputCloud(cloud_for_filter);
-      pass.setFilterFieldName("z");
-      // 截断阈值: Z >= (里程计Z高度 + 设定的偏移量)
-      double z_min = current_odom_z_ + z_truncation_offset_;
-      double z_max = std::numeric_limits<float>::max();
-      pass.setFilterLimits(z_min, z_max);
-      pass.filter(*cloud_passthrough);
-      cloud_for_filter = cloud_passthrough;
-    }
-
-    // ==========================================
-    // 严格保留原版获取坐标系和矩阵求取的逻辑
-    // ==========================================
     const std::string cloud_frame = msg->header.frame_id;
     std::string filter_frame = position_frame_;
     if (filter_frame.empty()) {
       filter_frame = cloud_frame;
     }
 
-    Eigen::Matrix4f transform_matrix = Eigen::Matrix4f::Identity();
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_for_filter = cloud_input;
+    Eigen::Vector3f center(center_x_, center_y_, center_z_);
 
     if (filter_mode_ == "transform_cloud") {
       if (filter_frame != cloud_frame) {
@@ -235,9 +153,8 @@ private:
           return;
         }
 
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>());
-        pcl::transformPointCloud(*cloud_for_filter, *cloud_transformed, transformToMatrix(tf_cloud_to_filter));
-        cloud_for_filter = cloud_transformed;
+        cloud_for_filter = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
+        pcl::transformPointCloud(*cloud_input, *cloud_for_filter, transformToMatrix(tf_cloud_to_filter));
       }
     } else {  // transform_center
       if (filter_frame != cloud_frame) {
@@ -245,73 +162,61 @@ private:
         if (!lookupTransform(cloud_frame, filter_frame, msg->header.stamp, tf_filter_to_cloud)) {
           return;
         }
-        transform_matrix = transformToMatrix(tf_filter_to_cloud);
+        center = transformPoint(transformToMatrix(tf_filter_to_cloud), center);
       }
       filter_frame = cloud_frame;
     }
 
-    // ----------------------------------------------------
-    // 新增功能: 使用 pcl::CropBox 替换手写 for 循环，并支持多区域
-    // ----------------------------------------------------
-    for (const auto & box : boxes_) {
-      Eigen::Vector3f center(box.center_x, box.center_y, box.center_z);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out(new pcl::PointCloud<pcl::PointXYZ>());
 
-      // 如果是 transform_center 模式，需要把中心点变换到云的坐标系
-      if (filter_mode_ == "transform_center" && filter_frame != cloud_frame) {
-        center = transformPoint(transform_matrix, center);
+    const float half_x = 0.5f * size_x_;
+    const float half_y = 0.5f * size_y_;
+    const float half_z = 0.5f * size_z_;
+
+    const float min_x = center.x() - half_x;
+    const float max_x = center.x() + half_x;
+    const float min_y = center.y() - half_y;
+    const float max_y = center.y() + half_y;
+    const float min_z = center.z() - half_z;
+    const float max_z = center.z() + half_z;
+
+    cloud_out->points.reserve(cloud_for_filter->points.size());
+    for (const auto & p : cloud_for_filter->points) {
+      if (!pcl::isFinite(p)) {
+        continue;
       }
 
-      const float half_x = 0.5f * box.size_x;
-      const float half_y = 0.5f * box.size_y;
-      const float half_z = 0.5f * box.size_z;
+      const bool inside =
+        (p.x >= min_x && p.x <= max_x) && (p.y >= min_y && p.y <= max_y) && (p.z >= min_z && p.z <= max_z);
 
-      const float min_x = center.x() - half_x;
-      const float max_x = center.x() + half_x;
-      const float min_y = center.y() - half_y;
-      const float max_y = center.y() + half_y;
-      const float min_z = center.z() - half_z;
-      const float max_z = center.z() + half_z;
-
-      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>());
-      pcl::CropBox<pcl::PointXYZ> crop;
-      crop.setInputCloud(cloud_for_filter);
-      
-      // 与你原版手写 for 循环判断逻辑绝对等价 (AABB轴对齐包围盒)
-      crop.setMin(Eigen::Vector4f(min_x, min_y, min_z, 1.0f));
-      crop.setMax(Eigen::Vector4f(max_x, max_y, max_z, 1.0f));
-      
-      // pcl::CropBox 的 setNegative(true) 表示移除内部点，完美对应 remove_inside_=true
-      crop.setNegative(box.remove_inside);
-      crop.filter(*cloud_cropped);
-
-      // 将输出作为下一个盒子的输入
-      cloud_for_filter = cloud_cropped;
+      const bool keep = remove_inside_ ? !inside : inside;
+      if (keep) {
+        cloud_out->points.push_back(p);
+      }
     }
-
-    // 严格保留原版 Dense 设置
-    cloud_for_filter->width = static_cast<uint32_t>(cloud_for_filter->points.size());
-    cloud_for_filter->height = 1;
-    cloud_for_filter->is_dense = true;
+    cloud_out->width = static_cast<uint32_t>(cloud_out->points.size());
+    cloud_out->height = 1;
+    cloud_out->is_dense = true;
 
     sensor_msgs::msg::PointCloud2 filtered_msg;
-    pcl::toROSMsg(*cloud_for_filter, filtered_msg);
+    pcl::toROSMsg(*cloud_out, filtered_msg);
     filtered_msg.header.stamp = msg->header.stamp;
     filtered_msg.header.frame_id = filter_frame;
     cloud_pub_->publish(filtered_msg);
   }
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_pub_;
 
-  std::vector<BoxParam> boxes_;
+  float center_x_{0.0f};
+  float center_y_{0.0f};
+  float center_z_{0.0f};
   std::string position_frame_;
   std::string filter_mode_;
-  
-  bool enable_z_truncation_{false};
-  double z_truncation_offset_{0.0};
-  double current_odom_z_{0.0};
-  bool has_odom_{false};
+  bool remove_inside_{true};
+  float size_x_{12.0f};
+  float size_y_{6.0f};
+  float size_z_{3.5f};
 
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
