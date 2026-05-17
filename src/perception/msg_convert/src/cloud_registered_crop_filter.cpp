@@ -1,5 +1,7 @@
 #include <cmath>
+#include <limits>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -7,11 +9,13 @@
 #include <pcl/common/point_tests.h>
 #include <pcl/common/transforms.h>
 #include <pcl/filters/crop_box.h>
+#include <pcl/filters/passthrough.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 
 #include "geometry_msgs/msg/transform_stamped.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "tf2_ros/buffer.h"
@@ -28,6 +32,9 @@ public:
     const auto output_topic =
       this->declare_parameter<std::string>("output_topic", "/cloud_registered_filtered");
     const auto queue_size = this->declare_parameter<int>("queue_size", 10);
+    const auto odom_topic =
+      this->declare_parameter<std::string>("odom_topic", "/aft_mapped_to_init");
+    z_offset_ = static_cast<float>(this->declare_parameter<double>("z_offset", 0.0));
 
     center_x_ = static_cast<float>(this->declare_parameter<double>("position.x", 0.0));
     center_y_ = static_cast<float>(this->declare_parameter<double>("position.y", 0.0));
@@ -115,6 +122,10 @@ public:
     cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
       output_topic, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
 
+    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(odom_topic,
+      rclcpp::QoS(rclcpp::KeepLast(queue_size)),
+      std::bind(&CloudRegisteredCropFilterNode::odomCallback, this, std::placeholders::_1));
+
     RCLCPP_INFO(this->get_logger(),
       "Crop filter started. input=%s output=%s center=(%.3f, %.3f, %.3f) frame=%s mode=%s remove_inside=%s "
       "box_size=(%.3f, %.3f, %.3f)",
@@ -175,6 +186,14 @@ private:
     return out.head<3>();
   }
 
+  void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
+  {
+    std::lock_guard<std::mutex> lock(odom_mutex_);
+    odom_z_ = static_cast<float>(msg->pose.pose.position.z);
+    odom_ready_ = true;
+    std::cout << "Received odom z: " << odom_z_ << std::endl;
+  }
+
   void cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
   {
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_input(new pcl::PointCloud<pcl::PointXYZ>());
@@ -225,6 +244,26 @@ private:
         }
       }
       filter_frame = cloud_frame;
+    }
+
+    float min_z = 0.0f;
+    bool odom_ready = false;
+    {
+      std::lock_guard<std::mutex> lock(odom_mutex_);
+      odom_ready = odom_ready_;
+      if (odom_ready) {
+        min_z = odom_z_ + z_offset_;
+      }
+    }
+
+    if (odom_ready) {
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_pass(new pcl::PointCloud<pcl::PointXYZ>());
+      pcl::PassThrough<pcl::PointXYZ> pass;
+      pass.setInputCloud(cloud_for_filter);
+      pass.setFilterFieldName("z");
+      pass.setFilterLimits(min_z, std::numeric_limits<float>::max());
+      // pass.filter(*cloud_pass);
+      cloud_for_filter = cloud_pass;
     }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out(new pcl::PointCloud<pcl::PointXYZ>());
@@ -284,6 +323,7 @@ private:
   }
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_pub_;
 
   float center_x_{0.0f};
@@ -297,6 +337,10 @@ private:
   float size_z_{3.5f};
   std::vector<Eigen::Vector3f> centers_;
   std::vector<Eigen::Vector3f> sizes_;
+  float z_offset_{0.0f};
+  float odom_z_{0.0f};
+  bool odom_ready_{false};
+  std::mutex odom_mutex_;
 
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
