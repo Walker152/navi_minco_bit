@@ -568,8 +568,8 @@ private:
     {
       std::lock_guard<std::mutex> lk(state_mutex_);
       delta_yaw_ = delta;
-      std::cout << "Delta yaw updated: " << delta_yaw_ << " degrees (matched_imu_yaw=" << matched_imu_yaw
-                << ", found=" << found << ")" << std::endl;
+      // std::cout << "Delta yaw updated: " << delta_yaw_ << " degrees (matched_imu_yaw=" << matched_imu_yaw
+      //           << ", found=" << found << ")" << std::endl;
                 
     }
   }
