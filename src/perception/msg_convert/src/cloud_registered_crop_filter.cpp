@@ -13,6 +13,9 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl_conversions/pcl_conversions.h>
 
+#include <chrono>
+#include <tf2/exceptions.h>
+
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -46,7 +49,8 @@ public:
     position_frame_ = this->declare_parameter<std::string>("position_frame", "camera_init");
     filter_mode_ = this->declare_parameter<std::string>("filter_mode", "transform_cloud");
     
-    // Z高度截断偏移量 (截断阈值 = 实际odom_z + z_truncation_offset_)
+    // Z高度截断参数，增加开关防止默认误杀地面
+    enable_z_truncation_ = this->declare_parameter<bool>("enable_z_truncation", false);
     z_truncation_offset_ = this->declare_parameter<double>("z_truncation_offset", 0.0);
 
     if (filter_mode_ != "transform_cloud" && filter_mode_ != "transform_center") {
@@ -55,35 +59,58 @@ public:
       filter_mode_ = "transform_cloud";
     }
 
-    // 【完全保留你的原版 TF 初始化，使用独立线程】
+    // 独立线程监听TF (完美复刻原版)
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
     tf_buffer_->setUsingDedicatedThread(true);
 
-    // 读取多个 CropBox 参数
-    auto cx = this->declare_parameter<std::vector<double>>("crop_boxes.centers_x", {0.0});
-    auto cy = this->declare_parameter<std::vector<double>>("crop_boxes.centers_y", {0.0});
-    auto cz = this->declare_parameter<std::vector<double>>("crop_boxes.centers_z", {0.0});
-    auto sx = this->declare_parameter<std::vector<double>>("crop_boxes.sizes_x", {12.0});
-    auto sy = this->declare_parameter<std::vector<double>>("crop_boxes.sizes_y", {6.0});
-    auto sz = this->declare_parameter<std::vector<double>>("crop_boxes.sizes_z", {3.5});
-    auto rm = this->declare_parameter<std::vector<bool>>("crop_boxes.remove_inside", {true});
+    // 1. 读取原版的单区域旧参数 (保障向后兼容，不用修改已有yaml)
+    double legacy_cx = this->declare_parameter<double>("position.x", 0.0);
+    double legacy_cy = this->declare_parameter<double>("position.y", 0.0);
+    double legacy_cz = this->declare_parameter<double>("position.z", 0.0);
+    double legacy_sx = this->declare_parameter<double>("box_size.x", 12.0);
+    double legacy_sy = this->declare_parameter<double>("box_size.y", 6.0);
+    double legacy_sz = this->declare_parameter<double>("box_size.z", 3.5);
+    bool legacy_rm = this->declare_parameter<bool>("remove_inside", true);
+
+    // 2. 尝试读取多区域新参数
+    std::vector<double> def_arr;
+    std::vector<bool> def_bool;
+    auto cx = this->declare_parameter<std::vector<double>>("crop_boxes.centers_x", def_arr);
+    auto cy = this->declare_parameter<std::vector<double>>("crop_boxes.centers_y", def_arr);
+    auto cz = this->declare_parameter<std::vector<double>>("crop_boxes.centers_z", def_arr);
+    auto sx = this->declare_parameter<std::vector<double>>("crop_boxes.sizes_x", def_arr);
+    auto sy = this->declare_parameter<std::vector<double>>("crop_boxes.sizes_y", def_arr);
+    auto sz = this->declare_parameter<std::vector<double>>("crop_boxes.sizes_z", def_arr);
+    auto rm = this->declare_parameter<std::vector<bool>>("crop_boxes.remove_inside", def_bool);
 
     size_t num_boxes = std::min({cx.size(), cy.size(), cz.size(), sx.size(), sy.size(), sz.size(), rm.size()});
-    if (num_boxes == 0) {
-      RCLCPP_WARN(this->get_logger(), "No valid CropBox parameters found!");
-    }
 
-    for (size_t i = 0; i < num_boxes; ++i) {
+    if (num_boxes > 0) {
+      for (size_t i = 0; i < num_boxes; ++i) {
+        BoxParam b;
+        b.center_x = static_cast<float>(cx[i]);
+        b.center_y = static_cast<float>(cy[i]);
+        b.center_z = static_cast<float>(cz[i]);
+        b.size_x = std::abs(static_cast<float>(sx[i]));
+        b.size_y = std::abs(static_cast<float>(sy[i]));
+        b.size_z = std::abs(static_cast<float>(sz[i]));
+        b.remove_inside = rm[i];
+        boxes_.push_back(b);
+      }
+      RCLCPP_INFO(this->get_logger(), "已加载 %zu 个 CropBox 配置.", boxes_.size());
+    } else {
+      // 回退使用遗留单体配置
       BoxParam b;
-      b.center_x = static_cast<float>(cx[i]);
-      b.center_y = static_cast<float>(cy[i]);
-      b.center_z = static_cast<float>(cz[i]);
-      b.size_x = std::abs(static_cast<float>(sx[i]));
-      b.size_y = std::abs(static_cast<float>(sy[i]));
-      b.size_z = std::abs(static_cast<float>(sz[i]));
-      b.remove_inside = rm[i];
+      b.center_x = static_cast<float>(legacy_cx);
+      b.center_y = static_cast<float>(legacy_cy);
+      b.center_z = static_cast<float>(legacy_cz);
+      b.size_x = std::abs(static_cast<float>(legacy_sx));
+      b.size_y = std::abs(static_cast<float>(legacy_sy));
+      b.size_z = std::abs(static_cast<float>(legacy_sz));
+      b.remove_inside = legacy_rm;
       boxes_.push_back(b);
+      RCLCPP_INFO(this->get_logger(), "未找到多区域参数，已回退加载单区域旧版 YAML 配置.");
     }
 
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
@@ -98,13 +125,12 @@ public:
       output_topic, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
 
     RCLCPP_INFO(this->get_logger(),
-      "Multi-Crop filter started. input=%s output=%s frame=%s mode=%s z_offset=%.3f, num_boxes=%zu",
-      input_topic.c_str(), output_topic.c_str(), position_frame_.c_str(), filter_mode_.c_str(), 
-      z_truncation_offset_, boxes_.size());
+      "Multi-Crop filter started. frame=%s mode=%s z_trunc=%s(offset=%.3f), num_boxes=%zu",
+      position_frame_.c_str(), filter_mode_.c_str(), 
+      enable_z_truncation_ ? "ON" : "OFF", z_truncation_offset_, boxes_.size());
   }
 
 private:
-  // 【完全保留原版逻辑】
   static Eigen::Matrix4f transformToMatrix(const geometry_msgs::msg::TransformStamped & tf)
   {
     const auto & t = tf.transform.translation;
@@ -120,29 +146,40 @@ private:
     return m;
   }
 
-  // 【完全回退到你验证过且能稳定运行的原版 TF 查找方法】
   bool lookupTransform(const std::string & target_frame,
     const std::string & source_frame,
     const rclcpp::Time & stamp,
     geometry_msgs::msg::TransformStamped & tf_out)
   {
     try {
+      // 1. 优先尝试严格匹配点云时间戳
       tf_out = tf_buffer_->lookupTransform(
         target_frame, source_frame, stamp, rclcpp::Duration::from_seconds(0.05));
       return true;
+    } catch (const tf2::ExtrapolationException & ex) {
+      // 2. 专门捕获由于点云时间戳早于/晚于 TF 树时间而导致的报错
+      // 自动降级：使用 tf2::TimePointZero 获取最新可用 TF，避免丢帧
+      try {
+        tf_out = tf_buffer_->lookupTransform(
+          target_frame, source_frame, tf2::TimePointZero, std::chrono::milliseconds(50));
+        return true; 
+      } catch (const tf2::TransformException & ex2) {
+        RCLCPP_WARN_THROTTLE(this->get_logger(),
+          *this->get_clock(), 2000,
+          "TF 最新时间回退查询彻底失败: %s <- %s, 原因: %s",
+          target_frame.c_str(), source_frame.c_str(), ex2.what());
+        return false;
+      }
     } catch (const tf2::TransformException & ex) {
+      // 3. 捕获其他硬性 TF 错误 (如未连接的树等)
       RCLCPP_WARN_THROTTLE(this->get_logger(),
-        *this->get_clock(),
-        2000,
-        "TF lookup failed: %s <- %s, reason: %s",
-        target_frame.c_str(),
-        source_frame.c_str(),
-        ex.what());
+        *this->get_clock(), 2000,
+        "TF 基础查询失败: %s <- %s, 原因: %s",
+        target_frame.c_str(), source_frame.c_str(), ex.what());
       return false;
     }
   }
 
-  // 【完全保留原版逻辑】
   static Eigen::Vector3f transformPoint(const Eigen::Matrix4f & tf, const Eigen::Vector3f & p)
   {
     const Eigen::Vector4f hp(p.x(), p.y(), p.z(), 1.0f);
@@ -167,9 +204,10 @@ private:
       return;
     }
 
-    // --- 1. 使用 PassThrough 进行 Z轴高度截断 ---
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_for_filter = cloud_input;
-    if (has_odom_) {
+
+    // --- 1. 使用 PassThrough 进行 Z轴高度截断 (默认关闭防误杀) ---
+    if (enable_z_truncation_ && has_odom_) {
       pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_passthrough(new pcl::PointCloud<pcl::PointXYZ>());
       pcl::PassThrough<pcl::PointXYZ> pass;
       pass.setInputCloud(cloud_for_filter);
@@ -190,13 +228,11 @@ private:
     Eigen::Matrix4f transform_matrix = Eigen::Matrix4f::Identity();
     bool need_transform = (filter_frame != cloud_frame);
 
-    // --- 2. 严格遵循原版的 TF 获取与应用逻辑 ---
+    // --- 2. 坐标系转换逻辑 ---
     if (filter_mode_ == "transform_cloud") {
       if (need_transform) {
         geometry_msgs::msg::TransformStamped tf_cloud_to_filter;
-        if (!lookupTransform(filter_frame, cloud_frame, msg->header.stamp, tf_cloud_to_filter)) {
-          return; // 原版行为：查不到就跳过这一帧
-        }
+        if (!lookupTransform(filter_frame, cloud_frame, msg->header.stamp, tf_cloud_to_filter)) return;
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>());
         pcl::transformPointCloud(*cloud_for_filter, *cloud_transformed, transformToMatrix(tf_cloud_to_filter));
         cloud_for_filter = cloud_transformed;
@@ -204,15 +240,13 @@ private:
     } else {  // transform_center
       if (need_transform) {
         geometry_msgs::msg::TransformStamped tf_filter_to_cloud;
-        if (!lookupTransform(cloud_frame, filter_frame, msg->header.stamp, tf_filter_to_cloud)) {
-          return; // 原版行为：查不到就跳过这一帧
-        }
+        if (!lookupTransform(cloud_frame, filter_frame, msg->header.stamp, tf_filter_to_cloud)) return;
         transform_matrix = transformToMatrix(tf_filter_to_cloud);
       }
       filter_frame = cloud_frame;
     }
 
-    // --- 3. 循环处理多个 CropBox 区域 (严格复现原版的 AABB 判断) ---
+    // --- 3. 循环处理多个 CropBox ---
     for (const auto & box : boxes_) {
       pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>());
       pcl::CropBox<pcl::PointXYZ> crop;
@@ -220,7 +254,6 @@ private:
 
       Eigen::Vector3f center(box.center_x, box.center_y, box.center_z);
 
-      // 如果是 transform_center，原版代码是将设定的中心点经过TF投影到当前点云的坐标系下
       if (filter_mode_ == "transform_center" && need_transform) {
         center = transformPoint(transform_matrix, center);
       }
@@ -229,8 +262,6 @@ private:
       const float half_y = 0.5f * box.size_y;
       const float half_z = 0.5f * box.size_z;
 
-      // 原版是对变换后的 center 直接进行基于当前坐标轴的正交加减。
-      // 使用 CropBox 直接设置这些正交的边界，实现与原版逐点遍历绝对等价的效果，避免引入不符合预期的旋转(OBB)。
       crop.setMin(Eigen::Vector4f(center.x() - half_x, center.y() - half_y, center.z() - half_z, 1.0f));
       crop.setMax(Eigen::Vector4f(center.x() + half_x, center.y() + half_y, center.z() + half_z, 1.0f));
       crop.setNegative(box.remove_inside);
@@ -238,6 +269,11 @@ private:
       crop.filter(*cloud_cropped);
       cloud_for_filter = cloud_cropped;
     }
+
+    // 复刻原版: 强制将发布属性标记为 Dense 格式，防止 RViz 异常
+    cloud_for_filter->width = static_cast<uint32_t>(cloud_for_filter->points.size());
+    cloud_for_filter->height = 1;
+    cloud_for_filter->is_dense = true;
 
     // --- 4. 发布结果 ---
     sensor_msgs::msg::PointCloud2 filtered_msg;
@@ -255,6 +291,7 @@ private:
   std::string position_frame_;
   std::string filter_mode_;
   
+  bool enable_z_truncation_{false};
   double z_truncation_offset_{0.0};
   double current_odom_z_{0.0};
   bool has_odom_{false};
