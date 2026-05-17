@@ -29,3 +29,5 @@ float32 scan_yaw_max
 uint8 pitch_mode
 uint8 PITCH_TOP=0
 uint8 PITCH_BOTTOM=1
+
+bool is_aim_enemy

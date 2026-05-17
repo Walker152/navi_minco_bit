@@ -230,7 +230,8 @@ private:
     uint8_t ammo_req = 0;
     uint8_t revive_req = 0;
     uint8_t health_req = 0;
-    uint8_t use_limited_scan = 0;
+    bool use_limited_scan = false;
+    bool is_aim_enemy = true;
 
     bool use_gyro_mode = false;
     float gyro_vel = 0.0f;
@@ -267,6 +268,7 @@ private:
       revive_req = behavior_.remote_revive_request;
       health_req = behavior_.remote_health_request;
       use_limited_scan = behavior_.use_limited_scan;
+      is_aim_enemy = behavior_.is_aim_enemy;
       vw_rpm = gyro_vel;
       // vw_rpm = -80.0f;
     }
@@ -301,7 +303,8 @@ private:
       revive_req,
       ammo_req,
       health_req,
-      0);
+      0,
+      is_aim_enemy);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
 #ifdef COMMUNICATION_DEBUG
     if (flag == 0) {
