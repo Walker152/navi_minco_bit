@@ -53,7 +53,7 @@ public:
     z_offset_ = this->declare_parameter<float>("z_offset", -0.10f);
 
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
-    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, this);
     tf_buffer_->setUsingDedicatedThread(true);
 
     const auto centers_x = this->declare_parameter<std::vector<double>>("centers_x", std::vector<double>{});
@@ -202,7 +202,8 @@ private:
         }
 
         cloud_for_filter = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
-        pcl::transformPointCloud(*cloud_z_filtered, *cloud_for_filter, transformToMatrix(tf_cloud_to_filter));
+        const Eigen::Matrix4f tf_matrix = transformToMatrix(tf_cloud_to_filter);
+        pcl::transformPointCloud(*cloud_z_filtered, *cloud_for_filter, tf_matrix);
       }
     } else {  // transform_center
       if (filter_frame != cloud_frame) {
@@ -224,32 +225,37 @@ private:
       pcl::PointCloud<pcl::PointXYZ>::Ptr current_cloud = cloud_for_filter;
       for (const auto & region : active_regions) {
         pcl::PointCloud<pcl::PointXYZ>::Ptr box_filtered(new pcl::PointCloud<pcl::PointXYZ>());
-        pcl::CropBox<pcl::PointXYZ> crop_box;
-        crop_box.setInputCloud(current_cloud);
-        crop_box.setMin(Eigen::Vector4f(region.center.x() - region.half_size.x(),
-                                        region.center.y() - region.half_size.y(),
-                                        region.center.z() - region.half_size.z(), 1.0f));
-        crop_box.setMax(Eigen::Vector4f(region.center.x() + region.half_size.x(),
-                                        region.center.y() + region.half_size.y(),
-                                        region.center.z() + region.half_size.z(), 1.0f));
-        crop_box.setNegative(true);
-        crop_box.filter(*box_filtered);
+        pcl::CropBox<pcl::PointXYZ>::Ptr crop_box(new pcl::CropBox<pcl::PointXYZ>());
+        crop_box->setInputCloud(current_cloud);
+        const Eigen::Vector4f min_pt(region.center.x() - region.half_size.x(),
+                                     region.center.y() - region.half_size.y(),
+                                     region.center.z() - region.half_size.z(), 1.0f);
+        const Eigen::Vector4f max_pt(region.center.x() + region.half_size.x(),
+                                     region.center.y() + region.half_size.y(),
+                                     region.center.z() + region.half_size.z(), 1.0f);
+        crop_box->setMin(min_pt);
+        crop_box->setMax(max_pt);
+        crop_box->setNegative(true);
+        crop_box->filter(*box_filtered);
         current_cloud = box_filtered;
       }
       cloud_out = current_cloud;
     } else {
+      cloud_out->header = cloud_for_filter->header;
       std::vector<int> combined_indices;
       for (const auto & region : active_regions) {
-        pcl::CropBox<pcl::PointXYZ> crop_box;
-        crop_box.setInputCloud(cloud_for_filter);
-        crop_box.setMin(Eigen::Vector4f(region.center.x() - region.half_size.x(),
-                                        region.center.y() - region.half_size.y(),
-                                        region.center.z() - region.half_size.z(), 1.0f));
-        crop_box.setMax(Eigen::Vector4f(region.center.x() + region.half_size.x(),
-                                        region.center.y() + region.half_size.y(),
-                                        region.center.z() + region.half_size.z(), 1.0f));
+        pcl::CropBox<pcl::PointXYZ>::Ptr crop_box(new pcl::CropBox<pcl::PointXYZ>());
+        crop_box->setInputCloud(cloud_for_filter);
+        const Eigen::Vector4f min_pt(region.center.x() - region.half_size.x(),
+                                     region.center.y() - region.half_size.y(),
+                                     region.center.z() - region.half_size.z(), 1.0f);
+        const Eigen::Vector4f max_pt(region.center.x() + region.half_size.x(),
+                                     region.center.y() + region.half_size.y(),
+                                     region.center.z() + region.half_size.z(), 1.0f);
+        crop_box->setMin(min_pt);
+        crop_box->setMax(max_pt);
         std::vector<int> indices;
-        crop_box.filter(indices);
+        crop_box->filter(indices);
         combined_indices.insert(combined_indices.end(), indices.begin(), indices.end());
       }
       std::sort(combined_indices.begin(), combined_indices.end());
