@@ -8,7 +8,7 @@ cloud_registered_crop_filter:
     position_frame: map
     # Multi-region mode only (index-aligned):
     # region0: center=(12, 6, 0), boundary=(3, 3, 0.8)
-    # region1: center=(20, 10, 0), boundary=(4, 2, 1.2)
+    # region1: center=(20, 10, 0), b1oundary=(4, 2, 1.2)
     centers_x: [12.0, 20.0]
     centers_y: [6.0, 10.0]
     centers_z: [0.0, 0.0]
