@@ -54,7 +54,6 @@ public:
 
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, this);
-    tf_buffer_->setUsingDedicatedThread(true);
 
     const auto centers_x = this->declare_parameter<std::vector<double>>("centers_x", std::vector<double>{});
     const auto centers_y = this->declare_parameter<std::vector<double>>("centers_y", std::vector<double>{});
@@ -108,19 +107,18 @@ public:
   }
 
 private:
-  static Eigen::Matrix4f transformToMatrix(const geometry_msgs::msg::TransformStamped & tf)
+  static void getTransformMatrix(const geometry_msgs::msg::TransformStamped & tf, Eigen::Matrix4f & m)
   {
     const auto & t = tf.transform.translation;
     const auto & q = tf.transform.rotation;
 
-    Eigen::Matrix4f m = Eigen::Matrix4f::Identity();
+    m = Eigen::Matrix4f::Identity();
     const Eigen::Quaternionf quat(
       static_cast<float>(q.w), static_cast<float>(q.x), static_cast<float>(q.y), static_cast<float>(q.z));
     m.block<3, 3>(0, 0) = quat.normalized().toRotationMatrix();
     m(0, 3) = static_cast<float>(t.x);
     m(1, 3) = static_cast<float>(t.y);
     m(2, 3) = static_cast<float>(t.z);
-    return m;
   }
 
   bool lookupTransform(const std::string & target_frame,
@@ -202,7 +200,8 @@ private:
         }
 
         cloud_for_filter = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
-        const Eigen::Matrix4f tf_matrix = transformToMatrix(tf_cloud_to_filter);
+        Eigen::Matrix4f tf_matrix;
+        getTransformMatrix(tf_cloud_to_filter, tf_matrix);
         pcl::transformPointCloud(*cloud_z_filtered, *cloud_for_filter, tf_matrix);
       }
     } else {  // transform_center
@@ -211,9 +210,10 @@ private:
         if (!lookupTransform(cloud_frame, filter_frame, msg->header.stamp, tf_filter_to_cloud)) {
           return;
         }
-        const auto tf = transformToMatrix(tf_filter_to_cloud);
+        Eigen::Matrix4f tf_matrix;
+        getTransformMatrix(tf_filter_to_cloud, tf_matrix);
         for (auto & region : active_regions) {
-          region.center = transformPoint(tf, region.center);
+          region.center = transformPoint(tf_matrix, region.center);
         }
       }
       filter_frame = cloud_frame;
@@ -271,6 +271,7 @@ private:
     cloud_out->is_dense = true;
 
     sensor_msgs::msg::PointCloud2 filtered_msg;
+    cloud_out->header = cloud_for_filter->header;
     pcl::toROSMsg(*cloud_out, filtered_msg);
     filtered_msg.header.stamp = msg->header.stamp;
     filtered_msg.header.frame_id = filter_frame;
