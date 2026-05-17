@@ -96,9 +96,11 @@ BT::NodeStatus CheckTargetLocked::tick()
   for (std::size_t i = 0; i < include_areas.size(); ++i) {
     if (include_areas[i].contains(target_point)) {
       target_area_index = static_cast<int>(i);
-      in_attack_area = true;
-      if (!include_areas[i].contains(robot_point)) {
-        return BT::NodeStatus::SUCCESS;
+      // 只有当机器人和目标都在同一区域时才认定为 in_attack_area
+      if (include_areas[i].contains(robot_point)) {
+        in_attack_area = true;
+      } else {
+        in_attack_area = false;
       }
       break;
     }

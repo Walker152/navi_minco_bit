@@ -24,6 +24,7 @@ def generate_launch_description():
         executable='cloud_registered_crop_filter',
         name='cloud_registered_crop_filter',
         output='screen',
+        respawn=True,
         parameters=[LaunchConfiguration('config_file')],
     )
 
