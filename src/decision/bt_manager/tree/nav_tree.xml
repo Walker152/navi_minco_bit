@@ -107,7 +107,7 @@
                                         exit_mode="4"
                                         exit_blackboard_key="energy_safe_cooldown_active"
                                         branch="EnergyResponse" />
-              <SetCoordinate goal="5" />
+              <SetCoordinate goal="2" />
               <NavigateToPoseAction name="NavigateEnergyZone" />
             </ReactiveSequence>
           </ReactiveFallback>
