@@ -6,6 +6,7 @@
 #include <Eigen/Geometry>
 #include <pcl/common/point_tests.h>
 #include <pcl/common/transforms.h>
+#include <pcl/filters/crop_box.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
@@ -228,36 +229,46 @@ private:
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out(new pcl::PointCloud<pcl::PointXYZ>());
 
+    std::vector<bool> keep_mask(cloud_for_filter->points.size(), !remove_inside_ ? false : true);
+    pcl::CropBox<pcl::PointXYZ> crop;
+    crop.setInputCloud(cloud_for_filter);
+
+    for (size_t i = 0; i < centers.size(); ++i) {
+      const float half_x = 0.5f * sizes[i].x();
+      const float half_y = 0.5f * sizes[i].y();
+      const float half_z = 0.5f * sizes[i].z();
+
+      const float min_x = centers[i].x() - half_x;
+      const float max_x = centers[i].x() + half_x;
+      const float min_y = centers[i].y() - half_y;
+      const float max_y = centers[i].y() + half_y;
+      const float min_z = centers[i].z() - half_z;
+      const float max_z = centers[i].z() + half_z;
+
+      crop.setMin(Eigen::Vector4f(min_x, min_y, min_z, 1.0f));
+      crop.setMax(Eigen::Vector4f(max_x, max_y, max_z, 1.0f));
+
+      std::vector<int> indices;
+      crop.filter(indices);
+      for (const int idx : indices) {
+        if (idx < 0 || static_cast<size_t>(idx) >= keep_mask.size()) {
+          continue;
+        }
+        if (remove_inside_) {
+          keep_mask[static_cast<size_t>(idx)] = false;
+        } else {
+          keep_mask[static_cast<size_t>(idx)] = true;
+        }
+      }
+    }
+
     cloud_out->points.reserve(cloud_for_filter->points.size());
-    for (const auto & p : cloud_for_filter->points) {
+    for (size_t i = 0; i < cloud_for_filter->points.size(); ++i) {
+      const auto & p = cloud_for_filter->points[i];
       if (!pcl::isFinite(p)) {
         continue;
       }
-
-      bool inside_any = false;
-      for (size_t i = 0; i < centers.size(); ++i) {
-        const float half_x = 0.5f * sizes[i].x();
-        const float half_y = 0.5f * sizes[i].y();
-        const float half_z = 0.5f * sizes[i].z();
-
-        const float min_x = centers[i].x() - half_x;
-        const float max_x = centers[i].x() + half_x;
-        const float min_y = centers[i].y() - half_y;
-        const float max_y = centers[i].y() + half_y;
-        const float min_z = centers[i].z() - half_z;
-        const float max_z = centers[i].z() + half_z;
-
-        const bool inside = (p.x >= min_x && p.x <= max_x) &&
-          (p.y >= min_y && p.y <= max_y) &&
-          (p.z >= min_z && p.z <= max_z);
-        if (inside) {
-          inside_any = true;
-          break;
-        }
-      }
-
-      const bool keep = remove_inside_ ? !inside_any : inside_any;
-      if (keep) {
+      if (keep_mask[i]) {
         cloud_out->points.push_back(p);
       }
     }
