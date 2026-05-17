@@ -179,11 +179,11 @@ private:
     }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_z_filtered(new pcl::PointCloud<pcl::PointXYZ>());
-    pcl::PassThrough<pcl::PointXYZ> pass;
-    pass.setInputCloud(cloud_input);
-    pass.setFilterFieldName("z");
-    pass.setFilterLimits(dynamic_min_z, 10000.0f);
-    pass.filter(*cloud_z_filtered);
+    pcl::PassThrough<pcl::PointXYZ>::Ptr pass(new pcl::PassThrough<pcl::PointXYZ>());
+    pass->setInputCloud(cloud_input);
+    pass->setFilterFieldName("z");
+    pass->setFilterLimits(dynamic_min_z, 10000.0f);
+    pass->filter(*cloud_z_filtered);
 
     const std::string cloud_frame = msg->header.frame_id;
     std::string filter_frame = position_frame_;
