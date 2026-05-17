@@ -1,34 +1,11 @@
 cloud_registered_crop_filter:
   ros__parameters:
-    # ------------------ 1. 基础话题配置 ------------------
-    input_topic: "/cloud_registered"            # 输入点云话题
-    output_topic: "/cloud_registered_filtered"  # 输出点云话题
-    odom_topic: "/aft_mapped_to_init"           # 里程计话题 (用于Z轴截断获取实时高度)
-    queue_size: 10                              # 订阅和发布的队列长度
-
-    # ------------------ 2. 坐标系与变换模式 ------------------
-    position_frame: "camera_init"     # 裁减框定义的参考坐标系
-    filter_mode: "transform_cloud"    # 模式选项: 
-                                      # "transform_cloud" - 将点云变换到 position_frame 后再裁减（点云坐标系改变）
-                                      # "transform_center" - 将裁减框变换到点云当前坐标系下裁减（点云坐标系不变）
-
-    # ------------------ 3. Z轴高度动态截断 ------------------
-    enable_z_truncation: false        # 是否开启Z轴以下截断 (默认关闭，防止误杀地面)
-    z_truncation_offset: 0.0          # 截断偏移量。截断阈值 = 里程计Z高度 + z_truncation_offset
-
-    # ------------------ 4. 多区域裁减配置 (优先读取) ------------------
-    # 以数组形式配置，支持同时定义多个裁减框。各数组长度必须保持一致。
-    crop_boxes:
-      centers_x: [12.0, -5.0]         # 框1中心X, 框2中心X
-      centers_y: [6.0, 0.0]           # 框1中心Y, 框2中心Y
-      centers_z: [0.0, 1.0]           # 框1中心Z, 框2中心Z
-      sizes_x: [3.0, 2.0]             # 框1长, 框2长
-      sizes_y: [3.0, 2.0]             # 框1宽, 框2宽
-      sizes_z: [0.8, 1.0]             # 框1高, 框2高
-      remove_inside: [true, false]    # true=移除框内点, false=保留框内点(移除框外点)
-
-    # ------------------ 5. 旧版单区域配置 (回退兼容) ------------------
-    # 仅当未配置上述 `crop_boxes` 数组时，代码才会读取这里的单体配置
+    input_topic: /cloud_registered
+    output_topic: /cloud_registered_filtered
+    queue_size: 10
+    filter_mode: transform_center   # transform_cloud | transform_center
+    remove_inside: true             # true: remove points inside box, false: keep points inside box
+    position_frame: map
     position:
       x: 12.0
       y: 6.0
@@ -37,4 +14,3 @@ cloud_registered_crop_filter:
       x: 3.0
       y: 3.0
       z: 0.8
-    remove_inside: true
