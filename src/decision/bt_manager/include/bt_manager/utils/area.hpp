@@ -1,6 +1,6 @@
 #pragma once
-#define RMUC_AREA
-// #define TEST_AREA
+// #define RMUC_AREA
+#define TEST_AREA
 #include "bt_manager/utils/nav_zone.hpp"
 
 #include <array>
@@ -223,7 +223,7 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{12.7, 0.7},
 };
 inline Area_Square enemy_outpost_watch_zone{Point2D{10.1, 7.2}, Point2D{8.3, 6.2}};
-
+inline Area_Circle engeneering_blind_zone{Point2D{11.0, 3.5}, 1.0};
 inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{12.0, 2.0},
   Point2D{11.0, 2.0},
