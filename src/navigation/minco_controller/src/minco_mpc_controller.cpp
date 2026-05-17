@@ -766,11 +766,25 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     vx = 0.0;
     vy = 0.0;
   }
+  constexpr double goal_pos_threshold = 0.3;
+  constexpr double goal_speed_threshold = 0.05;
+  bool stop_mpc_cmd = false;
+  {
+    std::lock_guard<std::mutex> lk(plan_mtx_);
+    if (!global_plan_.poses.empty()) {
+      const auto & goal_pose = global_plan_.poses.back().pose;
+      const double dx = pose.pose.position.x - goal_pose.position.x;
+      const double dy = pose.pose.position.y - goal_pose.position.y;
+      const double dist = std::hypot(dx, dy);
+      const double speed = std::hypot(vx, vy);
+      stop_mpc_cmd = (dist <= goal_pos_threshold) && (speed <= goal_speed_threshold);
+    }
+  }
   if (cmd_vel_mpc_pub_) {
     geometry_msgs::msg::Twist raw_cmd;
-    raw_cmd.linear.x = vx;
-    raw_cmd.linear.y = vy;
-    raw_cmd.angular.z = wz;
+    raw_cmd.linear.x = stop_mpc_cmd ? 0.0 : vx;
+    raw_cmd.linear.y = stop_mpc_cmd ? 0.0 : vy;
+    raw_cmd.angular.z = stop_mpc_cmd ? 0.0 : wz;
     cmd_vel_mpc_pub_->publish(raw_cmd);
   }
   // applyGravityCompensation(latest_odom, vx, vy);
