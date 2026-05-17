@@ -1,36 +1,16 @@
 cloud_registered_crop_filter:
   ros__parameters:
-    # ==================== 话题配置 ====================
     input_topic: /cloud_registered
     output_topic: /cloud_registered_filtered
     queue_size: 10
-
-    # ==================== 裁剪模式 ====================
-    # transform_cloud: 将点云变换到position_frame坐标系, 在固定区域裁剪
-    # transform_center: 将裁剪区域的中心变换到点云坐标系, 随点云移动裁剪
-    filter_mode: transform_center
-    # true: 移除box内的点, false: 保留box内的点
-    remove_inside: true
-    # 裁剪区域参考坐标系 (filter_mode=transform_cloud时为点云变换目标系)
+    filter_mode: transform_center   # transform_cloud | transform_center
+    remove_inside: true             # true: remove points inside box, false: keep points inside box
     position_frame: map
-
-    # ==================== Z轴高度过滤 ====================
-    # 动态最小z值偏移 (基于odom的z + z_offset), 用于过滤地面点
-    z_offset: -0.10
-
-    # ==================== 多区域裁剪 (index对齐) ====================
-    # region0: center=(12, 6, 0), half_size=(2.0, 2.0, 1.5)
-    # region1: center=(20, 10, 0), half_size=(2.0, 1.0, 0.6)
-    # 注意: boundary填入的是全长/全宽/全高，代码内部会自动 *0.5 转为half_size
-    centers_x: [12.0, 20.0]
-    centers_y: [6.0, 10.0]
-    centers_z: [0.0, 0.0]
-    boundaries_x: [4.0, 4.0]
-    boundaries_y: [4.0, 2.0]
-    boundaries_z: [3.0, 1.2]
-    # centers_x: [15.4, 19.2, 13.7, 9.8]
-    # centers_y: [1.5, 13.0, 13.4, 2.0]
-    # centers_z: [0.8, 0.8, 0.8, 0.8]
-    # boundaries_x: [2.0, 4.0, 4.0, 2.0]
-    # boundaries_y: [4.0, 2.0, 2.0, 4.0]
-    # boundaries_z: [3.0, 3.0, 3.0, 3.0]
+    position:
+      x: 12.0
+      y: 6.0
+      z: 0.0
+    box_size:
+      x: 3.0
+      y: 3.0
+      z: 0.8

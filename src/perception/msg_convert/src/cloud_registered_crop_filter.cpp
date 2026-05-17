@@ -1,22 +1,15 @@
-#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <string>
-#include <vector>
 
 #include <Eigen/Geometry>
 #include <pcl/common/point_tests.h>
 #include <pcl/common/transforms.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/filters/crop_box.h>
-#include <pcl/filters/passthrough.h>
 #include <pcl_conversions/pcl_conversions.h>
 
-#include <atomic>
-
 #include "geometry_msgs/msg/transform_stamped.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "tf2_ros/buffer.h"
@@ -27,12 +20,6 @@ namespace msg_convert {
 class CloudRegisteredCropFilterNode : public rclcpp::Node
 {
 public:
-  struct CropRegion
-  {
-    Eigen::Vector3f center{0.0f, 0.0f, 0.0f};
-    Eigen::Vector3f half_size{6.0f, 3.0f, 1.75f};
-  };
-
   CloudRegisteredCropFilterNode() : Node("cloud_registered_crop_filter")
   {
     const auto input_topic = this->declare_parameter<std::string>("input_topic", "/cloud_registered");
@@ -40,6 +27,9 @@ public:
       this->declare_parameter<std::string>("output_topic", "/cloud_registered_filtered");
     const auto queue_size = this->declare_parameter<int>("queue_size", 10);
 
+    center_x_ = static_cast<float>(this->declare_parameter<double>("position.x", 0.0));
+    center_y_ = static_cast<float>(this->declare_parameter<double>("position.y", 0.0));
+    center_z_ = static_cast<float>(this->declare_parameter<double>("position.z", 0.0));
     position_frame_ = this->declare_parameter<std::string>("position_frame", "camera_init");
 
     filter_mode_ = this->declare_parameter<std::string>("filter_mode", "transform_cloud");
@@ -50,37 +40,23 @@ public:
       filter_mode_ = "transform_cloud";
     }
 
-    z_offset_ = this->declare_parameter<float>("z_offset", -0.10f);
-
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
-    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, this);
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+    tf_buffer_->setUsingDedicatedThread(true);
 
-    const auto centers_x = this->declare_parameter<std::vector<double>>("centers_x", std::vector<double>{});
-    const auto centers_y = this->declare_parameter<std::vector<double>>("centers_y", std::vector<double>{});
-    const auto centers_z = this->declare_parameter<std::vector<double>>("centers_z", std::vector<double>{});
-    const auto boundaries_x =
-      this->declare_parameter<std::vector<double>>("boundaries_x", std::vector<double>{});
-    const auto boundaries_y =
-      this->declare_parameter<std::vector<double>>("boundaries_y", std::vector<double>{});
-    const auto boundaries_z =
-      this->declare_parameter<std::vector<double>>("boundaries_z", std::vector<double>{});
+    size_x_ = static_cast<float>(this->declare_parameter<double>("box_size.x", 12.0));
+    size_y_ = static_cast<float>(this->declare_parameter<double>("box_size.y", 6.0));
+    size_z_ = static_cast<float>(this->declare_parameter<double>("box_size.z", 3.5));
 
-    const std::size_t region_count = std::min(centers_x.size(),
-      std::min(centers_y.size(),
-        std::min(centers_z.size(),
-          std::min(boundaries_x.size(), std::min(boundaries_y.size(), boundaries_z.size())))));
-
-    crop_regions_.reserve(region_count);
-    for (std::size_t i = 0; i < region_count; ++i) {
-      const float bx = static_cast<float>(boundaries_x[i]);
-      const float by = static_cast<float>(boundaries_y[i]);
-      const float bz = static_cast<float>(boundaries_z[i]);
-      CropRegion region;
-      region.center = Eigen::Vector3f(static_cast<float>(centers_x[i]),
-        static_cast<float>(centers_y[i]),
-        static_cast<float>(centers_z[i]));
-      region.half_size = Eigen::Vector3f(std::abs(bx), std::abs(by), std::abs(bz)) * 0.5f;
-      crop_regions_.push_back(region);
+    if (size_x_ <= 0.0f || size_y_ <= 0.0f || size_z_ <= 0.0f) {
+      RCLCPP_WARN(this->get_logger(),
+        "box_size must be positive. Using absolute value: (%.3f, %.3f, %.3f)",
+        size_x_,
+        size_y_,
+        size_z_);
+      size_x_ = std::abs(size_x_);
+      size_y_ = std::abs(size_y_);
+      size_z_ = std::abs(size_z_);
     }
 
     cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(input_topic,
@@ -90,35 +66,36 @@ public:
     cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
       output_topic, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
 
-    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      "/aft_mapped_to_init",
-      rclcpp::QoS(rclcpp::KeepLast(queue_size)),
-      std::bind(&CloudRegisteredCropFilterNode::odomCallback, this, std::placeholders::_1));
-
     RCLCPP_INFO(this->get_logger(),
-      "Crop filter started. input=%s output=%s frame=%s mode=%s remove_inside=%s z_offset=%.2f regions=%zu",
+      "Crop filter started. input=%s output=%s center=(%.3f, %.3f, %.3f) frame=%s mode=%s remove_inside=%s "
+      "box_size=(%.3f, %.3f, %.3f)",
       input_topic.c_str(),
       output_topic.c_str(),
+      center_x_,
+      center_y_,
+      center_z_,
       position_frame_.c_str(),
       filter_mode_.c_str(),
       remove_inside_ ? "true" : "false",
-      z_offset_,
-      crop_regions_.size());
+      size_x_,
+      size_y_,
+      size_z_);
   }
 
 private:
-  static void getTransformMatrix(const geometry_msgs::msg::TransformStamped & tf, Eigen::Matrix4f & m)
+  static Eigen::Matrix4f transformToMatrix(const geometry_msgs::msg::TransformStamped & tf)
   {
     const auto & t = tf.transform.translation;
     const auto & q = tf.transform.rotation;
 
-    m = Eigen::Matrix4f::Identity();
+    Eigen::Matrix4f m = Eigen::Matrix4f::Identity();
     const Eigen::Quaternionf quat(
       static_cast<float>(q.w), static_cast<float>(q.x), static_cast<float>(q.y), static_cast<float>(q.z));
     m.block<3, 3>(0, 0) = quat.normalized().toRotationMatrix();
     m(0, 3) = static_cast<float>(t.x);
     m(1, 3) = static_cast<float>(t.y);
     m(2, 3) = static_cast<float>(t.z);
+    return m;
   }
 
   bool lookupTransform(const std::string & target_frame,
@@ -149,24 +126,8 @@ private:
     return out.head<3>();
   }
 
-  void odomCallback(const nav_msgs::msg::Odometry::ConstSharedPtr msg)
-  {
-    current_odom_z_.store(static_cast<float>(msg->pose.pose.position.z));
-    odom_received_.store(true);
-  }
-
   void cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
   {
-    if (!odom_received_.load()) {
-      RCLCPP_WARN_THROTTLE(this->get_logger(),
-        *this->get_clock(),
-        2000,
-        "Waiting for odometry...");
-      return;
-    }
-
-    const float dynamic_min_z = current_odom_z_.load() + z_offset_;
-
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_input(new pcl::PointCloud<pcl::PointXYZ>());
     pcl::fromROSMsg(*msg, *cloud_input);
 
@@ -176,21 +137,14 @@ private:
       return;
     }
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_z_filtered(new pcl::PointCloud<pcl::PointXYZ>());
-    pcl::PassThrough<pcl::PointXYZ>::Ptr pass(new pcl::PassThrough<pcl::PointXYZ>());
-    pass->setInputCloud(cloud_input);
-    pass->setFilterFieldName("z");
-    pass->setFilterLimits(dynamic_min_z, 10000.0f);
-    pass->filter(*cloud_z_filtered);
-
     const std::string cloud_frame = msg->header.frame_id;
     std::string filter_frame = position_frame_;
     if (filter_frame.empty()) {
       filter_frame = cloud_frame;
     }
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_for_filter = cloud_z_filtered;
-    std::vector<CropRegion> active_regions = crop_regions_;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_for_filter = cloud_input;
+    Eigen::Vector3f center(center_x_, center_y_, center_z_);
 
     if (filter_mode_ == "transform_cloud") {
       if (filter_frame != cloud_frame) {
@@ -200,9 +154,7 @@ private:
         }
 
         cloud_for_filter = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
-        Eigen::Matrix4f tf_matrix;
-        getTransformMatrix(tf_cloud_to_filter, tf_matrix);
-        pcl::transformPointCloud(*cloud_z_filtered, *cloud_for_filter, tf_matrix);
+        pcl::transformPointCloud(*cloud_input, *cloud_for_filter, transformToMatrix(tf_cloud_to_filter));
       }
     } else {  // transform_center
       if (filter_frame != cloud_frame) {
@@ -210,60 +162,36 @@ private:
         if (!lookupTransform(cloud_frame, filter_frame, msg->header.stamp, tf_filter_to_cloud)) {
           return;
         }
-        Eigen::Matrix4f tf_matrix;
-        getTransformMatrix(tf_filter_to_cloud, tf_matrix);
-        for (auto & region : active_regions) {
-          region.center = transformPoint(tf_matrix, region.center);
-        }
+        center = transformPoint(transformToMatrix(tf_filter_to_cloud), center);
       }
       filter_frame = cloud_frame;
     }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out(new pcl::PointCloud<pcl::PointXYZ>());
 
-    if (remove_inside_) {
-      pcl::PointCloud<pcl::PointXYZ>::Ptr current_cloud = cloud_for_filter;
-      for (const auto & region : active_regions) {
-        pcl::PointCloud<pcl::PointXYZ>::Ptr box_filtered(new pcl::PointCloud<pcl::PointXYZ>());
-        pcl::CropBox<pcl::PointXYZ>::Ptr crop_box(new pcl::CropBox<pcl::PointXYZ>());
-        crop_box->setInputCloud(current_cloud);
-        const Eigen::Vector4f min_pt(region.center.x() - region.half_size.x(),
-                                     region.center.y() - region.half_size.y(),
-                                     region.center.z() - region.half_size.z(), 1.0f);
-        const Eigen::Vector4f max_pt(region.center.x() + region.half_size.x(),
-                                     region.center.y() + region.half_size.y(),
-                                     region.center.z() + region.half_size.z(), 1.0f);
-        crop_box->setMin(min_pt);
-        crop_box->setMax(max_pt);
-        crop_box->setNegative(true);
-        crop_box->filter(*box_filtered);
-        current_cloud = box_filtered;
+    const float half_x = 0.5f * size_x_;
+    const float half_y = 0.5f * size_y_;
+    const float half_z = 0.5f * size_z_;
+
+    const float min_x = center.x() - half_x;
+    const float max_x = center.x() + half_x;
+    const float min_y = center.y() - half_y;
+    const float max_y = center.y() + half_y;
+    const float min_z = center.z() - half_z;
+    const float max_z = center.z() + half_z;
+
+    cloud_out->points.reserve(cloud_for_filter->points.size());
+    for (const auto & p : cloud_for_filter->points) {
+      if (!pcl::isFinite(p)) {
+        continue;
       }
-      cloud_out = current_cloud;
-    } else {
-      cloud_out->header = cloud_for_filter->header;
-      std::vector<int> combined_indices;
-      for (const auto & region : active_regions) {
-        pcl::CropBox<pcl::PointXYZ>::Ptr crop_box(new pcl::CropBox<pcl::PointXYZ>());
-        crop_box->setInputCloud(cloud_for_filter);
-        const Eigen::Vector4f min_pt(region.center.x() - region.half_size.x(),
-                                     region.center.y() - region.half_size.y(),
-                                     region.center.z() - region.half_size.z(), 1.0f);
-        const Eigen::Vector4f max_pt(region.center.x() + region.half_size.x(),
-                                     region.center.y() + region.half_size.y(),
-                                     region.center.z() + region.half_size.z(), 1.0f);
-        crop_box->setMin(min_pt);
-        crop_box->setMax(max_pt);
-        std::vector<int> indices;
-        crop_box->filter(indices);
-        combined_indices.insert(combined_indices.end(), indices.begin(), indices.end());
-      }
-      std::sort(combined_indices.begin(), combined_indices.end());
-      combined_indices.erase(std::unique(combined_indices.begin(), combined_indices.end()),
-                             combined_indices.end());
-      cloud_out->points.reserve(combined_indices.size());
-      for (int idx : combined_indices) {
-        cloud_out->points.push_back(cloud_for_filter->points[idx]);
+
+      const bool inside =
+        (p.x >= min_x && p.x <= max_x) && (p.y >= min_y && p.y <= max_y) && (p.z >= min_z && p.z <= max_z);
+
+      const bool keep = remove_inside_ ? !inside : inside;
+      if (keep) {
+        cloud_out->points.push_back(p);
       }
     }
     cloud_out->width = static_cast<uint32_t>(cloud_out->points.size());
@@ -271,7 +199,6 @@ private:
     cloud_out->is_dense = true;
 
     sensor_msgs::msg::PointCloud2 filtered_msg;
-    cloud_out->header = cloud_for_filter->header;
     pcl::toROSMsg(*cloud_out, filtered_msg);
     filtered_msg.header.stamp = msg->header.stamp;
     filtered_msg.header.frame_id = filter_frame;
@@ -281,18 +208,18 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_pub_;
 
-  std::vector<CropRegion> crop_regions_;
+  float center_x_{0.0f};
+  float center_y_{0.0f};
+  float center_z_{0.0f};
   std::string position_frame_;
   std::string filter_mode_;
   bool remove_inside_{true};
+  float size_x_{12.0f};
+  float size_y_{6.0f};
+  float size_z_{3.5f};
 
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
-
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-  std::atomic<float> current_odom_z_{0.0f};
-  std::atomic<bool> odom_received_{false};
-  float z_offset_;
 };
 
 }  // namespace msg_convert
