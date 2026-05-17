@@ -767,17 +767,28 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     vy = 0.0;
   }
   constexpr double goal_pos_threshold = 0.3;
-  constexpr double goal_speed_threshold = 0.05;
   bool stop_mpc_cmd = false;
+  geometry_msgs::msg::PoseStamped goal_pose_stamped;
   {
     std::lock_guard<std::mutex> lk(plan_mtx_);
     if (!global_plan_.poses.empty()) {
-      const auto & goal_pose = global_plan_.poses.back().pose;
-      const double dx = pose.pose.position.x - goal_pose.position.x;
-      const double dy = pose.pose.position.y - goal_pose.position.y;
+      goal_pose_stamped = global_plan_.poses.back();
+    }
+  }
+  if (!goal_pose_stamped.header.frame_id.empty()) {
+    geometry_msgs::msg::PoseStamped goal_pose_in_odom = goal_pose_stamped;
+    if (goal_pose_in_odom.header.frame_id != odom_frame_) {
+      try {
+        goal_pose_in_odom = tf_->transform(goal_pose_in_odom, odom_frame_);
+      } catch (const tf2::TransformException &) {
+        goal_pose_in_odom.header.frame_id.clear();
+      }
+    }
+    if (!goal_pose_in_odom.header.frame_id.empty()) {
+      const double dx = pose.pose.position.x - goal_pose_in_odom.pose.position.x;
+      const double dy = pose.pose.position.y - goal_pose_in_odom.pose.position.y;
       const double dist = std::hypot(dx, dy);
-      const double speed = std::hypot(vx, vy);
-      stop_mpc_cmd = (dist <= goal_pos_threshold) && (speed <= goal_speed_threshold);
+      stop_mpc_cmd = (dist <= goal_pos_threshold);
     }
   }
   if (cmd_vel_mpc_pub_) {
