@@ -3,6 +3,8 @@ cloud_registered_crop_filter:
     input_topic: /cloud_registered
     output_topic: /cloud_registered_filtered
     queue_size: 10
+    odom_topic: /aft_mapped_to_init
+    z_offset: 0.1
     filter_mode: transform_center   # transform_cloud | transform_center
     remove_inside: true             # true: remove points inside box, false: keep points inside box
     position_frame: map

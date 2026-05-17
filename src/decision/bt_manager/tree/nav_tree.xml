@@ -57,7 +57,7 @@
                              map_name="rmuc2026" /> -->
           <ReactiveSequence name="TargetPursuit">
             <CheckTargetLocked name="CheckTargetLocked" branch="Priority2TargetAttack" />
-            <SetTargetCoordinate name="SetTargetCoordinate" tracing_dist="1.5"/>
+            <SetTargetCoordinate name="SetTargetCoordinate" tracing_dist="1.0"/>
             <NavigateToPoseAction name="NavigateTrackingTarget" />
           </ReactiveSequence>
         </ReactiveSequence>

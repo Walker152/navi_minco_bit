@@ -1,7 +1,7 @@
 <root main_tree_to_execute="GimbalTree">
   <BehaviorTree ID="GimbalTree">
     <ReactiveFallback name="GimbalPriorityRoot">
-      <ReactiveSequence name="Priority1HardLock">
+      <!-- <ReactiveSequence name="Priority1HardLock">
         <CheckTargetVisible name="CheckTargetVisible" branch="Priority1HardLock" />
         <TrackTargetAction name="TrackTargetAction" />
       </ReactiveSequence>
@@ -16,10 +16,10 @@
       </ReactiveSequence>
 
       <ReactiveFallback name="GimbalScanStrategy">
-        <!-- <ReactiveSequence name="EnergyGimbalScan">
+        <ReactiveSequence name="EnergyGimbalScan">
           <CheckEnergyActive branch="EnergyGimbalScan" />
           <SetGimbalPoseByAreaAction name="SetEnergyGimbal" />
-        </ReactiveSequence> -->
+        </ReactiveSequence>
         <ReactiveSequence name="DefendScan">
           <CheckTacticalModeCondition mode="defend" branch="DefendScan" />
           <SetGimbalPoseByAreaAction name="SetDefendGimbal" />
@@ -29,7 +29,7 @@
           <SetGimbalPoseByAreaAction name="SetAttackGimbal" />
         </ReactiveSequence>
         <SetGimbalPoseByAreaAction name="SetNormalGimbal" />
-      </ReactiveFallback>
+      </ReactiveFallback> -->
     </ReactiveFallback>
   </BehaviorTree>
 </root>

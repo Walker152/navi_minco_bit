@@ -239,9 +239,9 @@ private:
     {
       // Snapshot shared state to avoid data races.
       std::lock_guard<std::mutex> lk(state_mutex_);
-      vx_mps = cmd_vel_.linear.x;
+      vx_mps = static_cast<float>(cmd_vel_.linear.x);
       // vx_mps = 3.0f;
-      vy_mps = cmd_vel_.linear.y;
+      vy_mps = static_cast<float>(cmd_vel_.linear.y);
       // vy_mps = 0.0f;
 
       vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
