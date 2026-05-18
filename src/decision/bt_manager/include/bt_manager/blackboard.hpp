@@ -78,7 +78,7 @@ public:
     blackboard_->set("enemy_coin_left", 0);                           // 敌方金币剩余数量
     blackboard_->set("enemy_coin_accumulated", 0);                    // 敌方金币累计数量
     blackboard_->set("enemies_info", std::vector<EnemyRobotInfo>());  // 敌方信息列表
-    blackboard_->set("enemy_outpost_destroyed", false);                // 敌方前哨站是否被摧毁
+    blackboard_->set("enemy_outpost_destroyed", true);                // 敌方前哨站是否被摧毁
 
     // --- Sentry Offline Info ---
     blackboard_->set("target_valid", false);                            // 目标锁定状态
@@ -97,7 +97,7 @@ public:
     blackboard_->set("heat_limit", 0);                 // 热量上限
     blackboard_->set("current_heat", 0);               // 当前热量
     blackboard_->set("is_disengaged", true);           // 是否脱战状态
-    blackboard_->set("is_aim_enemy", true);           // 是否瞄准敌方（工程区禁止瞄准）
+    blackboard_->set("not_aim_enemy", false);           // 是否瞄准敌方（工程区禁止瞄准）
     blackboard_->set("can_activate_energy", false);    // 是否能激活能量机关
     blackboard_->set("can_free_resurrect", false);     // 是否能免费复活
     blackboard_->set("can_instant_resurrect", false);  // 是否能立即复活
