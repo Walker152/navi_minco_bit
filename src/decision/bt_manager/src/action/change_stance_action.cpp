@@ -79,7 +79,7 @@ BT::NodeStatus SetGyroState::tick()
     2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
   const float speed_scale = 1.0f + static_cast<float>(std::sin(yaw));
   const float base_speed = reverse_rotation ? -current_gyro_vel_ : current_gyro_vel_;
-  const float output_gyro_vel = base_speed * speed_scale;
+  const float output_gyro_vel = base_speed * speed_scale + 30.0f;
 
   blackboard->set("use_gyro_mode", use_gyro);
   blackboard->set("gyro_vel", output_gyro_vel);
