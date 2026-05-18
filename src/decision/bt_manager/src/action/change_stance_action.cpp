@@ -23,63 +23,26 @@ BT::PortsList SetGyroState::providedPorts()
 
 BT::NodeStatus SetGyroState::tick()
 {
-  constexpr std::array<float, 6> kGyroSpeedList = {50.0f, 60.0f, 70.0f, 80.0f, 90.0f, 100.0f};
-
   auto blackboard = config().blackboard;
   const bool use_gyro = getInput<bool>("use_gyro").value_or(blackboard->get<bool>("use_gyro_mode"));
   const float gyro_vel = getInput<float>("gyro_vel").value_or(blackboard->get<float>("gyro_vel"));
   const bool random_speed = getInput<bool>("random_speed").value_or(false);
-  const float change_speed_duration =
-    getInput<float>("change_speed_duration").value_or(0.0f);
   const bool reverse_rotation = getInput<bool>("reverse_rotation").value_or(false);
 
-  const auto now = std::chrono::steady_clock::now();
+  random_initialized_ = false;
+  random_speed_enabled_ = false;
+  current_gyro_vel_ = gyro_vel;
 
-  if (!random_speed) {
-    random_initialized_ = false;
-    random_speed_enabled_ = false;
-    current_gyro_vel_ = gyro_vel;
-  } else {
-    if (!random_initialized_ || !random_speed_enabled_) {
-      float best_diff = std::numeric_limits<float>::max();
-      std::size_t best_index = 0;
-      for (std::size_t i = 0; i < kGyroSpeedList.size(); ++i) {
-        const float diff = std::fabs(kGyroSpeedList[i] - gyro_vel);
-        if (diff < best_diff) {
-          best_diff = diff;
-          best_index = i;
-        }
-      }
-      current_speed_index_ = best_index;
-      current_gyro_vel_ = gyro_vel;
-      last_speed_change_time_ = now;
-      random_initialized_ = true;
-    }
-
-    random_speed_enabled_ = true;
-    if (change_speed_duration > 0.0f) {
-      const double elapsed = std::chrono::duration<double>(now - last_speed_change_time_).count();
-      if (elapsed >= static_cast<double>(change_speed_duration)) {
-        const int min_index =
-          std::max<int>(0, static_cast<int>(current_speed_index_) - 2);
-        const int max_index = std::min<int>(
-          static_cast<int>(kGyroSpeedList.size()) - 1,
-          static_cast<int>(current_speed_index_) + 2);
-        std::uniform_int_distribution<int> dist(min_index, max_index);
-        current_speed_index_ = static_cast<std::size_t>(dist(rng_));
-        current_gyro_vel_ = kGyroSpeedList[current_speed_index_];
-        last_speed_change_time_ = now;
-      }
-    }
-  }
-
-  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-  const auto & q = current_pose.orientation;
-  const double yaw = std::atan2(
-    2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
-  const float speed_scale = 1.0f + static_cast<float>(std::sin(yaw));
   const float base_speed = reverse_rotation ? -current_gyro_vel_ : current_gyro_vel_;
-  const float output_gyro_vel = base_speed * speed_scale;
+  float output_gyro_vel = base_speed;
+  if (random_speed) {
+    const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+    const auto & q = current_pose.orientation;
+    const double yaw = std::atan2(
+      2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+    const float speed_scale = 1.0f + static_cast<float>(std::sin(yaw));
+    output_gyro_vel = base_speed * 0.5f * speed_scale ;
+  }
 
   blackboard->set("use_gyro_mode", use_gyro);
   blackboard->set("gyro_vel", output_gyro_vel);
