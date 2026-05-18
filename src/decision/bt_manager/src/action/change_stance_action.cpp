@@ -1,8 +1,5 @@
 #include "bt_manager/action/change_stance_action.hpp"
 
-#include <algorithm>
-#include <cmath>
-
 using namespace color_text;
 namespace Sentry_BT {
 std::chrono::time_point<std::chrono::system_clock> ChangeStance::last_change_time_ =
@@ -18,16 +15,68 @@ BT::PortsList SetGyroState::providedPorts()
 {
   return {BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
     BT::InputPort<float>("gyro_vel", "Gyro speed in rpm"),
+    BT::InputPort<bool>("random_speed", false, "Enable random gyro speed switching"),
+    BT::InputPort<float>("change_speed_duration", 0.0f, "Random speed change interval (s)"),
+    BT::InputPort<bool>("reverse_rotation", false, "Reverse gyro rotation direction"),
   };
 }
 
 BT::NodeStatus SetGyroState::tick()
 {
+  constexpr std::array<float, 6> kGyroSpeedList = {50.0f, 60.0f, 70.0f, 80.0f, 90.0f, 100.0f};
+
   auto blackboard = config().blackboard;
   const bool use_gyro = getInput<bool>("use_gyro").value_or(blackboard->get<bool>("use_gyro_mode"));
   const float gyro_vel = getInput<float>("gyro_vel").value_or(blackboard->get<float>("gyro_vel"));
+  const bool random_speed = getInput<bool>("random_speed").value_or(false);
+  const float change_speed_duration =
+    getInput<float>("change_speed_duration").value_or(0.0f);
+  const bool reverse_rotation = getInput<bool>("reverse_rotation").value_or(false);
+
+  const auto now = std::chrono::steady_clock::now();
+
+  if (!random_speed) {
+    random_initialized_ = false;
+    random_speed_enabled_ = false;
+    current_gyro_vel_ = gyro_vel;
+  } else {
+    if (!random_initialized_ || !random_speed_enabled_) {
+      float best_diff = std::numeric_limits<float>::max();
+      std::size_t best_index = 0;
+      for (std::size_t i = 0; i < kGyroSpeedList.size(); ++i) {
+        const float diff = std::fabs(kGyroSpeedList[i] - gyro_vel);
+        if (diff < best_diff) {
+          best_diff = diff;
+          best_index = i;
+        }
+      }
+      current_speed_index_ = best_index;
+      current_gyro_vel_ = gyro_vel;
+      last_speed_change_time_ = now;
+      random_initialized_ = true;
+    }
+
+    random_speed_enabled_ = true;
+    if (change_speed_duration > 0.0f) {
+      const double elapsed = std::chrono::duration<double>(now - last_speed_change_time_).count();
+      if (elapsed >= static_cast<double>(change_speed_duration)) {
+        const int min_index =
+          std::max<int>(0, static_cast<int>(current_speed_index_) - 2);
+        const int max_index = std::min<int>(
+          static_cast<int>(kGyroSpeedList.size()) - 1,
+          static_cast<int>(current_speed_index_) + 2);
+        std::uniform_int_distribution<int> dist(min_index, max_index);
+        current_speed_index_ = static_cast<std::size_t>(dist(rng_));
+        current_gyro_vel_ = kGyroSpeedList[current_speed_index_];
+        last_speed_change_time_ = now;
+      }
+    }
+  }
+
+  const float output_gyro_vel = reverse_rotation ? -current_gyro_vel_ : current_gyro_vel_;
+
   blackboard->set("use_gyro_mode", use_gyro);
-  blackboard->set("gyro_vel", gyro_vel);
+  blackboard->set("gyro_vel", output_gyro_vel);
   return BT::NodeStatus::SUCCESS;
 }
 

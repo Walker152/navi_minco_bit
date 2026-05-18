@@ -2,13 +2,7 @@
 #include "bt_manager/blackboard.hpp"
 #include "bt_manager/utils/area.hpp"
 #include "bt_manager/utils/nav_zone.hpp"
-#include <algorithm>
-#include <array>
-#include <chrono>
-#include <cmath>
 #include <iostream>
-#include <limits>
-#include <string>
 using namespace color_text;
 namespace Sentry_BT {
 

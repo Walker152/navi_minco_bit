@@ -1,9 +1,5 @@
 #include "bt_manager/action/gimbal_action.hpp"
 
-#include <algorithm>
-#include <iostream>
-#include <sstream>
-
 namespace Sentry_BT {
 TrackTargetAction::TrackTargetAction(const std::string & name, const BT::NodeConfiguration & config)
 : BT::StatefulActionNode(name, config)
