@@ -7,7 +7,7 @@
         
         <!-- <Sequence name="RuleRefresh">
           <CheckStanceRefreshRequired max_hold_seconds="180" target_stance="{target_stance}" branch="RuleRefresh"/>
-          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="false" change_speed_duration="5.0" reverse_rotation="false" />
+          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="false"   reverse_rotation="false" />
           <CheckStanceCooldown cooldown="5.0" branch="RuleRefresh" />
           <ChangeStance name="ChangeStanceRefresh" stance="{target_stance}" />
         </Sequence> -->
@@ -30,7 +30,7 @@
             <CheckOutpostTarget goal_distance_threshold="0.5" branch="AbsoluteAttackBranch" />
           </Fallback>
           <!-- <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" /> -->
-          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="true" change_speed_duration="5.0" reverse_rotation="false" />
+          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="true"  reverse_rotation="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="AbsoluteAttackBranch" /> -->
           <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
         </Sequence>
@@ -38,7 +38,7 @@
         <Sequence name="PursuitStanceBranch">
           <CheckTargetLocked name="CheckTargetLocked" branch="PursuitStance"/>
           <CheckTargetDistance threshold="4.0" mode="greater" branch="PursuitStanceBranch" />
-          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="false" change_speed_duration="5.0" reverse_rotation="false" />
+          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="false"  reverse_rotation="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="PursuitStanceBranch" /> -->
           <ChangeStance name="ChangeStancePursuit" stance="MOVE" />
         </Sequence>
@@ -47,7 +47,7 @@
           <CheckEngagedStatus expected="true" branch="CombatAttackBranch" />
           <CheckHealth threshold="50" mode="greater" branch="CombatAttackBranch" />
           <!-- <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" /> -->
-          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="true" change_speed_duration="5.0" reverse_rotation="true" />
+          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="true"  reverse_rotation="true" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
           <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
         </Sequence>
@@ -57,7 +57,7 @@
             <CheckCapacitorCapacity threshold="30" mode="less" branch="MoveStanceGyroBranch" />
             <CheckEngagedStatus expected="false" branch="MoveStanceGyroBranch" />
           </Fallback>
-          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="false" change_speed_duration="5.0" reverse_rotation="false" />
+          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="false"  reverse_rotation="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
           <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
         </Sequence>
@@ -66,13 +66,13 @@
           <CheckEngagedStatus expected="true" branch="DefendStanceBranch" />
           <CheckHealth threshold="40" mode="less" branch="DefendStanceBranch" />
           <!-- <CheckEnhanceLimit target_stance="DEFEND" max_time_sec="180" /> -->
-          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="true" change_speed_duration="5.0" reverse_rotation="false" />
+          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="true"  reverse_rotation="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefendStanceBranch" /> -->
           <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
         </Sequence>
 
         <Sequence name="DefaultDefendBranch">
-          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="false" change_speed_duration="5.0" reverse_rotation="false" />
+          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="false"  reverse_rotation="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefaultDefendBranch" /> -->
           <ChangeStance name="DefaultDefendStance" stance="DEFEND" />
         </Sequence>
