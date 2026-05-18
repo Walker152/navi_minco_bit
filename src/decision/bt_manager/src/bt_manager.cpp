@@ -79,6 +79,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<SetTunnelRecoveryAttemptPoint>("SetTunnelRecoveryAttemptPoint");
   factory_.registerNodeType<SetTunnelRecoveryRetreatPoint>("SetTunnelRecoveryRetreatPoint");
   factory_.registerNodeType<SetGlobalVelocity>("SetGlobalVelocity");
+  factory_.registerNodeType<CheckNormalExchangeCooldown>("CheckNormalExchangeCooldown");
 
   // stance
   factory_.registerNodeType<CheckHeat>("CheckHeat");

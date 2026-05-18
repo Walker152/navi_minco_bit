@@ -118,6 +118,11 @@ BT::NodeStatus CheckRemoteExchangeCooldown::tick()
   const int current_count = blackboard->get<int>("remote_ammo_exchange_count");
   const auto now = std::chrono::steady_clock::now();
 
+  if (!initialized_) {
+    last_exchange_count_ = current_count;
+    last_exchange_time_ = now - std::chrono::seconds(static_cast<long>(cooldown_seconds) + 1);  // initialize to be out of cooldown
+    initialized_ = true;
+  }
   if (current_count > last_exchange_count_) {
     last_exchange_count_ = current_count;
     last_exchange_time_ = now;
@@ -125,11 +130,61 @@ BT::NodeStatus CheckRemoteExchangeCooldown::tick()
 
   const double elapsed = std::chrono::duration<double>(now - last_exchange_time_).count();
   const bool in_cooldown = elapsed < cooldown_seconds;
+
+  if (!in_cooldown) {
+    last_exchange_count_ = current_count;
+    last_exchange_time_ = now;
+  }
   std::ostringstream oss;
   oss << "exchange_count=" << current_count << ", elapsed=" << elapsed
       << ", cooldown=" << cooldown_seconds;
   detail::logTransition(
     detail::TreeKind::RESOURCE, "CheckRemoteExchangeCooldown", !in_cooldown, oss.str(), branch);
+  return in_cooldown ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- CheckNormalExchangeCooldown -------------------
+CheckNormalExchangeCooldown::CheckNormalExchangeCooldown(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckNormalExchangeCooldown::providedPorts()
+{
+  return {
+    BT::InputPort<double>("cooldown_seconds", 1.5, "Cooldown after normal exchange"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")
+  };
+}
+
+BT::NodeStatus CheckNormalExchangeCooldown::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const double cooldown_seconds = getInput<double>("cooldown_seconds").value_or(1.5);
+  const auto now = std::chrono::steady_clock::now();
+
+  // 1. 初始化：开局将上一次兑换时间设为很久以前，确保第一次能够顺利放行
+  if (!initialized_) {
+    last_exchange_time_ = now - std::chrono::seconds(static_cast<long>(cooldown_seconds + 1.0));
+    initialized_ = true;
+  }
+
+  // 2. 计算距离上次放行经过的时间
+  const double elapsed = std::chrono::duration<double>(now - last_exchange_time_).count();
+  const bool in_cooldown = elapsed < cooldown_seconds;
+
+  // 3. 核心防抖逻辑：如果不处于冷却，意味着本次 tick 会返回 SUCCESS 并触发后续买弹动作。
+  if (!in_cooldown) {
+    last_exchange_time_ = now;
+  }
+
+  std::ostringstream oss;
+  oss << "elapsed=" << elapsed << ", cooldown=" << cooldown_seconds;
+  detail::logTransition(
+    detail::TreeKind::RESOURCE, "CheckNormalExchangeCooldown", !in_cooldown, oss.str(), branch);
+
   return in_cooldown ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
 }
 
