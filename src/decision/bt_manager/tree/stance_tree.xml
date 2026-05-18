@@ -54,7 +54,7 @@
 
         <Sequence name="MoveStanceGyroBranch">
           <Fallback name="MoveGyroConditions">
-            <CheckCapacitorCapacity threshold="0" mode="less" branch="MoveStanceGyroBranch" />
+            <CheckCapacitorCapacity threshold="30" mode="less" branch="MoveStanceGyroBranch" />
             <CheckEngagedStatus expected="false" branch="MoveStanceGyroBranch" />
           </Fallback>
           <SetGyroState use_gyro="true" gyro_vel="30.0" />
@@ -64,7 +64,7 @@
 
         <Sequence name="DefendStanceBranch">
           <CheckEngagedStatus expected="true" branch="DefendStanceBranch" />
-          <CheckHealth threshold="40" mode="less" branch="DefendStanceBranch" />
+          <CheckHealth threshold="50" mode="less" branch="DefendStanceBranch" />
           <CheckEnhanceLimit target_stance="DEFEND" max_time_sec="180" />
           <SetGyroState use_gyro="true" gyro_vel="50.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefendStanceBranch" /> -->

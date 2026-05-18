@@ -14,7 +14,7 @@ inline bool compareByMode(const float lhs, const float rhs, const std::string & 
     return lhs >= rhs;
   }
   if (mode == "less") {
-    return lhs < rhs;
+    return lhs <= rhs;
   }
   return false;
 }

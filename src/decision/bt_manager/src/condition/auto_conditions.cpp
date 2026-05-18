@@ -102,7 +102,7 @@ BT::NodeStatus CheckTargetLocked::tick()
   }
   bool condition_met = false;
   const bool target_in_engineering = engineering_zone.contains(target_point);
-  blackboard->set("is_aim_enemy", !target_in_engineering);
+  blackboard->set("not_aim_enemy", target_in_engineering);
 
   if (!target_in_engineering) {
     if (in_attack_area && target_valid) {
