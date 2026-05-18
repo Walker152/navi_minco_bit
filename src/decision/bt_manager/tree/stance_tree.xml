@@ -30,7 +30,7 @@
             <CheckOutpostTarget goal_distance_threshold="0.5" branch="AbsoluteAttackBranch" />
           </Fallback>
           <!-- <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" /> -->
-          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="false" change_speed_duration="5.0" reverse_rotation="false" />
+          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="true" change_speed_duration="5.0" reverse_rotation="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="AbsoluteAttackBranch" /> -->
           <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
         </Sequence>
@@ -47,7 +47,7 @@
           <CheckEngagedStatus expected="true" branch="CombatAttackBranch" />
           <CheckHealth threshold="50" mode="greater" branch="CombatAttackBranch" />
           <!-- <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" /> -->
-          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="false" change_speed_duration="5.0" reverse_rotation="false" />
+          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="true" change_speed_duration="5.0" reverse_rotation="true" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
           <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
         </Sequence>
@@ -66,7 +66,7 @@
           <CheckEngagedStatus expected="true" branch="DefendStanceBranch" />
           <CheckHealth threshold="40" mode="less" branch="DefendStanceBranch" />
           <!-- <CheckEnhanceLimit target_stance="DEFEND" max_time_sec="180" /> -->
-          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="false" change_speed_duration="5.0" reverse_rotation="false" />
+          <SetGyroState use_gyro="true" gyro_vel="60.0" random_speed="true" change_speed_duration="5.0" reverse_rotation="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefendStanceBranch" /> -->
           <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
         </Sequence>
