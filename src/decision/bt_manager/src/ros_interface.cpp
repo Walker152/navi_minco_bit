@@ -104,7 +104,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto remote_ammo_request = blackboard_->get<uint8_t>("remote_ammo_request");
     const auto remote_health_request = blackboard_->get<uint8_t>("remote_health_request");
     const auto pitch_mode = blackboard_->get<PitchPos>("pitch_mode");
-    const auto is_aim_enemy = blackboard_->get<bool>("is_aim_enemy");
+    const auto not_aim_enemy = blackboard_->get<bool>("not_aim_enemy");
 
     ros_interfaces::msg::Behavior behavior_msg;
     behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
@@ -120,7 +120,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.remote_ammo_request = remote_ammo_request;
     behavior_msg.remote_health_request = remote_health_request;
     behavior_msg.pitch_mode = static_cast<uint8_t>(pitch_mode);
-    behavior_msg.is_aim_enemy = is_aim_enemy;
+    behavior_msg.not_aim_enemy = not_aim_enemy;
     behavior_pub->publish(behavior_msg);
 
     if (revive_request != 0) {
@@ -206,18 +206,24 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
     tf_utils->transformPoseToMap(manual_point_in, manual_point, "minimap");
   }
   Point2D manual_point_2d(manual_point.position.x, manual_point.position.y);
+  static Point2D last_manual_point(0.0, 0.0);
   blackboard_->set<Point2D>("manual_override_goal", manual_point_2d);
-
-  static int last_manual_key = 0;
-  if (msg->manual_key == last_manual_key) {
-    return;  // 只有在manual_key发生变化时才切换控制模式，避免重复切换
+  if (std::hypot(manual_point.position.x - last_manual_point.x,
+                 manual_point.position.y - last_manual_point.y) < 0.001) {
+    return;  // 如果位置没有明显变化，也不处理按键变化，避免重复触发
   }
-  last_manual_key = msg->manual_key;
+  last_manual_point = manual_point_2d;
   switch (msg->manual_key)
   {
   case 65:  // 'A'键切换控制模式
     blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
     break;
+  case 66:
+  {
+    const auto enemy_outpost_destroyed = blackboard_->get<bool>("enemy_outpost_destroyed");
+    blackboard_->set<bool>("enemy_outpost_destroyed", !enemy_outpost_destroyed);
+    break;
+  }
   case 0:  // '0'键切换回自动模式
     blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);
     break;
@@ -234,7 +240,7 @@ void ros_interface::radarInfoCallback(const ros_interfaces::msg::RadarInfo::Shar
   // 存储敌方信息
   blackboard_->set<int>("enemy_coin_left", static_cast<int>(msg->enemy_coin_left));
   blackboard_->set<int>("enemy_coin_accumulated", static_cast<int>(msg->enemy_coin_accumulated));
-  blackboard_->set<bool>("enemy_outpost_destroyed", !(msg->is_enemy_outpost_sensed));
+  // blackboard_->set<bool>("enemy_outpost_destroyed", !(msg->is_enemy_outpost_sensed));
 
   // 存储所有敌方机器人状态
   ros_interfaces::msg::RadarInfo radar_info = *msg;
@@ -310,7 +316,7 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
 
   // 提取bit 0：脱战状态
   bool is_disengaged = (sentry_info_2 & 0x0001) != 0;
-  // blackboard_->set<bool>("is_disengaged", is_disengaged);
+  blackboard_->set<bool>("is_disengaged", is_disengaged);
 
   // 提取bit 12-13：哨兵当前姿态
   uint8_t current_stance = (sentry_info_2 >> 12) & 0x3;

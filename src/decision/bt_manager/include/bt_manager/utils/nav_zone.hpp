@@ -30,6 +30,12 @@ struct Point2D
   {
     return Point2D(x + other.x, y + other.y, yaw + other.yaw);
   }
+  Point2D operator=(const geometry_msgs::msg::Point & point)
+  {
+    x = point.x;
+    y = point.y;
+    return *this;
+  }
 };
 
 struct TunnelRecoveryConfig
