@@ -137,6 +137,7 @@ extern std::vector<double> gravity;       // 当前估计的重力向量 (世界
 // === 日志和调试控制 ===
 extern bool runtime_pos_log;              // 是否启用运行时位姿日志记录
 extern bool pcd_save_en;                  // 是否启用PCD点云文件保存
+extern double accumulated_map_publish_hz; // 累积地图发布频率，<=0 时不发布
 
 // === 发布控制参数 ===
 extern bool path_en;                      // 是否发布机器人轨迹路径
