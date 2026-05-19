@@ -8,11 +8,19 @@
 #include "minco_core/minco_fsm.hpp"
 #include "minco_core/minco_utils.hpp"
 #include "minco_core/visualizer.hpp"
+#include <chrono>
 #include <iostream>
 
 namespace minco_planner {
 
 using namespace color_text;
+
+namespace {
+double elapsedMs(const std::chrono::steady_clock::time_point & start)
+{
+  return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+}  // namespace
 
 MincoPlanner::MincoPlanner() : tf_(nullptr), costmap_(nullptr)
 {
@@ -40,6 +48,9 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   logger_ = node->get_logger();
 
   const std::string prefix = name_ + ".";
+
+  profiler_ = std::make_unique<PlannerProfiler>();
+  profiler_->configure(parent, prefix, logger_);
 
   // --- General config --------------------------------------------------------
 
@@ -192,6 +203,10 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     node, prefix + "static_esdf.dynamic_dilation_radius", rclcpp::ParameterValue(0.0));
   node->get_parameter(prefix + "static_esdf.dynamic_dilation_radius", dynamic_dilation_radius);
 
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "static_esdf.publish_esdf", rclcpp::ParameterValue(true));
+  node->get_parameter(prefix + "static_esdf.publish_esdf", publish_esdf_);
+
   // --- Corridor config -------------------------------------------------------
 
   double corridor_robot_radius = 0.4;
@@ -297,7 +312,7 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   }
 
   visualizer_ = std::make_unique<Visualizer>();
-  visualizer_->configure(parent, global_frame_, esdf_map_, esdf_loaded);
+  visualizer_->configure(parent, global_frame_, esdf_map_, esdf_loaded && publish_esdf_);
 
   minco_optimizer_ = std::make_unique<MincoOptimizer>(minco_config);
   minco_optimizer_->setESDFMap(esdf_map_);
@@ -361,6 +376,7 @@ void MincoPlanner::cleanup()
   yaw_opt_.reset();
   opt_path_pub_.reset();
   backup_path_pub_.reset();
+  profiler_.reset();
 }
 
 rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
@@ -609,7 +625,25 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
 bool MincoPlanner::PlanGlobalPath(
   const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal)
 {
+  const auto global_start = std::chrono::steady_clock::now();
+  if (profiler_) {
+    profiler_->beginCycle("plan_cycle");
+  }
+  auto finish_global = [this, &global_start](bool success) {
+    if (!profiler_) {
+      return;
+    }
+    profiler_->mark("global_search_ms", elapsedMs(global_start));
+    if (success) {
+      std::lock_guard<std::mutex> path_lock(path_mutex_);
+      profiler_->setMetric("global_path_size", static_cast<double>(latest_global_path_.size()));
+    } else {
+      profiler_->finishCycle(false);
+    }
+  };
+
   if (!astar_planner_ || !costmap_) {
+    finish_global(false);
     return false;
   }
 
@@ -621,12 +655,27 @@ bool MincoPlanner::PlanGlobalPath(
     return !rclcpp::ok();
   };
 
-  return makePlan(start.pose, goal.pose, tolerance_, cancel_checker, dummy);
+  const bool success = makePlan(start.pose, goal.pose, tolerance_, cancel_checker, dummy);
+  finish_global(success);
+  return success;
 }
 
 bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose)
 {
+  const auto replan_start = std::chrono::steady_clock::now();
+  if (profiler_ && !profiler_->hasActiveCycle()) {
+    profiler_->beginCycle("replan_local");
+  }
+  auto finish_replan = [this, &replan_start](bool success) {
+    if (!profiler_) {
+      return;
+    }
+    profiler_->mark("replan_local_total_ms", elapsedMs(replan_start));
+    profiler_->finishCycle(success);
+  };
+
   if (!costmap_ || !minco_optimizer_) {
+    finish_replan(false);
     return false;
   }
 
@@ -636,7 +685,11 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   {
     std::lock_guard<std::mutex> lock(path_mutex_);
     if (latest_global_path_.empty()) {
+      finish_replan(false);
       return false;
+    }
+    if (profiler_) {
+      profiler_->setMetric("global_path_size", static_cast<double>(latest_global_path_.size()));
     }
     global_goal.x() = latest_global_path_.back().pose.position.x;
     global_goal.y() = latest_global_path_.back().pose.position.y;
@@ -647,13 +700,20 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   Eigen::Vector3d cur_pos(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
 
   // 2. Extract local dense path.
+  const auto extract_start = std::chrono::steady_clock::now();
   std::vector<Eigen::Vector3d> dense_local_path = extractLocalPath(cur_pos);
+  if (profiler_) {
+    profiler_->mark("extract_local_path_ms", elapsedMs(extract_start));
+    profiler_->setMetric("dense_local_path_size", static_cast<double>(dense_local_path.size()));
+  }
   if (dense_local_path.size() < 2) {
+    finish_replan(false);
     return false;
   }
   const bool local_end_is_goal =
     (global_goal - dense_local_path.back()).head<2>().norm() <= traj_goal_tolerance_;
   // 3. Sparsify local path.
+  const auto sparsify_start = std::chrono::steady_clock::now();
   std::vector<Eigen::Vector3d> sparse_path = utils::getSparseWaypoints(dense_local_path,
     minco_config.max_vel,
     minco_config.max_acc,
@@ -661,6 +721,10 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     [this](const Eigen::Vector3d & a, const Eigen::Vector3d & b) {
       return utils::isLineFree(this->costmap_, a, b);
     });
+  if (profiler_) {
+    profiler_->mark("sparsify_ms", elapsedMs(sparsify_start));
+    profiler_->setMetric("sparse_path_size", static_cast<double>(sparse_path.size()));
+  }
 
   std_msgs::msg::Header header_msg;
   header_msg.frame_id = global_frame_;
@@ -682,6 +746,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   }
 
   if (state == PlanningState::EMERGENCY_STOP) {
+    finish_replan(false);
     return false;
   }
 
@@ -735,7 +800,11 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   }
 
   // 6. Generate backup trajectory (safety).
+  const auto backup_start = std::chrono::steady_clock::now();
   traj_opt::Trajectory backup_traj = generateBackupTraj(start_state);
+  if (profiler_) {
+    profiler_->mark("backup_traj_ms", elapsedMs(backup_start));
+  }
 
   // 7. Prepare MINCO optimization.
   traj_opt::Trajectory opt_traj;
@@ -809,8 +878,14 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   // 8. Optimize.
   auto opt_start_time = rclcpp::Clock().now().seconds();
+  const auto minco_opt_start = std::chrono::steady_clock::now();
   double final_cost =
     minco_optimizer_->optimize(sparse_path, start_state, end_state, local_vmaxs, opt_traj);
+  if (profiler_) {
+    profiler_->mark("minco_opt_ms", elapsedMs(minco_opt_start));
+    profiler_->setMetric("final_cost", final_cost);
+    profiler_->setMetric("traj_duration", opt_traj.getTotalDuration());
+  }
 
   const double max_allowed_cost = 3000.0;
   if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
@@ -830,10 +905,13 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
         std::cout << YELLOW
                   << "[MincoPlanner] Last trajectory is still valid and safe. Continuing to execute it."
                   << RESET << std::endl;
+        finish_replan(true);
         return true;
       }
+      finish_replan(false);
       return false;
     }
+    finish_replan(false);
     return false;
   }
 
@@ -844,9 +922,15 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   //           << "cost: " << final_cost << RESET << std::endl;
 
   // 8.5 Quality gating (hard validation) before publishing.
-  if (!validateTrajectory(opt_traj, end_state.col(0))) {
+  const auto validate_start = std::chrono::steady_clock::now();
+  const bool traj_valid = validateTrajectory(opt_traj, end_state.col(0));
+  if (profiler_) {
+    profiler_->mark("validate_ms", elapsedMs(validate_start));
+  }
+  if (!traj_valid) {
     std::cout << RED << "[MincoPlanner] Trajectory validation failed! Rejecting." << RESET << std::endl;
     is_traj_safe_.store(false);
+    finish_replan(false);
     return false;
   }
 
@@ -885,6 +969,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   }
 
   traj_opt::Trajectory yaw_traj;
+  const auto yaw_start = std::chrono::steady_clock::now();
   if (use_yaw_opt_) {
     const bool yaw_success =
       optimizeYaw(start_state, opt_traj, yaw_traj, state, current_pose.pose, goal_yaw);
@@ -910,8 +995,12 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     yaw_traj.emplace_back(yaw_dur, cMat);
     yaw_traj.start_WT = opt_traj.start_WT;
   }
+  if (profiler_) {
+    profiler_->mark("yaw_opt_ms", elapsedMs(yaw_start));
+  }
 
   // 9. Publish and cache.
+  const auto publish_start = std::chrono::steady_clock::now();
   const double t_step = 0.05;
   int steps = static_cast<int>(std::ceil(opt_traj.getTotalDuration() / t_step)) + 1;
   steps = std::max(2, steps);
@@ -929,6 +1018,9 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     }
     visualizer_->update(sparse_path, backup_traj, opt_traj, opt_duration, astar_path_msg);
   }
+  if (profiler_) {
+    profiler_->mark("publish_visual_ms", elapsedMs(publish_start));
+  }
 
   last_traj_ = opt_traj;
   last_traj_.start_WT = rclcpp::Clock().now().seconds();
@@ -938,6 +1030,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   has_last_yaw_traj_ = true;
 
   is_traj_safe_.store(true);
+  finish_replan(true);
   return true;
 }
 
@@ -1639,7 +1732,11 @@ bool MincoPlanner::checkCollision(const traj_opt::Trajectory & traj)
 
 void MincoPlanner::safetyTimerCallback()
 {
+  const auto safety_start = std::chrono::steady_clock::now();
   const bool safe = checkCollision();
+  if (profiler_) {
+    profiler_->recordSafetyCheck(elapsedMs(safety_start), safe);
+  }
   if (!safe) {
     is_traj_safe_.store(false);
     auto node = node_.lock();
