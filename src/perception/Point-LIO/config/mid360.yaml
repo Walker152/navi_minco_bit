@@ -65,10 +65,11 @@
         publish:
             path_en: True                                   # False: close the path output
             scan_publish_en: True                           # False: close all the point cloud output
-            scan_bodyframe_pub_en: True                    # True: output the point cloud scans in IMU-body-frame
+            scan_bodyframe_pub_en: False                    # True: output the point cloud scans in IMU-body-frame
             tf_send_en: True                                # True: send transform from 'camera_init' to 'aft_mapped'
 
         pcd_save:
             pcd_save_en: False
+            accumulated_map_publish_hz: 1.0                 # Low-rate publish frequency for /Laser_map when pcd_save_en is true
             interval: -1                                    # how many LiDAR frames saved in each pcd file;
                                                             # -1 : all frames will be saved in ONE pcd file, may lead to memory crash when having too much frames.

@@ -3,7 +3,7 @@
 
 # 输入/输出话题
 topics:
-  input_cloud_topic: "/cloud_registered_dense"
+  input_cloud_topic: "/cloud_registered"
   output_ground_topic: "/ground_points_map"
   output_obstacles_topic: "/obstacle_clusters_map"
 
