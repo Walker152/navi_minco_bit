@@ -437,7 +437,7 @@ BT::NodeStatus CheckTunnelDeformation::tick()
   if (current_in_tunnel) {
     desired_pos = LifterPos::BOTTOM;
   } else if (in_transform_zone) {
-    if (is_disengaged) {
+    if (is_disengaged && through_tunnel) {
       desired_pos = LifterPos::BOTTOM;
     }
   }

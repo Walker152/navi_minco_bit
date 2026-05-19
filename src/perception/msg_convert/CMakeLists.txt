@@ -29,14 +29,6 @@ find_package(PCL REQUIRED COMPONENTS common filters)
 
 include_directories(${PCL_INCLUDE_DIRS})
 
-# Add executable
-add_executable(livox_to_pointcloud2 src/livox_to_pointcloud2.cpp)
-ament_target_dependencies(livox_to_pointcloud2
-  rclcpp
-  sensor_msgs
-  livox_ros_driver2
-)
-
 add_executable(cloud_registered_crop_filter src/cloud_registered_crop_filter.cpp)
 ament_target_dependencies(cloud_registered_crop_filter
   rclcpp
@@ -49,17 +41,12 @@ target_link_libraries(cloud_registered_crop_filter
   ${PCL_LIBRARIES}
 )
 
-# 启用链接时优化
-set_target_properties(livox_to_pointcloud2 PROPERTIES
-  INTERPROCEDURAL_OPTIMIZATION TRUE
-)
-
 set_target_properties(cloud_registered_crop_filter PROPERTIES
   INTERPROCEDURAL_OPTIMIZATION TRUE
 )
 
 # Install executable
-install(TARGETS livox_to_pointcloud2 cloud_registered_crop_filter
+install(TARGETS cloud_registered_crop_filter
   DESTINATION lib/${PROJECT_NAME}
 )
 
