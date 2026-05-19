@@ -11,8 +11,8 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     # Resolve package directories and default files.
-    nav2_pkg_dir = get_package_share_directory('nav2')
-    slam_params = os.path.join(nav2_pkg_dir, 'config', 'slam.yaml')
+    nav2_pkg_dir = get_package_share_directory('navi2')
+    slam_params = os.path.join(nav2_pkg_dir, 'params', 'slam.yaml')
 
     use_sim_time = LaunchConfiguration('use_sim_time')
     cloud_topic = LaunchConfiguration('cloud_topic')
@@ -25,10 +25,10 @@ def generate_launch_description():
         name='pointcloud_to_laserscan',
         output='screen',
         parameters=[{
-            'target_frame': 'base_link',
+            'target_frame': 'slambase',
             'transform_tolerance': 0.01,
-            'min_height': 0.0,
-            'max_height': 1.0,
+            'min_height': 0.05,
+            'max_height': 1.2,
             'angle_min': -3.14159,
             'angle_max': 3.14159,
             'angle_increment': 0.0087,
