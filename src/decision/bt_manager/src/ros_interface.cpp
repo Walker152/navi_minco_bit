@@ -420,9 +420,8 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
       nearest_tunnel_idx = static_cast<int>(i);
     }
   }
-  // std::cout << "Current position: (" << current_point.x << ", " << current_point.y << "),
-  // in_transform_zone: "
-  //           << in_transform_zone << ", current_transform_zone_index: " << current_transform_zone_index
+  // std::cout << "Current position: (" << current_point.x << ", " << current_point.y << "),in_transform_zone: "
+  //           << in_transform_zone
   //           << ", nearest_tunnel_idx: " << nearest_tunnel_idx << std::endl;
   bool current_in_tunnel = false;
   for (const auto & zone : tunnel_zone) {

@@ -226,7 +226,7 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   } else if (in_transform_zone && through_tunnel) {
     is_tunnel_journey = is_disengaged;
   } else {
-    is_tunnel_journey = need_cross_zone && is_disengaged;
+    is_tunnel_journey = false;
   }
   std::ostringstream oss;
   oss << "through_tunnel=" << through_tunnel << ", tunnel_idx=" << active_tunnel_idx
