@@ -53,6 +53,17 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class CheckAttackFortHealthExchangeNeeded : public BT::ConditionNode
+{
+public:
+  CheckAttackFortHealthExchangeNeeded(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  bool requested_ = false;
+};
+
 class CheckNormalExchangeCooldown : public BT::ConditionNode
 {
 public:

@@ -57,9 +57,11 @@ LidarMergerNode::LidarMergerNode(const rclcpp::NodeOptions & options) : Node("li
   pub_merged_ = this->create_publisher<livox_ros_driver2::msg::CustomMsg>(merged_topic_, qos_depth_);
 
   if (publish_pointcloud_) {
-    pub_front_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(front_cloud_topic_, qos_depth_);
+    pub_front_cloud_ =
+      this->create_publisher<sensor_msgs::msg::PointCloud2>(front_cloud_topic_, qos_depth_);
     pub_back_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(back_cloud_topic_, qos_depth_);
-    pub_merged_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(merged_cloud_topic_, qos_depth_);
+    pub_merged_cloud_ =
+      this->create_publisher<sensor_msgs::msg::PointCloud2>(merged_cloud_topic_, qos_depth_);
   }
 
   RCLCPP_INFO(this->get_logger(), "双雷达融合节点已启动。目标坐标系：主雷达 (前雷达)。");
@@ -166,12 +168,19 @@ sensor_msgs::msg::PointCloud2 LidarMergerNode::customMsgToPointCloud2(
   cloud.is_dense = false;
 
   sensor_msgs::PointCloud2Modifier modifier(cloud);
-  modifier.setPointCloud2Fields(
-    4,
-    "x", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "y", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "z", 1, sensor_msgs::msg::PointField::FLOAT32,
-    "intensity", 1, sensor_msgs::msg::PointField::FLOAT32);
+  modifier.setPointCloud2Fields(4,
+    "x",
+    1,
+    sensor_msgs::msg::PointField::FLOAT32,
+    "y",
+    1,
+    sensor_msgs::msg::PointField::FLOAT32,
+    "z",
+    1,
+    sensor_msgs::msg::PointField::FLOAT32,
+    "intensity",
+    1,
+    sensor_msgs::msg::PointField::FLOAT32);
   modifier.resize(msg.points.size());
 
   sensor_msgs::PointCloud2Iterator<float> iter_x(cloud, "x");
@@ -200,9 +209,7 @@ sensor_msgs::msg::PointCloud2 LidarMergerNode::customMsgToPointCloud2(
 }
 
 inline livox_ros_driver2::msg::CustomPoint LidarMergerNode::transformPoint(
-  const livox_ros_driver2::msg::CustomPoint & pt_in,
-  const Eigen::Matrix3f & R,
-  const Eigen::Vector3f & t)
+  const livox_ros_driver2::msg::CustomPoint & pt_in, const Eigen::Matrix3f & R, const Eigen::Vector3f & t)
 {
   livox_ros_driver2::msg::CustomPoint pt_out = pt_in;
 
@@ -223,7 +230,7 @@ void LidarMergerNode::syncCallback(const livox_ros_driver2::msg::CustomMsg::Cons
   msg_merged.header.frame_id = merged_frame_id_;
 
   uint64_t min_timebase = 0.0;
-  if(msg_front->timebase <= msg_back->timebase) {
+  if (msg_front->timebase <= msg_back->timebase) {
     min_timebase = msg_front->timebase;
     msg_merged.header = msg_front->header;
   } else {
@@ -233,14 +240,14 @@ void LidarMergerNode::syncCallback(const livox_ros_driver2::msg::CustomMsg::Cons
   msg_merged.timebase = min_timebase;
 
   const size_t n_front = msg_front->points.size();
-  const size_t n_back  = msg_back->points.size();
-  
+  const size_t n_back = msg_back->points.size();
+
   // 2. 预分配空间，避免 push_back 时的动态扩容，同时杜绝 resize 的无意义初始化
   msg_merged.points.reserve(n_front + n_back);
 
   // 3. 时间戳常数提取
   const uint32_t dt_front = static_cast<uint32_t>(msg_front->timebase - min_timebase);
-  const uint32_t dt_back  = static_cast<uint32_t>(msg_back->timebase - min_timebase);
+  const uint32_t dt_back = static_cast<uint32_t>(msg_back->timebase - min_timebase);
 
   // 4. 前雷达时间补偿 (仅当主雷达时间不是基准时间时才遍历，通常 dt_front 为 0，直接 O(1) 跳过)
   if (dt_front > 0) {
@@ -251,14 +258,17 @@ void LidarMergerNode::syncCallback(const livox_ros_driver2::msg::CustomMsg::Cons
 
   // 5. 后雷达点云变换与融合 (单线程，去除非必要的中间变量分配)
   for (const auto & pt_in : msg_back->points) {
-    livox_ros_driver2::msg::CustomPoint pt_out = pt_in; // 拷贝 intensity, tag 等非空间属性
-    
-    // 内联的矩阵乘加操作，避免调用任何耗时函数
-    pt_out.x = R_front_back_(0,0)*pt_in.x + R_front_back_(0,1)*pt_in.y + R_front_back_(0,2)*pt_in.z + t_front_back_(0);
-    pt_out.y = R_front_back_(1,0)*pt_in.x + R_front_back_(1,1)*pt_in.y + R_front_back_(1,2)*pt_in.z + t_front_back_(1);
-    pt_out.z = R_front_back_(2,0)*pt_in.x + R_front_back_(2,1)*pt_in.y + R_front_back_(2,2)*pt_in.z + t_front_back_(2);
+    livox_ros_driver2::msg::CustomPoint pt_out = pt_in;  // 拷贝 intensity, tag 等非空间属性
 
-    pt_out.offset_time += dt_back; 
+    // 内联的矩阵乘加操作，避免调用任何耗时函数
+    pt_out.x = R_front_back_(0, 0) * pt_in.x + R_front_back_(0, 1) * pt_in.y +
+               R_front_back_(0, 2) * pt_in.z + t_front_back_(0);
+    pt_out.y = R_front_back_(1, 0) * pt_in.x + R_front_back_(1, 1) * pt_in.y +
+               R_front_back_(1, 2) * pt_in.z + t_front_back_(1);
+    pt_out.z = R_front_back_(2, 0) * pt_in.x + R_front_back_(2, 1) * pt_in.y +
+               R_front_back_(2, 2) * pt_in.z + t_front_back_(2);
+
+    pt_out.offset_time += dt_back;
 
     msg_merged.points.push_back(pt_out);
   }

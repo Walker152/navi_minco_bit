@@ -209,17 +209,15 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   static Point2D last_manual_point(0.0, 0.0);
   blackboard_->set<Point2D>("manual_override_goal", manual_point_2d);
   if (std::hypot(manual_point.position.x - last_manual_point.x,
-                 manual_point.position.y - last_manual_point.y) < 0.001) {
+        manual_point.position.y - last_manual_point.y) < 0.001) {
     return;  // 如果位置没有明显变化，也不处理按键变化，避免重复触发
   }
   last_manual_point = manual_point_2d;
-  switch (msg->manual_key)
-  {
+  switch (msg->manual_key) {
   case 65:  // 'A'键切换控制模式
     blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
     break;
-  case 66:
-  {
+  case 66: {
     const auto enemy_outpost_destroyed = blackboard_->get<bool>("enemy_outpost_destroyed");
     blackboard_->set<bool>("enemy_outpost_destroyed", !enemy_outpost_destroyed);
     break;
@@ -230,8 +228,7 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   default:
     break;
   }
-  std::cout << "Received manual_key: " << static_cast<int>(msg->manual_key)
-            << std::endl;
+  std::cout << "Received manual_key: " << static_cast<int>(msg->manual_key) << std::endl;
 }
 
 // 新增：雷达信息回调函数
@@ -412,7 +409,8 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
       nearest_tunnel_idx = static_cast<int>(i);
     }
   }
-  // std::cout << "Current position: (" << current_point.x << ", " << current_point.y << "), in_transform_zone: "
+  // std::cout << "Current position: (" << current_point.x << ", " << current_point.y << "),
+  // in_transform_zone: "
   //           << in_transform_zone << ", current_transform_zone_index: " << current_transform_zone_index
   //           << ", nearest_tunnel_idx: " << nearest_tunnel_idx << std::endl;
   bool current_in_tunnel = false;

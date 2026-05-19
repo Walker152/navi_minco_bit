@@ -2,9 +2,9 @@
 // #define COMMUNICATION_DEBUG
 #include "header.hpp"
 #include "thread"
+#include <cstdlib>
 #include <deque>
 #include <limits>
-#include <cstdlib>
 
 #include "ros_interfaces/msg/ally_robot_status.hpp"
 #include "ros_interfaces/msg/behavior.hpp"
@@ -245,7 +245,7 @@ private:
       // vy_mps = 0.0f;
 
       vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
-      
+
       current_vx = odom_.twist.twist.linear.x;
       current_vy = odom_.twist.twist.linear.y;
       current_vw = odom_.twist.twist.angular.z;
@@ -291,9 +291,8 @@ private:
       fw_global,
       1,
       delta_yaw);
-    
-    BehaviorData behavior_data(
-      pitch_mode,
+
+    BehaviorData behavior_data(pitch_mode,
       desire_stance,
       desire_lifter_pos,
       scan_yaw_min_deg_,
@@ -326,7 +325,9 @@ private:
       }
     }
 #endif
-    std::this_thread::sleep_for(std::chrono::milliseconds(2));  // Avoid sending two packets in the same millisecond, which can cause issues for STM32's UART DMA parsing.
+    std::this_thread::sleep_for(
+      std::chrono::milliseconds(2));  // Avoid sending two packets in the same millisecond, which can cause
+                                      // issues for STM32's UART DMA parsing.
     auto flag2 = Communication::send2stm32<BehaviorData>(behavior_data, ENUM_PACKET_BEHAVIOR_DATA);
 #ifdef COMMUNICATION_DEBUG
     if (flag2 == 0) {
@@ -525,8 +526,8 @@ private:
     updateDeltaYaw(odomPtr->header.stamp, odomPtr->pose.pose.orientation);
   }
 
-  void updateDeltaYaw(const builtin_interfaces::msg::Time & stamp_msg,
-    const geometry_msgs::msg::Quaternion & orientation)
+  void updateDeltaYaw(
+    const builtin_interfaces::msg::Time & stamp_msg, const geometry_msgs::msg::Quaternion & orientation)
   {
     const rclcpp::Time stamp(stamp_msg);
     const int64_t window_ns = imu_yaw_window_ms_ * 1000000L;
@@ -570,7 +571,6 @@ private:
       delta_yaw_ = delta;
       // std::cout << "Delta yaw updated: " << delta_yaw_ << " degrees (matched_imu_yaw=" << matched_imu_yaw
       //           << ", found=" << found << ")" << std::endl;
-                
     }
   }
 

@@ -549,7 +549,6 @@ void MincoMpcController::applyGravityCompensation(
   constexpr double k_gravity_x = 1.0;
   constexpr double k_gravity_y = 20.0;
 
-
   double body_comp_x = 0.0;
   double body_comp_y = 0.0;
   if (std::abs(pitch) > angle_threshold) {

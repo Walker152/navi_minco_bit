@@ -13,7 +13,8 @@ SetGyroState::SetGyroState(const std::string & name, const BT::NodeConfiguration
 
 BT::PortsList SetGyroState::providedPorts()
 {
-  return {BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
+  return {
+    BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
     BT::InputPort<float>("gyro_vel", "Gyro speed in rpm"),
     BT::InputPort<bool>("random_speed", false, "Enable random gyro speed switching"),
     BT::InputPort<float>("change_speed_duration", 0.0f, "Random speed change interval (s)"),
@@ -38,10 +39,9 @@ BT::NodeStatus SetGyroState::tick()
   if (random_speed) {
     const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
     const auto & q = current_pose.orientation;
-    const double yaw = std::atan2(
-      2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+    const double yaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
     const float speed_scale = 1.0f + 0.3f * static_cast<float>(std::sin(yaw));
-    output_gyro_vel = base_speed * speed_scale ;
+    output_gyro_vel = base_speed * speed_scale;
   }
 
   blackboard->set("use_gyro_mode", use_gyro);
@@ -167,8 +167,7 @@ BT::NodeStatus TunnelGyroAlignAction::tick()
   const double error_backward = wrapAngle(base_target_yaw + M_PI - current_yaw);
   double yaw_error = 0.0;
   if (!pid_initialized_) {
-    yaw_error =
-      (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
+    yaw_error = (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
   } else {
     const double forward_abs = std::abs(error_forward);
     const double backward_abs = std::abs(error_backward);
@@ -195,8 +194,7 @@ BT::NodeStatus TunnelGyroAlignAction::tick()
   std::ostringstream oss;
   oss << "tunnel_idx=" << active_tunnel_idx << ", gyro_vel=" << computed_gyro_vel
       << ", yaw_error=" << yaw_error;
-  detail::logTransition(
-    detail::TreeKind::STANCE, "TunnelGyroAlignAction", true, oss.str(), branch);
+  detail::logTransition(detail::TreeKind::STANCE, "TunnelGyroAlignAction", true, oss.str(), branch);
 
   return BT::NodeStatus::RUNNING;
 }

@@ -26,7 +26,7 @@ constexpr std::uint16_t kHealthScale = 4;
 constexpr std::uint8_t kDefaultArmorId = 1;
 constexpr std::uint8_t kDefaultGameStatus = 4;
 constexpr std::uint16_t kDefaultGameTime = 420;
-}
+}  // namespace
 
 struct ScenarioStep
 {
@@ -60,8 +60,8 @@ public:
         last_desired_stance_ = msg->desired_stance;
       }
     };
-    behavior_sub_ = create_subscription<ros_interfaces::msg::Behavior>(
-      "/sentry/behaivor_send", 10, behavior_cb);
+    behavior_sub_ =
+      create_subscription<ros_interfaces::msg::Behavior>("/sentry/behaivor_send", 10, behavior_cb);
 
     tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
@@ -76,9 +76,8 @@ public:
       publishZeroOdom();
     });
 
-    scenario_timer_ = create_wall_timer(
-      std::chrono::duration_cast<std::chrono::nanoseconds>(
-        std::chrono::duration<double>(kScenarioPeriodSeconds)),
+    scenario_timer_ = create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                          std::chrono::duration<double>(kScenarioPeriodSeconds)),
       [this]() {
         advanceScenario();
       });
@@ -91,80 +90,148 @@ private:
   void buildScenarioSteps()
   {
     steps_.clear();
-    steps_.push_back(makeStep(
-      "1A_DefenseFar",
+    steps_.push_back(makeStep("1A_DefenseFar",
       "场景1: 前哨站未摧毁, 还在己方防守区, 距离隧道较远",
       "导航: 特殊响应->前哨站, 姿态: 防御/攻击+小陀螺",
-      100.0f, 300, 5.0, 7.0, false, 0.0, 0.0, kDefaultLifterPos));
-    steps_.push_back(makeStep(
-      "1B_TransformZone",
+      100.0f,
+      300,
+      5.0,
+      7.0,
+      false,
+      0.0,
+      0.0,
+      kDefaultLifterPos));
+    steps_.push_back(makeStep("1B_TransformZone",
       "场景1: 进入变形区, 期望云台下降, 关闭小陀螺",
       "导航: 通过隧道, 姿态: 进入非小陀螺控制",
-      100.0f, 300, 8.5, 4.5, false, 0.0, 0.0, 1));
-    steps_.push_back(makeStep(
-      "1C_Tunnel",
+      100.0f,
+      300,
+      8.5,
+      4.5,
+      false,
+      0.0,
+      0.0,
+      1));
+    steps_.push_back(makeStep("1C_Tunnel",
       "场景1: 进入隧道区域, PID 接管",
       "姿态: 小陀螺禁止被其他条件抢占",
-      100.0f, 300, 1.0, 2.7, true, 2.0, 2.0, 1));
+      100.0f,
+      300,
+      1.0,
+      2.7,
+      true,
+      2.0,
+      2.0,
+      1));
 
-    steps_.push_back(makeStep(
-      "2A_Outpost",
+    steps_.push_back(makeStep("2A_Outpost",
       "场景2: 到达前哨站区域, 姿态应为攻击",
       "导航: 前哨站目标, 姿态: ATTACK",
-      100.0f, 300, 15.0, 11.0, false, 0.0, 0.0, kDefaultLifterPos));
-    steps_.push_back(makeStep(
-      "2B_Hit",
+      100.0f,
+      300,
+      15.0,
+      11.0,
+      false,
+      0.0,
+      0.0,
+      kDefaultLifterPos));
+    steps_.push_back(makeStep("2B_Hit",
       "场景2: 血量下降触发冷却, 进入巡逻",
       "导航: 响应->巡逻, 姿态: 冷却内保持",
-      90.0f, 300, 15.0, 11.0, false, 0.0, 0.0, kDefaultLifterPos));
-    steps_.push_back(makeStep(
-      "2C_CooldownEnd",
+      90.0f,
+      300,
+      15.0,
+      11.0,
+      false,
+      0.0,
+      0.0,
+      kDefaultLifterPos));
+    steps_.push_back(makeStep("2C_CooldownEnd",
       "场景2: 5s 无下降, 冷却结束恢复前哨站响应",
       "导航: 回到前哨站响应",
-      90.0f, 300, 15.0, 11.0, false, 0.0, 0.0, kDefaultLifterPos));
+      90.0f,
+      300,
+      15.0,
+      11.0,
+      false,
+      0.0,
+      0.0,
+      kDefaultLifterPos));
 
-    steps_.push_back(makeStep(
-      "3A_RetreatTransform",
+    steps_.push_back(makeStep("3A_RetreatTransform",
       "场景3: 血量20且弹量0, 回家补血, 进入变形区",
       "导航: RETREAT, 姿态: 隧道前关闭小陀螺",
-      20.0f, 0, 15.0, 13.0, false, 0.0, 0.0, 1));
-    steps_.push_back(makeStep(
-      "3B_RetreatTunnel",
+      20.0f,
+      0,
+      15.0,
+      13.0,
+      false,
+      0.0,
+      0.0,
+      1));
+    steps_.push_back(makeStep("3B_RetreatTunnel",
       "场景3: 进入隧道, PID 接管",
       "姿态: 非小陀螺控制不应被抢占",
-      20.0f, 0, 13.1, 13.4, false, 0.0, 0.0, 1));
+      20.0f,
+      0,
+      13.1,
+      13.4,
+      false,
+      0.0,
+      0.0,
+      1));
     steps_.push_back(makeStep(
-      "3C_Home",
-      "场景3: 回家位置",
-      "导航: HOME",
-      20.0f, 0, 3.0, 3.0, false, 0.0, 0.0, kDefaultLifterPos));
+      "3C_Home", "场景3: 回家位置", "导航: HOME", 20.0f, 0, 3.0, 3.0, false, 0.0, 0.0, kDefaultLifterPos));
 
-    steps_.push_back(makeStep(
-      "4_Recover",
+    steps_.push_back(makeStep("4_Recover",
       "场景4: 血量恢复且弹量恢复, 继续打前哨站",
       "导航: 前哨站响应, 姿态随条件切换",
-      100.0f, 200, 5.0, 7.0, false, 0.0, 0.0, kDefaultLifterPos));
+      100.0f,
+      200,
+      5.0,
+      7.0,
+      false,
+      0.0,
+      0.0,
+      kDefaultLifterPos));
 
-    steps_.push_back(makeStep(
-      "5A_TrackingDefense",
+    steps_.push_back(makeStep("5A_TrackingDefense",
       "场景5: 己方防守区触发追踪",
       "导航: 追击抢占",
-      100.0f, 200, 7.0, 7.0, true, 8.0, 2.0, kDefaultLifterPos));
-    steps_.push_back(makeStep(
-      "5B_TrackingHighland",
+      100.0f,
+      200,
+      7.0,
+      7.0,
+      true,
+      8.0,
+      2.0,
+      kDefaultLifterPos));
+    steps_.push_back(makeStep("5B_TrackingHighland",
       "场景5: 高地追踪区域触发",
       "导航: 追击抢占",
-      100.0f, 200, 13.0, 8.0, true, 14.0, 9.0, kDefaultLifterPos));
+      100.0f,
+      200,
+      13.0,
+      8.0,
+      true,
+      14.0,
+      9.0,
+      kDefaultLifterPos));
 
-    steps_.push_back(makeStep(
-      "6_TunnelTracking",
+    steps_.push_back(makeStep("6_TunnelTracking",
       "场景6: 隧道内追踪, 不允许其他姿态抢占小陀螺控制",
       "姿态: 非小陀螺控制锁定",
-      100.0f, 200, 1.0, 2.7, true, 2.0, 2.0, 1));
+      100.0f,
+      200,
+      1.0,
+      2.7,
+      true,
+      2.0,
+      2.0,
+      1));
   }
 
-  ScenarioStep makeStep(
-    const std::string & name,
+  ScenarioStep makeStep(const std::string & name,
     const std::string & description,
     const std::string & branch_hint,
     float health,
@@ -214,8 +281,7 @@ private:
     }
     const auto & step = steps_[current_index_];
     RCLCPP_INFO(
-      get_logger(),
-      "切换场景 [%zu/%zu]: %s", current_index_ + 1, steps_.size(), step.name.c_str());
+      get_logger(), "切换场景 [%zu/%zu]: %s", current_index_ + 1, steps_.size(), step.name.c_str());
     RCLCPP_INFO(get_logger(), "说明: %s", step.description.c_str());
     RCLCPP_INFO(get_logger(), "分支提示: %s", step.branch_hint.c_str());
     if (current_index_ > 0) {
@@ -257,8 +323,8 @@ private:
     }
     if (before.target_pos.x != after.target_pos.x || before.target_pos.y != after.target_pos.y) {
       std::ostringstream tpos;
-      tpos << "target=(" << before.target_pos.x << "," << before.target_pos.y << ")->(" << after.target_pos.x
-           << "," << after.target_pos.y << ")";
+      tpos << "target=(" << before.target_pos.x << "," << before.target_pos.y << ")->("
+           << after.target_pos.x << "," << after.target_pos.y << ")";
       append(tpos.str());
     }
     if (before.lifter_pos != after.lifter_pos) {
@@ -362,7 +428,7 @@ private:
   std::uint8_t normalizeStance(std::uint8_t stance) const
   {
     if (stance < ros_interfaces::msg::Behavior::STANCE_ATTACK ||
-      stance > ros_interfaces::msg::Behavior::STANCE_MOVE) {
+        stance > ros_interfaces::msg::Behavior::STANCE_MOVE) {
       return ros_interfaces::msg::Behavior::STANCE_MOVE;
     }
     return stance;

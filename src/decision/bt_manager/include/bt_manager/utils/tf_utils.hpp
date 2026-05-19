@@ -4,10 +4,10 @@
 #include <geometry_msgs/msg/pose.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float32.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>  // <---- 使用动态变换
 #include <tf2_ros/transform_listener.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 namespace Sentry_BT {
 
@@ -35,7 +35,9 @@ public:
   void updateCurrentPose(const geometry_msgs::msg::Pose & pose);
   float getCurrentYawDeg();
   bool waitForTransform(const std::string & target_frame, const std::string & source_frame);
-  void transformYaw(float yaw_in, float & yaw_out, const std::string & target_frame, const std::string & source_frame);
+  void transformYaw(
+    float yaw_in, float & yaw_out, const std::string & target_frame, const std::string & source_frame);
+
 private:
   std::mutex current_pose_mutex_;
   geometry_msgs::msg::Pose current_pose_;
