@@ -44,9 +44,9 @@ float TransformUtils::getCurrentYawDeg()
     pose_copy = current_pose_;
   }
 
-  float yaw_deg = tf2::getYaw(tf2::Quaternion(
-    pose_copy.orientation.x, pose_copy.orientation.y, pose_copy.orientation.z,
-    pose_copy.orientation.w)) *
+  float yaw_deg =
+    tf2::getYaw(tf2::Quaternion(
+      pose_copy.orientation.x, pose_copy.orientation.y, pose_copy.orientation.z, pose_copy.orientation.w)) *
     180.0f / static_cast<float>(M_PI);
   NormalizeAngle(yaw_deg);
   return yaw_deg;
@@ -129,7 +129,8 @@ bool TransformUtils::transformMapPose(const geometry_msgs::msg::Pose & input_pos
   }
 }
 
-void TransformUtils::transformYaw(float yaw_in, float & yaw_out, const std::string & target_frame, const std::string & source_frame)
+void TransformUtils::transformYaw(
+  float yaw_in, float & yaw_out, const std::string & target_frame, const std::string & source_frame)
 {
   try {
     geometry_msgs::msg::TransformStamped transform_stamped;
@@ -145,13 +146,13 @@ void TransformUtils::transformYaw(float yaw_in, float & yaw_out, const std::stri
     geometry_msgs::msg::Pose pose_out;
     tf2::doTransform(pose_in, pose_out, transform_stamped);
 
-    yaw_out = tf2::getYaw(tf2::Quaternion(
-      pose_out.orientation.x, pose_out.orientation.y, pose_out.orientation.z,
-      pose_out.orientation.w)) *
+    yaw_out =
+      tf2::getYaw(tf2::Quaternion(
+        pose_out.orientation.x, pose_out.orientation.y, pose_out.orientation.z, pose_out.orientation.w)) *
       180.0f / static_cast<float>(M_PI);
     NormalizeAngle(yaw_out);
   } catch (const tf2::TransformException & ex) {
     yaw_out = yaw_in;  // 如果转换失败，返回输入角度
   }
-  }
+}
 }  // namespace Sentry_BT

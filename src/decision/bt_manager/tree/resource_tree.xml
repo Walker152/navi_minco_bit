@@ -23,6 +23,12 @@
         </ReactiveFallback>
       </ReactiveSequence>
 
+      <ReactiveSequence name="AttackFortTransformHealthExchangeBranch">
+        <CheckAttackFortHealthExchangeNeeded branch="AttackFortTransformHealthExchangeBranch" />
+        <CheckCoinRemaining threshold="100" mode="greater" branch="AttackFortTransformHealthExchangeBranch" />
+        <RequestRemoteHealthExchangeAction />
+      </ReactiveSequence>
+
       <ReactiveSequence name="RemoteHealthExchangeBranch">
         <CheckEngagedStatus expected="false" branch="RemoteHealthExchange" />
         <CheckHealth threshold="30" mode="less" branch="RemoteHealthExchange" />

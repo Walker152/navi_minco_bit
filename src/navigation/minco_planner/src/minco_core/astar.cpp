@@ -187,13 +187,20 @@ bool Astar::calcPath(int /*nplan*/)
     bool line_clear = true;
     while (x0 != x1 || y0 != y1) {
       int idx = y0 * static_cast<int>(nx) + x0;
-      if (idx >= 0 && idx < static_cast<int>(ns) &&
-          costarr[idx] >= COST_OBS_ROS && !(allow_unknown && costarr[idx] == 255)) {
-        line_clear = false; break;
+      if (idx >= 0 && idx < static_cast<int>(ns) && costarr[idx] >= COST_OBS_ROS &&
+          !(allow_unknown && costarr[idx] == 255)) {
+        line_clear = false;
+        break;
       }
       int e2 = 2 * err;
-      if (e2 > -dy) { err -= dy; x0 += sx; }
-      if (e2 < dx)  { err += dx; y0 += sy; }
+      if (e2 > -dy) {
+        err -= dy;
+        x0 += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y0 += sy;
+      }
     }
     if (line_clear) {
       pathx[npath] = goal[0];

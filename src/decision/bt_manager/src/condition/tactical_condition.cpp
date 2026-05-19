@@ -53,18 +53,16 @@ BT::NodeStatus CheckAttackCondition::tick()
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
 
-  const auto threshold = getInput<int>("home_health_threshold").value_or(1000);
-  const bool enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
-  const int small_energy_status = blackboard->get<int>("small_energy_status");
-  const int big_energy_status = blackboard->get<int>("big_energy_status");
-  const int home_health = blackboard->get<int>("home_health");
+  const auto control_mode = blackboard->get<ControlMode>("control_mode");
+  const auto manual_goal = blackboard->get<Point2D>("manual_override_goal");
+  const bool manual_attack_command =
+    control_mode == ControlMode::MANUAL_CONTROL && enemy_fort_zone.contains(manual_goal);
 
-  const bool energy_active = small_energy_status > 0 || big_energy_status > 0;
-  const bool condition_met = enemy_outpost_destroyed && energy_active && home_health > threshold;
+  const bool condition_met = manual_attack_command;
 
   std::ostringstream oss;
-  oss << "outpost_destroyed=" << enemy_outpost_destroyed << ", energy_active=" << energy_active
-      << ", home_health=" << home_health << ", threshold=" << threshold;
+  oss << ", manual_attack_command=" << manual_attack_command;
+
   detail::logTransition(
     detail::TreeKind::TACTICAL, "CheckAttackCondition", condition_met, oss.str(), branch);
 

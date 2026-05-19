@@ -690,7 +690,8 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   vec_Vec3f shifted_waypoints;
   VecDf shifted_durations;
   bool has_shifted_seed = false;
-  // std::cout << CYAN << "[MincoPlanner] Planning state: " << ((state == PlanningState::HOT_START) ? "HOT_START" : "COLD_START")
+  // std::cout << CYAN << "[MincoPlanner] Planning state: " << ((state == PlanningState::HOT_START) ?
+  // "HOT_START" : "COLD_START")
   //           << RESET << std::endl;
   if (state == PlanningState::HOT_START) {
     const double now = rclcpp::Clock().now().seconds() + 0.005;  // small buffer
@@ -716,7 +717,8 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     // Avoid reusing stale warm-start guesses.
     minco_optimizer_->setInitPsAndTs(vec_Vec3f{}, VecDf{});
   }
-  // std::cout << CYAN << "[MincoPlanner] Start state: pos=(" << start_state.col(0).x() << ", " << start_state.col(0).y()
+  // std::cout << CYAN << "[MincoPlanner] Start state: pos=(" << start_state.col(0).x() << ", " <<
+  // start_state.col(0).y()
   //           << "), vel=(" << start_state.col(1).x() << ", " << start_state.col(1).y()
   //           << "), acc=(" << start_state.col(2).x() << ", " << start_state.col(2).y() << ")"
   //           << RESET << std::endl;
@@ -760,9 +762,13 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     const double v_max_kinematic = std::sqrt(std::max(0.0, v_curr * v_curr + 2.0 * amax * dist_to_goal));
     double local_end_vmax = minco_config.max_vel;
     if (sparse_path.size() >= 3) {
-      local_end_vmax = utils::LimitLocalVel(sparse_path, sparse_path.size() - 3, minco_config.max_vel, 
-                                            minco_config.turn_angle_deadzone, minco_config.turn_angle_saturation, 
-                                            minco_config.min_turn_vel, minco_config.decay_power);
+      local_end_vmax = utils::LimitLocalVel(sparse_path,
+        sparse_path.size() - 3,
+        minco_config.max_vel,
+        minco_config.turn_angle_deadzone,
+        minco_config.turn_angle_saturation,
+        minco_config.min_turn_vel,
+        minco_config.decay_power);
     }
     const double v_cmd = std::min({minco_config.max_vel, v_max_kinematic, dist_to_goal, local_end_vmax});
     end_state.col(1) = tangent * v_cmd;
@@ -820,7 +826,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     }
 
     if (has_last_traj && isTrajSafe()) {
-      if(!isTrajectoryTimeExpired(rclcpp::Clock().now().seconds())) {
+      if (!isTrajectoryTimeExpired(rclcpp::Clock().now().seconds())) {
         std::cout << YELLOW
                   << "[MincoPlanner] Last trajectory is still valid and safe. Continuing to execute it."
                   << RESET << std::endl;
@@ -1052,8 +1058,8 @@ void MincoPlanner::PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path
 // 4) Internal implementation logic / algorithms
 // -----------------------------------------------------------------------------
 
-static bool projectStartToFreeCell(nav2_costmap_2d::Costmap2D * costmap,
-                                   unsigned int & mx, unsigned int & my)
+static bool projectStartToFreeCell(
+  nav2_costmap_2d::Costmap2D * costmap, unsigned int & mx, unsigned int & my)
 {
   const unsigned int nx = costmap->getSizeInCellsX();
   const unsigned int ny = costmap->getSizeInCellsY();
@@ -1065,19 +1071,25 @@ static bool projectStartToFreeCell(nav2_costmap_2d::Costmap2D * costmap,
   for (int k = 0; k < 4; ++k) {
     int sx = static_cast<int>(mx) + dx4[k];
     int sy = static_cast<int>(my) + dy4[k];
-    if (sx < 0 || sy < 0 || sx >= static_cast<int>(nx) || sy >= static_cast<int>(ny)) continue;
-    if (isFree(static_cast<unsigned int>(sx), static_cast<unsigned int>(sy))) return false;
+    if (sx < 0 || sy < 0 || sx >= static_cast<int>(nx) || sy >= static_cast<int>(ny))
+      continue;
+    if (isFree(static_cast<unsigned int>(sx), static_cast<unsigned int>(sy)))
+      return false;
   }
   constexpr int kMaxRadius = 50;
   for (int r = 1; r <= kMaxRadius; ++r) {
     for (int dy = -r; dy <= r; ++dy) {
       for (int dx = -r; dx <= r; ++dx) {
-        if (std::abs(dx) != r && std::abs(dy) != r) continue;
+        if (std::abs(dx) != r && std::abs(dy) != r)
+          continue;
         int cx = static_cast<int>(mx) + dx;
         int cy = static_cast<int>(my) + dy;
-        if (cx < 0 || cy < 0 || cx >= static_cast<int>(nx) || cy >= static_cast<int>(ny)) continue;
+        if (cx < 0 || cy < 0 || cx >= static_cast<int>(nx) || cy >= static_cast<int>(ny))
+          continue;
         if (isFree(static_cast<unsigned int>(cx), static_cast<unsigned int>(cy))) {
-          mx = static_cast<unsigned int>(cx); my = static_cast<unsigned int>(cy); return true;
+          mx = static_cast<unsigned int>(cx);
+          my = static_cast<unsigned int>(cy);
+          return true;
         }
       }
     }
@@ -1580,7 +1592,8 @@ bool MincoPlanner::checkCollision()
       double esdf_dist = 0.0;
       Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
       esdf_map_->evaluate(pos, esdf_dist, esdf_grad);
-      if (esdf_dist <= 0.0) return false;
+      if (esdf_dist <= 0.0)
+        return false;
     }
   }
 
@@ -1616,7 +1629,8 @@ bool MincoPlanner::checkCollision(const traj_opt::Trajectory & traj)
       double esdf_dist = 0.0;
       Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
       esdf_map_->evaluate(pos, esdf_dist, esdf_grad);
-      if (esdf_dist <= 0.0) return false;
+      if (esdf_dist <= 0.0)
+        return false;
     }
   }
 
@@ -1773,13 +1787,7 @@ Eigen::Vector3d MincoPlanner::getCurrentSpeed() const
     double vy_global = 0.0;
     double omega_global = 0.0;
     utils::compensateLeverArm(
-      twist.linear.x,
-      twist.linear.y,
-      twist.angular.z,
-      yaw,
-      vx_global,
-      vy_global,
-      omega_global);
+      twist.linear.x, twist.linear.y, twist.angular.z, yaw, vx_global, vy_global, omega_global);
 
     // std::cout << "[MincoPlanner] Lever-arm compensation: raw_v=(" << twist.linear.x << ", "
     //           << twist.linear.y << ") wz=" << twist.angular.z << " yaw=" << yaw << " -> v=("
