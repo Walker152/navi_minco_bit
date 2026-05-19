@@ -137,10 +137,11 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 
 inline std::vector<Point2D> nav_points = {
   {3.0, 3.0, 0.0},   // HOME
-  {12.8, 5.5, 0.0},   // BONUS
-  {15.7, 11.0, 0.0}, // OUTPOST
+  {12.8, 5.5, 0.0},  // BONUS
+  {15.7, 11.0, 0.0}, // ENEMY_OUTPOST
   {7.2, 7.5, 0.0},   // OWN_FORT
-  {22.0, 7.5, 0.0}   // ENEMY_FORT
+  {22.0, 7.5, 0.0},  // ENEMY_FORT
+  {11.3, 4.0, 0.0}   // OWN_OUTPOST
 
   // for rmul
   // {1.2, 7.2, 0.0},  //HOME
@@ -322,7 +323,8 @@ struct GimbalPatrolConfig {
 enum class PatrolZoneType {
   ENEMY_DEFENSE,
   OWN_DEFENSE,
-  HIGHLAND
+  HIGHLAND,
+  OWN_OUTPOST
 };
 
 struct PatrolZoneTypeHash {
@@ -336,17 +338,20 @@ inline std::unordered_map<TacticalMode, std::unordered_map<PatrolZoneType, Gimba
   {TacticalMode::OFFENSIVE, {
     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
-    {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}}
+    {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
+    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}}
   }},
   {TacticalMode::DEFENSIVE, {
     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
-    {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}}
+    {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
+    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}}
   }},
   {TacticalMode::BALANCED, {
     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
-    {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}}
+    {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
+    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}}
   }}
 };
 

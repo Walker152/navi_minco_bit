@@ -22,7 +22,7 @@ BT::PortsList SetTunnelRecoveryAttemptPoint::providedPorts()
 BT::NodeStatus SetTunnelRecoveryAttemptPoint::tick()
 {
   auto blackboard = config().blackboard;
-  const int tunnel_idx = blackboard->get<int>("current_transform_zone_index");
+  const int tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
   if (tunnel_idx < 0 || tunnel_idx >= static_cast<int>(tunnel_recovery_configs.size())) {
     std::cout << "[RECOVERY_TREE] SetTunnelRecoveryAttemptPoint invalid tunnel_idx=" << tunnel_idx
               << std::endl;
@@ -50,7 +50,7 @@ BT::PortsList SetTunnelRecoveryRetreatPoint::providedPorts()
 BT::NodeStatus SetTunnelRecoveryRetreatPoint::tick()
 {
   auto blackboard = config().blackboard;
-  const int tunnel_idx = blackboard->get<int>("current_transform_zone_index");
+  const int tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
   if (tunnel_idx < 0 || tunnel_idx >= static_cast<int>(tunnel_recovery_configs.size())) {
     std::cout << "[RECOVERY_TREE] SetTunnelRecoveryRetreatPoint invalid tunnel_idx=" << tunnel_idx
               << std::endl;
@@ -85,7 +85,7 @@ BT::NodeStatus SetGlobalVelocity::tick()
   const bool use_tunnel_profile = getInput<bool>("use_tunnel_profile").value_or(true);
 
   if (use_tunnel_profile) {
-    const int tunnel_idx = config().blackboard->get<int>("current_transform_zone_index");
+    const int tunnel_idx = config().blackboard->get<int>("nearest_tunnel_idx");
     if (tunnel_idx >= 0 && tunnel_idx < static_cast<int>(tunnel_recovery_configs.size())) {
       const auto & cfg = tunnel_recovery_configs[static_cast<std::size_t>(tunnel_idx)];
       global_vx = static_cast<double>(cfg.recovery_vx);

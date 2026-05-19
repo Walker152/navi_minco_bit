@@ -33,7 +33,9 @@
         <CheckEngagedStatus expected="false" branch="RemoteHealthExchange" />
         <CheckHealth threshold="30" mode="less" branch="RemoteHealthExchange" />
         <CheckCoinRemaining threshold="100" mode="greater" branch="RemoteHealthExchange" />
-        <CheckRemoteExchangeCooldown cooldown_seconds="10.0" branch="RemoteHealthExchange" />
+        <CheckRemoteExchangeCooldown cooldown_seconds="10.0"
+                                     exchange_count_key="remote_health_exchange_count"
+                                     branch="RemoteHealthExchange" />
         <RequestRemoteHealthExchangeAction />
       </ReactiveSequence>
 
@@ -43,13 +45,18 @@
         <CheckAmmoLow ammo_threshold="50" branch="RemoteAmmoExchange" />
         <CheckCoinRemaining threshold="100" mode="greater" branch="RemoteAmmoExchange" />
         <CheckRemainingAmmoExchange branch="RemoteAmmoExchange" />
-        <CheckRemoteExchangeCooldown cooldown_seconds="8.0" branch="RemoteAmmoExchange" />
+        <CheckRemoteExchangeCooldown cooldown_seconds="8.0"
+                                     exchange_count_key="remote_ammo_exchange_count"
+                                     branch="RemoteAmmoExchange" />
         <RequestRemoteAmmoExchangeAction />
       </ReactiveSequence>
 
       <!-- P2: 普通补给点弹药兑换（到家 + 弹药&lt;100 + 金币&gt;=10） -->
       <ReactiveSequence name="NormalAmmoExchangeBranch">
-        <CheckInZone zone_name="own_defense" branch="NormalAmmoExchange" />
+        <ReactiveFallback name="NormalAmmoExchangeConditions">
+          <CheckInZone zone_name="own_supply_zone" branch="NormalAmmoExchange" />
+          <CheckInZone zone_name="own_outpost_zone" branch="NormalAmmoExchange" />
+        </ReactiveFallback>
         <CheckAmmoLow ammo_threshold="100" branch="NormalAmmoExchange" />
         <CheckCoinRemaining threshold="10" mode="greater" branch="NormalAmmoExchange" />
         <CheckNormalExchangeCooldown cooldown_seconds="1.0" branch="NormalAmmoExchange" />

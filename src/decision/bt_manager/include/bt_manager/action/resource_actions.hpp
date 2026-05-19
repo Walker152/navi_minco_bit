@@ -26,9 +26,6 @@ public:
   RequestRemoteAmmoExchangeAction(const std::string & name, const BT::NodeConfiguration & config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
-
-private:
-  uint8_t ammo_exchange_request_num = 0;
 };
 
 class RequestRemoteHealthExchangeAction : public BT::SyncActionNode
@@ -37,8 +34,5 @@ public:
   RequestRemoteHealthExchangeAction(const std::string & name, const BT::NodeConfiguration & config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
-
-private:
-  uint8_t health_exchange_request_num = 0;
 };
 }  // namespace Sentry_BT

@@ -98,7 +98,10 @@ BT::NodeStatus SetGimbalPoseByAreaAction::tick()
   bool is_in_zone = false;
   PatrolZoneType target_zone;
 
-  if (enemy_defense_zone.contains(current_pt)) {
+  if (own_outpost_buff_zone.contains(current_pt)) {
+    target_zone = PatrolZoneType::OWN_OUTPOST;
+    is_in_zone = true;
+  } else if (enemy_defense_zone.contains(current_pt)) {
     target_zone = PatrolZoneType::ENEMY_DEFENSE;
     is_in_zone = true;
   } else if (own_defense_zone.contains(current_pt)) {
