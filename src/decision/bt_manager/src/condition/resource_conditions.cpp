@@ -259,8 +259,7 @@ CheckInZone::CheckInZone(const std::string & name, const BT::NodeConfiguration &
 
 BT::PortsList CheckInZone::providedPorts()
 {
-  return {BT::InputPort<std::string>(
-            "zone_name",
+  return {BT::InputPort<std::string>("zone_name",
             "",
             "Zone: enemy_defense/own_defense/highland/own_outpost_zone/enemy_outpost_zone/"
             "own_supply_zone/enemy_supply_zone"),
