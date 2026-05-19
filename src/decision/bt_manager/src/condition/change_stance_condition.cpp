@@ -66,7 +66,7 @@ BT::NodeStatus CheckOutpostTarget::tick()
     enemy_outpost_watch_zone.contains({current_pose.position.x, current_pose.position.y, 0.0});
 
   const float dist_threshold = getInput<float>("goal_distance_threshold").value_or(0.8f);
-  const auto & outpost = nav_points[static_cast<size_t>(Sentry_BT::NavGoal::OUTPOST)];
+  const auto & outpost = nav_points[static_cast<size_t>(Sentry_BT::NavGoal::ENEMY_OUTPOST)];
   const bool nav_goal_is_outpost =
     std::hypot(nav_goal.x - outpost.x, nav_goal.y - outpost.y) <= static_cast<double>(dist_threshold);
   const bool active = (attacking_outpost_mode && in_outpost_zone) && nav_goal_is_outpost;

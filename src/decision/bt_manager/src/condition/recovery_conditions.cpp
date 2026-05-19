@@ -65,7 +65,7 @@ BT::NodeStatus CheckTimeInZone::tick()
 
   auto blackboard = config().blackboard;
   const bool in_zone = blackboard->get<bool>("in_transform_zone");
-  const int zone_index = blackboard->get<int>("current_transform_zone_index");
+  const int zone_index = blackboard->get<int>("nearest_tunnel_idx");
 
   if (!in_zone) {
     was_in_zone_ = false;
