@@ -21,7 +21,7 @@
                                  ki="0.1"
                                  kd="0.0"
                                  deadzone_rad="0.05"
-                                 max_abs_gyro_vel="30.0" />
+                                 max_abs_gyro_vel="50.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
         </ReactiveSequence>
 
