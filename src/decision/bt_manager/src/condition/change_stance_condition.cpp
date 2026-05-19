@@ -212,8 +212,10 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   const bool goal_in_highland = highland_zone.contains(goal_point);
   const bool goal_in_own = own_defense_zone.contains(goal_point);
   const bool goal_in_enemy = enemy_defense_zone.contains(goal_point);
+  const bool current_in_named = current_in_highland || current_in_own || current_in_enemy;
+  const bool goal_in_named = goal_in_highland || goal_in_own || goal_in_enemy;
   const bool same_zone = (current_in_highland && goal_in_highland) || (current_in_own && goal_in_own) ||
-                         (current_in_enemy && goal_in_enemy);
+                         (current_in_enemy && goal_in_enemy) || (!current_in_named && !goal_in_named);
   const bool need_cross_zone = !same_zone;
   const bool in_transform_zone = blackboard->get<bool>("in_transform_zone");
   bool is_tunnel_journey = false;
@@ -222,7 +224,7 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   if (current_in_tunnel) {
     is_tunnel_journey = true;
   } else if (in_transform_zone) {
-    is_tunnel_journey = is_disengaged;
+    is_tunnel_journey = is_disengaged && through_tunnel;
   } else {
     is_tunnel_journey = need_cross_zone && is_disengaged;
   }
