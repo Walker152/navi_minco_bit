@@ -295,4 +295,19 @@ void AreaVisualizer::publishAreaMarkers(const rclcpp::Time & now)
   area_marker_pub_->publish(marker_array);
 }
 
+void AreaVisualizer::clearAreaMarkers(const rclcpp::Time & now)
+{
+  if (!area_marker_pub_) {
+    return;
+  }
+
+  visualization_msgs::msg::MarkerArray marker_array;
+  visualization_msgs::msg::Marker marker;
+  marker.header.frame_id = "map";
+  marker.header.stamp = now;
+  marker.action = visualization_msgs::msg::Marker::DELETEALL;
+  marker_array.markers.push_back(marker);
+  area_marker_pub_->publish(marker_array);
+}
+
 }  // namespace Sentry_BT

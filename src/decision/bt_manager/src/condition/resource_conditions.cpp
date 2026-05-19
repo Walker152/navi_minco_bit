@@ -288,9 +288,9 @@ BT::NodeStatus CheckInZone::tick()
   } else if (zone_name == "enemy_outpost_zone") {
     in_zone = enemy_outpost_buff_zone.contains(point);
   } else if (zone_name == "own_supply_zone") {
-    in_zone = own_base_buff_zone.contains(point);
+    in_zone = own_supply_zone.contains(point);
   } else if (zone_name == "enemy_supply_zone") {
-    in_zone = enemy_base_buff_zone.contains(point);
+    in_zone = enemy_supply_zone.contains(point);
   }
 
   std::ostringstream oss;
