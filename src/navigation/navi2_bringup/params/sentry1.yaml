@@ -292,14 +292,6 @@ planner_server:
       use_smac: true
       allow_unknown: false
       odom_topic: /aft_mapped_to_init
-
-      profiler:
-        enabled: false
-        log_enabled: true
-        csv_enabled: true
-        log_period_sec: 1.0
-        csv_path: "/home/alioth/minco_planner_profile.csv"
-
       corridor:
         robot_radius: 0.25
         extra_margin: 0.05
@@ -348,7 +340,6 @@ planner_server:
         esdf_resolution: 0.05
         dynamic_esdf_size: 8.0
         dynamic_dilation_radius: 0.05
-        publish_esdf: false
 
 smoother_server:
   ros__parameters:
