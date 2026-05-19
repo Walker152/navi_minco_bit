@@ -38,11 +38,11 @@ echo "========================================"
 
 # 5. 去除 nohup，直接使用后台符 &，并将日志实时刷入文件
 # 使用 stdbuf -oL 强制按行刷新输出缓冲区，防止日志被系统吞掉
-stdbuf -oL $PTP4L_BIN -i $INTERFACE -m -l 6 > $PTP4L_LOG 2>&1 &
+stdbuf -oL chrt -f 99 $PTP4L_BIN -i $INTERFACE -2 -m -l 6 > $PTP4L_LOG 2>&1 &
 PTP4L_PID=$!
 echo "✅ ptp4l 已启动 (PID: $PTP4L_PID) | 日志: $PTP4L_LOG"
 
-stdbuf -oL $PHC2SYS_BIN -c $INTERFACE -s CLOCK_REALTIME -O 0 > $PHC2SYS_LOG 2>&1 &
+stdbuf -oL chrt -f 99 $PHC2SYS_BIN -c $INTERFACE -s CLOCK_REALTIME -O 0 > $PHC2SYS_LOG 2>&1 &
 PHC2SYS_PID=$!
 echo "✅ phc2sys 已启动 (PID: $PHC2SYS_PID) | 日志: $PHC2SYS_LOG"
 
