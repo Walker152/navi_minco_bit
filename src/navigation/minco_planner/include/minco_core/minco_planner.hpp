@@ -18,6 +18,7 @@
 #include "minco_core/astar.hpp"
 #include "minco_core/corridor_generator.hpp"
 #include "minco_core/recovery_behaivor.hpp"
+#include "minco_core/planner_profiler.hpp"
 #include "smac_search/smac_planner_2d_simple.hpp"
 #include "small_rog_map/hybrid_esdf_map.hpp"
 #include "traj_opt/backup_traj_optimizer_s4.h"
@@ -162,6 +163,7 @@ private:
   double traj_goal_tolerance_{0.5};
   std::string esdf_pcd_path_;
   double esdf_resolution_;
+  bool publish_esdf_{true};
   MincoOptimizer::Config minco_config;
   RecoverServer::Config recovery_server_config_{};
 
@@ -198,6 +200,7 @@ private:
   mutable std::mutex mutex_;
 
   std::unique_ptr<Visualizer> visualizer_;
+  std::unique_ptr<PlannerProfiler> profiler_;
   rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
 };
 
