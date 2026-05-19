@@ -70,10 +70,9 @@
             </ReactiveSequence>
 
             <ReactiveSequence name="OwnDefenseHomeSupply">
-              <ReactiveFallback name="OwnDefenseSupplySelector">
-                <CheckInZone zone_name="own_defense" branch="OwnDefenseHomeSupply" />
-                <CheckInZone zone_name="highland" branch="OwnDefenseHomeSupply" />
-              </ReactiveFallback>
+              <Inverter>
+                <CheckInZone zone_name="enemy_defense" branch="OwnDefenseHomeSupply" />
+              </Inverter>
               <SetCoordinate name="SetOwnDefenseSupplyHomeGoal" goal="0" />
               <NavigateToPoseAction name="NavigateOwnDefenseSupplyHome" />
             </ReactiveSequence>

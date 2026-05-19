@@ -11,15 +11,15 @@
       "log_data_port": 56500
     },
     "host_net_info": {
-      "cmd_data_ip": "192.168.1.50",
+      "cmd_data_ip": "192.168.1.47",
       "cmd_data_port": 56100,
-      "push_msg_ip": "192.168.1.50",
+      "push_msg_ip": "192.168.1.47",
       "push_msg_port": 56200,
-      "point_data_ip": "192.168.1.50",
+      "point_data_ip": "192.168.1.47",
       "point_data_port": 56300,
-      "imu_data_ip": "192.168.1.50",
+      "imu_data_ip": "192.168.1.47",
       "imu_data_port": 56400,
-      "log_data_ip": "192.168.1.50",
+      "log_data_ip": "192.168.1.47",
       "log_data_port": 56500
     }
   },

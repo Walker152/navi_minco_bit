@@ -1,6 +1,6 @@
 #pragma once
-#define RMUC_AREA
-// #define TEST_AREA
+// #define RMUC_AREA
+#define TEST_AREA
 #include "bt_manager/utils/nav_zone.hpp"
 
 #include <array>
@@ -13,8 +13,8 @@ namespace Sentry_BT {
 // for rmuc
 inline std::array<Area_Square, 4> transform_zone{
   Area_Square{Point2D{11.5, 5.0}, Point2D{8.5, 1.0}}, // Home Right Tunnel
-  Area_Square{Point2D{20.5, 15.0}, Point2D{17.0, 10.5}}, // Enemy Right Tunnel
-  Area_Square{Point2D{16.7, 13.8}, Point2D{10.4, 12.3}}, // Home Left Tunnel
+  Area_Square{Point2D{20.5, 15.0}, Point2D{17.0, 10.5}}, // Home Left Tunnel
+  Area_Square{Point2D{16.7, 13.8}, Point2D{10.4, 12.3}}, // Enemy Right Tunnel
   Area_Square{Point2D{18.6, 2.7}, Point2D{12.3, 1.2}}, // Enemy Left Tunnel
 };
 inline std::array<Area_Square, 2> bonus_zone = {
@@ -30,8 +30,8 @@ inline std::array<Area_Square, 4> tunnel_zone = {
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
   TunnelRecoveryConfig{-1.57f, Point2D{3.0, 3.0, 0.0}, Point2D{9.8, 2.8, 0.0}, 0.0f, 1.2f},
-  TunnelRecoveryConfig{1.57f, Point2D{22.0, 7.5, 0.0}, Point2D{12.8, 13.3, 0.0}, 0.0f, 1.5f},
-  TunnelRecoveryConfig{0.0f, Point2D{3.0, 3.0, 0.0}, Point2D{19.1, 12.3, 0.0}, 0.0f, 1.0f},
+  TunnelRecoveryConfig{0.0f, Point2D{22.0, 7.5, 0.0}, Point2D{12.8, 13.3, 0.0}, 0.0f, 1.5f},
+  TunnelRecoveryConfig{1.57f, Point2D{3.0, 3.0, 0.0}, Point2D{19.1, 12.3, 0.0}, 0.0f, 1.0f},
   TunnelRecoveryConfig{3.14f, Point2D{22.0, 7.5, 0.0}, Point2D{15.8, 1.6, 0.0}, 0.0f, 1.4f},
 };
 inline std::array<Area_Square, 2> stairs_zone{
@@ -143,7 +143,7 @@ inline std::vector<Point2D> nav_points = {
   {15.7, 11.0, 0.0}, // ENEMY_OUTPOST
   {7.2, 7.5, 0.0},   // OWN_FORT
   {22.0, 7.5, 0.0},  // ENEMY_FORT
-  {11.3, 4.0, 0.0}   // OWN_OUTPOST
+  {12.3, 3.6, 0.0}   // OWN_OUTPOST
 
   // for rmul
   // {1.2, 7.2, 0.0},  //HOME
@@ -153,7 +153,7 @@ inline std::vector<Point2D> nav_points = {
 
 inline std::vector<PatrolPoint> patrol_points_normal = {
   // for rmuc
-  {{16.0, 12.0, 0.0}, 5000},
+  {{16.0, 11.5, 0.0}, 5000},
   {{17.3, 8.5, 0.0}, 5000},
   {{12.5, 11.0, 0.0}, 5000},
 };
