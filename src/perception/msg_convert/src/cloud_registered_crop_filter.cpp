@@ -32,8 +32,7 @@ public:
     const auto output_topic =
       this->declare_parameter<std::string>("output_topic", "/cloud_registered_filtered");
     const auto queue_size = this->declare_parameter<int>("queue_size", 10);
-    const auto odom_topic =
-      this->declare_parameter<std::string>("odom_topic", "/aft_mapped_to_init");
+    const auto odom_topic = this->declare_parameter<std::string>("odom_topic", "/aft_mapped_to_init");
     z_offset_ = static_cast<float>(this->declare_parameter<double>("z_offset", 0.0));
 
     center_x_ = static_cast<float>(this->declare_parameter<double>("position.x", 0.0));
@@ -68,21 +67,21 @@ public:
       if (centers_x.size() == centers_y.size() && centers_x.size() == centers_z.size()) {
         centers_.reserve(centers_x.size());
         for (size_t i = 0; i < centers_x.size(); ++i) {
-          centers_.emplace_back(
-            static_cast<float>(centers_x[i]),
+          centers_.emplace_back(static_cast<float>(centers_x[i]),
             static_cast<float>(centers_y[i]),
             static_cast<float>(centers_z[i]));
         }
       } else {
-        RCLCPP_WARN(this->get_logger(),
-          "positions.* size mismatch, fallback to single center.");
+        RCLCPP_WARN(this->get_logger(), "positions.* size mismatch, fallback to single center.");
       }
     }
 
     if (size_x_ <= 0.0f || size_y_ <= 0.0f || size_z_ <= 0.0f) {
       RCLCPP_WARN(this->get_logger(),
         "box_size must be positive. Using absolute value: (%.3f, %.3f, %.3f)",
-        size_x_, size_y_, size_z_);
+        size_x_,
+        size_y_,
+        size_z_);
       size_x_ = std::abs(size_x_);
       size_y_ = std::abs(size_y_);
       size_z_ = std::abs(size_z_);
@@ -91,17 +90,16 @@ public:
     if (!centers_.empty()) {
       if (!sizes_x.empty() || !sizes_y.empty() || !sizes_z.empty()) {
         if (sizes_x.size() == sizes_y.size() && sizes_x.size() == sizes_z.size() &&
-          sizes_x.size() == centers_.size()) {
+            sizes_x.size() == centers_.size()) {
           sizes_.reserve(sizes_x.size());
           for (size_t i = 0; i < sizes_x.size(); ++i) {
-            sizes_.emplace_back(
-              std::abs(static_cast<float>(sizes_x[i])),
+            sizes_.emplace_back(std::abs(static_cast<float>(sizes_x[i])),
               std::abs(static_cast<float>(sizes_y[i])),
               std::abs(static_cast<float>(sizes_z[i])));
           }
         } else {
-          RCLCPP_WARN(this->get_logger(),
-            "box_sizes.* size mismatch, fallback to single box_size for all centers.");
+          RCLCPP_WARN(
+            this->get_logger(), "box_sizes.* size mismatch, fallback to single box_size for all centers.");
         }
       }
 
@@ -132,8 +130,11 @@ public:
 
     RCLCPP_INFO(this->get_logger(),
       "Optimized Crop filter started. input=%s output=%s frame=%s mode=%s remove_inside=%s",
-      input_topic.c_str(), output_topic.c_str(), position_frame_.c_str(),
-      filter_mode_.c_str(), remove_inside_ ? "true" : "false");
+      input_topic.c_str(),
+      output_topic.c_str(),
+      position_frame_.c_str(),
+      filter_mode_.c_str(),
+      remove_inside_ ? "true" : "false");
   }
 
 private:
@@ -163,9 +164,12 @@ private:
       return true;
     } catch (const tf2::TransformException & ex) {
       RCLCPP_WARN_THROTTLE(this->get_logger(),
-        *this->get_clock(), 2000,
+        *this->get_clock(),
+        2000,
         "TF lookup failed: %s <- %s, reason: %s",
-        target_frame.c_str(), source_frame.c_str(), ex.what());
+        target_frame.c_str(),
+        source_frame.c_str(),
+        ex.what());
       return false;
     }
   }
@@ -201,10 +205,12 @@ private:
 
     if (need_transform) {
       if (filter_mode_ == "transform_cloud") {
-        if (!lookupTransform(filter_frame, cloud_frame, msg->header.stamp, tf_stamped)) return;
+        if (!lookupTransform(filter_frame, cloud_frame, msg->header.stamp, tf_stamped))
+          return;
         transform_matrix = transformToMatrix(tf_stamped);
       } else {  // transform_center
-        if (!lookupTransform(cloud_frame, filter_frame, msg->header.stamp, tf_stamped)) return;
+        if (!lookupTransform(cloud_frame, filter_frame, msg->header.stamp, tf_stamped))
+          return;
         transform_matrix = transformToMatrix(tf_stamped);
       }
     }

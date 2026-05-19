@@ -33,8 +33,7 @@ private:
     const Eigen::Matrix3f & R,
     const Eigen::Vector3f & t);
 
-  static sensor_msgs::msg::PointCloud2 customMsgToPointCloud2(
-    const livox_ros_driver2::msg::CustomMsg & msg,
+  static sensor_msgs::msg::PointCloud2 customMsgToPointCloud2(const livox_ros_driver2::msg::CustomMsg & msg,
     const std_msgs::msg::Header & header,
     const Eigen::Matrix4f * transform = nullptr);
 

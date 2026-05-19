@@ -67,6 +67,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckEngagedSafeResponse>("CheckEngagedSafeResponse");
   factory_.registerNodeType<CheckRemoteExchangeCooldown>("CheckRemoteExchangeCooldown");
   factory_.registerNodeType<CheckRemainingAmmoExchange>("CheckRemainingAmmoExchange");
+  factory_.registerNodeType<CheckAttackFortHealthExchangeNeeded>("CheckAttackFortHealthExchangeNeeded");
   factory_.registerNodeType<CheckInZone>("CheckInZone");
   factory_.registerNodeType<CheckCanFreeResurrect>("CheckCanFreeResurrect");
   factory_.registerNodeType<CheckEnergyActive>("CheckEnergyActive");
@@ -97,6 +98,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<ChangeStance>("ChangeStance");
   factory_.registerNodeType<UpdateEnhanceTime>("UpdateEnhanceTime");
   factory_.registerNodeType<CheckTunnelDeformation>("CheckTunnelDeformation");
+  factory_.registerNodeType<CheckInEnemyFortZone>("CheckInEnemyFortZone");
 
   // gimbal
   factory_.registerNodeType<CheckTargetVisible>("CheckTargetVisible");
@@ -110,7 +112,6 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckAttackCondition>("CheckAttackCondition");
   factory_.registerNodeType<SetTacticalMode>("SetTacticalMode");
   factory_.registerNodeType<ChangeTacticalAction>("ChangeTacticalAction");
-
 }
 
 bool SentryBTManager::loadTrees(const std::shared_ptr<BT::Blackboard> & blackboard)

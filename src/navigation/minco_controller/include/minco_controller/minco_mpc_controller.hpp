@@ -165,8 +165,8 @@ private:
   // P0: Integral action for unmodeled disturbances (gravity on slopes, slip).
   // Leaky integrators of along-track and cross-track position errors.
   mutable Eigen::Vector2d integral_err_{0.0, 0.0};
-  double k_i_along_{1.5};   // integral gain: along-track (boost on slopes)
-  double k_i_cross_{3.0};   // integral gain: cross-track (precision on curves)
+  double k_i_along_{1.5};  // integral gain: along-track (boost on slopes)
+  double k_i_cross_{3.0};  // integral gain: cross-track (precision on curves)
   double integral_decay_{0.98};
 };
 

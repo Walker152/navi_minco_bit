@@ -29,7 +29,7 @@ constexpr std::uint8_t kDefaultCapacitor = 100;
 constexpr std::uint16_t kDefaultGameTime = 420;
 constexpr std::uint8_t kDefaultGameStatus = 4;
 constexpr std::uint16_t kHealthScale = 4;
-}
+}  // namespace
 
 // ============= Match Step =============
 struct MatchStep
@@ -97,8 +97,7 @@ struct MatchStep
 class MatchSimulatorNode : public rclcpp::Node
 {
 public:
-  MatchSimulatorNode()
-  : Node("match_simulator")
+  MatchSimulatorNode() : Node("match_simulator")
   {
     team_pub_ = create_publisher<ros_interfaces::msg::TeamInformation>("/sentry/team_info", 10);
     game_pub_ = create_publisher<ros_interfaces::msg::GameInfo>("/sentry/game_info", 10);
@@ -109,14 +108,12 @@ public:
     mpc_pub_ = create_publisher<ros_interfaces::msg::MpcPositionCommand>("/opt_path", 10);
 
     behavior_sub_ = create_subscription<ros_interfaces::msg::Behavior>(
-      "/sentry/behaivor_send", 10,
-      [this](const ros_interfaces::msg::Behavior::SharedPtr msg) {
+      "/sentry/behaivor_send", 10, [this](const ros_interfaces::msg::Behavior::SharedPtr msg) {
         last_behavior_ = *msg;
       });
 
     cmd_vel_sub_ = create_subscription<geometry_msgs::msg::Twist>(
-      "/cmd_vel", 10,
-      [this](const geometry_msgs::msg::Twist::SharedPtr msg) {
+      "/cmd_vel", 10, [this](const geometry_msgs::msg::Twist::SharedPtr msg) {
         last_cmd_vel_ = *msg;
       });
 
@@ -128,10 +125,11 @@ public:
       publishAll();
     });
 
-    scenario_timer_ = create_wall_timer(
-      std::chrono::duration_cast<std::chrono::nanoseconds>(
-        std::chrono::duration<double>(kScenarioDurationSec)),
-      [this]() { advanceStep(); });
+    scenario_timer_ = create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                          std::chrono::duration<double>(kScenarioDurationSec)),
+      [this]() {
+        advanceStep();
+      });
 
     log_timer_ = create_wall_timer(std::chrono::seconds(1), [this]() {
       logStatus();
@@ -157,115 +155,190 @@ private:
     MatchStep s;
 
     // Step 1
-    s = makeStep("1_GameStart", "比赛开局: 己方半场, 满血满弹, 脱战, 移动姿态",
-                 "期望: 巡逻模式, MOVE姿态");
-    s.pos_x = 15.0; s.pos_y = 0.0;
-    s.health = 100.0f; s.bullets = 300; s.is_disengaged = true;
-    s.coin_remaining = 500; s.base_hp = 3000; s.outpost_hp = 1500;
+    s = makeStep("1_GameStart", "比赛开局: 己方半场, 满血满弹, 脱战, 移动姿态", "期望: 巡逻模式, MOVE姿态");
+    s.pos_x = 15.0;
+    s.pos_y = 0.0;
+    s.health = 100.0f;
+    s.bullets = 300;
+    s.is_disengaged = true;
+    s.coin_remaining = 500;
+    s.base_hp = 3000;
+    s.outpost_hp = 1500;
     steps_.push_back(s);
 
     // Step 2
-    s = makeStep("2_PatrolToMid", "巡逻: 向中场移动",
-                 "期望: 巡逻模式, MOVE姿态");
-    s.pos_x = 18.0; s.pos_y = 2.0;
-    s.health = 100.0f; s.bullets = 295; s.is_disengaged = true;
-    s.coin_remaining = 500; s.base_hp = 3000; s.outpost_hp = 1500;
+    s = makeStep("2_PatrolToMid", "巡逻: 向中场移动", "期望: 巡逻模式, MOVE姿态");
+    s.pos_x = 18.0;
+    s.pos_y = 2.0;
+    s.health = 100.0f;
+    s.bullets = 295;
+    s.is_disengaged = true;
+    s.coin_remaining = 500;
+    s.base_hp = 3000;
+    s.outpost_hp = 1500;
     steps_.push_back(s);
 
     // Step 3
-    s = makeStep("3_EnemyContact", "遭遇敌人: 目标出现(步兵3号), 进入交战",
-                 "期望: 追击模式, 云台锁定>4m则MOVE姿态");
-    s.pos_x = 20.0; s.pos_y = 4.0;
-    s.health = 87.5f; s.bullets = 280; s.is_disengaged = false;
-    s.coin_remaining = 500; s.base_hp = 3000; s.outpost_hp = 1500;
-    s.target_valid = true; s.target_x = 24.0; s.target_y = 8.0;
-    s.enemy_robot_valid = true; s.enemy_robot_id = 3; s.enemy_robot_hp = 300;
-    s.enemy_pos_x = 24.0; s.enemy_pos_y = 8.0;
+    s = makeStep(
+      "3_EnemyContact", "遭遇敌人: 目标出现(步兵3号), 进入交战", "期望: 追击模式, 云台锁定>4m则MOVE姿态");
+    s.pos_x = 20.0;
+    s.pos_y = 4.0;
+    s.health = 87.5f;
+    s.bullets = 280;
+    s.is_disengaged = false;
+    s.coin_remaining = 500;
+    s.base_hp = 3000;
+    s.outpost_hp = 1500;
+    s.target_valid = true;
+    s.target_x = 24.0;
+    s.target_y = 8.0;
+    s.enemy_robot_valid = true;
+    s.enemy_robot_id = 3;
+    s.enemy_robot_hp = 300;
+    s.enemy_pos_x = 24.0;
+    s.enemy_pos_y = 8.0;
     steps_.push_back(s);
 
     // Step 4
-    s = makeStep("4_CombatRemoteExchange", "持续交战: 弹药降到120, 金币充足, 触发远程兑换",
-                 "期望: resource_tree远程兑换触发, ammo_purchase_total增加");
-    s.pos_x = 22.0; s.pos_y = 6.0;
-    s.health = 70.0f; s.bullets = 120; s.is_disengaged = false;
-    s.coin_remaining = 500; s.base_hp = 3000; s.outpost_hp = 1500;
-    s.target_valid = true; s.target_x = 26.0; s.target_y = 8.0;
-    s.enemy_robot_valid = true; s.enemy_robot_id = 3; s.enemy_robot_hp = 200;
-    s.enemy_pos_x = 26.0; s.enemy_pos_y = 8.0;
+    s = makeStep("4_CombatRemoteExchange",
+      "持续交战: 弹药降到120, 金币充足, 触发远程兑换",
+      "期望: resource_tree远程兑换触发, ammo_purchase_total增加");
+    s.pos_x = 22.0;
+    s.pos_y = 6.0;
+    s.health = 70.0f;
+    s.bullets = 120;
+    s.is_disengaged = false;
+    s.coin_remaining = 500;
+    s.base_hp = 3000;
+    s.outpost_hp = 1500;
+    s.target_valid = true;
+    s.target_x = 26.0;
+    s.target_y = 8.0;
+    s.enemy_robot_valid = true;
+    s.enemy_robot_id = 3;
+    s.enemy_robot_hp = 200;
+    s.enemy_pos_x = 26.0;
+    s.enemy_pos_y = 8.0;
     s.remaining_ammo_exchange = 400;
     steps_.push_back(s);
 
     // Step 5
-    s = makeStep("5_TunnelCrossing", "穿越隧道: 进入隧道区域, 升降机构下降",
-                 "期望: 姿态树触发变形, MOVE/ATTACK, 小陀螺开启");
-    s.pos_x = 8.5; s.pos_y = 4.5;
-    s.health = 62.5f; s.bullets = 100; s.is_disengaged = false;
-    s.coin_remaining = 350; s.base_hp = 3000; s.outpost_hp = 1500;
+    s = makeStep("5_TunnelCrossing",
+      "穿越隧道: 进入隧道区域, 升降机构下降",
+      "期望: 姿态树触发变形, MOVE/ATTACK, 小陀螺开启");
+    s.pos_x = 8.5;
+    s.pos_y = 4.5;
+    s.health = 62.5f;
+    s.bullets = 100;
+    s.is_disengaged = false;
+    s.coin_remaining = 350;
+    s.base_hp = 3000;
+    s.outpost_hp = 1500;
     s.lifter_pos = 1;
     s.mpc_points = {{7.0, 4.5}, {5.0, 4.0}, {3.0, 3.0}};
     steps_.push_back(s);
 
     // Step 6
-    s = makeStep("6_OutpostResponse", "前哨站响应: 正常战术, 前哨站未摧毁",
-                 "期望: 导航前哨站, 云台前哨站扫描");
-    s.pos_x = 17.0; s.pos_y = 9.0;
-    s.health = 60.0f; s.bullets = 90; s.is_disengaged = true;
-    s.coin_remaining = 350; s.base_hp = 3000; s.outpost_hp = 1200;
+    s = makeStep(
+      "6_OutpostResponse", "前哨站响应: 正常战术, 前哨站未摧毁", "期望: 导航前哨站, 云台前哨站扫描");
+    s.pos_x = 17.0;
+    s.pos_y = 9.0;
+    s.health = 60.0f;
+    s.bullets = 90;
+    s.is_disengaged = true;
+    s.coin_remaining = 350;
+    s.base_hp = 3000;
+    s.outpost_hp = 1200;
     s.lifter_pos = 0;
     steps_.push_back(s);
 
     // Step 7
-    s = makeStep("7_LowAmmoRetreat", "弹药不足撤退: 弹药80<100阈值, 回家补给",
-                 "期望: 导航RETREAT模式, 回家点");
-    s.pos_x = 15.0; s.pos_y = -2.0;
-    s.health = 55.0f; s.bullets = 80; s.is_disengaged = true;
-    s.coin_remaining = 8; s.base_hp = 3000; s.outpost_hp = 1200;
+    s = makeStep(
+      "7_LowAmmoRetreat", "弹药不足撤退: 弹药80<100阈值, 回家补给", "期望: 导航RETREAT模式, 回家点");
+    s.pos_x = 15.0;
+    s.pos_y = -2.0;
+    s.health = 55.0f;
+    s.bullets = 80;
+    s.is_disengaged = true;
+    s.coin_remaining = 8;
+    s.base_hp = 3000;
+    s.outpost_hp = 1200;
     steps_.push_back(s);
 
     // Step 8
-    s = makeStep("8_HomeSupply", "到家补给: 己方防守区, 金币58, 触发普通买弹",
-                 "期望: resource_tree普通兑换触发, ammo_purchase_total增加");
-    s.pos_x = 3.0; s.pos_y = 3.0;
-    s.health = 60.0f; s.bullets = 80; s.is_disengaged = true;
-    s.coin_remaining = 58; s.base_hp = 3000; s.outpost_hp = 1200;
+    s = makeStep("8_HomeSupply",
+      "到家补给: 己方防守区, 金币58, 触发普通买弹",
+      "期望: resource_tree普通兑换触发, ammo_purchase_total增加");
+    s.pos_x = 3.0;
+    s.pos_y = 3.0;
+    s.health = 60.0f;
+    s.bullets = 80;
+    s.is_disengaged = true;
+    s.coin_remaining = 58;
+    s.base_hp = 3000;
+    s.outpost_hp = 1200;
     steps_.push_back(s);
 
     // Step 9
-    s = makeStep("9_EnergyActive", "能量机关激活: 大能量机关激活, 可激活",
-                 "期望: 能量机关响应, 脱战, 金币检查通过后激活");
-    s.pos_x = 18.0; s.pos_y = 0.0;
-    s.health = 70.0f; s.bullets = 200; s.is_disengaged = true;
-    s.coin_remaining = 200; s.base_hp = 3000; s.outpost_hp = 1200;
-    s.game_time = 240; s.event_code = (2u << 5);
+    s = makeStep("9_EnergyActive",
+      "能量机关激活: 大能量机关激活, 可激活",
+      "期望: 能量机关响应, 脱战, 金币检查通过后激活");
+    s.pos_x = 18.0;
+    s.pos_y = 0.0;
+    s.health = 70.0f;
+    s.bullets = 200;
+    s.is_disengaged = true;
+    s.coin_remaining = 200;
+    s.base_hp = 3000;
+    s.outpost_hp = 1200;
+    s.game_time = 240;
+    s.event_code = (2u << 5);
     s.can_activate_energy = true;
     steps_.push_back(s);
 
     // Step 10
-    s = makeStep("10_DefenseMode", "防守模式: 己方基地血量800, 堡垒空闲",
-                 "期望: 防守战术, 导航己方堡垒");
-    s.pos_x = 5.0; s.pos_y = 5.0;
-    s.health = 65.0f; s.bullets = 190; s.is_disengaged = true;
-    s.coin_remaining = 200; s.base_hp = 800; s.outpost_hp = 600;
+    s = makeStep("10_DefenseMode", "防守模式: 己方基地血量800, 堡垒空闲", "期望: 防守战术, 导航己方堡垒");
+    s.pos_x = 5.0;
+    s.pos_y = 5.0;
+    s.health = 65.0f;
+    s.bullets = 190;
+    s.is_disengaged = true;
+    s.coin_remaining = 200;
+    s.base_hp = 800;
+    s.outpost_hp = 600;
     s.event_code = (2u << 25);
     steps_.push_back(s);
 
     // Step 11
-    s = makeStep("11_DeathRevive", "死亡与复活: HP降至0, 可免费复活",
-                 "期望: resource_tree FreeRevive触发, revive_request=1");
-    s.pos_x = 5.0; s.pos_y = 8.0;
-    s.health = 0.0f; s.bullets = 180; s.is_disengaged = true;
-    s.coin_remaining = 150; s.base_hp = 600; s.outpost_hp = 400;
-    s.enemy_robot_valid = true; s.enemy_pos_x = 5.0; s.enemy_pos_y = 8.0;
+    s = makeStep("11_DeathRevive",
+      "死亡与复活: HP降至0, 可免费复活",
+      "期望: resource_tree FreeRevive触发, revive_request=1");
+    s.pos_x = 5.0;
+    s.pos_y = 8.0;
+    s.health = 0.0f;
+    s.bullets = 180;
+    s.is_disengaged = true;
+    s.coin_remaining = 150;
+    s.base_hp = 600;
+    s.outpost_hp = 400;
+    s.enemy_robot_valid = true;
+    s.enemy_pos_x = 5.0;
+    s.enemy_pos_y = 8.0;
     s.can_free_resurrect = true;
     s.current_stance = 2;
     steps_.push_back(s);
 
     // Step 12
-    s = makeStep("12_RecoveryPatrol", "恢复巡逻: 复活后HP恢复, 弹药充足, 回到巡逻",
-                 "期望: 巡逻模式, 脱战, MOVE姿态");
-    s.pos_x = 10.0; s.pos_y = 2.0;
-    s.health = 30.0f; s.bullets = 170; s.is_disengaged = true;
-    s.coin_remaining = 100; s.base_hp = 500; s.outpost_hp = 300;
+    s = makeStep(
+      "12_RecoveryPatrol", "恢复巡逻: 复活后HP恢复, 弹药充足, 回到巡逻", "期望: 巡逻模式, 脱战, MOVE姿态");
+    s.pos_x = 10.0;
+    s.pos_y = 2.0;
+    s.health = 30.0f;
+    s.bullets = 170;
+    s.is_disengaged = true;
+    s.coin_remaining = 100;
+    s.base_hp = 500;
+    s.outpost_hp = 300;
     s.can_free_resurrect = false;
     steps_.push_back(s);
   }
@@ -369,18 +442,22 @@ private:
 
     // sentry_info_1: assemble bitfields
     std::uint32_t info1 = 0;
-    if (s.can_free_resurrect)      info1 |= (1u << 19);
-    if (s.can_instant_resurrect)   info1 |= (1u << 20);
+    if (s.can_free_resurrect)
+      info1 |= (1u << 19);
+    if (s.can_instant_resurrect)
+      info1 |= (1u << 20);
     info1 |= (static_cast<std::uint32_t>(s.instant_resurrect_cost & 0x3FF) << 21);
     info1 |= (static_cast<std::uint32_t>(s.remote_ammo_exchange_count & 0xF) << 11);
     msg.sentry_info_1 = info1;
 
     // sentry_info_2: is_disengaged + stance + can_activate_energy + remaining_ammo
     std::uint16_t info2 = 0;
-    if (s.is_disengaged)           info2 |= 0x0001;
+    if (s.is_disengaged)
+      info2 |= 0x0001;
     info2 |= static_cast<std::uint16_t>((s.remaining_ammo_exchange & 0x7FF) << 1);
     info2 |= static_cast<std::uint16_t>((s.current_stance & 0x03) << 12);
-    if (s.can_activate_energy)     info2 |= 0x4000;
+    if (s.can_activate_energy)
+      info2 |= 0x4000;
     msg.sentry_info_2 = info2;
 
     online_pub_->publish(msg);
@@ -437,7 +514,8 @@ private:
 
   void advanceStep()
   {
-    if (steps_.empty()) return;
+    if (steps_.empty())
+      return;
     current_ = (current_ + 1) % steps_.size();
     RCLCPP_INFO(get_logger(), "========================================");
     logCurrentStep();
@@ -449,8 +527,14 @@ private:
     RCLCPP_INFO(get_logger(), "[%zu/%zu] %s", current_ + 1, steps_.size(), s.name.c_str());
     RCLCPP_INFO(get_logger(), "  %s", s.description.c_str());
     RCLCPP_INFO(get_logger(), "  %s", s.expected_behavior.c_str());
-    RCLCPP_INFO(get_logger(), "  HP=%.0f%% Bullets=%d Coin=%d Pos=(%.1f,%.1f) Disengaged=%d",
-      s.health, s.bullets, s.coin_remaining, s.pos_x, s.pos_y, s.is_disengaged);
+    RCLCPP_INFO(get_logger(),
+      "  HP=%.0f%% Bullets=%d Coin=%d Pos=(%.1f,%.1f) Disengaged=%d",
+      s.health,
+      s.bullets,
+      s.coin_remaining,
+      s.pos_x,
+      s.pos_y,
+      s.is_disengaged);
   }
 
   void logStatus() const
@@ -460,13 +544,10 @@ private:
     std::ostringstream oss;
     oss << "[S" << current_ + 1 << "/" << steps_.size() << ":" << s.name << "] ";
     oss << "stance=" << static_cast<int>(b.desired_stance)
-        << " lifter=" << static_cast<int>(b.desire_lifter_pos)
-        << " gyro=" << b.use_gyro_mode
-        << " ammo_req=" << b.ammo_purchase_request
-        << " revive=" << static_cast<int>(b.revive_request)
-        << " ctrl=" << static_cast<int>(b.control_mode)
-        << " | cmd_vel=(" << last_cmd_vel_.linear.x << "," << last_cmd_vel_.linear.y
-        << "," << last_cmd_vel_.angular.z << ")";
+        << " lifter=" << static_cast<int>(b.desire_lifter_pos) << " gyro=" << b.use_gyro_mode
+        << " ammo_req=" << b.ammo_purchase_request << " revive=" << static_cast<int>(b.revive_request)
+        << " ctrl=" << static_cast<int>(b.control_mode) << " | cmd_vel=(" << last_cmd_vel_.linear.x << ","
+        << last_cmd_vel_.linear.y << "," << last_cmd_vel_.angular.z << ")";
     RCLCPP_INFO(get_logger(), "%s", oss.str().c_str());
   }
 

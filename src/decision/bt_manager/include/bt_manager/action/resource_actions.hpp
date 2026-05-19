@@ -16,6 +16,7 @@ public:
   BT::NodeStatus onStart() override;
   BT::NodeStatus onRunning() override;
   void onHalted() override;
+
 private:
 };
 
@@ -25,6 +26,7 @@ public:
   RequestRemoteAmmoExchangeAction(const std::string & name, const BT::NodeConfiguration & config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+
 private:
   uint8_t ammo_exchange_request_num = 0;
 };
@@ -35,6 +37,7 @@ public:
   RequestRemoteHealthExchangeAction(const std::string & name, const BT::NodeConfiguration & config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+
 private:
   uint8_t health_exchange_request_num = 0;
 };

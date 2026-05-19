@@ -1,7 +1,7 @@
 #include "bt_manager/condition/change_stance_condition.hpp"
 #include <algorithm>
-#include <cmath>
 #include <cctype>
+#include <cmath>
 #include <limits>
 
 #include "bt_manager/action/change_stance_action.hpp"
@@ -163,8 +163,9 @@ BT::NodeStatus CheckTargetDistance::tick()
   const float threshold = getInput<float>("threshold").value_or(1.0f);
   const std::string mode = getInput<std::string>("mode").value_or("greater");
 
-  if(current_mode != NavMode::TRACING) {
-    detail::logTransition(detail::TreeKind::STANCE, "CheckTargetDistance", false, "Not in TRACING mode", branch);
+  if (current_mode != NavMode::TRACING) {
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckTargetDistance", false, "Not in TRACING mode", branch);
     return BT::NodeStatus::FAILURE;
   }
   const auto distance = static_cast<float>(std::hypot(
@@ -218,7 +219,7 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   bool is_tunnel_journey = false;
   const int active_tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
 
-  if(current_in_tunnel) {
+  if (current_in_tunnel) {
     is_tunnel_journey = true;
   } else if (in_transform_zone) {
     is_tunnel_journey = is_disengaged;
@@ -332,8 +333,7 @@ BT::NodeStatus CheckEnhanceLimit::tick()
   }
 
   if (!recognized) {
-    detail::logTransition(
-      detail::TreeKind::STANCE, "CheckEnhanceLimit", true, "unknown target_stance", "");
+    detail::logTransition(detail::TreeKind::STANCE, "CheckEnhanceLimit", true, "unknown target_stance", "");
     return BT::NodeStatus::SUCCESS;
   }
 
@@ -437,18 +437,49 @@ BT::NodeStatus CheckTunnelDeformation::tick()
   if (current_in_tunnel) {
     desired_pos = LifterPos::BOTTOM;
   } else if (in_transform_zone) {
-    if(is_disengaged) {
+    if (is_disengaged) {
       desired_pos = LifterPos::BOTTOM;
     }
   }
 
-  // std::cout << " in_transform_zone=" << in_transform_zone << "current_pose= (" 
+  // std::cout << " in_transform_zone=" << in_transform_zone << "current_pose= ("
   // << current_pose.position.x << ", " << current_pose.position.y << ")" << std::endl;
   blackboard->set<LifterPos>("desired_lifter_pos", desired_pos);
-  detail::logTransition(detail::TreeKind::STANCE, "CheckTunnelDeformation", true,
-    "through_tunnel=" + std::to_string(through_tunnel) + ", current_in_tunnel=" + std::to_string(current_in_tunnel) +
-    ", is_disengaged=" + std::to_string(is_disengaged) + ", desired_pos=" + std::to_string(static_cast<int>(desired_pos)), "");
+  detail::logTransition(detail::TreeKind::STANCE,
+    "CheckTunnelDeformation",
+    true,
+    "through_tunnel=" + std::to_string(through_tunnel) + ", current_in_tunnel=" +
+      std::to_string(current_in_tunnel) + ", is_disengaged=" + std::to_string(is_disengaged) +
+      ", desired_pos=" + std::to_string(static_cast<int>(desired_pos)),
+    "");
   return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- CheckInEnemyFortZone -------------------
+CheckInEnemyFortZone::CheckInEnemyFortZone(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckInEnemyFortZone::providedPorts()
+{
+  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckInEnemyFortZone::tick()
+{
+  const auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const Point2D p{current_pose.position.x, current_pose.position.y, 0.0};
+  const bool in_enemy_fort = enemy_fort_zone.contains(p);
+
+  std::ostringstream oss;
+  oss << "pos=(" << current_pose.position.x << ", " << current_pose.position.y << ")";
+
+  detail::logTransition(detail::TreeKind::STANCE, "CheckInEnemyFortZone", in_enemy_fort, oss.str(), branch);
+
+  return in_enemy_fort ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 }  // namespace Sentry_BT
