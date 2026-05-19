@@ -30,6 +30,15 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class CheckOwnOutpostAlive : public BT::ConditionNode
+{
+public:
+  CheckOwnOutpostAlive(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 class CheckManualOverride : public BT::ConditionNode
 {
 public:

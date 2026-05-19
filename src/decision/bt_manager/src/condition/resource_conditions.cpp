@@ -107,6 +107,8 @@ CheckRemoteExchangeCooldown::CheckRemoteExchangeCooldown(
 BT::PortsList CheckRemoteExchangeCooldown::providedPorts()
 {
   return {BT::InputPort<double>("cooldown_seconds", 6.0, "Cooldown after exchange"),
+    BT::InputPort<std::string>(
+      "exchange_count_key", "remote_ammo_exchange_count", "Blackboard key for successful exchange count"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
@@ -115,7 +117,9 @@ BT::NodeStatus CheckRemoteExchangeCooldown::tick()
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
   const double cooldown_seconds = getInput<double>("cooldown_seconds").value_or(6.0);
-  const int current_count = blackboard->get<int>("remote_ammo_exchange_count");
+  const std::string exchange_count_key =
+    getInput<std::string>("exchange_count_key").value_or("remote_ammo_exchange_count");
+  const int current_count = blackboard->get<int>(exchange_count_key);
   const auto now = std::chrono::steady_clock::now();
 
   if (!initialized_) {
@@ -137,7 +141,8 @@ BT::NodeStatus CheckRemoteExchangeCooldown::tick()
     last_exchange_time_ = now;
   }
   std::ostringstream oss;
-  oss << "exchange_count=" << current_count << ", elapsed=" << elapsed << ", cooldown=" << cooldown_seconds;
+  oss << "exchange_count_key=" << exchange_count_key << ", exchange_count=" << current_count
+      << ", elapsed=" << elapsed << ", cooldown=" << cooldown_seconds;
   detail::logTransition(
     detail::TreeKind::RESOURCE, "CheckRemoteExchangeCooldown", !in_cooldown, oss.str(), branch);
   return in_cooldown ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
@@ -254,7 +259,11 @@ CheckInZone::CheckInZone(const std::string & name, const BT::NodeConfiguration &
 
 BT::PortsList CheckInZone::providedPorts()
 {
-  return {BT::InputPort<std::string>("zone_name", "", "Zone: enemy_defense/own_defense/highland"),
+  return {BT::InputPort<std::string>(
+            "zone_name",
+            "",
+            "Zone: enemy_defense/own_defense/highland/own_outpost_zone/enemy_outpost_zone/"
+            "own_supply_zone/enemy_supply_zone"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
@@ -274,6 +283,14 @@ BT::NodeStatus CheckInZone::tick()
     in_zone = own_defense_zone.contains(point);
   } else if (zone_name == "highland") {
     in_zone = highland_zone.contains(point);
+  } else if (zone_name == "own_outpost_zone") {
+    in_zone = own_outpost_buff_zone.contains(point);
+  } else if (zone_name == "enemy_outpost_zone") {
+    in_zone = enemy_outpost_buff_zone.contains(point);
+  } else if (zone_name == "own_supply_zone") {
+    in_zone = own_base_buff_zone.contains(point);
+  } else if (zone_name == "enemy_supply_zone") {
+    in_zone = enemy_base_buff_zone.contains(point);
   }
 
   std::ostringstream oss;
