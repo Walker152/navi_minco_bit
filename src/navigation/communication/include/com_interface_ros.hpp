@@ -269,7 +269,10 @@ private:
       health_req = behavior_.remote_health_request;
       use_limited_scan = behavior_.use_limited_scan;
       not_aim_enemy = behavior_.not_aim_enemy;
-      vw_rpm = gyro_vel;
+      if (use_gyro_mode) {
+        vw_rpm = gyro_vel;
+      }
+      
       // vw_rpm = -80.0f;
     }
 
