@@ -77,13 +77,13 @@ int pcd_save_interval;  // PCD文件保存间隔 (帧数)
 std::vector<double> gravity_init, gravity;  // 初始和当前估计的重力向量
 
 // === 系统功能控制 ===
-bool runtime_pos_log;                // 运行时位姿日志记录使能
-bool pcd_save_en;                    // PCD点云文件保存使能
+bool runtime_pos_log;                     // 运行时位姿日志记录使能
+bool pcd_save_en;                         // PCD点云文件保存使能
 double accumulated_map_publish_hz = 1.0;  // 累积地图低频发布频率
-bool path_en;                        // 轨迹路径发布使能
-bool extrinsic_est_en = true;        // 外参在线估计使能
-bool scan_pub_en, scan_body_pub_en;  // 点云数据发布使能
-bool tf_send_en;                     // TF坐标变换发布使能
+bool path_en;                             // 轨迹路径发布使能
+bool extrinsic_est_en = true;             // 外参在线估计使能
+bool scan_pub_en, scan_body_pub_en;       // 点云数据发布使能
+bool tf_send_en;                          // TF坐标变换发布使能
 // === 模块对象指针 ===
 shared_ptr<Preprocess> p_pre;  // 点云预处理模块指针
 shared_ptr<ImuProcess> p_imu;  // IMU数据处理模块指针
