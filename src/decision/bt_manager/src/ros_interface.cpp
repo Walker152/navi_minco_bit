@@ -18,6 +18,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
 {
   auto node_ptr = rclcpp::Node::SharedPtr(this, [](rclcpp::Node *) {
   });
+  this->declare_parameter<bool>("publish_area_markers", true);
   param_manager_ = std::make_shared<ParamManager>(node_ptr);
   // 订阅全局信息话题
   team_info_sub = this->create_subscription<ros_interfaces::msg::TeamInformation>(
@@ -129,9 +130,19 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
   });
 
   area_marker_timer_ = this->create_wall_timer(std::chrono::seconds(1), [this]() {
-    area_visualizer_->publishAreaMarkers(this->now());
+    const bool publish_area_markers = this->get_parameter("publish_area_markers").as_bool();
+    if (publish_area_markers) {
+      area_visualizer_->publishAreaMarkers(this->now());
+      area_markers_published_ = true;
+    } else if (area_markers_published_) {
+      area_visualizer_->clearAreaMarkers(this->now());
+      area_markers_published_ = false;
+    }
   });
-  area_visualizer_->publishAreaMarkers(this->now());
+  if (this->get_parameter("publish_area_markers").as_bool()) {
+    area_visualizer_->publishAreaMarkers(this->now());
+    area_markers_published_ = true;
+  }
 
   tunnel_check_timer_ = this->create_wall_timer(std::chrono::milliseconds(100), [this]() {
     ros_interfaces::msg::MpcPositionCommand::SharedPtr snapshot;
