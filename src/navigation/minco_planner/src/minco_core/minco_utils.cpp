@@ -328,12 +328,12 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3
     t_flat = d_flat / v_ref;
   } else {
     if (goal_reached) {
-      v_peak = std::sqrt(std::max(0.0, total_length * a_ref)); // 三角形 (加速+减速)
+      v_peak = std::sqrt(std::max(0.0, total_length * a_ref));  // 三角形 (加速+减速)
       t_acc = v_peak / a_ref;
       t_dec = t_acc;
       t_flat = 0.0;
     } else {
-      v_peak = std::sqrt(std::max(0.0, 2.0 * total_length * a_ref)); // 纯加速 (v^2 = 2as)
+      v_peak = std::sqrt(std::max(0.0, 2.0 * total_length * a_ref));  // 纯加速 (v^2 = 2as)
       if (v_peak > v_ref) {
         v_peak = v_ref;
         double d_acc = 0.5 * v_peak * v_peak / a_ref;
@@ -407,7 +407,7 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3
   // const double desired_spatial_res = 0.6;
   // const int n_segments_spatial = static_cast<int>(std::ceil(total_length / desired_spatial_res));
   const int n_segments_time = static_cast<int>(std::ceil(t_total / 0.5));
-  const int n_segments = std::max(4,  n_segments_time);
+  const int n_segments = std::max(4, n_segments_time);
   const double dt = t_total / static_cast<double>(n_segments);
 
   std::vector<size_t> target_indices;
@@ -506,10 +506,11 @@ double LimitLocalVel(const std::vector<Eigen::Vector3d> & sparse_path,
     return global_vmax;
   }
 
-  const Eigen::Vector2d d1 = (sparse_path[static_cast<size_t>(seg_idx + 1)] -
-                               sparse_path[static_cast<size_t>(seg_idx)]).head<2>();
-  const Eigen::Vector2d d2 = (sparse_path[static_cast<size_t>(seg_idx + 2)] -
-                               sparse_path[static_cast<size_t>(seg_idx + 1)]).head<2>();
+  const Eigen::Vector2d d1 =
+    (sparse_path[static_cast<size_t>(seg_idx + 1)] - sparse_path[static_cast<size_t>(seg_idx)]).head<2>();
+  const Eigen::Vector2d d2 =
+    (sparse_path[static_cast<size_t>(seg_idx + 2)] - sparse_path[static_cast<size_t>(seg_idx + 1)])
+      .head<2>();
   const double n1 = d1.norm();
   const double n2 = d2.norm();
   if (n1 <= 0.2 || n2 <= 0.2) {
@@ -521,8 +522,7 @@ double LimitLocalVel(const std::vector<Eigen::Vector3d> & sparse_path,
   return calCurvatureDecay(angle, global_vmax, deadzone, saturation, min_turn_vel, decay_power);
 }
 
-double ComputeNextSpeed(
-  double v_curr, double seg_len, double remain_after, double amax, double local_vmax)
+double ComputeNextSpeed(double v_curr, double seg_len, double remain_after, double amax, double local_vmax)
 {
   if (!(std::isfinite(v_curr) && v_curr >= 0.0)) {
     v_curr = 0.0;
@@ -537,9 +537,8 @@ double ComputeNextSpeed(
     v_next = std::min(v_next, local_vmax);
   }
 
-  const double v_cap_stop = (remain_after > 1e-6)
-                              ? std::sqrt(std::max(0.0, 2.0 * a_safe * remain_after))
-                              : 0.0;
+  const double v_cap_stop =
+    (remain_after > 1e-6) ? std::sqrt(std::max(0.0, 2.0 * a_safe * remain_after)) : 0.0;
   v_next = std::min(v_next, v_cap_stop);
 
   if (!std::isfinite(v_next) || v_next < 0.0) {
@@ -563,8 +562,8 @@ double ComputeSegmentTime(
   const double a_safe = std::max(1e-3, std::abs(amax));
   const double required_dist = std::abs(v_curr * v_curr - v_next * v_next) / (2.0 * a_safe);
   if (seg_len >= required_dist) {
-      const double t_kinematic = std::abs(v_curr - v_next) / a_safe;
-      t = std::max(t, t_kinematic);
+    const double t_kinematic = std::abs(v_curr - v_next) / a_safe;
+    t = std::max(t, t_kinematic);
   }
   if (local_vmax > 1e-6 && std::abs(v_next - local_vmax) < 1e-6 && v_curr < local_vmax - 1e-6) {
     const double d_acc = (local_vmax * local_vmax - v_curr * v_curr) / (2.0 * a_safe);

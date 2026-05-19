@@ -59,8 +59,8 @@ BT::NodeStatus SetTunnelRecoveryRetreatPoint::tick()
 
   const auto & goal = tunnel_recovery_configs[static_cast<std::size_t>(tunnel_idx)].recovery_point;
   blackboard->set("nav_goal", goal);
-  std::cout << "[RECOVERY_TREE] retreat point tunnel_idx=" << tunnel_idx << " goal=(" << goal.x
-            << ", " << goal.y << ")" << std::endl;
+  std::cout << "[RECOVERY_TREE] retreat point tunnel_idx=" << tunnel_idx << " goal=(" << goal.x << ", "
+            << goal.y << ")" << std::endl;
   return BT::NodeStatus::SUCCESS;
 }
 

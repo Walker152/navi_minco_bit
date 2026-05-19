@@ -84,7 +84,7 @@ inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{13.3, 9.7},
   Point2D{14.7, 9.7},
 };
-inline Area_Circle engeneering_blind_zone{Point2D{14.5, 7.5}, 2.0};
+inline Area_Circle enemy_fort_zone{Point2D{26.0, 7.5}, 0.5};
 inline AreaPolygon<6, Point2D> own_highland_buff_zone{
   Point2D{13.0, 12.3},
   Point2D{13.0, 11.1},
@@ -223,7 +223,7 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{12.7, 0.7},
 };
 inline Area_Square enemy_outpost_watch_zone{Point2D{10.1, 7.2}, Point2D{8.3, 6.2}};
-inline Area_Circle engeneering_blind_zone{Point2D{11.0, 3.5}, 1.0};
+inline Area_Circle enemy_fort_zone{Point2D{11.0, 3.5}, 1.0};
 inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{12.0, 2.0},
   Point2D{11.0, 2.0},
@@ -402,7 +402,7 @@ inline std::vector<AreaVizConfig> getAreaVizConfigs()
 inline std::vector<CircleVizConfig> getCircleVizConfigs()
 {
   return {
-    {"engeneering_blind_zone", engeneering_blind_zone, {0.7F, 0.2F, 1.0F}},
+    {"enemy_fort_zone", enemy_fort_zone, {0.7F, 0.2F, 1.0F}},
   };
 }
 

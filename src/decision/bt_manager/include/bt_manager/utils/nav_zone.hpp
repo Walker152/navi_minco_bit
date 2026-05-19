@@ -52,8 +52,7 @@ struct TunnelRecoveryConfig
   {
   }
 
-  TunnelRecoveryConfig(
-    float tunnel_pass_yaw_target_rad_,
+  TunnelRecoveryConfig(float tunnel_pass_yaw_target_rad_,
     const Point2D & recovery_point_,
     const Point2D & forward_point_,
     float recovery_vx_,

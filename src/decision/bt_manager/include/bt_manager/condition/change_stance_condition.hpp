@@ -130,4 +130,12 @@ private:
   rclcpp::Time last_hurt_time_;
 };
 
+class CheckInEnemyFortZone : public BT::ConditionNode
+{
+public:
+  CheckInEnemyFortZone(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 }  // namespace Sentry_BT
