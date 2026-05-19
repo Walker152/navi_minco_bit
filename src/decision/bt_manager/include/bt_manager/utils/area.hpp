@@ -13,7 +13,7 @@ namespace Sentry_BT {
 // for rmuc
 inline std::array<Area_Square, 4> transform_zone{
   Area_Square{Point2D{11.5, 5.0}, Point2D{8.5, 1.0}}, // Home Right Tunnel
-  Area_Square{Point2D{20.5, 14.0}, Point2D{17.5, 10.0}}, // Enemy Right Tunnel
+  Area_Square{Point2D{20.5, 15.0}, Point2D{17.0, 10.5}}, // Enemy Right Tunnel
   Area_Square{Point2D{16.7, 13.8}, Point2D{10.4, 12.3}}, // Home Left Tunnel
   Area_Square{Point2D{18.6, 2.7}, Point2D{12.3, 1.2}}, // Enemy Left Tunnel
 };
@@ -44,12 +44,12 @@ inline std::array<Area_Square, 2> stairs_lower_safe_zone{
 };
 inline AreaPolygon<8, Point2D> highland_zone{
   Point2D{13.2, 12.7}, 
-  Point2D{10.9, 9.5},
+  Point2D{10.9, 8.5},
   Point2D{10.9, 6.5},
   Point2D{13.5, 2.3},
   Point2D{15.8, 2.3},
   Point2D{18.1, 5.5},
-  Point2D{18.1, 8.5},
+  Point2D{18.1, 9.5},
   Point2D{15.5, 12.7},
 };
 inline AreaPolygon<8, Point2D> own_defense_zone{
@@ -84,7 +84,7 @@ inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{13.3, 9.7},
   Point2D{14.7, 9.7},
 };
-inline Area_Circle enemy_fort_zone{Point2D{26.0, 7.5}, 0.5};
+inline Area_Circle enemy_fort_zone{Point2D{22.0, 7.5}, 0.5};
 inline AreaPolygon<6, Point2D> own_highland_buff_zone{
   Point2D{13.0, 12.3},
   Point2D{13.0, 11.1},
@@ -151,12 +151,12 @@ inline std::vector<Point2D> nav_points = {
 inline std::vector<PatrolPoint> patrol_points_normal = {
   // for rmuc
   {{16.0, 12.0, 0.0}, 5000},
-  {{17.3, 7.9, 0.0}, 5000},
-  {{15.3, 3.8, 0.0}, 6000},
+  {{17.3, 8.5, 0.0}, 5000},
+  {{12.3, 11.0, 0.0}, 5000},
 };
 
 inline std::vector<PatrolPoint> patrol_points_attack = {
-  {{16.0, 12.0, 0.0}, 5000}, {{17.3, 7.9, 0.0}, 5000}, {{15.3, 3.8, 0.0}, 6000}
+  {{16.0, 12.0, 0.0}, 5000}, {{17.3, 7.9, 0.0}, 5000}, {{15.3, 11.0, 0.0}, 6000}
 };
 #endif
 #ifdef TEST_AREA
@@ -304,7 +304,7 @@ inline std::vector<PatrolPoint> patrol_points_normal = {
   };
 
 inline std::vector<PatrolPoint> patrol_points_attack = {
-  {{16.0, 12.0, 0.0}, 5000}, {{17.3, 7.9, 0.0}, 5000}, {{15.3, 3.8, 0.0}, 6000}
+  {{16.0, 12.0, 0.0}, 5000}, {{17.3, 7.9, 0.0}, 5000}, {{15.3, 11.0, 0.0}, 6000}
 };
 #endif
 // =============== 战略模式：巡逻点与云台巡检区域映射表 ===============
