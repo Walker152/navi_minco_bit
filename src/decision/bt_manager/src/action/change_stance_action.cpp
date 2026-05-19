@@ -1,5 +1,8 @@
 #include "bt_manager/action/change_stance_action.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 using namespace color_text;
 namespace Sentry_BT {
 std::chrono::time_point<std::chrono::system_clock> ChangeStance::last_change_time_ =
@@ -18,8 +21,36 @@ BT::PortsList SetGyroState::providedPorts()
     BT::InputPort<float>("gyro_vel", "Gyro speed in rpm"),
     BT::InputPort<bool>("random_speed", false, "Enable random gyro speed switching"),
     BT::InputPort<float>("change_speed_duration", 0.0f, "Random speed change interval (s)"),
-    BT::InputPort<bool>("reverse_rotation", false, "Reverse gyro rotation direction"),
   };
+}
+
+bool SetGyroState::shouldReverseRotation(bool use_gyro, int ammo_purchase_total, int bullets_remaining)
+{
+  if (!use_gyro) {
+    reverse_initialized_ = false;
+    return false;
+  }
+
+  const int fired_count = std::max(0, 300 + ammo_purchase_total - bullets_remaining);
+  if (fired_count <= 200) {
+    reverse_initialized_ = false;
+    return false;
+  }
+
+  constexpr double kMinReverseHz = 0.2;
+  constexpr double kMaxReverseHz = 1.0;
+  const double ratio = std::clamp((static_cast<double>(fired_count) - 200.0) / 100.0, 0.0, 1.0);
+  const double reverse_hz = kMinReverseHz + (kMaxReverseHz - kMinReverseHz) * ratio;
+
+  const auto now = std::chrono::steady_clock::now();
+  if (!reverse_initialized_) {
+    reverse_initialized_ = true;
+    reverse_start_time_ = now;
+  }
+
+  const double elapsed = std::chrono::duration<double>(now - reverse_start_time_).count();
+  const auto phase = static_cast<int>(std::floor(elapsed * reverse_hz));
+  return (phase % 2) == 0;
 }
 
 BT::NodeStatus SetGyroState::tick()
@@ -28,13 +59,15 @@ BT::NodeStatus SetGyroState::tick()
   const bool use_gyro = getInput<bool>("use_gyro").value_or(blackboard->get<bool>("use_gyro_mode"));
   const float gyro_vel = getInput<float>("gyro_vel").value_or(blackboard->get<float>("gyro_vel"));
   const bool random_speed = getInput<bool>("random_speed").value_or(false);
-  const bool reverse_rotation = getInput<bool>("reverse_rotation").value_or(false);
+  const int ammo_purchase_total = blackboard->get<int>("ammo_purchase_total");
+  const int bullets_remaining = blackboard->get<int>("bullets_remaining");
 
   random_initialized_ = false;
   random_speed_enabled_ = false;
   current_gyro_vel_ = gyro_vel;
 
-  const float base_speed = reverse_rotation ? -current_gyro_vel_ : current_gyro_vel_;
+  const bool reverse_now = shouldReverseRotation(use_gyro, ammo_purchase_total, bullets_remaining);
+  const float base_speed = reverse_now ? -current_gyro_vel_ : current_gyro_vel_;
   float output_gyro_vel = base_speed;
   if (random_speed) {
     const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");

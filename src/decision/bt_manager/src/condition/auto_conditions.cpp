@@ -170,6 +170,31 @@ BT::NodeStatus CheckOutpostRemained::tick()
   return BT::NodeStatus::FAILURE;
 }
 
+// ------------------- CheckOwnOutpostAlive -------------------
+CheckOwnOutpostAlive::CheckOwnOutpostAlive(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckOwnOutpostAlive::providedPorts()
+{
+  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckOwnOutpostAlive::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const int own_outpost_health = blackboard->get<int>("own_outpost_health");
+  const bool alive = own_outpost_health > 0;
+
+  std::ostringstream oss;
+  oss << "own_outpost_health=" << own_outpost_health;
+  detail::logTransition(detail::TreeKind::NAV, "CheckOwnOutpostAlive", alive, oss.str(), branch);
+
+  return alive ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
 // ------------------- CheckManualOverride -------------------
 CheckManualOverride::CheckManualOverride(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)

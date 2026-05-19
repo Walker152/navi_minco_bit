@@ -218,9 +218,10 @@ typedef enum _NavGoal
 {
   HOME = 0,
   BONUS = 1,
-  OUTPOST = 2,
+  ENEMY_OUTPOST = 2,
   OWN_FORT = 3,
   ENEMY_FORT = 4,
+  OWN_OUTPOST = 5
 } NavGoal;
 
 typedef enum _SentryStance

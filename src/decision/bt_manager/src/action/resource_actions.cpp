@@ -78,12 +78,14 @@ BT::PortsList RequestRemoteAmmoExchangeAction::providedPorts()
 BT::NodeStatus RequestRemoteAmmoExchangeAction::tick()
 {
   auto blackboard = config().blackboard;
-  ammo_exchange_request_num++;
-  blackboard->set<uint8_t>("remote_ammo_request", ammo_exchange_request_num);
+  const int success_count = blackboard->get<int>("remote_ammo_exchange_count");
+  const auto request_num = static_cast<uint8_t>(success_count + 1);
+  blackboard->set<uint8_t>("remote_ammo_request", request_num);
   detail::logTransition(detail::TreeKind::RESOURCE,
     "RequestRemoteAmmoExchangeAction",
     true,
-    "total_request_num=" + std::to_string(static_cast<int>(ammo_exchange_request_num)));
+    "success_count=" + std::to_string(success_count) +
+      ", request_num=" + std::to_string(static_cast<int>(request_num)));
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -102,12 +104,14 @@ BT::PortsList RequestRemoteHealthExchangeAction::providedPorts()
 BT::NodeStatus RequestRemoteHealthExchangeAction::tick()
 {
   auto blackboard = config().blackboard;
-  ++health_exchange_request_num;
-  blackboard->set<uint8_t>("remote_health_request", health_exchange_request_num);
+  const int success_count = blackboard->get<int>("remote_health_exchange_count");
+  const auto request_num = static_cast<uint8_t>(success_count + 1);
+  blackboard->set<uint8_t>("remote_health_request", request_num);
   detail::logTransition(detail::TreeKind::RESOURCE,
     "RequestRemoteHealthExchangeAction",
     true,
-    "total_request_num=" + std::to_string(static_cast<int>(health_exchange_request_num)));
+    "success_count=" + std::to_string(success_count) +
+      ", request_num=" + std::to_string(static_cast<int>(request_num)));
   return BT::NodeStatus::SUCCESS;
 }
 }  // namespace Sentry_BT
