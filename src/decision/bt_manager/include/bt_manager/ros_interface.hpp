@@ -54,6 +54,7 @@ private:
   rclcpp::TimerBase::SharedPtr tunnel_check_timer_;
   std::shared_ptr<Blackboard> blackboard_;
   std::shared_ptr<ParamManager> param_manager_;
+  bool area_markers_published_{false};
 
   geometry_msgs::msg::Pose current_pose_;
   mutable std::mutex current_pose_mutex_;

@@ -100,11 +100,10 @@ Visualization Manager:
       Tree:
         map:
           camera_init:
-            base_link:
-              gimbal:
-                {}
             body:
-              {}
+              base_link:
+                gimbal:
+                  {}
           minimap:
             {}
       Update Interval: 0
@@ -707,12 +706,12 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 3
+          Max Intensity: 1.9300259351730347
           Min Color: 0; 0; 0
-          Min Intensity: 0
+          Min Intensity: -0.7826237678527832
           Name: Local ESDF
           Position Transformer: XYZ
           Selectable: true
@@ -728,7 +727,7 @@ Visualization Manager:
             Value: /esdf_cloud
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
@@ -744,9 +743,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 2.200000047683716
+          Max Intensity: 9.999920845031738
           Min Color: 0; 0; 0
-          Min Intensity: 0
+          Min Intensity: -1.421267032623291
           Name: GlobalESDF
           Position Transformer: XYZ
           Selectable: true
@@ -824,17 +823,77 @@ Visualization Manager:
         Value: /waypoints
       Value: true
     - Class: rviz_default_plugins/MarkerArray
-      Enabled: false
+      Enabled: true
       Name: BehaviorAreas
       Namespaces:
-        {}
+        sentry_area_box/enemy_outpost_watch_zone: true
+        sentry_area_box/enemy_supply_zone: true
+        sentry_area_box/own_supply_zone: true
+        sentry_area_box/stairs_lower_safe_zone: true
+        sentry_area_box/stairs_zone: true
+        sentry_area_box/transform_zone: true
+        sentry_area_box/tunnel_zone: true
+        sentry_area_circle/enemy_fort_zone: true
+        sentry_area_circle_label/enemy_fort_zone: true
+        sentry_area_label/enemy_outpost_watch_zone: true
+        sentry_area_label/enemy_supply_zone: true
+        sentry_area_label/own_supply_zone: true
+        sentry_area_label/stairs_lower_safe_zone: true
+        sentry_area_label/stairs_zone: true
+        sentry_area_label/transform_zone: true
+        sentry_area_label/tunnel_zone: true
+        sentry_area_poly/base/enemy_base_buff_zone: true
+        sentry_area_poly/base/enemy_defense_zone: true
+        sentry_area_poly/base/enemy_highland_buff_zone: true
+        sentry_area_poly/base/enemy_outpost_buff_zone: true
+        sentry_area_poly/base/engineering_zone: true
+        sentry_area_poly/base/highland_zone: true
+        sentry_area_poly/base/own_base_buff_zone: true
+        sentry_area_poly/base/own_defense_zone: true
+        sentry_area_poly/base/own_highland_buff_zone: true
+        sentry_area_poly/base/own_outpost_buff_zone: true
+        sentry_area_poly/tracking/_mode_0_0: true
+        sentry_area_poly/tracking/_mode_0_1: true
+        sentry_area_poly/tracking/_mode_0_2: true
+        sentry_area_poly/tracking/_mode_1_0: true
+        sentry_area_poly/tracking/_mode_1_1: true
+        sentry_area_poly/tracking/_mode_1_2: true
+        sentry_area_poly/tracking/_mode_2_0: true
+        sentry_area_poly/tracking/_mode_2_1: true
+        sentry_area_poly/tracking/_mode_2_2: true
+        sentry_area_poly_fill/base/enemy_base_buff_zone: true
+        sentry_area_poly_fill/base/enemy_highland_buff_zone: true
+        sentry_area_poly_fill/base/enemy_outpost_buff_zone: true
+        sentry_area_poly_fill/base/engineering_zone: true
+        sentry_area_poly_fill/base/own_base_buff_zone: true
+        sentry_area_poly_fill/base/own_highland_buff_zone: true
+        sentry_area_poly_fill/base/own_outpost_buff_zone: true
+        sentry_area_poly_label/base/enemy_base_buff_zone: true
+        sentry_area_poly_label/base/enemy_defense_zone: true
+        sentry_area_poly_label/base/enemy_highland_buff_zone: true
+        sentry_area_poly_label/base/enemy_outpost_buff_zone: true
+        sentry_area_poly_label/base/engineering_zone: true
+        sentry_area_poly_label/base/highland_zone: true
+        sentry_area_poly_label/base/own_base_buff_zone: true
+        sentry_area_poly_label/base/own_defense_zone: true
+        sentry_area_poly_label/base/own_highland_buff_zone: true
+        sentry_area_poly_label/base/own_outpost_buff_zone: true
+        sentry_area_poly_label/tracking/_mode_0_0: true
+        sentry_area_poly_label/tracking/_mode_0_1: true
+        sentry_area_poly_label/tracking/_mode_0_2: true
+        sentry_area_poly_label/tracking/_mode_1_0: true
+        sentry_area_poly_label/tracking/_mode_1_1: true
+        sentry_area_poly_label/tracking/_mode_1_2: true
+        sentry_area_poly_label/tracking/_mode_2_0: true
+        sentry_area_poly_label/tracking/_mode_2_1: true
+        sentry_area_poly_label/tracking/_mode_2_2: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /sentry/area_markers
-      Value: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -880,7 +939,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 20.118913650512695
+      Distance: 31.657499313354492
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -916,5 +975,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1876
-  X: 44
+  X: 70
   Y: 27
