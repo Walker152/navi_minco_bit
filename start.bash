@@ -19,7 +19,7 @@ source ./install/setup.bash
 # sleep 1
 
 # ICP
-gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
+# gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
 sleep 1
 
 # Cloud Crop Filter

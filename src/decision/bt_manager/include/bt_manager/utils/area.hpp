@@ -44,12 +44,12 @@ inline std::array<Area_Square, 2> stairs_lower_safe_zone{
 };
 inline AreaPolygon<8, Point2D> highland_zone{
   Point2D{13.2, 12.7}, 
-  Point2D{10.9, 8.5},
-  Point2D{10.9, 6.5},
+  Point2D{10.9, 10.0},
+  Point2D{10.9, 5.2},
   Point2D{13.5, 2.3},
   Point2D{15.8, 2.3},
-  Point2D{18.1, 5.5},
-  Point2D{18.1, 9.5},
+  Point2D{18.1, 5.0},
+  Point2D{18.1, 9.8},
   Point2D{15.5, 12.7},
 };
 inline AreaPolygon<8, Point2D> own_defense_zone{
@@ -118,6 +118,8 @@ inline AreaPolygon<6, Point2D> enemy_base_buff_zone{
   Point2D{27.4, 8.6},
   Point2D{27.4, 6.2},
 };
+inline Area_Square own_supply_zone{Point2D{3.8, 4.4}, Point2D{1.5, 0.0}};
+inline Area_Square enemy_supply_zone{Point2D{27.5, 15.0}, Point2D{25.2, 10.6}};
 inline AreaPolygon<6, Point2D> own_outpost_buff_zone{
   Point2D{10.9, 2.5},
   Point2D{11.7, 2.5},
@@ -153,7 +155,7 @@ inline std::vector<PatrolPoint> patrol_points_normal = {
   // for rmuc
   {{16.0, 12.0, 0.0}, 5000},
   {{17.3, 8.5, 0.0}, 5000},
-  {{12.3, 11.0, 0.0}, 5000},
+  {{12.5, 11.0, 0.0}, 5000},
 };
 
 inline std::vector<PatrolPoint> patrol_points_attack = {
@@ -269,6 +271,8 @@ inline AreaPolygon<6, Point2D> enemy_base_buff_zone{
   Point2D{12.9, 4.8},
   Point2D{12.9, 5.9},
 };
+inline Area_Square own_supply_zone{Point2D{0.0, 0.0}, Point2D{0.0, 0.0}};
+inline Area_Square enemy_supply_zone{Point2D{0.0, 0.0}, Point2D{0.0, 0.0}};
 inline AreaPolygon<6, Point2D> own_outpost_buff_zone{
   Point2D{10.1, 7.2},
   Point2D{10.1, 6.7},
@@ -401,6 +405,8 @@ inline std::vector<AreaVizConfig> getAreaVizConfigs()
     {"stairs_lower_safe_zone", stairs_lower_safe_zone[0], {0.4F, 1.0F, 0.4F}},
     {"stairs_lower_safe_zone", stairs_lower_safe_zone[1], {0.4F, 1.0F, 0.4F}},
     {"enemy_outpost_watch_zone", enemy_outpost_watch_zone, {0.7F, 0.2F, 1.0F}},
+    {"own_supply_zone", own_supply_zone, {0.2F, 1.0F, 0.8F}},
+    {"enemy_supply_zone", enemy_supply_zone, {1.0F, 0.4F, 0.8F}},
   };
 }
 
