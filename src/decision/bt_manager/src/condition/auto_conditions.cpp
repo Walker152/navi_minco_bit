@@ -103,8 +103,8 @@ BT::NodeStatus CheckTargetLocked::tick()
   bool condition_met = false;
   const bool target_in_engineering = engineering_zone.contains(target_point);
   blackboard->set("not_aim_enemy", target_in_engineering);
-
-  if (!target_in_engineering) {
+  const bool in_enemy_supply_zone = enemy_supply_zone.contains(target_point);
+  if (!target_in_engineering && !in_enemy_supply_zone) {
     if (in_attack_area && target_valid) {
       last_seen_time = std::chrono::system_clock::now();
       blackboard->set<NavMode>("current_mode", NavMode::TRACING);
