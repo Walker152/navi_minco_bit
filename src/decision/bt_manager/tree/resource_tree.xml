@@ -29,7 +29,7 @@
         <RequestRemoteHealthExchangeAction />
       </ReactiveSequence>
 
-      <ReactiveSequence name="RemoteHealthExchangeBranch">
+      <!-- <ReactiveSequence name="RemoteHealthExchangeBranch">
         <CheckEngagedStatus expected="false" branch="RemoteHealthExchange" />
         <CheckHealth threshold="30" mode="less" branch="RemoteHealthExchange" />
         <CheckCoinRemaining threshold="100" mode="greater" branch="RemoteHealthExchange" />
@@ -37,10 +37,10 @@
                                      exchange_count_key="remote_health_exchange_count"
                                      branch="RemoteHealthExchange" />
         <RequestRemoteHealthExchangeAction />
-      </ReactiveSequence>
+      </ReactiveSequence> -->
 
       <!-- P1: 远程弹药兑换（交战中 + 弹药&lt;150 + 金币&gt;=150 + 6s冷却 + 有剩余次数） -->
-      <ReactiveSequence name="RemoteAmmoExchangeBranch">
+      <!-- <ReactiveSequence name="RemoteAmmoExchangeBranch">
         <CheckEngagedStatus expected="true" branch="RemoteAmmoExchange" />
         <CheckAmmoLow ammo_threshold="50" branch="RemoteAmmoExchange" />
         <CheckCoinRemaining threshold="100" mode="greater" branch="RemoteAmmoExchange" />
@@ -49,7 +49,7 @@
                                      exchange_count_key="remote_ammo_exchange_count"
                                      branch="RemoteAmmoExchange" />
         <RequestRemoteAmmoExchangeAction />
-      </ReactiveSequence>
+      </ReactiveSequence> -->
 
       <!-- P2: 普通补给点弹药兑换（到家 + 弹药&lt;100 + 金币&gt;=10） -->
       <ReactiveSequence name="NormalAmmoExchangeBranch">
