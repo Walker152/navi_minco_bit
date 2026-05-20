@@ -60,7 +60,7 @@
         </ReactiveSequence> -->
 
         <ReactiveSequence name="Priority2SupplyResponse">
-          <CheckAmmoLow ammo_threshold="100" branch="Priority2SupplyResponse" />
+          <CheckAmmoLow ammo_threshold="0" branch="Priority2SupplyResponse" />
           <ReactiveFallback name="SupplyZoneSelector">
             <ReactiveSequence name="HighlandOutpostSupply">
               <CheckInZone zone_name="highland" branch="HighlandOutpostSupply" />
