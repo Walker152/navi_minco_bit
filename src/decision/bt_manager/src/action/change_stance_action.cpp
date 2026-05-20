@@ -37,8 +37,8 @@ bool SetGyroState::shouldReverseRotation(bool use_gyro, int ammo_purchase_total,
     return false;
   }
 
-  constexpr double kMinReverseHz = 0.2;
-  constexpr double kMaxReverseHz = 1.0;
+  constexpr double kMinReverseHz = 0.1;
+  constexpr double kMaxReverseHz = 0.2;
   const double ratio = std::clamp((static_cast<double>(fired_count) - 200.0) / 100.0, 0.0, 1.0);
   const double reverse_hz = kMinReverseHz + (kMaxReverseHz - kMinReverseHz) * ratio;
 
@@ -67,6 +67,7 @@ BT::NodeStatus SetGyroState::tick()
   current_gyro_vel_ = gyro_vel;
 
   const bool reverse_now = shouldReverseRotation(use_gyro, ammo_purchase_total, bullets_remaining);
+  // const bool reverse_now = false;
   const float base_speed = reverse_now ? -current_gyro_vel_ : current_gyro_vel_;
   float output_gyro_vel = base_speed;
   if (random_speed) {
