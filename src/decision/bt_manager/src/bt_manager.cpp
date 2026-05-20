@@ -38,6 +38,8 @@ void SentryBTManager::registerNodes()
 {
   // nav + common
   factory_.registerNodeType<CheckRetreatCondition>("CheckRetreatCondition");
+  factory_.registerNodeType<CheckGameTimeWindow>("CheckGameTimeWindow");
+  factory_.registerNodeType<CheckBigEnergyActive>("CheckBigEnergyActive");
   factory_.registerNodeType<CheckManualOverride>("CheckManualOverride");
   factory_.registerNodeType<CheckOutpostSafeResponse>("CheckOutpostSafeResponse");
   factory_.registerNodeType<CheckOutpostRemained>("CheckOutpostRemained");
@@ -51,6 +53,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<SetTargetCoordinate>("SetTargetCoordinate");
   factory_.registerNodeType<SetManualOverrideGoal>("SetManualOverrideGoal");
   factory_.registerNodeType<SetCoordinate>("SetCoordinate");
+  factory_.registerNodeType<SetNavMode>("SetNavMode");
   factory_.registerNodeType<ChangeMapAction>("ChangeMapAction");
   factory_.registerNodeType<Wait>("Wait");
   factory_.registerNodeType<WaitManual>("WaitManual");
