@@ -4,7 +4,7 @@
       <!-- <ReactiveSequence name="Priority1HardLock">
         <CheckTargetVisible name="CheckTargetVisible" branch="Priority1HardLock" />
         <TrackTargetAction name="TrackTargetAction" />
-      </ReactiveSequence>
+      </ReactiveSequence> -->
 
       <ReactiveSequence name="Priority2SpecialResponseScan">
         <CheckEngagedSafeResponse stable_seconds="5.0"
@@ -15,7 +15,7 @@
         <SetGimbalPose name="SetOutpostInspectPose" pan="0.0" tilt="18.0" />
       </ReactiveSequence>
 
-      <ReactiveFallback name="GimbalScanStrategy">
+      <!-- <ReactiveFallback name="GimbalScanStrategy">
         <ReactiveSequence name="EnergyGimbalScan">
           <CheckEnergyActive branch="EnergyGimbalScan" />
           <SetGimbalPoseByAreaAction name="SetEnergyGimbal" />
