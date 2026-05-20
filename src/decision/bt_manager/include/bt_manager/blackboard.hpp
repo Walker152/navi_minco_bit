@@ -78,7 +78,7 @@ public:
     blackboard_->set("enemy_coin_left", 0);                           // 敌方金币剩余数量
     blackboard_->set("enemy_coin_accumulated", 0);                    // 敌方金币累计数量
     blackboard_->set("enemies_info", std::vector<EnemyRobotInfo>());  // 敌方信息列表
-    blackboard_->set("enemy_outpost_destroyed", false);                // 敌方前哨站是否被摧毁
+    blackboard_->set("enemy_outpost_destroyed", true);                // 敌方前哨站是否被摧毁
 
     // --- Sentry Offline Info ---
     blackboard_->set("target_valid", false);                                     // 目标锁定状态
