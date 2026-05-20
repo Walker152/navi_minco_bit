@@ -12,9 +12,9 @@
                                   exit_blackboard_key="outpost_safe_cooldown_active"
                                   branch="Priority2SpecialResponseScan" />
         <CheckNearEnemyOutpost name="CheckNearEnemyOutpost" branch="Priority2SpecialResponseScan" />
-        <SetGimbalPose name="SetOutpostInspectPose" pan="0.0" tilt="18.0" />
+        <SetGimbalPose name="SetOutpostInspectPose" mode="0"/>
       </ReactiveSequence>
-
+      <SetGimbalPose name="SetNormalInspectPose" mode="1" />
       <!-- <ReactiveFallback name="GimbalScanStrategy">
         <ReactiveSequence name="EnergyGimbalScan">
           <CheckEnergyActive branch="EnergyGimbalScan" />
