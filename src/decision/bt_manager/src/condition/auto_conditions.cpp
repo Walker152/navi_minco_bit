@@ -1,4 +1,5 @@
 #include "bt_manager/condition/auto_conditions.hpp"
+#include "bt_manager/utils/area.hpp"
 #include <cmath>
 #include <iostream>
 
@@ -89,6 +90,7 @@ BT::NodeStatus CheckTargetLocked::tick()
 
   const Point2D target_point{target_pose.position.x, target_pose.position.y, 0.0};
   const auto tactical_mode = blackboard->get<TacticalMode>("tactical_mode");
+  const auto armor_id = blackboard->get<int>("target_armor_id");
   const auto & include_areas = tracking_areas.at(tactical_mode);
 
   bool in_attack_area = false;
@@ -101,7 +103,9 @@ BT::NodeStatus CheckTargetLocked::tick()
     }
   }
   bool condition_met = false;
-  const bool target_in_engineering = engineering_zone.contains(target_point);
+  const bool target_in_engineering = engineering_zone.contains(target_point) && armor_id == 3;
+  std::cout << "contain:" << engineering_zone.contains(target_point) << "armor_id:" << armor_id << std::endl;
+  std::cout << "target:" << target_point.x << "," << target_point.y << std::endl;
   blackboard->set("not_aim_enemy", target_in_engineering);
 
   if (!target_in_engineering) {
