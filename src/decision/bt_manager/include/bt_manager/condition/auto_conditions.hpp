@@ -16,9 +16,22 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+};
 
-private:
-  double health_threshold;
+class CheckGameTimeWindow : public BT::ConditionNode
+{
+public:
+  CheckGameTimeWindow(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckBigEnergyActive : public BT::ConditionNode
+{
+public:
+  CheckBigEnergyActive(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
 };
 
 class CheckOutpostRemained : public BT::ConditionNode

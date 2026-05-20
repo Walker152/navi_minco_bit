@@ -234,18 +234,32 @@ BT::NodeStatus CheckAttackFortHealthExchangeNeeded::tick()
   const std::string branch = getInput<std::string>("branch").value_or("");
 
   const auto tactical_mode = blackboard->get<TacticalMode>("tactical_mode");
-  const auto control_mode = blackboard->get<ControlMode>("control_mode");
-  const bool in_transform_zone = blackboard->get<bool>("in_transform_zone");
-  const bool needed = tactical_mode == TacticalMode::OFFENSIVE &&
-                      control_mode == ControlMode::MANUAL_CONTROL && in_transform_zone && !requested_;
+  const auto current_mode = blackboard->get<NavMode>("current_mode");
+  const int game_time_remaining = blackboard->get<int>("game_time_remaining");
+  const int game_status = blackboard->get<int>("game_status");
+  const int big_energy_status = blackboard->get<int>("big_energy_status");
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const Point2D point{current_pose.position.x, current_pose.position.y, 0.0};
+  const bool in_attack_transform_zone =
+    transform_zone[2].contains(point) || transform_zone[3].contains(point);
+  const bool attack_fort_window =
+    game_status == 4 && game_time_remaining >= 0 && game_time_remaining <= 120 && big_energy_status == 2;
+  if (!attack_fort_window) {
+    requested_ = false;
+  }
+
+  const bool needed = attack_fort_window && tactical_mode == TacticalMode::OFFENSIVE &&
+                      current_mode == NavMode::RESPONSE && in_attack_transform_zone && !requested_;
   if (needed) {
     requested_ = true;
   }
 
   std::ostringstream oss;
   oss << std::boolalpha << "tactical_mode=" << static_cast<int>(tactical_mode)
-      << ", control_mode=" << static_cast<int>(control_mode) << ", in_transform_zone=" << in_transform_zone
-      << ", requested=" << requested_;
+      << ", current_mode=" << static_cast<int>(current_mode) << ", game_time_remaining="
+      << game_time_remaining << ", game_status=" << game_status
+      << ", big_energy_status=" << big_energy_status
+      << ", in_attack_transform_zone=" << in_attack_transform_zone << ", requested=" << requested_;
   detail::logTransition(
     detail::TreeKind::RESOURCE, "CheckAttackFortHealthExchangeNeeded", needed, oss.str(), branch);
   return needed ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
