@@ -18,7 +18,8 @@ public:
   BT::NodeStatus tick() override;
 
 private:
-  bool shouldReverseRotation(bool use_gyro, int ammo_purchase_total, int bullets_remaining);
+  bool shouldReverseRotation(
+    bool use_gyro, int ammo_purchase_total, int bullets_remaining, int game_time_remaining);
 
   bool random_speed_enabled_{false};
   bool random_initialized_{false};
