@@ -7,7 +7,7 @@ cloud_registered_crop_filter:
     z_offset: 0.1
     filter_mode: transform_center   # transform_cloud | transform_center
     remove_inside: true             # true: remove points inside box, false: keep points inside box
-    log_stats: true                  # print crop hit statistics
+    log_stats: false                  # print crop hit statistics
     stats_log_period_ms: 1000        # 0: print every frame
     publish_visualization: true      # publish RViz MarkerArray for crop boxes and z plane
     visualization_topic: /cloud_registered_crop_filter/markers
