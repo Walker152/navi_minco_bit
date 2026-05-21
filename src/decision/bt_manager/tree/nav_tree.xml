@@ -24,57 +24,53 @@
           </ReactiveFallback>
         </ReactiveSequence>
 
-        <ReactiveSequence name="Priority1Survival">
-          <CheckRetreatCondition name="CheckRetreatCondition"
-                                 health_threshold="30"
-                                 recovery_threshold="80"
-                                 ammo_threshold="0"
-                                 ammo_recovery_threshold="0"
-                                 branch="Priority1Survival" />
-          <!-- <ChangeMapAction name="SwitchToRetreatMap"
-                           map_dir="src/navigation/navi2_bringup/maps/2026"
-                           pcd_dir="src/utils/pcd2esdf/maps"
-                           map_name="rmuc2026_back" /> -->
-          <SetCoordinate name="SetHomeGoal" goal="0" />
-          <!-- <ForceSuccess>
-            <ReactiveSequence name="StairsDescentFlow">
-              <CheckInStairsZone name="CheckInStairsZone" />
-              <SetStairsPosition name="SetStairsPosition" />
-              <CheckNoAllyBelowStairs name="CheckNoAllyBelowStairs" />
-              <DescendStairsAction name="DescendStairsAction" linear_y="2.0"
-                           angular_z="0.0"
-                           timeout="5.0" />
-              <DescendStairsAction name="DescendStairsAction" linear_y="0.0"
-                           angular_z="0.0"
-                           timeout="0.5" />
-            </ReactiveSequence>
-          </ForceSuccess> -->
-          <NavigateToPoseAction name="NavigateHome" />
+        <ReactiveSequence name="Priority1AttackEnemyFortAfter2Min">
+          <CheckGameTimeWindow name="CheckAttackEnemyFortWindow"
+                               min_remaining="0"
+                               max_remaining="120"
+                               branch="Priority1AttackEnemyFortAfter2Min" />
+          <CheckBigEnergyActive name="CheckAttackEnemyFortBigEnergy"
+                                active_status="2"
+                                branch="Priority1AttackEnemyFortAfter2Min" />
+          <SetTacticalMode name="SetAttackEnemyFortTacticalMode" mode="attack" />
+          <SetNavMode name="SetAttackEnemyFortNavMode" mode="response" />
+          <SetCoordinate name="SetAttackEnemyFortGoal" goal="4" />
+          <NavigateToPoseAction name="NavigateAttackEnemyFort" />
         </ReactiveSequence>
 
-        <!-- <ReactiveSequence name="Priority1_5TunnelRecovery">
-          <CheckTimeInZone min_seconds="20.0" max_seconds="50.0" zone_name="transform_zone" />
-          <SubTree ID="TunnelRecoverySubTree"
-                   __shared_blackboard="true"
-                   __autoremap="true" />
-        </ReactiveSequence> -->
-
-        <ReactiveSequence name="Priority2SupplyResponse">
-          <CheckAmmoLow ammo_threshold="0" branch="Priority2SupplyResponse" />
-          <ReactiveFallback name="SupplyZoneSelector">
-            <ReactiveSequence name="HighlandOutpostSupply">
-              <CheckInZone zone_name="highland" branch="HighlandOutpostSupply" />
-              <CheckOwnOutpostAlive branch="HighlandOutpostSupply" />
-              <SetCoordinate name="SetSupplyOutpostGoal" goal="5" />
-              <NavigateToPoseAction name="NavigateSupplyOutpost" />
+        <ReactiveSequence name="Priority2MidSupplyWindow">
+          <CheckGameTimeWindow name="CheckMidSupplyWindow"
+                               min_remaining="150"
+                               max_remaining="180"
+                               branch="Priority2MidSupplyWindow" />
+          <ReactiveFallback name="MidSupplySelector">
+            <ReactiveSequence name="MidHealthSupply">
+              <CheckRetreatCondition name="CheckMidHealthSupplyCondition"
+                                     health_threshold="10"
+                                     recovery_threshold="80"
+                                     branch="MidHealthSupply" />
+              <SetCoordinate name="SetMidHealthHomeGoal" goal="0" />
+              <NavigateToPoseAction name="NavigateMidHealthHome" />
             </ReactiveSequence>
 
-            <ReactiveSequence name="OwnDefenseHomeSupply">
-              <Inverter>
-                <CheckInZone zone_name="enemy_defense" branch="OwnDefenseHomeSupply" />
-              </Inverter>
-              <SetCoordinate name="SetOwnDefenseSupplyHomeGoal" goal="0" />
-              <NavigateToPoseAction name="NavigateOwnDefenseSupplyHome" />
+            <ReactiveSequence name="MidAmmoSupply">
+              <CheckAmmoLow ammo_threshold="150" branch="MidAmmoSupply" />
+              <ReactiveFallback name="MidAmmoSupplyZoneSelector">
+                <ReactiveSequence name="MidHighlandOutpostSupply">
+                  <CheckInZone zone_name="highland" branch="MidHighlandOutpostSupply" />
+                  <CheckOwnOutpostAlive branch="MidHighlandOutpostSupply" />
+                  <SetCoordinate name="SetMidSupplyOutpostGoal" goal="5" />
+                  <NavigateToPoseAction name="NavigateMidSupplyOutpost" />
+                </ReactiveSequence>
+
+                <ReactiveSequence name="MidOwnDefenseHomeSupply">
+                  <Inverter>
+                    <CheckInZone zone_name="enemy_defense" branch="MidOwnDefenseHomeSupply" />
+                  </Inverter>
+                  <SetCoordinate name="SetMidOwnDefenseSupplyHomeGoal" goal="0" />
+                  <NavigateToPoseAction name="NavigateMidOwnDefenseSupplyHome" />
+                </ReactiveSequence>
+              </ReactiveFallback>
             </ReactiveSequence>
           </ReactiveFallback>
         </ReactiveSequence>
@@ -100,37 +96,92 @@
           <!-- <ChangeMapAction name="SwitchToMainMapForSpecial"
                            map_dir="src/navigation/navi2_bringup/maps/2026"
                            pcd_dir="src/utils/pcd2esdf/maps"
-                           map_name="rmuc2026" /> -->
-          <ReactiveFallback name="SpecialResponseSelector">
-            <ReactiveSequence name="NormalOutpostResponse">
-              <CheckTacticalModeCondition name="CheckNormalMode" mode="normal" branch="NormalOutpostResponse" />
-              <CheckOutpostRemained name="CheckOutpostRemained" branch="NormalOutpostResponse" />
-              <CheckEngagedSafeResponse name="CheckEngagedSafeResponseForNav"
-                                         stable_seconds="5.0"
-                                         exit_mode="4"
-                                         exit_blackboard_key="outpost_safe_cooldown_active"
-                                         branch="NormalOutpostResponse" />
-              <SetCoordinate name="SetEnemyOutpostGoal" goal="2" />
-              <NavigateToPoseAction name="NavigateEnemyOutpost" />
+                           map_name="rmuc2026_back" /> -->
+              <SetCoordinate name="SetEarlyHomeGoal" goal="0" />
+              <NavigateToPoseAction name="NavigateEarlyHome" />
             </ReactiveSequence>
 
-            <ReactiveSequence name="DefendFortResponse">
-              <CheckTacticalModeCondition name="CheckDefendMode" mode="defend" branch="DefendFortResponse" />
-              <CheckOwnFortIdle name="CheckOwnFortIdle" branch="DefendFortResponse" />
-              <SetCoordinate name="SetOwnFortGoal" goal="3" />
-              <NavigateToPoseAction name="NavigateOwnFort" />
+            <!-- <ReactiveSequence name="Priority1_5TunnelRecovery">
+              <CheckTimeInZone min_seconds="20.0" max_seconds="50.0" zone_name="transform_zone" />
+              <SubTree ID="TunnelRecoverySubTree"
+                       __shared_blackboard="true"
+                       __autoremap="true" />
+            </ReactiveSequence> -->
+
+            <ReactiveSequence name="EarlySupplyResponse">
+              <CheckAmmoLow ammo_threshold="50" branch="EarlySupplyResponse" />
+              <ReactiveFallback name="EarlySupplyZoneSelector">
+                <ReactiveSequence name="EarlyHighlandOutpostSupply">
+                  <CheckInZone zone_name="highland" branch="EarlyHighlandOutpostSupply" />
+                  <CheckOwnOutpostAlive branch="EarlyHighlandOutpostSupply" />
+                  <SetCoordinate name="SetEarlySupplyOutpostGoal" goal="5" />
+                  <NavigateToPoseAction name="NavigateEarlySupplyOutpost" />
+                </ReactiveSequence>
+
+                <ReactiveSequence name="EarlyOwnDefenseHomeSupply">
+                  <Inverter>
+                    <CheckInZone zone_name="enemy_defense" branch="EarlyOwnDefenseHomeSupply" />
+                  </Inverter>
+                  <SetCoordinate name="SetEarlyOwnDefenseSupplyHomeGoal" goal="0" />
+                  <NavigateToPoseAction name="NavigateEarlyOwnDefenseSupplyHome" />
+                </ReactiveSequence>
+              </ReactiveFallback>
             </ReactiveSequence>
 
-            <ReactiveSequence name="EnergyResponse">
-              <CheckCanActivateEnergy />
-              <CheckEnergyActive branch="EnergyResponse" />
-              <CheckTacticalModeCondition mode="attack" branch="EnergyResponse" />
-              <CheckEngagedSafeResponse stable_seconds="5.0"
-                                        exit_mode="4"
-                                        exit_blackboard_key="energy_safe_cooldown_active"
-                                        branch="EnergyResponse" />
-              <SetCoordinate goal="1" />
-              <NavigateToPoseAction name="NavigateEnergyZone" />
+            <ReactiveSequence name="EarlyTargetAttack">
+              <!-- <ChangeMapAction name="SwitchToMainMapForSpecial"
+                                 map_dir="src/navigation/navi2_bringup/maps/2026"
+                                 pcd_dir="src/utils/pcd2esdf/maps"
+                                 map_name="rmuc2026" /> -->
+              <ReactiveSequence name="EarlyTargetPursuit">
+                <CheckTargetLocked name="CheckEarlyTargetLocked" branch="EarlyTargetAttack" />
+                <SetTargetCoordinate name="SetEarlyTargetCoordinate" tracing_dist="1.0"/>
+                <NavigateToPoseAction name="NavigateEarlyTrackingTarget" />
+              </ReactiveSequence>
+            </ReactiveSequence>
+            
+            <ReactiveSequence name="EarlyEmergencyHalt">
+              <EmergencyStop name="EarlyEmergencyStop" />
+              <NavigateToPoseAction name="NavigateEarlyStop" />
+            </ReactiveSequence>
+            
+            <ReactiveSequence name="EarlySpecialResponse">
+              <!-- <ChangeMapAction name="SwitchToMainMapForSpecial"
+                               map_dir="src/navigation/navi2_bringup/maps/2026"
+                               pcd_dir="src/utils/pcd2esdf/maps"
+                               map_name="rmuc2026" /> -->
+              <ReactiveFallback name="EarlySpecialResponseSelector">
+                <ReactiveSequence name="EarlyNormalOutpostResponse">
+                  <CheckTacticalModeCondition name="CheckEarlyNormalMode" mode="normal" branch="EarlyNormalOutpostResponse" />
+                  <CheckOutpostRemained name="CheckEarlyOutpostRemained" branch="EarlyNormalOutpostResponse" />
+                  <CheckEngagedSafeResponse name="CheckEarlyEngagedSafeResponseForNav"
+                                             stable_seconds="5.0"
+                                             exit_mode="4"
+                                             exit_blackboard_key="outpost_safe_cooldown_active"
+                                             branch="EarlyNormalOutpostResponse" />
+                  <SetCoordinate name="SetEarlyEnemyOutpostGoal" goal="2" />
+                  <NavigateToPoseAction name="NavigateEarlyEnemyOutpost" />
+                </ReactiveSequence>
+
+                <ReactiveSequence name="EarlyDefendFortResponse">
+                  <CheckTacticalModeCondition name="CheckEarlyDefendMode" mode="defend" branch="EarlyDefendFortResponse" />
+                  <CheckOwnFortIdle name="CheckEarlyOwnFortIdle" branch="EarlyDefendFortResponse" />
+                  <SetCoordinate name="SetEarlyOwnFortGoal" goal="3" />
+                  <NavigateToPoseAction name="NavigateEarlyOwnFort" />
+                </ReactiveSequence>
+
+                <!-- <ReactiveSequence name="EnergyResponse">
+                  <CheckCanActivateEnergy />
+                  <CheckEnergyActive branch="EnergyResponse" />
+                  <CheckTacticalModeCondition mode="attack" branch="EnergyResponse" />
+                  <CheckEngagedSafeResponse stable_seconds="5.0"
+                                            exit_mode="4"
+                                            exit_blackboard_key="energy_safe_cooldown_active"
+                                            branch="EnergyResponse" />
+                  <SetCoordinate goal="1" />
+                  <NavigateToPoseAction name="NavigateEnergyZone" />
+                </ReactiveSequence> -->
+              </ReactiveFallback>
             </ReactiveSequence>
           </ReactiveFallback>
         </ReactiveSequence>
