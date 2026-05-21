@@ -14,6 +14,7 @@ cloud_registered_crop_filter:
     visualization_period_ms: 200     # 0: publish every frame
     z_plane_size: 12.0               # square plane side length in cloud frame
     z_plane_thickness: 0.03
+    box_padding: 0.15                # expand each crop box by this margin on every side
     position_frame: map
     positions:
       x: [12.0, 6.8]
