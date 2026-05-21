@@ -9,7 +9,6 @@
 #include <Eigen/Geometry>
 #include <pcl/common/point_tests.h>
 #include <pcl/common/transforms.h>
-#include <pcl/filters/crop_box.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -52,6 +51,7 @@ public:
     visualization_period_ms_ = this->declare_parameter<int>("visualization_period_ms", 200);
     z_plane_size_ = static_cast<float>(this->declare_parameter<double>("z_plane_size", 12.0));
     z_plane_thickness_ = static_cast<float>(this->declare_parameter<double>("z_plane_thickness", 0.03));
+    box_padding_ = static_cast<float>(this->declare_parameter<double>("box_padding", 0.0));
     if (filter_mode_ != "transform_cloud" && filter_mode_ != "transform_center") {
       RCLCPP_WARN(
         this->get_logger(), "Unknown filter_mode='%s', fallback to transform_cloud", filter_mode_.c_str());
@@ -292,9 +292,19 @@ private:
       }
     }
 
+    double box_padding_param = box_padding_;
+    this->get_parameter("box_padding", box_padding_param);
+    const float box_padding = std::max(0.0f, static_cast<float>(box_padding_param));
+    std::vector<Eigen::Vector3f> effective_sizes = sizes;
+    for (auto & size : effective_sizes) {
+      size.x() += 2.0f * box_padding;
+      size.y() += 2.0f * box_padding;
+      size.z() += 2.0f * box_padding;
+    }
+
     const std::string crop_frame = (filter_mode_ == "transform_cloud") ? filter_frame : cloud_frame;
     if (shouldPublishVisualization()) {
-      publishVisualization(msg->header.stamp, crop_frame, cloud_frame, centers, sizes, odom_ready, min_z);
+      publishVisualization(msg->header.stamp, crop_frame, cloud_frame, centers, effective_sizes, odom_ready, min_z);
     }
 
     const size_t filter_input_points = cloud_for_filter->points.size();
@@ -305,7 +315,7 @@ private:
     }
 
     // ==========================================================
-    // 3. 核心优化：使用极速 std::vector<uint8_t> 替换慢速 std::vector<bool>
+    // 3. 使用显式 AABB 判断，避免 CropBox 索引路径留下边界残点
     // ==========================================================
     cloud_out_->clear();
     const size_t num_points = cloud_for_filter->points.size();
@@ -318,33 +328,36 @@ private:
       return;
     }
 
-    // 字节定位，性能比原版的 bit-vector 快 10 倍以上
-    std::vector<uint8_t> keep_mask(num_points, remove_inside_ ? 1 : 0);
-    crop_filter_.setInputCloud(cloud_for_filter);
+    std::vector<uint8_t> inside_mask(num_points, 0);
+    if (should_log_stats) {
+      box_hit_counts.assign(centers.size(), 0);
+    }
 
-    for (size_t i = 0; i < centers.size(); ++i) {
-      const float half_x = 0.5f * sizes[i].x();
-      const float half_y = 0.5f * sizes[i].y();
-      const float half_z = 0.5f * sizes[i].z();
+    for (size_t box_i = 0; box_i < centers.size(); ++box_i) {
+      const float half_x = 0.5f * effective_sizes[box_i].x();
+      const float half_y = 0.5f * effective_sizes[box_i].y();
+      const float half_z = 0.5f * effective_sizes[box_i].z();
 
-      const float min_x = centers[i].x() - half_x;
-      const float max_x = centers[i].x() + half_x;
-      const float min_y = centers[i].y() - half_y;
-      const float max_y = centers[i].y() + half_y;
-      const float min_z = centers[i].z() - half_z;
-      const float max_z = centers[i].z() + half_z;
+      const float box_min_x = centers[box_i].x() - half_x;
+      const float box_max_x = centers[box_i].x() + half_x;
+      const float box_min_y = centers[box_i].y() - half_y;
+      const float box_max_y = centers[box_i].y() + half_y;
+      const float box_min_z = centers[box_i].z() - half_z;
+      const float box_max_z = centers[box_i].z() + half_z;
 
-      crop_filter_.setMin(Eigen::Vector4f(min_x, min_y, min_z, 1.0f));
-      crop_filter_.setMax(Eigen::Vector4f(max_x, max_y, max_z, 1.0f));
+      for (size_t point_i = 0; point_i < num_points; ++point_i) {
+        const auto & p = cloud_for_filter->points[point_i];
+        if (!pcl::isFinite(p)) {
+          continue;
+        }
 
-      std::vector<int> indices;
-      crop_filter_.filter(indices);
-      if (should_log_stats) {
-        box_hit_counts.push_back(indices.size());
-      }
-      for (const int idx : indices) {
-        if (idx >= 0 && static_cast<size_t>(idx) < num_points) {
-          keep_mask[static_cast<size_t>(idx)] = remove_inside_ ? 0 : 1;
+        const bool inside = p.x >= box_min_x && p.x <= box_max_x && p.y >= box_min_y &&
+                            p.y <= box_max_y && p.z >= box_min_z && p.z <= box_max_z;
+        if (inside) {
+          inside_mask[point_i] = 1;
+          if (should_log_stats) {
+            box_hit_counts[box_i]++;
+          }
         }
       }
     }
@@ -355,14 +368,16 @@ private:
     cloud_out_->points.reserve(num_points);
     if (cloud_for_filter->is_dense) {
       for (size_t i = 0; i < num_points; ++i) {
-        if (keep_mask[i]) {
+        const bool keep_point = remove_inside_ ? !inside_mask[i] : inside_mask[i];
+        if (keep_point) {
           cloud_out_->points.push_back(cloud_for_filter->points[i]);
         }
       }
     } else {
       for (size_t i = 0; i < num_points; ++i) {
         const auto & p = cloud_for_filter->points[i];
-        if (keep_mask[i] && pcl::isFinite(p)) {
+        const bool keep_point = remove_inside_ ? !inside_mask[i] : inside_mask[i];
+        if (keep_point && pcl::isFinite(p)) {
           cloud_out_->points.push_back(p);
         }
       }
@@ -388,7 +403,7 @@ private:
         odom_ready,
         min_z,
         centers,
-        sizes,
+        effective_sizes,
         box_hit_counts);
     }
   }
@@ -587,6 +602,7 @@ private:
   int64_t last_visualization_time_ns_{0};
   float z_plane_size_{12.0f};
   float z_plane_thickness_{0.03f};
+  float box_padding_{0.0f};
   float size_x_{12.0f};
   float size_y_{6.0f};
   float size_z_{3.5f};
@@ -605,7 +621,6 @@ private:
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed_;
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out_;
   pcl::PassThrough<pcl::PointXYZ> pass_filter_;
-  pcl::CropBox<pcl::PointXYZ> crop_filter_;
 
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
