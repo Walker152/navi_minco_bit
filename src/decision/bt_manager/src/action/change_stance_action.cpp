@@ -24,14 +24,23 @@ BT::PortsList SetGyroState::providedPorts()
   };
 }
 
-bool SetGyroState::shouldReverseRotation(bool use_gyro, int ammo_purchase_total, int bullets_remaining)
+bool SetGyroState::shouldReverseRotation(
+  bool use_gyro, int ammo_purchase_total, int bullets_remaining, int game_time_remaining)
 {
   if (!use_gyro) {
     reverse_initialized_ = false;
     return false;
   }
 
-  const int fired_count = std::max(0, 300 + ammo_purchase_total - bullets_remaining);
+  constexpr int kInitialAmmoAllowance = 300;
+  constexpr int kMatchDurationSec = 420;
+  constexpr int kAmmoAllowanceIntervalSec = 60;
+  constexpr int kAmmoAllowancePerInterval = 100;
+  const int elapsed_time = std::max(0, kMatchDurationSec - game_time_remaining);
+  const int time_bonus_ammo =
+    (elapsed_time / kAmmoAllowanceIntervalSec) * kAmmoAllowancePerInterval;
+  const int fired_count =
+    std::max(0, kInitialAmmoAllowance + ammo_purchase_total + time_bonus_ammo - bullets_remaining);
   if (fired_count <= 200) {
     reverse_initialized_ = false;
     return false;
@@ -61,12 +70,14 @@ BT::NodeStatus SetGyroState::tick()
   const bool random_speed = getInput<bool>("random_speed").value_or(false);
   const int ammo_purchase_total = blackboard->get<int>("ammo_purchase_total");
   const int bullets_remaining = blackboard->get<int>("bullets_remaining");
+  const int game_time_remaining = blackboard->get<int>("game_time_remaining");
 
   random_initialized_ = false;
   random_speed_enabled_ = false;
   current_gyro_vel_ = gyro_vel;
 
-  const bool reverse_now = shouldReverseRotation(use_gyro, ammo_purchase_total, bullets_remaining);
+  const bool reverse_now =
+    shouldReverseRotation(use_gyro, ammo_purchase_total, bullets_remaining, game_time_remaining);
   // const bool reverse_now = false;
   const float base_speed = reverse_now ? -current_gyro_vel_ : current_gyro_vel_;
   float output_gyro_vel = base_speed;

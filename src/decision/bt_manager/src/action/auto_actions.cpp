@@ -3,6 +3,7 @@
 #include "bt_manager/utils/area.hpp"
 #include "bt_manager/utils/nav_zone.hpp"
 #include <iostream>
+#include <sstream>
 using namespace color_text;
 namespace Sentry_BT {
 
@@ -40,6 +41,48 @@ BT::NodeStatus SetCoordinate::tick()
               << std::endl;
     last_goal_index = goal_index.value();
   }
+  return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- SetNavMode -------------------
+SetNavMode::SetNavMode(const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
+
+BT::PortsList SetNavMode::providedPorts()
+{
+  return {BT::InputPort<std::string>("mode")};
+}
+
+BT::NodeStatus SetNavMode::tick()
+{
+  const auto mode = getInput<std::string>("mode");
+  if (!mode) {
+    throw BT::RuntimeError("missing required input [mode]: ", mode.error());
+  }
+
+  NavMode nav_mode = NavMode::PATROL;
+  if (mode.value() == "patrol") {
+    nav_mode = NavMode::PATROL;
+  } else if (mode.value() == "tracing") {
+    nav_mode = NavMode::TRACING;
+  } else if (mode.value() == "retreat") {
+    nav_mode = NavMode::RETREAT;
+  } else if (mode.value() == "response") {
+    nav_mode = NavMode::RESPONSE;
+  } else if (mode.value() == "manual") {
+    nav_mode = NavMode::MANUAL;
+  } else {
+    throw BT::RuntimeError("unsupported nav mode: ", mode.value());
+  }
+
+  auto blackboard = config().blackboard;
+  blackboard->set<NavMode>("current_mode", nav_mode);
+
+  std::ostringstream oss;
+  oss << "mode=" << mode.value() << ", current_mode=" << static_cast<int>(nav_mode);
+  detail::logTransition(detail::TreeKind::NAV, "SetNavMode", true, oss.str());
   return BT::NodeStatus::SUCCESS;
 }
 

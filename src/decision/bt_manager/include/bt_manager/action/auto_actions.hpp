@@ -21,6 +21,15 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class SetNavMode : public BT::SyncActionNode
+{
+public:
+  SetNavMode(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 class SetTargetCoordinate : public BT::SyncActionNode
 {
 public:
