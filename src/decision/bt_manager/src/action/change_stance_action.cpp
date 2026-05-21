@@ -338,7 +338,7 @@ BT::NodeStatus UpdateEnhanceTime::tick()
   const int game_status = blackboard->get<int>("game_status");
 
   constexpr int kMaxGameTime = 420;
-  const bool game_active = (game_status > 0) || (current_time > 0 && current_time <= kMaxGameTime);
+  const bool game_active = (game_status == 4) || (current_time > 0 && current_time <= kMaxGameTime);
 
   if (last_game_time_ < 0) {
     last_game_time_ = current_time;

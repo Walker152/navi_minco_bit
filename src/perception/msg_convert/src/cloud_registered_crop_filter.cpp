@@ -66,12 +66,18 @@ public:
     size_y_ = static_cast<float>(this->declare_parameter<double>("box_size.y", 6.0));
     size_z_ = static_cast<float>(this->declare_parameter<double>("box_size.z", 3.5));
 
-    const auto centers_x = this->declare_parameter<std::vector<double>>("positions.x", {});
-    const auto centers_y = this->declare_parameter<std::vector<double>>("positions.y", {});
-    const auto centers_z = this->declare_parameter<std::vector<double>>("positions.z", {});
-    const auto sizes_x = this->declare_parameter<std::vector<double>>("box_sizes.x", {});
-    const auto sizes_y = this->declare_parameter<std::vector<double>>("box_sizes.y", {});
-    const auto sizes_z = this->declare_parameter<std::vector<double>>("box_sizes.z", {});
+    const auto centers_x =
+      this->declare_parameter<std::vector<double>>("positions.x", std::vector<double>{});
+    const auto centers_y =
+      this->declare_parameter<std::vector<double>>("positions.y", std::vector<double>{});
+    const auto centers_z =
+      this->declare_parameter<std::vector<double>>("positions.z", std::vector<double>{});
+    const auto sizes_x =
+      this->declare_parameter<std::vector<double>>("box_sizes.x", std::vector<double>{});
+    const auto sizes_y =
+      this->declare_parameter<std::vector<double>>("box_sizes.y", std::vector<double>{});
+    const auto sizes_z =
+      this->declare_parameter<std::vector<double>>("box_sizes.z", std::vector<double>{});
 
     if (!centers_x.empty() || !centers_y.empty() || !centers_z.empty()) {
       if (centers_x.size() == centers_y.size() && centers_x.size() == centers_z.size()) {
