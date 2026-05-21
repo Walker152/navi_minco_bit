@@ -1,6 +1,14 @@
 <root main_tree_to_execute="GimbalTree">
   <BehaviorTree ID="GimbalTree">
     <ReactiveFallback name="GimbalPriorityRoot">
+      <ReactiveSequence name="Priority0FirstMinutePitchDown">
+        <CheckGameTimeWindow name="CheckFirstMinuteNoPitchUp"
+                             min_remaining="360"
+                             max_remaining="420"
+                             branch="Priority0FirstMinutePitchDown" />
+        <SetGimbalPose name="SetFirstMinuteInspectPose" mode="1" />
+      </ReactiveSequence>
+
       <!-- <ReactiveSequence name="Priority1HardLock">
         <CheckTargetVisible name="CheckTargetVisible" branch="Priority1HardLock" />
         <TrackTargetAction name="TrackTargetAction" />
