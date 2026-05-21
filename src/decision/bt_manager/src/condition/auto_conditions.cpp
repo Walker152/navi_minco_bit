@@ -104,9 +104,6 @@ BT::NodeStatus CheckTargetLocked::tick()
   }
   bool condition_met = false;
   const bool target_in_engineering = engineering_zone.contains(target_point) && armor_id == 3;
-  std::cout << "contain:" << engineering_zone.contains(target_point) << "armor_id:" << armor_id << std::endl;
-  std::cout << "target:" << target_point.x << "," << target_point.y << std::endl;
-  blackboard->set("not_aim_enemy", target_in_engineering);
 
   if (!target_in_engineering) {
     if (in_attack_area && target_valid) {
@@ -119,7 +116,7 @@ BT::NodeStatus CheckTargetLocked::tick()
       double lost_duration = std::chrono::duration<double>(now - last_seen_time).count();
 
       // 容忍 1.0 秒内的视觉丢失
-      if (lost_duration < 1.0) {
+      if (lost_duration < 1.0) { 
         tick_count++;
         blackboard->set<NavMode>("current_mode", NavMode::TRACING);
         condition_met = true;
