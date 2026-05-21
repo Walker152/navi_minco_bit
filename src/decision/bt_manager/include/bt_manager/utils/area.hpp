@@ -1,6 +1,6 @@
 #pragma once
-#define RMUC_AREA
-// #define TEST_AREA
+// #define RMUC_AREA
+#define TEST_AREA
 #include "bt_manager/utils/nav_zone.hpp"
 
 #include <array>
@@ -175,10 +175,10 @@ inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{14.7, 11.0}, Point2D{15.7, 12.0}},
 };  // 假设这是奖励区域的坐标范围
 inline std::array<Area_Square, 4> tunnel_zone = {
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.6}},
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.6}},
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.6}},
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 3.6}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 4.3}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 4.3}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 4.3}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 4.3}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
@@ -293,7 +293,7 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 inline std::vector<Point2D> nav_points = {
 
   // for test
-  {8.6, 1.3, 0.0},  // HOME
+  {8.5, 1.5, 0.0},  // HOME
   // {13.5, 4.8, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
   {9.1, 6.5, 0.0},  // OUTPOST
