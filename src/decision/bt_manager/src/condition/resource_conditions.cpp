@@ -241,7 +241,7 @@ BT::NodeStatus CheckAttackFortHealthExchangeNeeded::tick()
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const Point2D point{current_pose.position.x, current_pose.position.y, 0.0};
   const bool in_attack_transform_zone =
-    transform_zone[2].contains(point) || transform_zone[3].contains(point);
+    transform_zone[1].contains(point) || transform_zone[3].contains(point);
   const bool attack_fort_window =
     game_status == 4 && game_time_remaining >= 0 && game_time_remaining <= 120 && big_energy_status == 2;
   if (!attack_fort_window) {
