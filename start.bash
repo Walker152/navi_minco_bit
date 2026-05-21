@@ -19,7 +19,7 @@ gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py; exec bash"
 sleep 1
 
 # # ICP
-gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
+# gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
 # sleep 1
 
 # Cloud Crop Filter
@@ -31,7 +31,7 @@ gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"
 sleep 5
 
 # Decision
-# gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
 sleep 3
 
 # Communication
