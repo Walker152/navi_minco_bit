@@ -21,6 +21,7 @@
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
+#include "visualization_msgs/msg/marker_array.hpp"
 
 namespace msg_convert {
 
@@ -45,6 +46,12 @@ public:
     remove_inside_ = this->declare_parameter<bool>("remove_inside", true);
     log_stats_ = this->declare_parameter<bool>("log_stats", true);
     stats_log_period_ms_ = this->declare_parameter<int>("stats_log_period_ms", 1000);
+    publish_visualization_ = this->declare_parameter<bool>("publish_visualization", false);
+    visualization_topic_ =
+      this->declare_parameter<std::string>("visualization_topic", "/cloud_registered_crop_filter/markers");
+    visualization_period_ms_ = this->declare_parameter<int>("visualization_period_ms", 200);
+    z_plane_size_ = static_cast<float>(this->declare_parameter<double>("z_plane_size", 12.0));
+    z_plane_thickness_ = static_cast<float>(this->declare_parameter<double>("z_plane_thickness", 0.03));
     if (filter_mode_ != "transform_cloud" && filter_mode_ != "transform_center") {
       RCLCPP_WARN(
         this->get_logger(), "Unknown filter_mode='%s', fallback to transform_cloud", filter_mode_.c_str());
@@ -127,18 +134,23 @@ public:
     cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
       output_topic, rclcpp::QoS(rclcpp::KeepLast(queue_size)));
 
+    marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+      visualization_topic_, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
+
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(odom_topic,
       rclcpp::QoS(rclcpp::KeepLast(queue_size)),
       std::bind(&CloudRegisteredCropFilterNode::odomCallback, this, std::placeholders::_1));
 
     RCLCPP_INFO(this->get_logger(),
-      "Optimized Crop filter started. input=%s output=%s frame=%s mode=%s remove_inside=%s log_stats=%s",
+      "Optimized Crop filter started. input=%s output=%s frame=%s mode=%s remove_inside=%s log_stats=%s "
+      "visualization=%s",
       input_topic.c_str(),
       output_topic.c_str(),
       position_frame_.c_str(),
       filter_mode_.c_str(),
       remove_inside_ ? "true" : "false",
-      log_stats_ ? "true" : "false");
+      log_stats_ ? "true" : "false",
+      publish_visualization_ ? visualization_topic_.c_str() : "false");
   }
 
 private:
@@ -188,6 +200,8 @@ private:
   void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
   {
     std::lock_guard<std::mutex> lock(odom_mutex_);
+    odom_x_ = static_cast<float>(msg->pose.pose.position.x);
+    odom_y_ = static_cast<float>(msg->pose.pose.position.y);
     odom_z_ = static_cast<float>(msg->pose.pose.position.z);
     odom_ready_ = true;
   }
@@ -276,6 +290,11 @@ private:
           c = transformPoint(transform_matrix, c);
         }
       }
+    }
+
+    const std::string crop_frame = (filter_mode_ == "transform_cloud") ? filter_frame : cloud_frame;
+    if (shouldPublishVisualization()) {
+      publishVisualization(msg->header.stamp, crop_frame, cloud_frame, centers, sizes, odom_ready, min_z);
     }
 
     const size_t filter_input_points = cloud_for_filter->points.size();
@@ -436,9 +455,121 @@ private:
     RCLCPP_INFO(this->get_logger(), "%s", oss.str().c_str());
   }
 
+  bool shouldPublishVisualization()
+  {
+    this->get_parameter("publish_visualization", publish_visualization_);
+    this->get_parameter("visualization_period_ms", visualization_period_ms_);
+
+    if (!publish_visualization_ || !marker_pub_) {
+      if (visualization_was_enabled_ && marker_pub_) {
+        publishClearVisualization();
+      }
+      visualization_was_enabled_ = false;
+      return false;
+    }
+    visualization_was_enabled_ = true;
+
+    if (visualization_period_ms_ <= 0) {
+      return true;
+    }
+
+    const int64_t now_ns = this->now().nanoseconds();
+    if (last_visualization_time_ns_ == 0 ||
+        now_ns - last_visualization_time_ns_ >=
+          static_cast<int64_t>(visualization_period_ms_) * 1000000LL) {
+      last_visualization_time_ns_ = now_ns;
+      return true;
+    }
+    return false;
+  }
+
+  void publishClearVisualization()
+  {
+    visualization_msgs::msg::MarkerArray markers;
+    visualization_msgs::msg::Marker clear_marker;
+    clear_marker.action = visualization_msgs::msg::Marker::DELETEALL;
+    markers.markers.push_back(clear_marker);
+    marker_pub_->publish(markers);
+  }
+
+  void publishVisualization(const rclcpp::Time & stamp,
+    const std::string & crop_frame,
+    const std::string & cloud_frame,
+    const std::vector<Eigen::Vector3f> & centers,
+    const std::vector<Eigen::Vector3f> & sizes,
+    const bool odom_ready,
+    const float min_z)
+  {
+    double z_plane_size = z_plane_size_;
+    double z_plane_thickness = z_plane_thickness_;
+    this->get_parameter("z_plane_size", z_plane_size);
+    this->get_parameter("z_plane_thickness", z_plane_thickness);
+
+    visualization_msgs::msg::MarkerArray markers;
+
+    visualization_msgs::msg::Marker clear_marker;
+    clear_marker.action = visualization_msgs::msg::Marker::DELETEALL;
+    markers.markers.push_back(clear_marker);
+
+    for (size_t i = 0; i < centers.size(); ++i) {
+      visualization_msgs::msg::Marker box;
+      box.header.frame_id = crop_frame;
+      box.header.stamp = stamp;
+      box.ns = "crop_boxes";
+      box.id = static_cast<int>(i);
+      box.type = visualization_msgs::msg::Marker::CUBE;
+      box.action = visualization_msgs::msg::Marker::ADD;
+      box.pose.position.x = centers[i].x();
+      box.pose.position.y = centers[i].y();
+      box.pose.position.z = centers[i].z();
+      box.pose.orientation.w = 1.0;
+      box.scale.x = sizes[i].x();
+      box.scale.y = sizes[i].y();
+      box.scale.z = sizes[i].z();
+      box.color.r = remove_inside_ ? 1.0f : 0.1f;
+      box.color.g = remove_inside_ ? 0.15f : 0.8f;
+      box.color.b = 0.05f;
+      box.color.a = 0.22f;
+      markers.markers.push_back(box);
+    }
+
+    if (odom_ready) {
+      float odom_x = 0.0f;
+      float odom_y = 0.0f;
+      {
+        std::lock_guard<std::mutex> lock(odom_mutex_);
+        odom_x = odom_x_;
+        odom_y = odom_y_;
+      }
+
+      visualization_msgs::msg::Marker z_plane;
+      z_plane.header.frame_id = cloud_frame;
+      z_plane.header.stamp = stamp;
+      z_plane.ns = "z_pass_plane";
+      z_plane.id = 1000;
+      z_plane.type = visualization_msgs::msg::Marker::CUBE;
+      z_plane.action = visualization_msgs::msg::Marker::ADD;
+      z_plane.pose.position.x = odom_x;
+      z_plane.pose.position.y = odom_y;
+      z_plane.pose.position.z = min_z;
+      z_plane.pose.orientation.w = 1.0;
+      z_plane.scale.x = z_plane_size;
+      z_plane.scale.y = z_plane_size;
+      z_plane.scale.z = z_plane_thickness;
+      z_plane.color.r = 0.1f;
+      z_plane.color.g = 0.45f;
+      z_plane.color.b = 1.0f;
+      z_plane.color.a = 0.18f;
+      markers.markers.push_back(z_plane);
+    }
+
+    marker_pub_->publish(markers);
+  }
+
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
 
   float center_x_{0.0f};
   float center_y_{0.0f};
@@ -449,12 +580,21 @@ private:
   bool log_stats_{true};
   int stats_log_period_ms_{1000};
   int64_t last_stats_log_time_ns_{0};
+  bool publish_visualization_{false};
+  bool visualization_was_enabled_{false};
+  std::string visualization_topic_;
+  int visualization_period_ms_{200};
+  int64_t last_visualization_time_ns_{0};
+  float z_plane_size_{12.0f};
+  float z_plane_thickness_{0.03f};
   float size_x_{12.0f};
   float size_y_{6.0f};
   float size_z_{3.5f};
   std::vector<Eigen::Vector3f> centers_;
   std::vector<Eigen::Vector3f> sizes_;
   float z_offset_{0.0f};
+  float odom_x_{0.0f};
+  float odom_y_{0.0f};
   float odom_z_{0.0f};
   bool odom_ready_{false};
   std::mutex odom_mutex_;
