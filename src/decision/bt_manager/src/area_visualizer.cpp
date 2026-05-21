@@ -86,7 +86,16 @@ void AreaVisualizer::publishAreaMarkers(const rclcpp::Time & now)
   const auto circle_areas = getCircleVizConfigs();
 
   int marker_id = 0;
+  int transform_zone_index = 0;
+  int tunnel_zone_index = 0;
   for (const auto & cfg : square_areas) {
+    std::string display_name = cfg.name;
+    if (cfg.name == "transform_zone") {
+      display_name = cfg.name + "[" + std::to_string(transform_zone_index++) + "]";
+    } else if (cfg.name == "tunnel_zone") {
+      display_name = cfg.name + "[" + std::to_string(tunnel_zone_index++) + "]";
+    }
+
     const double min_x = std::min(cfg.area.top_left.x, cfg.area.bottom_right.x);
     const double max_x = std::max(cfg.area.top_left.x, cfg.area.bottom_right.x);
     const double min_y = std::min(cfg.area.top_left.y, cfg.area.bottom_right.y);
@@ -95,7 +104,7 @@ void AreaVisualizer::publishAreaMarkers(const rclcpp::Time & now)
     visualization_msgs::msg::Marker box_marker;
     box_marker.header.frame_id = "map";
     box_marker.header.stamp = now;
-    box_marker.ns = "sentry_area_box/" + cfg.name;
+    box_marker.ns = "sentry_area_box/" + display_name;
     box_marker.id = marker_id++;
     box_marker.type = visualization_msgs::msg::Marker::CUBE;
     box_marker.action = visualization_msgs::msg::Marker::ADD;
@@ -115,7 +124,7 @@ void AreaVisualizer::publishAreaMarkers(const rclcpp::Time & now)
     visualization_msgs::msg::Marker text_marker;
     text_marker.header.frame_id = "map";
     text_marker.header.stamp = now;
-    text_marker.ns = "sentry_area_label/" + cfg.name;
+    text_marker.ns = "sentry_area_label/" + display_name;
     text_marker.id = marker_id++;
     text_marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
     text_marker.action = visualization_msgs::msg::Marker::ADD;
@@ -128,7 +137,7 @@ void AreaVisualizer::publishAreaMarkers(const rclcpp::Time & now)
     text_marker.color.g = cfg.color[1];
     text_marker.color.b = cfg.color[2];
     text_marker.color.a = 1.0F;
-    text_marker.text = cfg.name;
+    text_marker.text = display_name;
     marker_array.markers.push_back(text_marker);
   }
 
