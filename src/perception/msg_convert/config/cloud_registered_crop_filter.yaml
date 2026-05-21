@@ -17,7 +17,7 @@ cloud_registered_crop_filter:
     box_sizes:
       x: [3.0, 2.0]
       y: [3.0, 2.0]
-      z: [5.0, 0.8]
+      z: [5.0, 3.0]
     # positions:
     #   x: [15.4, 19.2, 13.7, 9.8]
     #   y: [1.5, 13.0, 13.4, 2.0]
