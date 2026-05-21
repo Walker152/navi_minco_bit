@@ -40,6 +40,7 @@ BT::NodeStatus CheckNearEnemyOutpost::tick()
 {
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
+  const Sentry_BT::Point2D nav_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal");
   const auto pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const auto enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
   if (enemy_outpost_destroyed) {
