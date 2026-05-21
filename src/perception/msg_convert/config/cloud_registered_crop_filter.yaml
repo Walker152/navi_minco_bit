@@ -9,6 +9,11 @@ cloud_registered_crop_filter:
     remove_inside: true             # true: remove points inside box, false: keep points inside box
     log_stats: true                  # print crop hit statistics
     stats_log_period_ms: 1000        # 0: print every frame
+    publish_visualization: true      # publish RViz MarkerArray for crop boxes and z plane
+    visualization_topic: /cloud_registered_crop_filter/markers
+    visualization_period_ms: 200     # 0: publish every frame
+    z_plane_size: 12.0               # square plane side length in cloud frame
+    z_plane_thickness: 0.03
     position_frame: map
     positions:
       x: [12.0, 6.8]
