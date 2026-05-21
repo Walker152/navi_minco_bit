@@ -6,10 +6,6 @@
       <ReactiveFallback name="NavPriorityRoot">
         <ReactiveSequence name="Priority0ManualOverride">
           <CheckManualOverride name="CheckManualOverride" branch="Priority0ManualOverride" />
-          <!-- <ChangeMapAction name="SwitchToMainMapForManual"
-                           map_dir="src/navigation/navi2_bringup/maps/2026"
-                           pcd_dir="src/utils/pcd2esdf/maps"
-                           map_name="rmuc2026" /> -->
           <ReactiveFallback name="ManualGoalSelector">
             <ReactiveSequence name="ManualAttackFortResponse">
               <CheckTacticalModeCondition name="CheckManualAttackMode" mode="attack" branch="ManualAttackFortResponse" />
@@ -75,28 +71,17 @@
           </ReactiveFallback>
         </ReactiveSequence>
 
-        <!-- <ReactiveSequence name="Priority3TargetAttack">
-          <ChangeMapAction name="SwitchToMainMapForSpecial"
-                             map_dir="src/navigation/navi2_bringup/maps/2026"
-                             pcd_dir="src/utils/pcd2esdf/maps"
-                             map_name="rmuc2026" />
-          <ReactiveSequence name="TargetPursuit">
-            <CheckTargetLocked name="CheckTargetLocked" branch="Priority3TargetAttack" />
-            <SetTargetCoordinate name="SetTargetCoordinate" tracing_dist="1.0"/>
-            <NavigateToPoseAction name="NavigateTrackingTarget" />
-          </ReactiveSequence>
-        </ReactiveSequence>
-         -->
-        <!-- <ReactiveSequence name="Priority3.5_EmergencyHalt">
-          <EmergencyStop name="EmergencyStop" />
-          <NavigateToPoseAction name="NavigateToStop" />
-        </ReactiveSequence> -->
-        
-        <ReactiveSequence name="Priority4SpecialResponse">
-          <!-- <ChangeMapAction name="SwitchToMainMapForSpecial"
-                           map_dir="src/navigation/navi2_bringup/maps/2026"
-                           pcd_dir="src/utils/pcd2esdf/maps"
-                           map_name="rmuc2026_back" /> -->
+        <ReactiveSequence name="Priority3EarlyGameWindow">
+          <CheckGameTimeWindow name="CheckEarlyGameWindow"
+                               min_remaining="181"
+                               max_remaining="420"
+                               branch="Priority3EarlyGameWindow" />
+          <ReactiveFallback name="EarlyGameSelector">
+            <ReactiveSequence name="EarlySurvival">
+              <CheckRetreatCondition name="CheckEarlyRetreatCondition"
+                                     health_threshold="30"
+                                     recovery_threshold="80"
+                                     branch="EarlySurvival" />
               <SetCoordinate name="SetEarlyHomeGoal" goal="0" />
               <NavigateToPoseAction name="NavigateEarlyHome" />
             </ReactiveSequence>
@@ -129,27 +114,19 @@
             </ReactiveSequence>
 
             <ReactiveSequence name="EarlyTargetAttack">
-              <!-- <ChangeMapAction name="SwitchToMainMapForSpecial"
-                                 map_dir="src/navigation/navi2_bringup/maps/2026"
-                                 pcd_dir="src/utils/pcd2esdf/maps"
-                                 map_name="rmuc2026" /> -->
               <ReactiveSequence name="EarlyTargetPursuit">
                 <CheckTargetLocked name="CheckEarlyTargetLocked" branch="EarlyTargetAttack" />
-                <SetTargetCoordinate name="SetEarlyTargetCoordinate" tracing_dist="1.0"/>
-                <NavigateToPoseAction name="NavigateEarlyTrackingTarget" />
+                <!-- <SetTargetCoordinate name="SetEarlyTargetCoordinate" tracing_dist="1.0"/>
+                <NavigateToPoseAction name="NavigateEarlyTrackingTarget" /> -->
               </ReactiveSequence>
             </ReactiveSequence>
             
-            <ReactiveSequence name="EarlyEmergencyHalt">
+            <!-- <ReactiveSequence name="EarlyEmergencyHalt">
               <EmergencyStop name="EarlyEmergencyStop" />
               <NavigateToPoseAction name="NavigateEarlyStop" />
-            </ReactiveSequence>
+            </ReactiveSequence> -->
             
             <ReactiveSequence name="EarlySpecialResponse">
-              <!-- <ChangeMapAction name="SwitchToMainMapForSpecial"
-                               map_dir="src/navigation/navi2_bringup/maps/2026"
-                               pcd_dir="src/utils/pcd2esdf/maps"
-                               map_name="rmuc2026" /> -->
               <ReactiveFallback name="EarlySpecialResponseSelector">
                 <ReactiveSequence name="EarlyNormalOutpostResponse">
                   <CheckTacticalModeCondition name="CheckEarlyNormalMode" mode="normal" branch="EarlyNormalOutpostResponse" />
