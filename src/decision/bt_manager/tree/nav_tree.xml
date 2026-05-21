@@ -26,7 +26,7 @@
                                max_remaining="120"
                                branch="Priority1AttackEnemyFortAfter2Min" />
           <CheckBigEnergyActive name="CheckAttackEnemyFortBigEnergy"
-                                active_status="2"
+                                active_status="1"
                                 branch="Priority1AttackEnemyFortAfter2Min" />
           <SetTacticalMode name="SetAttackEnemyFortTacticalMode" mode="attack" />
           <SetNavMode name="SetAttackEnemyFortNavMode" mode="response" />
@@ -42,8 +42,8 @@
           <ReactiveFallback name="MidSupplySelector">
             <ReactiveSequence name="MidHealthSupply">
               <CheckRetreatCondition name="CheckMidHealthSupplyCondition"
-                                     health_threshold="10"
-                                     recovery_threshold="80"
+                                     health_threshold="50"
+                                     recovery_threshold="90"
                                      branch="MidHealthSupply" />
               <SetCoordinate name="SetMidHealthHomeGoal" goal="0" />
               <NavigateToPoseAction name="NavigateMidHealthHome" />
