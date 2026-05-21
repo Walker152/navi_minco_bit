@@ -425,17 +425,17 @@ behavior_server:
     costmap_topic: local_costmap/costmap_raw
     footprint_topic: local_costmap/published_footprint
     cycle_frequency: 10.0
-    behavior_plugins: ["wait", "backup"]
+    behavior_plugins: ["wait"]
     wait:
       plugin: "nav2_behaviors/Wait"
-    backup:
-      # plugin: "nav2_behaviors/BackUp"
-      plugin: "nav2_behaviors/BackUpTwzFree"
-      local_costmap_global_frame: camera_init
-      local_costmap_robot_base_frame: base_link
-      robot_radius: 0.3
-      cost_threshold: 0.0
-      visualization: true
+    # backup:
+    #   # plugin: "nav2_behaviors/BackUp"
+    #   plugin: "nav2_behaviors/BackUpTwzFree"
+    #   local_costmap_global_frame: camera_init
+    #   local_costmap_robot_base_frame: base_link
+    #   robot_radius: 0.3
+    #   cost_threshold: 0.0
+    #   visualization: true
     global_frame: map
     robot_base_frame: base_link
     transform_tolerance: 0.1
