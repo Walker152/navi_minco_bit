@@ -2,6 +2,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,8 @@ public:
 
     filter_mode_ = this->declare_parameter<std::string>("filter_mode", "transform_cloud");
     remove_inside_ = this->declare_parameter<bool>("remove_inside", true);
+    log_stats_ = this->declare_parameter<bool>("log_stats", true);
+    stats_log_period_ms_ = this->declare_parameter<int>("stats_log_period_ms", 1000);
     if (filter_mode_ != "transform_cloud" && filter_mode_ != "transform_center") {
       RCLCPP_WARN(
         this->get_logger(), "Unknown filter_mode='%s', fallback to transform_cloud", filter_mode_.c_str());
@@ -129,12 +132,13 @@ public:
       std::bind(&CloudRegisteredCropFilterNode::odomCallback, this, std::placeholders::_1));
 
     RCLCPP_INFO(this->get_logger(),
-      "Optimized Crop filter started. input=%s output=%s frame=%s mode=%s remove_inside=%s",
+      "Optimized Crop filter started. input=%s output=%s frame=%s mode=%s remove_inside=%s log_stats=%s",
       input_topic.c_str(),
       output_topic.c_str(),
       position_frame_.c_str(),
       filter_mode_.c_str(),
-      remove_inside_ ? "true" : "false");
+      remove_inside_ ? "true" : "false",
+      log_stats_ ? "true" : "false");
   }
 
 private:
@@ -227,6 +231,7 @@ private:
     }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_for_filter = cloud_input_;
+    const size_t raw_points = cloud_input_->points.size();
 
     // 获取里程计 Z 轴高度
     float min_z = 0.0f;
@@ -273,6 +278,13 @@ private:
       }
     }
 
+    const size_t filter_input_points = cloud_for_filter->points.size();
+    const bool should_log_stats = shouldLogStats();
+    std::vector<size_t> box_hit_counts;
+    if (should_log_stats) {
+      box_hit_counts.reserve(centers.size());
+    }
+
     // ==========================================================
     // 3. 核心优化：使用极速 std::vector<uint8_t> 替换慢速 std::vector<bool>
     // ==========================================================
@@ -308,6 +320,9 @@ private:
 
       std::vector<int> indices;
       crop_filter_.filter(indices);
+      if (should_log_stats) {
+        box_hit_counts.push_back(indices.size());
+      }
       for (const int idx : indices) {
         if (idx >= 0 && static_cast<size_t>(idx) < num_points) {
           keep_mask[static_cast<size_t>(idx)] = remove_inside_ ? 0 : 1;
@@ -343,6 +358,82 @@ private:
     filtered_msg.header.stamp = msg->header.stamp;
     filtered_msg.header.frame_id = (filter_mode_ == "transform_cloud") ? filter_frame : cloud_frame;
     cloud_pub_->publish(filtered_msg);
+
+    if (should_log_stats) {
+      logFilterStats(raw_points,
+        filter_input_points,
+        cloud_out_->points.size(),
+        cloud_frame,
+        filter_frame,
+        need_transform,
+        odom_ready,
+        min_z,
+        centers,
+        sizes,
+        box_hit_counts);
+    }
+  }
+
+  bool shouldLogStats()
+  {
+    if (!log_stats_) {
+      return false;
+    }
+    if (stats_log_period_ms_ <= 0) {
+      return true;
+    }
+
+    const int64_t now_ns = this->now().nanoseconds();
+    if (last_stats_log_time_ns_ == 0 ||
+        now_ns - last_stats_log_time_ns_ >= static_cast<int64_t>(stats_log_period_ms_) * 1000000LL) {
+      last_stats_log_time_ns_ = now_ns;
+      return true;
+    }
+    return false;
+  }
+
+  void logFilterStats(const size_t raw_points,
+    const size_t filter_input_points,
+    const size_t output_points,
+    const std::string & cloud_frame,
+    const std::string & filter_frame,
+    const bool need_transform,
+    const bool odom_ready,
+    const float min_z,
+    const std::vector<Eigen::Vector3f> & centers,
+    const std::vector<Eigen::Vector3f> & sizes,
+    const std::vector<size_t> & box_hit_counts)
+  {
+    const size_t changed_points =
+      remove_inside_ ? (filter_input_points >= output_points ? filter_input_points - output_points : 0)
+                     : output_points;
+
+    std::ostringstream oss;
+    oss << "[CropStats] raw=" << raw_points << " after_z=" << filter_input_points
+        << " output=" << output_points << " changed=" << changed_points
+        << " mode=" << filter_mode_ << " cloud_frame=" << cloud_frame
+        << " filter_frame=" << filter_frame << " need_tf=" << (need_transform ? "true" : "false")
+        << " odom_z_filter=";
+    if (odom_ready) {
+      oss << min_z;
+    } else {
+      oss << "disabled";
+    }
+
+    for (size_t i = 0; i < centers.size(); ++i) {
+      const float half_x = 0.5f * sizes[i].x();
+      const float half_y = 0.5f * sizes[i].y();
+      const float half_z = 0.5f * sizes[i].z();
+      const size_t hits = i < box_hit_counts.size() ? box_hit_counts[i] : 0;
+      oss << " | box" << i << " center=(" << centers[i].x() << "," << centers[i].y() << ","
+          << centers[i].z() << ") size=(" << sizes[i].x() << "," << sizes[i].y() << ","
+          << sizes[i].z() << ") min=(" << centers[i].x() - half_x << ","
+          << centers[i].y() - half_y << "," << centers[i].z() - half_z << ") max=("
+          << centers[i].x() + half_x << "," << centers[i].y() + half_y << ","
+          << centers[i].z() + half_z << ") hits=" << hits;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "%s", oss.str().c_str());
   }
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_sub_;
@@ -355,6 +446,9 @@ private:
   std::string position_frame_;
   std::string filter_mode_;
   bool remove_inside_{true};
+  bool log_stats_{true};
+  int stats_log_period_ms_{1000};
+  int64_t last_stats_log_time_ns_{0};
   float size_x_{12.0f};
   float size_y_{6.0f};
   float size_z_{3.5f};
