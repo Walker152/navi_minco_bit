@@ -14,13 +14,13 @@ namespace Sentry_BT {
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
   AreaPolygon<6, Point2D>{
     Point2D{8.5, 5.0}, Point2D{10.0, 5.0}, Point2D{11.5, 5.0},
-    Point2D{11.5, 1.0}, Point2D{10.0, 1.0}, Point2D{8.5, 1.0}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{11.5, 0.1}, Point2D{10.0, 0.1}, Point2D{8.5, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
     Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{20.5, 15.0},
     Point2D{20.5, 10.5}, Point2D{18.75, 10.5}, Point2D{17.0, 10.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{10.0, 13.8}, Point2D{13.35, 13.8}, Point2D{16.7, 13.8},
-    Point2D{16.7, 12.0}, Point2D{13.35, 12.0}, Point2D{10.0, 12.0}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{8.8, 10.6}, Point2D{11.0, 13.8}, Point2D{16.7, 13.8},
+    Point2D{16.7, 12.5}, Point2D{12.7, 12.5}, Point2D{11.2, 10.6}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
     Point2D{12.3, 3.0}, Point2D{15.65, 3.0}, Point2D{19.0, 3.0},
     Point2D{19.0, 1.2}, Point2D{15.65, 1.2}, Point2D{12.3, 1.2}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
@@ -53,11 +53,11 @@ inline std::array<Area_Square, 2> stairs_lower_safe_zone{
 inline AreaPolygon<8, Point2D> highland_zone{
   Point2D{13.2, 12.7}, 
   Point2D{10.9, 10.0},
-  Point2D{10.9, 5.2},
+  Point2D{10.9, 4.8},
   Point2D{13.5, 2.3},
   Point2D{15.8, 2.3},
   Point2D{18.1, 5.0},
-  Point2D{18.1, 9.8},
+  Point2D{18.1, 10.2},
   Point2D{15.5, 12.7},
 };
 inline AreaPolygon<8, Point2D> own_defense_zone{
@@ -151,7 +151,7 @@ inline std::vector<Point2D> nav_points = {
   {15.7, 11.0, 0.0}, // ENEMY_OUTPOST
   {7.2, 7.5, 0.0},   // OWN_FORT
   {22.0, 7.5, 0.0},  // ENEMY_FORT
-  {12.1, 3.6, 0.0}   // OWN_OUTPOST
+  {12.0, 3.8, 0.0}   // OWN_OUTPOST
 
   // for rmul
   // {1.2, 7.2, 0.0},  //HOME
