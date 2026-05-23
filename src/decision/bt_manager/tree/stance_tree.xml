@@ -37,7 +37,7 @@
               <CheckInEnemyFortZone branch="ArrivedEnemyFortRandomGyro" />
               <SetGyroState use_gyro="true"
                             gyro_vel="80.0"
-                            random_speed="true" />
+                            random_speed="false" />
             </Sequence>
             <Sequence name="NotArriveEnemyFortNoGyro">
               <Inverter>
@@ -70,7 +70,7 @@
           <!-- <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" /> -->
           <SetGyroState use_gyro="true" 
                         gyro_vel="80.0" 
-                        random_speed="true" />
+                        random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
           <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
         </Sequence>
@@ -81,7 +81,7 @@
           <!-- <CheckEnhanceLimit target_stance="DEFEND" max_time_sec="180" /> -->
           <SetGyroState use_gyro="true" 
                         gyro_vel="80.0" 
-                        random_speed="true" />
+                        random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefendStanceBranch" /> -->
           <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
         </Sequence>
