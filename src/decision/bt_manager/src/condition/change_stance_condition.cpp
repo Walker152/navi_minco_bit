@@ -200,7 +200,7 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   const auto nav_goal = blackboard->get<Sentry_BT::Point2D>("nav_goal");
   const bool through_tunnel = blackboard->get<bool>("through_tunnel");
   const bool current_in_tunnel = blackboard->get<bool>("current_in_tunnel");
-  const bool is_disengaged = blackboard->get<bool>("is_disengaged");
+  // const bool is_disengaged = blackboard->get<bool>("is_disengaged");
 
   const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
   const Point2D goal_point{nav_goal.x, nav_goal.y, 0.0};
@@ -221,13 +221,10 @@ BT::NodeStatus CheckCrossZoneTransition::tick()
   bool is_tunnel_journey = false;
   const int active_tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
 
-  if (current_in_tunnel) {
+  if (current_in_tunnel || (in_transform_zone && through_tunnel)) {
     is_tunnel_journey = true;
-  } else if (in_transform_zone && through_tunnel) {
-    is_tunnel_journey = is_disengaged;
-  } else {
-    is_tunnel_journey = false;
   }
+
   std::ostringstream oss;
   oss << "through_tunnel=" << through_tunnel << ", tunnel_idx=" << active_tunnel_idx
       << ", current_in_tunnel=" << current_in_tunnel << ", need_cross_zone=" << need_cross_zone;
