@@ -2,7 +2,9 @@
   <include path="recovery_tree.xml" />
   <BehaviorTree ID="MainTree">
     <ReactiveSequence name="MainReactiveSequence">
-      <CheckTargetLocked name="CheckEarlyTargetLocked" branch="EarlyTargetAttack" />
+      <ForceSuccess>
+        <CheckTargetLocked name="CheckEarlyTargetLocked" branch="EarlyTargetAttack" />
+      </ForceSuccess>
       <ReactiveFallback name="NavPriorityRoot">
         <ReactiveSequence name="Priority0ManualOverride">
           <CheckManualOverride name="CheckManualOverride" branch="Priority0ManualOverride" />
@@ -127,17 +129,22 @@
             </ReactiveSequence> -->
             
             <ReactiveSequence name="EarlySpecialResponse">
+              <ForceSuccess>
+                <ReactiveSequence name="AutoOutpostEnableOnce">
+                  <CheckGameTimeWindow name="CheckAutoOutpostEnableWindow"
+                                       min_remaining="355"
+                                       max_remaining="360"
+                                       branch="AutoOutpostEnableOnce" />
+                  <SetEnemyOutpostDestroyedFalseOnce name="SetAutoOutpostRemainedOnce"
+                                                     branch="AutoOutpostEnableOnce" />
+                </ReactiveSequence>
+              </ForceSuccess>
               <ReactiveFallback name="EarlySpecialResponseSelector">
-                <ReactiveSequence name="EarlyNormalOutpostResponse">
-                  <Inverter>
-                    <CheckGameTimeWindow name="CheckOutpostAttackWindow"
-                                 min_remaining="360"
-                                 max_remaining="420"
-                                 branch="Priority3EarlyGameWindow" />
-                  </Inverter>
-                  <CheckTacticalModeCondition name="CheckEarlyNormalMode" mode="normal" branch="EarlyNormalOutpostResponse" />
-                  <CheckOutpostRemained name="CheckEarlyOutpostRemained" branch="EarlyNormalOutpostResponse" />
-                  <CheckEngagedSafeResponse name="CheckEarlyEngagedSafeResponseForNav"
+                <ReactiveSequence name="AutoNormalOutpostResponse">
+                  <CheckTacticalModeCondition name="CheckAutoOutpostNormalMode" mode="normal" branch="AutoNormalOutpostResponse" />
+                  <CheckOutpostRemained name="CheckAutoOutpostRemained"
+                                        branch="AutoNormalOutpostResponse" />
+                  <CheckEngagedSafeResponse name="CheckAutoOutpostSafeResponseForNav"
                                              stable_seconds="5.0"
                                              exit_mode="4"
                                              exit_blackboard_key="outpost_safe_cooldown_active"
