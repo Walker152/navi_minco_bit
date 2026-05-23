@@ -54,17 +54,17 @@
             <ReactiveSequence name="MidAmmoSupply">
               <CheckAmmoLow ammo_threshold="150" branch="MidAmmoSupply" />
               <ReactiveFallback name="MidAmmoSupplyZoneSelector">
-                <ReactiveSequence name="MidHighlandOutpostSupply">
+                <!-- <ReactiveSequence name="MidHighlandOutpostSupply">
                   <CheckInZone zone_name="highland" branch="MidHighlandOutpostSupply" />
                   <CheckOwnOutpostAlive branch="MidHighlandOutpostSupply" />
                   <SetCoordinate name="SetMidSupplyOutpostGoal" goal="5" />
                   <NavigateToPoseAction name="NavigateMidSupplyOutpost" />
-                </ReactiveSequence>
+                </ReactiveSequence> -->
 
                 <ReactiveSequence name="MidOwnDefenseHomeSupply">
-                  <Inverter>
+                  <!-- <Inverter>
                     <CheckInZone zone_name="enemy_defense" branch="MidOwnDefenseHomeSupply" />
-                  </Inverter>
+                  </Inverter> -->
                   <SetCoordinate name="SetMidOwnDefenseSupplyHomeGoal" goal="0" />
                   <NavigateToPoseAction name="NavigateMidOwnDefenseSupplyHome" />
                 </ReactiveSequence>
@@ -92,9 +92,9 @@
             </ReactiveSequence> -->
 
             <ReactiveSequence name="GlobalAmmoSupply">
-              <CheckAmmoLow ammo_threshold="50" branch="GlobalAmmoSupply" />
+              <CheckAmmoLow ammo_threshold="100" branch="GlobalAmmoSupply" />
               <ReactiveFallback name="GlobalAmmoSupplyZoneSelector">
-                <ReactiveSequence name="GlobalOutpostAmmoSupply">
+                <!-- <ReactiveSequence name="GlobalOutpostAmmoSupply">
                   <ReactiveFallback>
                     <CheckInZone zone_name="highland" branch="GlobalOutpostAmmoSupply" />
                     <CheckInZone zone_name="own_outpost" branch="GlobalOutpostAmmoSupply" />
@@ -102,12 +102,12 @@
                   <CheckOwnOutpostAlive branch="GlobalOutpostAmmoSupply" />
                   <SetCoordinate name="SetGlobalAmmoOutpostGoal" goal="5" />
                   <NavigateToPoseAction name="NavigateGlobalAmmoOutpost" />
-                </ReactiveSequence>
+                </ReactiveSequence> -->
 
                 <ReactiveSequence name="GlobalHomeAmmoSupply">
-                  <Inverter>
+                  <!-- <Inverter>
                     <CheckInZone zone_name="enemy_defense" branch="GlobalHomeAmmoSupply" />
-                  </Inverter>
+                  </Inverter> -->
                   <SetCoordinate name="SetGlobalAmmoHomeGoal" goal="0" />
                   <NavigateToPoseAction name="NavigateGlobalAmmoHome" />
                 </ReactiveSequence>
