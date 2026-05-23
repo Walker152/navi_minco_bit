@@ -43,6 +43,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckManualOverride>("CheckManualOverride");
   factory_.registerNodeType<CheckOutpostSafeResponse>("CheckOutpostSafeResponse");
   factory_.registerNodeType<CheckOutpostRemained>("CheckOutpostRemained");
+  factory_.registerNodeType<SetEnemyOutpostDestroyedFalseOnce>("SetEnemyOutpostDestroyedFalseOnce");
   factory_.registerNodeType<CheckOwnOutpostAlive>("CheckOwnOutpostAlive");
   factory_.registerNodeType<CheckTargetLocked>("CheckTargetLocked");
   factory_.registerBuilder<NavigateToPoseAction>(

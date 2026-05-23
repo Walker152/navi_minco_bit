@@ -219,9 +219,11 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   Point2D manual_point_2d(manual_point.position.x, manual_point.position.y);
   static Point2D last_manual_point(0.0, 0.0);
   blackboard_->set<Point2D>("manual_override_goal", manual_point_2d);
-  if (std::hypot(manual_point.position.x - last_manual_point.x,
-        manual_point.position.y - last_manual_point.y) < 0.001) {
-    return;  // 如果位置没有明显变化，也不处理按键变化，避免重复触发
+  const bool manual_point_changed =
+    std::hypot(manual_point.position.x - last_manual_point.x,
+      manual_point.position.y - last_manual_point.y) >= 0.001;
+  if (!manual_point_changed) {
+    return;
   }
   last_manual_point = manual_point_2d;
   switch (msg->manual_key) {
@@ -248,7 +250,6 @@ void ros_interface::radarInfoCallback(const ros_interfaces::msg::RadarInfo::Shar
   // 存储敌方信息
   blackboard_->set<int>("enemy_coin_left", static_cast<int>(msg->enemy_coin_left));
   blackboard_->set<int>("enemy_coin_accumulated", static_cast<int>(msg->enemy_coin_accumulated));
-  // blackboard_->set<bool>("enemy_outpost_destroyed", !(msg->is_enemy_outpost_sensed));
 
   // 存储所有敌方机器人状态
   ros_interfaces::msg::RadarInfo radar_info = *msg;

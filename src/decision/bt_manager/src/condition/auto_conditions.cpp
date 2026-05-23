@@ -174,7 +174,7 @@ BT::NodeStatus CheckTargetLocked::tick()
   if (!target_in_engineering && !target_in_supply) {
     if (in_attack_area && target_valid) {
       last_seen_time = std::chrono::system_clock::now();
-      blackboard->set<NavMode>("current_mode", NavMode::TRACING);
+      // blackboard->set<NavMode>("current_mode", NavMode::TRACING);
       condition_met = true;
       tick_count = 0;
     } else if (in_attack_area) {
@@ -184,7 +184,7 @@ BT::NodeStatus CheckTargetLocked::tick()
       // 容忍 1.0 秒内的视觉丢失
       if (lost_duration < 1.0) { 
         tick_count++;
-        blackboard->set<NavMode>("current_mode", NavMode::TRACING);
+        // blackboard->set<NavMode>("current_mode", NavMode::TRACING);
         condition_met = true;
       } else {
         tick_count = 0;
@@ -234,6 +234,38 @@ BT::NodeStatus CheckOutpostRemained::tick()
     return BT::NodeStatus::SUCCESS;
   }
 
+  return BT::NodeStatus::FAILURE;
+}
+
+// ------------------- SetEnemyOutpostDestroyedFalseOnce -------------------
+SetEnemyOutpostDestroyedFalseOnce::SetEnemyOutpostDestroyedFalseOnce(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList SetEnemyOutpostDestroyedFalseOnce::providedPorts()
+{
+  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus SetEnemyOutpostDestroyedFalseOnce::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+
+  const bool enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
+  if (enemy_outpost_destroyed) {
+    blackboard->set<bool>("enemy_outpost_destroyed", false);
+    detail::logTransition(
+      detail::TreeKind::NAV, "SetEnemyOutpostDestroyedFalseOnce", true,
+      "enemy_outpost_destroyed true -> false", branch);
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  detail::logTransition(
+    detail::TreeKind::NAV, "SetEnemyOutpostDestroyedFalseOnce", false,
+    "enemy_outpost_destroyed already false", branch);
   return BT::NodeStatus::FAILURE;
 }
 
