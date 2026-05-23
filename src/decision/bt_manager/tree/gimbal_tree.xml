@@ -8,12 +8,6 @@
                              branch="Priority0FirstMinutePitchDown" />
         <SetGimbalPose name="SetFirstMinuteInspectPose" mode="1" />
       </ReactiveSequence>
-
-      <!-- <ReactiveSequence name="Priority1HardLock">
-        <CheckTargetVisible name="CheckTargetVisible" branch="Priority1HardLock" />
-        <TrackTargetAction name="TrackTargetAction" />
-      </ReactiveSequence> -->
-
       <ReactiveSequence name="Priority2SpecialResponseScan">
         <CheckEngagedSafeResponse stable_seconds="5.0"
                                   exit_mode="-1"
@@ -22,7 +16,9 @@
         <CheckNearEnemyOutpost name="CheckNearEnemyOutpost" branch="Priority2SpecialResponseScan" />
         <SetGimbalPose name="SetOutpostInspectPose" mode="0"/>
       </ReactiveSequence>
-      <SetGimbalPose name="SetNormalInspectPose" mode="1" />
+      <ReactiveSequence name="Priority3NormalScan">
+        <SetGimbalPose name="SetNormalInspectPose" mode="1" />
+      </ReactiveSequence>
       <!-- <ReactiveFallback name="GimbalScanStrategy">
         <ReactiveSequence name="EnergyGimbalScan">
           <CheckEnergyActive branch="EnergyGimbalScan" />

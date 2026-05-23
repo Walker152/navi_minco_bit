@@ -129,6 +129,12 @@
             <ReactiveSequence name="EarlySpecialResponse">
               <ReactiveFallback name="EarlySpecialResponseSelector">
                 <ReactiveSequence name="EarlyNormalOutpostResponse">
+                  <Inverter>
+                    <CheckGameTimeWindow name="CheckOutpostAttackWindow"
+                                 min_remaining="360"
+                                 max_remaining="420"
+                                 branch="Priority3EarlyGameWindow" />
+                  </Inverter>
                   <CheckTacticalModeCondition name="CheckEarlyNormalMode" mode="normal" branch="EarlyNormalOutpostResponse" />
                   <CheckOutpostRemained name="CheckEarlyOutpostRemained" branch="EarlyNormalOutpostResponse" />
                   <CheckEngagedSafeResponse name="CheckEarlyEngagedSafeResponseForNav"
