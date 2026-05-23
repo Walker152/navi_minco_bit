@@ -2,7 +2,7 @@
   <include path="recovery_tree.xml" />
   <BehaviorTree ID="MainTree">
     <ReactiveSequence name="MainReactiveSequence">
-      
+      <CheckTargetLocked name="CheckEarlyTargetLocked" branch="EarlyTargetAttack" />
       <ReactiveFallback name="NavPriorityRoot">
         <ReactiveSequence name="Priority0ManualOverride">
           <CheckManualOverride name="CheckManualOverride" branch="Priority0ManualOverride" />
@@ -113,13 +113,13 @@
               </ReactiveFallback>
             </ReactiveSequence>
 
-            <ReactiveSequence name="EarlyTargetAttack">
+            <!-- <ReactiveSequence name="EarlyTargetAttack">
               <ReactiveSequence name="EarlyTargetPursuit">
                 <CheckTargetLocked name="CheckEarlyTargetLocked" branch="EarlyTargetAttack" />
-                <!-- <SetTargetCoordinate name="SetEarlyTargetCoordinate" tracing_dist="1.0"/>
-                <NavigateToPoseAction name="NavigateEarlyTrackingTarget" /> -->
+                <SetTargetCoordinate name="SetEarlyTargetCoordinate" tracing_dist="1.0"/>
+                <NavigateToPoseAction name="NavigateEarlyTrackingTarget" />
               </ReactiveSequence>
-            </ReactiveSequence>
+            </ReactiveSequence> -->
             
             <!-- <ReactiveSequence name="EarlyEmergencyHalt">
               <EmergencyStop name="EarlyEmergencyStop" />
