@@ -1,6 +1,6 @@
 #pragma once
-// #define RMUC_AREA
-#define TEST_AREA
+#define RMUC_AREA
+// #define TEST_AREA
 #include "bt_manager/utils/nav_zone.hpp"
 
 #include <array>
@@ -14,7 +14,7 @@ namespace Sentry_BT {
 inline std::array<Area_Square, 4> transform_zone{
   Area_Square{Point2D{11.5, 5.0}, Point2D{8.5, 1.0}}, // Home Right Tunnel
   Area_Square{Point2D{20.5, 15.0}, Point2D{17.0, 10.5}}, // Enemy Right Tunnel
-  Area_Square{Point2D{16.7, 13.8}, Point2D{10.0, 12.0}}, // Home Left Tunnel
+  Area_Square{Point2D{16.7, 13.8}, Point2D{9.0, 11.5}}, // Home Left Tunnel
   Area_Square{Point2D{19.0, 3.0}, Point2D{12.3, 1.2}}, // Enemy Left Tunnel
 };
 inline std::array<Area_Square, 2> bonus_zone = {
@@ -153,9 +153,9 @@ inline std::vector<Point2D> nav_points = {
 
 inline std::vector<PatrolPoint> patrol_points_normal = {
   // for rmuc
-  {{16.0, 11.5, 0.0}, 5000},
+  {{16.0, 11.0, 0.0}, 5000},
   // {{17.3, 8.5, 0.0}, 5000},
-  {{12.5, 11.0, 0.0}, 5000},
+  {{12.5, 10.5, 0.0}, 5000},
 };
 
 inline std::vector<PatrolPoint> patrol_points_attack = {
