@@ -112,7 +112,10 @@ BT::NodeStatus CheckBigEnergyActive::tick()
   const std::string branch = getInput<std::string>("branch").value_or("");
   const int active_status = getInput<int>("active_status").value_or(2);
   const int big_energy_status = blackboard->get<int>("big_energy_status");
-  const bool active = big_energy_status == active_status;
+  if(big_energy_status == 1) {
+    energy_activated = true;
+  }
+  const bool active = energy_activated;
 
   std::ostringstream oss;
   oss << "big_energy_status=" << big_energy_status << ", active_status=" << active_status;

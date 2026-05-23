@@ -35,7 +35,7 @@ gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bas
 sleep 3
 
 # Communication
-# gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
 
 # Rosbag record
 # gnome-terminal -- bash -c "mkdir -p ~/roslaunchbag && ros2 bag record -a -o ~/rosbag/$(date +%Y%m%d_%H%M%S); exec bash"
