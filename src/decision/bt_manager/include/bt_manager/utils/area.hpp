@@ -1,6 +1,6 @@
 #pragma once
-#define RMUC_AREA
-// #define TEST_AREA
+// #define RMUC_AREA
+#define TEST_AREA
 #include "bt_manager/utils/nav_zone.hpp"
 
 #include <array>
@@ -296,7 +296,8 @@ inline std::vector<Point2D> nav_points = {
   {8.5, 1.5, 0.0},  // HOME
   // {13.5, 4.8, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
-  {9.1, 6.5, 0.0},  // OUTPOST
+  // {9.1, 6.5, 0.0},  // OUTPOST
+  {9.0, 3.1, 0.0},  // OUTPOST
   {6.8, 3.5, 0.0},  // OWN_FORT
   {13.7, 3.2, 0.0}   // ENEMY_FORT
 };
@@ -304,7 +305,7 @@ inline std::vector<Point2D> nav_points = {
 inline std::vector<PatrolPoint> patrol_points_normal = {
   // for test
   {{10.0, 2.3, 0.0}, 5000},
-  {{10.6, 2.5, 0.0}, 5000},
+  {{11.6, 2.0, 0.0}, 5000},
   {{9.6, 2.6, 0.0}, 5000}
   };
 
