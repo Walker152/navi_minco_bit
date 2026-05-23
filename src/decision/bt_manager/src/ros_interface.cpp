@@ -202,7 +202,7 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   // 提取bit 5-6：己方大能量机关的激活状态
   uint8_t big_energy_status = (event_code >> 5) & 0x3;
   blackboard_->set<int>("big_energy_status", static_cast<int>(big_energy_status));
-
+  // std::cout << "big_energy_status:" << static_cast<int>(big_energy_status) <<std::endl;
   // 提取bit 25-26：己方堡垒增益点的占领状态
   uint8_t fort_occupation_status = (event_code >> 25) & 0x3;
   blackboard_->set<int>("fort_occupation_status", static_cast<int>(fort_occupation_status));
