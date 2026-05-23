@@ -16,8 +16,8 @@ inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
     Point2D{8.5, 5.0}, Point2D{10.0, 5.0}, Point2D{11.5, 5.0},
     Point2D{11.5, 0.1}, Point2D{10.0, 0.1}, Point2D{8.5, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{20.5, 15.0},
-    Point2D{20.5, 10.5}, Point2D{18.75, 10.5}, Point2D{17.0, 10.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{19.5, 15.0},
+    Point2D{19.5, 11.5}, Point2D{18.75, 11.5}, Point2D{17.0, 11.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
     Point2D{8.8, 10.6}, Point2D{11.0, 13.8}, Point2D{16.7, 13.8},
     Point2D{16.7, 12.5}, Point2D{12.7, 12.5}, Point2D{11.2, 10.6}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
@@ -92,7 +92,7 @@ inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{13.3, 9.7},
   Point2D{14.7, 9.7},
 };
-inline Area_Circle enemy_fort_zone{Point2D{22.0, 7.5}, 1.0};
+inline Area_Circle enemy_fort_zone{Point2D{22.0, 7.5}, 0.7};
 inline AreaPolygon<6, Point2D> own_highland_buff_zone{
   Point2D{13.0, 12.3},
   Point2D{13.0, 11.1},
@@ -129,20 +129,20 @@ inline AreaPolygon<6, Point2D> enemy_base_buff_zone{
 inline Area_Square own_supply_zone{Point2D{3.8, 4.4}, Point2D{1.5, 0.0}};
 inline Area_Square enemy_supply_zone{Point2D{27.5, 15.0}, Point2D{25.2, 10.6}};
 inline AreaPolygon<6, Point2D> own_outpost_buff_zone{
-  Point2D{11.0, 2.5},
-  Point2D{11.8, 2.5},
-  Point2D{12.3, 3.0},
-  Point2D{12.3, 4.0},
-  Point2D{11.8, 4.5},
-  Point2D{11.0, 4.5},
+  Point2D{11.1, 2.5},
+  Point2D{11.9, 2.5},
+  Point2D{12.4, 3.0},
+  Point2D{12.4, 4.0},
+  Point2D{11.9, 4.5},
+  Point2D{11.1, 4.5},
 };
 inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
-  Point2D{18.2, 12.5},
-  Point2D{17.4, 12.5},
-  Point2D{16.9, 12.0},
-  Point2D{16.9, 11.0},
-  Point2D{17.4, 10.5},
-  Point2D{18.2, 10.5},
+  Point2D{17.9, 12.5},
+  Point2D{17.1, 12.5},
+  Point2D{16.6, 12.0},
+  Point2D{16.6, 11.0},
+  Point2D{17.1, 10.5},
+  Point2D{17.9, 10.5},
 };
 
 inline std::vector<Point2D> nav_points = {
@@ -151,7 +151,7 @@ inline std::vector<Point2D> nav_points = {
   {15.7, 11.0, 0.0}, // ENEMY_OUTPOST
   {7.2, 7.5, 0.0},   // OWN_FORT
   {22.0, 7.5, 0.0},  // ENEMY_FORT
-  {12.0, 3.8, 0.0}   // OWN_OUTPOST
+  {12.1, 3.9, 0.0}   // OWN_OUTPOST
 
   // for rmul
   // {1.2, 7.2, 0.0},  //HOME
