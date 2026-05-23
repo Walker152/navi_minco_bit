@@ -1,19 +1,14 @@
 <root main_tree_to_execute="GimbalTree">
   <BehaviorTree ID="GimbalTree">
     <ReactiveFallback name="GimbalPriorityRoot">
-      <ReactiveSequence name="Priority0FirstMinutePitchDown">
-        <CheckGameTimeWindow name="CheckFirstMinuteNoPitchUp"
-                             min_remaining="360"
-                             max_remaining="420"
-                             branch="Priority0FirstMinutePitchDown" />
-        <SetGimbalPose name="SetFirstMinuteInspectPose" mode="1" />
-      </ReactiveSequence>
       <ReactiveSequence name="Priority2SpecialResponseScan">
         <CheckEngagedSafeResponse stable_seconds="5.0"
                                   exit_mode="-1"
                                   exit_blackboard_key="outpost_safe_cooldown_active"
                                   branch="Priority2SpecialResponseScan" />
-        <CheckNearEnemyOutpost name="CheckNearEnemyOutpost" branch="Priority2SpecialResponseScan" />
+        <CheckOutpostTarget name="CheckGimbalOutpostTarget"
+                            goal_distance_threshold="0.5"
+                            branch="Priority2SpecialResponseScan" />
         <SetGimbalPose name="SetOutpostInspectPose" mode="0"/>
       </ReactiveSequence>
       <ReactiveSequence name="Priority3NormalScan">
