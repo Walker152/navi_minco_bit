@@ -86,13 +86,10 @@ void AreaVisualizer::publishAreaMarkers(const rclcpp::Time & now)
   const auto circle_areas = getCircleVizConfigs();
 
   int marker_id = 0;
-  int transform_zone_index = 0;
   int tunnel_zone_index = 0;
   for (const auto & cfg : square_areas) {
     std::string display_name = cfg.name;
-    if (cfg.name == "transform_zone") {
-      display_name = cfg.name + "[" + std::to_string(transform_zone_index++) + "]";
-    } else if (cfg.name == "tunnel_zone") {
+    if (cfg.name == "tunnel_zone") {
       display_name = cfg.name + "[" + std::to_string(tunnel_zone_index++) + "]";
     }
 

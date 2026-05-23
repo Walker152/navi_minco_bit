@@ -11,11 +11,19 @@
 namespace Sentry_BT {
 #ifdef RMUC_AREA
 // for rmuc
-inline std::array<Area_Square, 4> transform_zone{
-  Area_Square{Point2D{11.5, 5.0}, Point2D{8.5, 1.0}}, // Home Right Tunnel
-  Area_Square{Point2D{20.5, 15.0}, Point2D{17.0, 10.5}}, // Enemy Right Tunnel
-  Area_Square{Point2D{16.7, 13.8}, Point2D{10.0, 12.0}}, // Home Left Tunnel
-  Area_Square{Point2D{19.0, 3.0}, Point2D{12.3, 1.2}}, // Enemy Left Tunnel
+inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
+  AreaPolygon<6, Point2D>{
+    Point2D{8.5, 5.0}, Point2D{10.0, 5.0}, Point2D{11.5, 5.0},
+    Point2D{11.5, 1.0}, Point2D{10.0, 1.0}, Point2D{8.5, 1.0}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
+  AreaPolygon<6, Point2D>{
+    Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{20.5, 15.0},
+    Point2D{20.5, 10.5}, Point2D{18.75, 10.5}, Point2D{17.0, 10.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
+  AreaPolygon<6, Point2D>{
+    Point2D{10.0, 13.8}, Point2D{13.35, 13.8}, Point2D{16.7, 13.8},
+    Point2D{16.7, 12.0}, Point2D{13.35, 12.0}, Point2D{10.0, 12.0}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
+  AreaPolygon<6, Point2D>{
+    Point2D{12.3, 3.0}, Point2D{15.65, 3.0}, Point2D{19.0, 3.0},
+    Point2D{19.0, 1.2}, Point2D{15.65, 1.2}, Point2D{12.3, 1.2}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
@@ -164,11 +172,19 @@ inline std::vector<PatrolPoint> patrol_points_attack = {
 #endif
 #ifdef TEST_AREA
 // for test
-inline std::array<Area_Square, 4> transform_zone{
-  Area_Square{Point2D{12.6, 7.3}, Point2D{9.6, 1.5}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{9.6, 1.5}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{9.6, 1.5}},
-  Area_Square{Point2D{12.6, 7.3}, Point2D{9.6, 1.5}},
+inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
+  AreaPolygon<6, Point2D>{
+    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+  AreaPolygon<6, Point2D>{
+    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+  AreaPolygon<6, Point2D>{
+    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+  AreaPolygon<6, Point2D>{
+    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
@@ -393,10 +409,6 @@ inline void appendTrackingAreaVizConfigs(std::vector<PolygonVizConfig> & configs
 inline std::vector<AreaVizConfig> getAreaVizConfigs()
 {
   return {
-    {"transform_zone", transform_zone[0], {1.0F, 0.2F, 0.2F}},
-    {"transform_zone", transform_zone[1], {1.0F, 0.2F, 0.2F}},
-    {"transform_zone", transform_zone[2], {1.0F, 0.2F, 0.2F}},
-    {"transform_zone", transform_zone[3], {1.0F, 0.2F, 0.2F}},
     {"tunnel_zone", tunnel_zone[0], {1.0F, 0.6F, 0.0F}},
     {"tunnel_zone", tunnel_zone[1], {1.0F, 0.6F, 0.0F}},
     {"tunnel_zone", tunnel_zone[2], {1.0F, 0.6F, 0.0F}},
@@ -421,6 +433,10 @@ inline std::vector<CircleVizConfig> getCircleVizConfigs()
 inline std::vector<PolygonVizConfig> getBasePolygonVizConfigs()
 {
   return {
+    makePolygonVizConfig("transform_zone[0]", transform_zone[0], {1.0F, 0.2F, 0.2F}),
+    makePolygonVizConfig("transform_zone[1]", transform_zone[1], {1.0F, 0.2F, 0.2F}),
+    makePolygonVizConfig("transform_zone[2]", transform_zone[2], {1.0F, 0.2F, 0.2F}),
+    makePolygonVizConfig("transform_zone[3]", transform_zone[3], {1.0F, 0.2F, 0.2F}),
     makePolygonVizConfig("highland_zone", highland_zone, {0.2F, 0.6F, 1.0F}),
     makePolygonVizConfig("own_defense_zone", own_defense_zone, {0.6F, 0.4F, 1.0F}),
     makePolygonVizConfig("enemy_defense_zone", enemy_defense_zone, {1.0F, 0.2F, 1.0F}),
