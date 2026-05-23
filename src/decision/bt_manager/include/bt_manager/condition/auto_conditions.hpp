@@ -45,10 +45,10 @@ public:
   BT::NodeStatus tick() override;
 };
 
-class SetEnemyOutpostDestroyedFalseOnce : public BT::ConditionNode
+class SetEnemyOutpostDestroyed : public BT::ConditionNode
 {
 public:
-  SetEnemyOutpostDestroyedFalseOnce(const std::string & name, const BT::NodeConfiguration & config);
+  SetEnemyOutpostDestroyed(const std::string & name, const BT::NodeConfiguration & config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;

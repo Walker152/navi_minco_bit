@@ -237,35 +237,48 @@ BT::NodeStatus CheckOutpostRemained::tick()
   return BT::NodeStatus::FAILURE;
 }
 
-// ------------------- SetEnemyOutpostDestroyedFalseOnce -------------------
-SetEnemyOutpostDestroyedFalseOnce::SetEnemyOutpostDestroyedFalseOnce(
+// ------------------- SetEnemyOutpostDestroyed -------------------
+SetEnemyOutpostDestroyed::SetEnemyOutpostDestroyed(
   const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
 {
 }
 
-BT::PortsList SetEnemyOutpostDestroyedFalseOnce::providedPorts()
+BT::PortsList SetEnemyOutpostDestroyed::providedPorts()
 {
-  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+  return {BT::InputPort<bool>("enemy_outpost_destroyed", "Target enemy outpost destroyed state"),
+    BT::InputPort<bool>("exit_outpost_mode", false, "Set nav mode to patrol when disabling outpost response"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
-BT::NodeStatus SetEnemyOutpostDestroyedFalseOnce::tick()
+BT::NodeStatus SetEnemyOutpostDestroyed::tick()
 {
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
+  const auto target_destroyed = getInput<bool>("enemy_outpost_destroyed");
+  if (!target_destroyed) {
+    throw BT::RuntimeError("missing required input [enemy_outpost_destroyed]: ", target_destroyed.error());
+  }
+  const bool exit_outpost_mode = getInput<bool>("exit_outpost_mode").value_or(false);
 
   const bool enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
-  if (enemy_outpost_destroyed) {
-    blackboard->set<bool>("enemy_outpost_destroyed", false);
-    detail::logTransition(
-      detail::TreeKind::NAV, "SetEnemyOutpostDestroyedFalseOnce", true,
-      "enemy_outpost_destroyed true -> false", branch);
+  if (enemy_outpost_destroyed != target_destroyed.value()) {
+    blackboard->set<bool>("enemy_outpost_destroyed", target_destroyed.value());
+    if (exit_outpost_mode && target_destroyed.value()) {
+      blackboard->set<NavMode>("current_mode", NavMode::PATROL);
+    }
+
+    std::ostringstream oss;
+    oss << "enemy_outpost_destroyed " << enemy_outpost_destroyed << " -> " << target_destroyed.value()
+        << ", exit_outpost_mode=" << exit_outpost_mode;
+    detail::logTransition(detail::TreeKind::NAV, "SetEnemyOutpostDestroyed", true, oss.str(), branch);
     return BT::NodeStatus::SUCCESS;
   }
 
+  std::ostringstream oss;
+  oss << "enemy_outpost_destroyed already " << enemy_outpost_destroyed;
   detail::logTransition(
-    detail::TreeKind::NAV, "SetEnemyOutpostDestroyedFalseOnce", false,
-    "enemy_outpost_destroyed already false", branch);
+    detail::TreeKind::NAV, "SetEnemyOutpostDestroyed", false, oss.str(), branch);
   return BT::NodeStatus::FAILURE;
 }
 
