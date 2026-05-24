@@ -205,6 +205,17 @@ typedef enum _PitchPos
   UP = 0,
   DOWN = 1,
 } PitchPos;
+typedef enum _EnergyRatio
+{
+  BELOW_1 = 0,
+  ABOVE_1 = 1,
+  ABOVE_5 = 2,
+  ABOVE_15 = 3,
+  ABOVE_30 = 4,
+  ABOVE_50 = 5,
+  ABOVE_100 = 6,
+  ABOVE_125 = 7,
+} EnergyRatio;
 typedef enum _NavMode
 {
   PATROL = 0,
