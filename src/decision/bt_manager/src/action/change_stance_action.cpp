@@ -278,9 +278,14 @@ BT::NodeStatus ChangeStance::onStart()
   auto blackboard = config().blackboard;
   const std::string stance_str = getInput<std::string>("stance").value_or("DEFEND");
   desired_stance_ = parse_stance(stance_str);
+  const auto energy_ratio = blackboard->get<EnergyRatio>("energy_ratio");
+  if (energy_ratio == EnergyRatio::BELOW_1) {
+    desired_stance_ = SentryStance::MOVE;
+  }
   current_stance_ = blackboard->get<SentryStance>("current_stance");
 
   if (current_stance_ == desired_stance_) {
+    blackboard->set<SentryStance>("desired_stance", desired_stance_);
     return BT::NodeStatus::SUCCESS;
   }
   return applyStanceChange();
@@ -306,12 +311,16 @@ BT::NodeStatus ChangeStance::applyStanceChange()
   };
 
   auto blackboard = config().blackboard;
+  const auto energy_ratio = blackboard->get<EnergyRatio>("energy_ratio");
+  if (energy_ratio == EnergyRatio::BELOW_1) {
+    desired_stance_ = SentryStance::MOVE;
+  }
   current_stance_ = blackboard->get<SentryStance>("current_stance");
+  blackboard->set<SentryStance>("desired_stance", desired_stance_);
   if (current_stance_ == desired_stance_) {
     return BT::NodeStatus::SUCCESS;
   }
 
-  blackboard->set<SentryStance>("desired_stance", desired_stance_);
   // blackboard->set<SentryStance>("current_stance", desired_stance_);
   // std::cout << MAGENTA << "[STANCE_TREE]" << GREEN << "Change from stance "
   //           << stance_to_string(current_stance_) << " to stance " << stance_to_string(desired_stance_)

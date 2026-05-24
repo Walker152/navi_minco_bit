@@ -95,7 +95,13 @@
                         gyro_vel="20.0" 
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
-          <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
+          <Fallback name="MoveStanceSelector">
+            <Sequence name="DisengagedHighlandDefendBranch">
+              <CheckInZone zone_name="highland" branch="DisengagedHighlandDefendBranch" />
+              <ChangeStance name="ChangeStanceDisengagedHighlandDefend" stance="DEFEND" />
+            </Sequence>
+            <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
+          </Fallback>
         </Sequence>
         
         <Sequence name="DefaultDefendBranch">
