@@ -81,6 +81,7 @@ public:
     msg.speed_monitor_angle = in.speed_monitor_angle;
     msg.sentry_info_1 = in.sentry_info_1;
     msg.sentry_info_2 = in.sentry_info_2;
+    msg.energy_ratio = in.energy_ratio;
     msg.header.stamp = now();
     online_info_pub_->publish(msg);
   }
