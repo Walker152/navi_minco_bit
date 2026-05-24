@@ -318,7 +318,8 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
   blackboard_->set<int>("cooling_value", static_cast<int>(msg->cooling_value));
   blackboard_->set<int>("heat_limit", static_cast<int>(msg->heat_limit));
   blackboard_->set<int>("current_heat", static_cast<int>(msg->current_heat));
-  blackboard_->set<float>("gimbal_yaw", msg->speed_monitor_angle);
+  blackboard_->set<float>("gimbal_yaw", static_cast<float>(msg->speed_monitor_angle));
+  blackboard_->set<EnergyRatio>("energy_ratio", static_cast<EnergyRatio>(msg->energy_ratio));
 
   // 解码sentry_info_2
   uint16_t sentry_info_2 = msg->sentry_info_2;
