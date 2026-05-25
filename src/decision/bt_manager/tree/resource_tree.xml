@@ -59,7 +59,7 @@
         </ReactiveFallback>
         <CheckAmmoLow ammo_threshold="150" branch="NormalAmmoExchange" />
         <CheckCoinRemaining threshold="100" mode="greater" branch="NormalAmmoExchange" />
-        <CheckNormalExchangeCooldown cooldown_seconds="1.0" branch="NormalAmmoExchange" />
+        <CheckNormalExchangeCooldown cooldown_seconds="5.0" branch="NormalAmmoExchange" />
         <AccumulateAmmoPurchase step="50" />
       </ReactiveSequence>
 

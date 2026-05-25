@@ -765,7 +765,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     vx = 0.0;
     vy = 0.0;
   }
-  constexpr double goal_pos_threshold = 0.3;
+  constexpr double goal_pos_threshold = 0.2;
   bool stop_mpc_cmd = false;
   geometry_msgs::msg::PoseStamped goal_pose_stamped;
   {
