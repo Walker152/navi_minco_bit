@@ -4,6 +4,10 @@ lidar_merger_node:
     back_topic: "/livox/lidar_192_168_1_122"
     merged_topic: "/livox/lidar"
     merged_frame_id: "livox_frame"
+    qos_depth: 5
+    best_effort: true
+    sync_queue_size: 10
+    max_sync_interval_ms: 5.0
     publish_pointcloud: false
     front_cloud_topic: "/livox/front_cloud"
     back_cloud_topic: "/livox/back_cloud"
