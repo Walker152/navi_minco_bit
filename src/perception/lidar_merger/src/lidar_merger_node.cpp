@@ -32,6 +32,7 @@ LidarMergerNode::LidarMergerNode(const rclcpp::NodeOptions & options) : Node("li
   this->declare_parameter<int>("qos_depth", 10);
   this->declare_parameter<bool>("best_effort", true);
   this->declare_parameter<int>("sync_queue_size", 20);
+  this->declare_parameter<double>("max_sync_interval_ms", 5.0);
   this->declare_parameter<bool>("publish_pointcloud", false);
   this->declare_parameter<std::string>("front_cloud_topic", "/livox/front_cloud");
   this->declare_parameter<std::string>("back_cloud_topic", "/livox/back_cloud");
@@ -52,16 +53,17 @@ LidarMergerNode::LidarMergerNode(const rclcpp::NodeOptions & options) : Node("li
   sub_back_.subscribe(this, back_topic_, qos.get_rmw_qos_profile());
 
   sync_ = std::make_shared<Synchronizer>(SyncPolicy(sync_queue_size_), sub_front_, sub_back_);
+  sync_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(max_sync_interval_ms_));
   sync_->registerCallback(std::bind(&LidarMergerNode::syncCallback, this, _1, _2));
 
-  pub_merged_ = this->create_publisher<livox_ros_driver2::msg::CustomMsg>(merged_topic_, qos_depth_);
+  pub_merged_ = this->create_publisher<livox_ros_driver2::msg::CustomMsg>(merged_topic_, qos);
 
   if (publish_pointcloud_) {
     pub_front_cloud_ =
-      this->create_publisher<sensor_msgs::msg::PointCloud2>(front_cloud_topic_, qos_depth_);
-    pub_back_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(back_cloud_topic_, qos_depth_);
+      this->create_publisher<sensor_msgs::msg::PointCloud2>(front_cloud_topic_, qos);
+    pub_back_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(back_cloud_topic_, qos);
     pub_merged_cloud_ =
-      this->create_publisher<sensor_msgs::msg::PointCloud2>(merged_cloud_topic_, qos_depth_);
+      this->create_publisher<sensor_msgs::msg::PointCloud2>(merged_cloud_topic_, qos);
   }
 
   RCLCPP_INFO(this->get_logger(), "双雷达融合节点已启动。目标坐标系：主雷达 (前雷达)。");
@@ -91,6 +93,7 @@ void LidarMergerNode::loadParams()
   qos_depth_ = this->get_parameter("qos_depth").as_int();
   best_effort_ = this->get_parameter("best_effort").as_bool();
   sync_queue_size_ = this->get_parameter("sync_queue_size").as_int();
+  max_sync_interval_ms_ = this->get_parameter("max_sync_interval_ms").as_double();
   publish_pointcloud_ = this->get_parameter("publish_pointcloud").as_bool();
   front_cloud_topic_ = this->get_parameter("front_cloud_topic").as_string();
   back_cloud_topic_ = this->get_parameter("back_cloud_topic").as_string();
@@ -103,6 +106,9 @@ void LidarMergerNode::loadParams()
   if (sync_queue_size_ <= 0) {
     RCLCPP_WARN(this->get_logger(), "sync_queue_size=%d 非法，已重置为 20", sync_queue_size_);
     sync_queue_size_ = 20;
+  }
+  if (max_sync_interval_ms_ <= 0.0) {
+    max_sync_interval_ms_ = 5.0;
   }
   if (merged_frame_id_.empty()) {
     merged_frame_id_ = "livox_front_frame";

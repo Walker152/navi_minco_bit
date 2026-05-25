@@ -53,6 +53,7 @@ private:
   int qos_depth_ = 10;
   bool best_effort_ = true;
   int sync_queue_size_ = 20;
+  double max_sync_interval_ms_ = 5.0;
   bool publish_pointcloud_ = false;
 
   std::vector<double> extrinsic_back_to_front_;
