@@ -53,7 +53,7 @@ LidarMergerNode::LidarMergerNode(const rclcpp::NodeOptions & options) : Node("li
   sub_back_.subscribe(this, back_topic_, qos.get_rmw_qos_profile());
 
   sync_ = std::make_shared<Synchronizer>(SyncPolicy(sync_queue_size_), sub_front_, sub_back_);
-  sync_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(max_sync_interval_ms_));
+  sync_->setMaxIntervalDuration(rclcpp::Duration::from_seconds(max_sync_interval_ms_ / 1000.0));
   sync_->registerCallback(std::bind(&LidarMergerNode::syncCallback, this, _1, _2));
 
   pub_merged_ = this->create_publisher<livox_ros_driver2::msg::CustomMsg>(merged_topic_, qos);
