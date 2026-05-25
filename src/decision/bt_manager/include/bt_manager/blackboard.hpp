@@ -78,7 +78,7 @@ public:
     blackboard_->set("enemy_coin_left", 0);                           // 敌方金币剩余数量
     blackboard_->set("enemy_coin_accumulated", 0);                    // 敌方金币累计数量
     blackboard_->set("enemies_info", std::vector<EnemyRobotInfo>());  // 敌方信息列表
-    blackboard_->set("enemy_outpost_destroyed", true);                 // 敌方前哨站是否被摧毁
+    blackboard_->set("enemy_outpost_destroyed", true);                // 敌方前哨站是否被摧毁
 
     // --- Sentry Offline Info ---
     blackboard_->set("target_valid", false);                                     // 目标锁定状态
@@ -106,8 +106,8 @@ public:
     blackboard_->set("remote_ammo_exchange_count", 0);    // 远程兑换次数
     blackboard_->set("remote_health_exchange_count", 0);  // 远程买血次数
     blackboard_->set("remaining_ammo_exchange", 0);       // 团队剩余可兑换弹药数量
-    blackboard_->set<EnergyRatio>("energy_ratio", EnergyRatio::ABOVE_100); // 底盘当前剩余能量     
-    blackboard_->set<SentryStance>("current_stance", SentryStance::MOVE);  // 当前姿态
+    blackboard_->set<EnergyRatio>("energy_ratio", EnergyRatio::ABOVE_100);  // 底盘当前剩余能量
+    blackboard_->set<SentryStance>("current_stance", SentryStance::MOVE);   // 当前姿态
   }
 
   template <typename T> void set(const std::string & key, const T & value) { blackboard_->set(key, value); }
