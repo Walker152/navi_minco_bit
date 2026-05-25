@@ -142,6 +142,8 @@ private:
   {
     cmd_vel_.linear.x = 0.0;
     cmd_vel_.linear.y = 0.0;
+    odom_.pose.pose.orientation.w = 1.0;
+    send_enable_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(2);
 
     comm_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     sub_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -208,6 +210,10 @@ private:
 
   void communicationLoop()
   {
+    if (std::chrono::steady_clock::now() < send_enable_time_) {
+      return;
+    }
+
     // Chassis control variables
     float vx_mps = 0.0f;
     float vy_mps = 0.0f;
@@ -653,6 +659,7 @@ private:
   geometry_msgs::msg::Twist cmd_vel_;
   geometry_msgs::msg::Wrench cmd_wrench_;
   nav_msgs::msg::Odometry odom_;
+  std::chrono::steady_clock::time_point send_enable_time_{std::chrono::steady_clock::now()};
   float transform_state = 0.0f;
   float delta_yaw_{0.0f};
 };
