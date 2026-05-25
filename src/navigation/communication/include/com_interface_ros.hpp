@@ -170,13 +170,13 @@ private:
         odomCB(msg);
       },
       sub_opt);
-    astar_path_sub_ = create_subscription<nav_msgs::msg::Path>(
-      "/astar_path_vis",
-      rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
-      [this](nav_msgs::msg::Path::ConstSharedPtr msg) {
-        astarPathCB(msg);
-      },
-      sub_opt);
+    // astar_path_sub_ = create_subscription<nav_msgs::msg::Path>(
+    //   "/astar_path_vis",
+    //   rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
+    //   [this](nav_msgs::msg::Path::ConstSharedPtr msg) {
+    //     astarPathCB(msg);
+    //   },
+    //   sub_opt);
     behavior_sub_ = create_subscription<ros_interfaces::msg::Behavior>(
       "/sentry/behaivor_send",
       1,
@@ -389,9 +389,9 @@ private:
     mini_y = p_minimap.y();
   }
 
-  GlobalPath buildGlobalPathPacket(const nav_msgs::msg::Path & path)
+  bool tryBuildGlobalPathPacket(const nav_msgs::msg::Path & path, GlobalPath & out)
   {
-    GlobalPath out{};
+    out = GlobalPath{};
     constexpr size_t kSampleNum = 49;
     constexpr double kCoordScaleDm = 10.0;  // convert meter-based coords to decimeter for protocol
 
@@ -459,10 +459,33 @@ private:
     }
 
     if (valid_num == 0) {
-      return out;
+      return true;
     }
 
-    const auto tf_stamped = tf_buffer_->lookupTransform(minimap_frame_, map_frame_, tf2::TimePointZero);
+    if (!tf_buffer_->canTransform(minimap_frame_, map_frame_, tf2::TimePointZero)) {
+      RCLCPP_DEBUG_THROTTLE(this->get_logger(),
+        *this->get_clock(),
+        2000,
+        "Waiting for TF %s -> %s before packing global path",
+        map_frame_.c_str(),
+        minimap_frame_.c_str());
+      return false;
+    }
+
+    geometry_msgs::msg::TransformStamped tf_stamped;
+    try {
+      tf_stamped = tf_buffer_->lookupTransform(minimap_frame_, map_frame_, tf2::TimePointZero);
+    } catch (const tf2::TransformException & ex) {
+      RCLCPP_DEBUG_THROTTLE(this->get_logger(),
+        *this->get_clock(),
+        2000,
+        "Waiting for TF %s -> %s before packing global path: %s",
+        map_frame_.c_str(),
+        minimap_frame_.c_str(),
+        ex.what());
+      return false;
+    }
+
     tf2::Transform tf_map_to_minimap;
     tf2::fromMsg(tf_stamped.transform, tf_map_to_minimap);
 
@@ -499,12 +522,15 @@ private:
       out.delta_x[i] = 0;
       out.delta_y[i] = 0;
     }
-    return out;
+    return true;
   }
 
   void astarPathCB(const nav_msgs::msg::Path::ConstSharedPtr & pathPtr)
   {
-    GlobalPath packet = buildGlobalPathPacket(*pathPtr);
+    GlobalPath packet{};
+    if (!tryBuildGlobalPathPacket(*pathPtr, packet)) {
+      return;
+    }
     std::lock_guard<std::mutex> lk(path_mutex_);
     pending_global_path_ = packet;
   }
@@ -582,7 +608,7 @@ private:
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr chassis_sub_;
   rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr cmd_wrench_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr astar_path_sub_;
+  // rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr astar_path_sub_;
   rclcpp::Subscription<ros_interfaces::msg::Behavior>::SharedPtr behavior_sub_;
 
   // Publishers
