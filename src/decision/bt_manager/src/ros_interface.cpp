@@ -219,9 +219,8 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   Point2D manual_point_2d(manual_point.position.x, manual_point.position.y);
   static Point2D last_manual_point(0.0, 0.0);
   blackboard_->set<Point2D>("manual_override_goal", manual_point_2d);
-  const bool manual_point_changed =
-    std::hypot(manual_point.position.x - last_manual_point.x,
-      manual_point.position.y - last_manual_point.y) >= 0.001;
+  const bool manual_point_changed = std::hypot(manual_point.position.x - last_manual_point.x,
+                                      manual_point.position.y - last_manual_point.y) >= 0.001;
   if (!manual_point_changed) {
     return;
   }
@@ -422,7 +421,8 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
       nearest_tunnel_idx = static_cast<int>(i);
     }
   }
-  // std::cout << "Current position: (" << current_point.x << ", " << current_point.y << "),in_transform_zone: "
+  // std::cout << "Current position: (" << current_point.x << ", " << current_point.y <<
+  // "),in_transform_zone: "
   //           << in_transform_zone
   //           << ", nearest_tunnel_idx: " << nearest_tunnel_idx << std::endl;
   bool current_in_tunnel = false;
