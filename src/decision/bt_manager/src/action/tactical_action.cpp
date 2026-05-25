@@ -76,8 +76,7 @@ BT::NodeStatus SetTacticalMode::tick()
   TacticalMode previous_mode = TacticalMode::BALANCED;
   blackboard->get<TacticalMode>("tactical_mode", previous_mode);
   blackboard->set<TacticalMode>("tactical_mode", tactical_mode);
-  if (previous_mode != tactical_mode) {
-  }
+  if (previous_mode != tactical_mode) {}
   return BT::NodeStatus::SUCCESS;
 }
 
