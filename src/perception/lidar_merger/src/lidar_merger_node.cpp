@@ -1,7 +1,5 @@
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -61,9 +59,11 @@ LidarMergerNode::LidarMergerNode(const rclcpp::NodeOptions & options) : Node("li
   pub_merged_ = this->create_publisher<livox_ros_driver2::msg::CustomMsg>(merged_topic_, qos);
 
   if (publish_pointcloud_) {
-    pub_front_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(front_cloud_topic_, qos);
+    pub_front_cloud_ =
+      this->create_publisher<sensor_msgs::msg::PointCloud2>(front_cloud_topic_, qos);
     pub_back_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(back_cloud_topic_, qos);
-    pub_merged_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(merged_cloud_topic_, qos);
+    pub_merged_cloud_ =
+      this->create_publisher<sensor_msgs::msg::PointCloud2>(merged_cloud_topic_, qos);
   }
 
   RCLCPP_INFO(this->get_logger(), "双雷达融合节点已启动。目标坐标系：主雷达 (前雷达)。");
@@ -233,9 +233,17 @@ void LidarMergerNode::syncCallback(const livox_ros_driver2::msg::CustomMsg::Cons
   const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr & msg_back)
 {
   livox_ros_driver2::msg::CustomMsg msg_merged = *msg_front;
-  msg_merged.header = msg_front->header;
   msg_merged.header.frame_id = merged_frame_id_;
-  msg_merged.timebase = msg_front->timebase;
+
+  uint64_t min_timebase = 0.0;
+  if (msg_front->timebase <= msg_back->timebase) {
+    min_timebase = msg_front->timebase;
+    msg_merged.header = msg_front->header;
+  } else {
+    min_timebase = msg_back->timebase;
+    msg_merged.header = msg_back->header;
+  }
+  msg_merged.timebase = min_timebase;
 
   const size_t n_front = msg_front->points.size();
   const size_t n_back = msg_back->points.size();
@@ -243,22 +251,18 @@ void LidarMergerNode::syncCallback(const livox_ros_driver2::msg::CustomMsg::Cons
   // 2. 预分配空间，避免 push_back 时的动态扩容，同时杜绝 resize 的无意义初始化
   msg_merged.points.reserve(n_front + n_back);
 
-  // 3. 固定以前雷达作为时间基准，避免融合点云时间戳在前/后雷达时钟之间跳变。
-  const int64_t dt_back_ns = msg_back->timebase >= msg_front->timebase
-                               ? static_cast<int64_t>(msg_back->timebase - msg_front->timebase)
-                               : -static_cast<int64_t>(msg_front->timebase - msg_back->timebase);
-  const double dt_back_ms = static_cast<double>(dt_back_ns) / 1.0e6;
-  if (std::abs(dt_back_ms) > max_sync_interval_ms_) {
-    RCLCPP_WARN_THROTTLE(this->get_logger(),
-      *this->get_clock(),
-      2000,
-      "front/back timebase delta %.3f ms exceeds max_sync_interval_ms %.3f ms",
-      dt_back_ms,
-      max_sync_interval_ms_);
+  // 3. 时间戳常数提取
+  const uint32_t dt_front = static_cast<uint32_t>(msg_front->timebase - min_timebase);
+  const uint32_t dt_back = static_cast<uint32_t>(msg_back->timebase - min_timebase);
+
+  // 4. 前雷达时间补偿 (仅当主雷达时间不是基准时间时才遍历，通常 dt_front 为 0，直接 O(1) 跳过)
+  if (dt_front > 0) {
+    for (auto & pt : msg_merged.points) {
+      pt.offset_time += dt_front;
+    }
   }
 
   // 5. 后雷达点云变换与融合 (单线程，去除非必要的中间变量分配)
-  size_t dropped_back_points = 0;
   for (const auto & pt_in : msg_back->points) {
     livox_ros_driver2::msg::CustomPoint pt_out = pt_in;  // 拷贝 intensity, tag 等非空间属性
 
@@ -270,27 +274,12 @@ void LidarMergerNode::syncCallback(const livox_ros_driver2::msg::CustomMsg::Cons
     pt_out.z = R_front_back_(2, 0) * pt_in.x + R_front_back_(2, 1) * pt_in.y +
                R_front_back_(2, 2) * pt_in.z + t_front_back_(2);
 
-    const int64_t point_offset_ns = dt_back_ns + static_cast<int64_t>(pt_in.offset_time);
-    if (point_offset_ns < 0 ||
-        point_offset_ns > static_cast<int64_t>(std::numeric_limits<uint32_t>::max())) {
-      ++dropped_back_points;
-      continue;
-    }
-
-    pt_out.offset_time = static_cast<uint32_t>(point_offset_ns);
+    pt_out.offset_time += dt_back;
 
     msg_merged.points.push_back(pt_out);
   }
 
-  if (dropped_back_points > 0) {
-    RCLCPP_WARN_THROTTLE(this->get_logger(),
-      *this->get_clock(),
-      2000,
-      "dropped %zu back lidar points outside the front lidar timebase",
-      dropped_back_points);
-  }
-
-  msg_merged.point_num = static_cast<uint32_t>(msg_merged.points.size());
+  msg_merged.point_num = static_cast<uint32_t>(n_front + n_back);
   // msg_merged.header.stamp = rclcpp::Time(msg_merged.timebase);
   // 点云格式转换及发布
   if (publish_pointcloud_) {
