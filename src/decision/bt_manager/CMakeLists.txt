@@ -18,6 +18,7 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(ros_interfaces REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -30,20 +31,41 @@ include_directories(
   include
 )
 
+file(GLOB_RECURSE BT_MANAGER_SOURCES CONFIGURE_DEPENDS
+  "src/*.cpp"
+  "src/action/*.cpp"
+  "src/condition/*.cpp"
+  "src/utils/*.cpp"
+)
+
+file(GLOB_RECURSE BT_TEST_SOURCES CONFIGURE_DEPENDS
+  "src/*.cpp"
+  "src/action/*.cpp"
+  "src/condition/*.cpp"
+  "src/utils/*.cpp"
+)
+
+list(REMOVE_ITEM BT_MANAGER_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/event_status_pub_test.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/match_simulator_test.cpp"
+)
+
+list(REMOVE_ITEM BT_TEST_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/event_status_pub_test.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/match_simulator_test.cpp"
+)
+
 add_executable(bt_manager_node 
-  src/bt_manager.cpp 
-  src/ros_interface.cpp 
-  src/action/auto_actions.cpp 
-  src/condition/auto_conditions.cpp
-  src/action/change_stance_action.cpp
-  src/condition/change_stance_condition.cpp
-  src/utils/nav_zone.cpp
-  src/utils/tf_utils.cpp
-  src/main.cpp
-  )
+  ${BT_MANAGER_SOURCES}
+)
 
 add_executable(event_test
-  src/event_status_pub_test.cpp
+  src/test/event_status_pub_test.cpp
+)
+
+add_executable(match_simulator
+  src/test/match_simulator_test.cpp
 )
 
 ament_target_dependencies(event_test
@@ -51,10 +73,22 @@ ament_target_dependencies(event_test
   std_msgs
   ros_interfaces
   geometry_msgs
+  visualization_msgs
   tf2
   tf2_ros
   tf2_geometry_msgs
   nav2_behavior_tree
+)
+
+ament_target_dependencies(match_simulator
+  rclcpp
+  std_msgs
+  ros_interfaces
+  geometry_msgs
+  visualization_msgs
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
 )
 
 ament_target_dependencies(bt_manager_node
@@ -62,6 +96,7 @@ ament_target_dependencies(bt_manager_node
   std_msgs
   geometry_msgs
   nav_msgs
+  visualization_msgs
   ros_interfaces
   tf2
   tf2_ros
@@ -75,6 +110,7 @@ ament_target_dependencies(bt_manager_node
 install(TARGETS
   bt_manager_node
   event_test
+  match_simulator
   DESTINATION lib/${PROJECT_NAME}
 )
 

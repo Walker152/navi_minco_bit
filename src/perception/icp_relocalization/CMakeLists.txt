@@ -60,6 +60,9 @@ ament_target_dependencies(gicp_node
 )
 target_link_libraries(gicp_node gicp_filter)
 
+add_executable(pcd_sanitize_tool src/pcd_sanitize_tool.cpp)
+target_link_libraries(pcd_sanitize_tool ${PCL_LIBRARIES})
+
 # Install launch config files
 install(
   DIRECTORY launch config
@@ -70,6 +73,7 @@ install(
 install(
   TARGETS
     gicp_node
+    pcd_sanitize_tool
   DESTINATION lib/${PROJECT_NAME}
 )
 

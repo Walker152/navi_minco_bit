@@ -1,24 +1,24 @@
 // 2021-09-18, https://github.com/spectral3d/hilbert_hpp is under MIT license.
 
-//Copyright (c) 2019 David Beynon
+// Copyright (c) 2019 David Beynon
 //
-//Permission is hereby granted, free of charge, to any person obtaining a copy
-//of this software and associated documentation files (the "Software"), to deal
-//in the Software without restriction, including without limitation the rights
-//to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-//copies of the Software, and to permit persons to whom the Software is
-//furnished to do so, subject to the following conditions:
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
 //
-//The above copyright notice and this permission notice shall be included in all
-//copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
 //
-//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-//IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-//FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-//AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-//LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-//OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-//SOFTWARE.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 #ifndef INCLUDED_HILBERT_HPP
 #define INCLUDED_HILBERT_HPP
@@ -64,9 +64,9 @@
 //
 // Index is encoded with most significant objects first.  Lexographic
 // sort order.
-//template<typename T, size_t N>
-//std::array<T, N>
-//IndexToPosition(std::array<T, N> const &in);
+// template<typename T, size_t N>
+// std::array<T, N>
+// IndexToPosition(std::array<T, N> const &in);
 
 // Find the index of a point on an N dimensional Hilbert Curve.
 //
@@ -74,19 +74,16 @@
 //
 // Index is encoded with most significant objects first.  Lexographic
 //  sort order.
-//template<typename T, size_t N>
-//std::array<T, N>
-//PositionToIndex(std::array<T, N> const &in);
+// template<typename T, size_t N>
+// std::array<T, N>
+// PositionToIndex(std::array<T, N> const &in);
 //
 
-namespace hilbert
-{
+namespace hilbert {
 // Fairly straightforward implementation.  Loops are loops and code mostly
 // does what one would expect.
-namespace v1
-{
-namespace internal
-{
+namespace v1 {
+namespace internal {
 // Extract bits from transposed form.
 //
 // e.g.
@@ -95,8 +92,7 @@ namespace internal
 // b e h k -> e f g h
 // c f i l    i j k l
 //
-template <typename T, size_t N>
-std::array<T, N> UntransposeBits(std::array<T, N> const & in)
+template <typename T, size_t N> std::array<T, N> UntransposeBits(std::array<T, N> const & in)
 {
   const size_t bits = std::numeric_limits<T>::digits;
   const T high_bit(T(1) << (bits - 1));
@@ -129,8 +125,7 @@ std::array<T, N> UntransposeBits(std::array<T, N> const & in)
 // e f g h -> b e h k
 // i j k l    c f i l
 //
-template <typename T, size_t N>
-std::array<T, N> TransposeBits(std::array<T, N> const & in)
+template <typename T, size_t N> std::array<T, N> TransposeBits(std::array<T, N> const & in)
 {
   const size_t bits = std::numeric_limits<T>::digits;
   const T high_bit(T(1) << (bits - 1));
@@ -166,8 +161,7 @@ std::array<T, N> TransposeBits(std::array<T, N> const & in)
 //
 // Index is encoded with most significant objects first.  Lexographic
 // sort order.
-template <typename T, size_t N>
-std::array<T, N> IndexToPosition(std::array<T, N> const & in)
+template <typename T, size_t N> std::array<T, N> IndexToPosition(std::array<T, N> const & in)
 {
   // First convert index to transpose.
   std::array<T, N> out(internal::TransposeBits(in));
@@ -218,8 +212,7 @@ std::array<T, N> IndexToPosition(std::array<T, N> const & in)
 //
 // Index is encoded with most significant objects first.  Lexographic
 // sort order.
-template <typename T, size_t N>
-std::array<T, N> PositionToIndex(std::array<T, N> const & in)
+template <typename T, size_t N> std::array<T, N> PositionToIndex(std::array<T, N> const & in)
 {
   const size_t bits = std::numeric_limits<T>::digits;
 
@@ -277,13 +270,10 @@ std::array<T, N> PositionToIndex(std::array<T, N> const & in)
 // in cache etc.
 //
 // At some value of N v1 should overtake v2.
-namespace v2
-{
-namespace internal
-{
+namespace v2 {
+namespace internal {
 // Metaprogramming guts.  Unrolled loops, abandon all hope etc.
-namespace tmp
-{
+namespace tmp {
 template <typename T, size_t N, size_t D>
 T TransposeBits2(
   std::array<T, N> const &, std::integral_constant<size_t, D>, std::integral_constant<size_t, 0>)
@@ -306,8 +296,8 @@ T TransposeBits2(
   // conversion warning.
   T bit = ((in[src] & src_bit_val) >> src_bit) * dst_bit_val;
 
-  return bit + TransposeBits2(
-                 in, std::integral_constant<size_t, D>(), std::integral_constant<size_t, B - 1>());
+  return bit +
+         TransposeBits2(in, std::integral_constant<size_t, D>(), std::integral_constant<size_t, B - 1>());
 }
 
 template <typename T, size_t N>
@@ -316,11 +306,10 @@ void TransposeBits(std::array<T, N> const &, std::array<T, N> &, std::integral_c
 }
 
 template <typename T, size_t N, size_t D>
-void TransposeBits(
-  std::array<T, N> const & in, std::array<T, N> & out, std::integral_constant<size_t, D>)
+void TransposeBits(std::array<T, N> const & in, std::array<T, N> & out, std::integral_constant<size_t, D>)
 {
-  out[D - 1] = TransposeBits2(
-    in, std::integral_constant<size_t, D - 1>(),
+  out[D - 1] = TransposeBits2(in,
+    std::integral_constant<size_t, D - 1>(),
     std::integral_constant<size_t, std::numeric_limits<T>::digits>());
 
   TransposeBits(in, out, std::integral_constant<size_t, D - 1>());
@@ -349,37 +338,32 @@ T UntransposeBits2(
   T bit = ((in[src] & src_bit_val) >> src_bit) * dst_bit_val;
 
   return bit + UntransposeBits2(
-                 in, std::integral_constant<size_t, D>(),
-                 std::integral_constant<size_t, size_t(B - 1)>());
+                 in, std::integral_constant<size_t, D>(), std::integral_constant<size_t, size_t(B - 1)>());
 }
 
 template <typename T, size_t N>
-void UntransposeBits(
-  std::array<T, N> const &, std::array<T, N> &, std::integral_constant<size_t, 0>)
+void UntransposeBits(std::array<T, N> const &, std::array<T, N> &, std::integral_constant<size_t, 0>)
 {
 }
 
 template <typename T, size_t N, size_t D>
-void UntransposeBits(
-  std::array<T, N> const & in, std::array<T, N> & out, std::integral_constant<size_t, D>)
+void UntransposeBits(std::array<T, N> const & in, std::array<T, N> & out, std::integral_constant<size_t, D>)
 {
-  out[D - 1] = UntransposeBits2(
-    in, std::integral_constant<size_t, D - 1>(),
+  out[D - 1] = UntransposeBits2(in,
+    std::integral_constant<size_t, D - 1>(),
     std::integral_constant<size_t, std::numeric_limits<T>::digits>());
 
   UntransposeBits(in, out, std::integral_constant<size_t, D - 1>());
 }
 
 template <typename T, size_t N>
-void ApplyGrayCode1(
-  std::array<T, N> const & in, std::array<T, N> & out, std::integral_constant<size_t, 0>)
+void ApplyGrayCode1(std::array<T, N> const & in, std::array<T, N> & out, std::integral_constant<size_t, 0>)
 {
   out[0] ^= in[N - 1] >> 1;
 }
 
 template <typename T, size_t N, size_t I>
-void ApplyGrayCode1(
-  std::array<T, N> const & in, std::array<T, N> & out, std::integral_constant<size_t, I>)
+void ApplyGrayCode1(std::array<T, N> const & in, std::array<T, N> & out, std::integral_constant<size_t, I>)
 {
   out[I] ^= out[I - 1];
 
@@ -387,8 +371,7 @@ void ApplyGrayCode1(
 }
 
 // Remove a gray code from a transposed vector
-template <typename T, size_t N>
-void RemoveGrayCode1(std::array<T, N> &, std::integral_constant<size_t, 0>)
+template <typename T, size_t N> void RemoveGrayCode1(std::array<T, N> &, std::integral_constant<size_t, 0>)
 {
 }
 
@@ -404,14 +387,12 @@ void RemoveGrayCode1(std::array<T, N> & in, std::integral_constant<size_t, D>)
   RemoveGrayCode1(in, std::integral_constant<size_t, D - 1>());
 }
 
-template <typename T>
-T RemoveGrayCode2(T, std::integral_constant<size_t, 1>)
+template <typename T> T RemoveGrayCode2(T, std::integral_constant<size_t, 1>)
 {
   return T(0);
 }
 
-template <typename T, size_t B>
-T RemoveGrayCode2(T v, std::integral_constant<size_t, B>)
+template <typename T, size_t B> T RemoveGrayCode2(T v, std::integral_constant<size_t, B>)
 {
   const T cur_bit(T(1) << (B - 1));
   const T low_bits(cur_bit - 1);
@@ -450,8 +431,7 @@ void GrayToHilbert2(
   GrayToHilbert2(out, std::integral_constant<size_t, B>(), std::integral_constant<size_t, I - 1>());
 }
 
-template <typename T, size_t N>
-void GrayToHilbert(std::array<T, N> &, std::integral_constant<size_t, 0>)
+template <typename T, size_t N> void GrayToHilbert(std::array<T, N> &, std::integral_constant<size_t, 0>)
 {
 }
 
@@ -490,8 +470,7 @@ void HilbertToGray2(
   HilbertToGray2(out, std::integral_constant<size_t, B>(), std::integral_constant<size_t, I - 1>());
 }
 
-template <typename T, size_t N>
-void HilbertToGray(std::array<T, N> &, std::integral_constant<size_t, 0>)
+template <typename T, size_t N> void HilbertToGray(std::array<T, N> &, std::integral_constant<size_t, 0>)
 {
 }
 
@@ -525,8 +504,7 @@ void ApplyMaskToArray(std::array<T, N> & a, T mask, std::integral_constant<size_
 // e f g h -> b e h k
 // i j k l    c f i l
 //
-template <typename T, size_t N>
-std::array<T, N> TransposeBits(std::array<T, N> const & in)
+template <typename T, size_t N> std::array<T, N> TransposeBits(std::array<T, N> const & in)
 {
   std::array<T, N> out;
 
@@ -544,8 +522,7 @@ std::array<T, N> TransposeBits(std::array<T, N> const & in)
 // b e h k -> e f g h
 // c f i l    i j k l
 //
-template <typename T, size_t N>
-std::array<T, N> UntransposeBits(std::array<T, N> const & in)
+template <typename T, size_t N> std::array<T, N> UntransposeBits(std::array<T, N> const & in)
 {
   std::array<T, N> out;
 
@@ -557,8 +534,7 @@ std::array<T, N> UntransposeBits(std::array<T, N> const & in)
 }
 
 // Apply a gray code to a transformed vector.
-template <typename T, size_t N>
-std::array<T, N> ApplyGrayCode(std::array<T, N> const & in)
+template <typename T, size_t N> std::array<T, N> ApplyGrayCode(std::array<T, N> const & in)
 {
   std::array<T, N> out(in);
 
@@ -567,8 +543,7 @@ std::array<T, N> ApplyGrayCode(std::array<T, N> const & in)
   return out;
 }
 
-template <typename T, size_t N>
-std::array<T, N> RemoveGrayCode(std::array<T, N> const & in)
+template <typename T, size_t N> std::array<T, N> RemoveGrayCode(std::array<T, N> const & in)
 {
   const size_t bits = std::numeric_limits<T>::digits;
   std::array<T, N> out(in);
@@ -590,8 +565,7 @@ std::array<T, N> RemoveGrayCode(std::array<T, N> const & in)
 
 // Generate code to convert from a transposed gray code to a hilbert
 // code.
-template <typename T, size_t N>
-std::array<T, N> GrayToHilbert(std::array<T, N> const & in)
+template <typename T, size_t N> std::array<T, N> GrayToHilbert(std::array<T, N> const & in)
 {
   std::array<T, N> out(in);
 
@@ -602,8 +576,7 @@ std::array<T, N> GrayToHilbert(std::array<T, N> const & in)
 
 // Generate code to convert from a hilbert code to a transposed gray
 // code.
-template <typename T, size_t N>
-std::array<T, N> HilbertToGray(std::array<T, N> const & in)
+template <typename T, size_t N> std::array<T, N> HilbertToGray(std::array<T, N> const & in)
 {
   std::array<T, N> out(in);
 
@@ -623,8 +596,7 @@ std::array<T, N> HilbertToGray(std::array<T, N> const & in)
 //
 // Index is encoded with most significant objects first.  Lexographic
 // sort order.
-template <typename T, size_t N>
-std::array<T, N> IndexToPosition(std::array<T, N> const & in)
+template <typename T, size_t N> std::array<T, N> IndexToPosition(std::array<T, N> const & in)
 {
   // First convert index to transpose.
   return internal::GrayToHilbert(internal::ApplyGrayCode(internal::TransposeBits(in)));
@@ -636,8 +608,7 @@ std::array<T, N> IndexToPosition(std::array<T, N> const & in)
 //
 // Index is encoded with most significant objects first.  Lexographic
 //  sort order.
-template <typename T, size_t N>
-std::array<T, N> PositionToIndex(std::array<T, N> const & in)
+template <typename T, size_t N> std::array<T, N> PositionToIndex(std::array<T, N> const & in)
 {
   return internal::UntransposeBits(internal::RemoveGrayCode(internal::HilbertToGray(in)));
 }

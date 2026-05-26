@@ -22,22 +22,23 @@
 // SOFTWARE.
 //
 
-#include <iostream>
 #include <chrono>
-#include <vector>
 #include <csignal>
+#include <iostream>
 #include <thread>
+#include <vector>
 
+#include "driver_node.h"
 #include "include/livox_ros_driver2.h"
 #include "include/ros_headers.h"
-#include "driver_node.h"
 #include "lddc.h"
 #include "lds_lidar.h"
 
 using namespace livox_ros;
 
 #ifdef BUILDING_ROS1
-int main(int argc, char **argv) {
+int main(int argc, char ** argv)
+{
   /** Ros related */
   if (ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug)) {
     ros::console::notifyLoggerLevelsChanged();
@@ -54,11 +55,11 @@ int main(int argc, char **argv) {
   int xfer_format = kPointCloud2Msg;
   int multi_topic = 0;
   int data_src = kSourceRawLidar;
-  double publish_freq  = 10.0; /* Hz */
-  int output_type      = kOutputToRos;
+  double publish_freq = 10.0; /* Hz */
+  int output_type = kOutputToRos;
   std::string frame_id = "livox_frame";
   bool lidar_bag = true;
-  bool imu_bag   = false;
+  bool imu_bag = false;
 
   livox_node.GetNode().getParam("xfer_format", xfer_format);
   livox_node.GetNode().getParam("multi_topic", multi_topic);
@@ -82,8 +83,8 @@ int main(int argc, char **argv) {
   livox_node.future_ = livox_node.exit_signal_.get_future();
 
   /** Lidar data distribute control and lidar data source set */
-  livox_node.lddc_ptr_ = std::make_unique<Lddc>(xfer_format, multi_topic, data_src, output_type,
-                        publish_freq, frame_id, lidar_bag, imu_bag);
+  livox_node.lddc_ptr_ = std::make_unique<Lddc>(
+    xfer_format, multi_topic, data_src, output_type, publish_freq, frame_id, lidar_bag, imu_bag);
   livox_node.lddc_ptr_->SetRosNode(&livox_node);
 
   if (data_src == kSourceRawLidar) {
@@ -93,7 +94,7 @@ int main(int argc, char **argv) {
     livox_node.getParam("user_config_path", user_config_path);
     DRIVER_INFO(livox_node, "Config file : %s", user_config_path.c_str());
 
-    LdsLidar *read_lidar = LdsLidar::GetInstance(publish_freq);
+    LdsLidar * read_lidar = LdsLidar::GetInstance(publish_freq);
     livox_node.lddc_ptr_->RegisterLds(static_cast<Lds *>(read_lidar));
 
     if ((read_lidar->InitLdsLidar(user_config_path))) {
@@ -105,18 +106,20 @@ int main(int argc, char **argv) {
     DRIVER_ERROR(livox_node, "Invalid data src (%d), please check the launch file", data_src);
   }
 
-  livox_node.pointclouddata_poll_thread_ = std::make_shared<std::thread>(&DriverNode::PointCloudDataPollThread, &livox_node);
-  livox_node.imudata_poll_thread_ = std::make_shared<std::thread>(&DriverNode::ImuDataPollThread, &livox_node);
-  while (ros::ok()) { usleep(10000); }
+  livox_node.pointclouddata_poll_thread_ =
+    std::make_shared<std::thread>(&DriverNode::PointCloudDataPollThread, &livox_node);
+  livox_node.imudata_poll_thread_ =
+    std::make_shared<std::thread>(&DriverNode::ImuDataPollThread, &livox_node);
+  while (ros::ok()) {
+    usleep(10000);
+  }
 
   return 0;
 }
 
 #elif defined BUILDING_ROS2
-namespace livox_ros
-{
-DriverNode::DriverNode(const rclcpp::NodeOptions & node_options)
-: Node("livox_driver_node", node_options)
+namespace livox_ros {
+DriverNode::DriverNode(const rclcpp::NodeOptions & node_options) : Node("livox_driver_node", node_options)
 {
   DRIVER_INFO(*this, "Livox Ros Driver2 Version: %s", LIVOX_ROS_DRIVER2_VERSION_STRING);
 
@@ -156,7 +159,8 @@ DriverNode::DriverNode(const rclcpp::NodeOptions & node_options)
   future_ = exit_signal_.get_future();
 
   /** Lidar data distribute control and lidar data source set */
-  lddc_ptr_ = std::make_unique<Lddc>(xfer_format, multi_topic, data_src, output_type, publish_freq, frame_id);
+  lddc_ptr_ =
+    std::make_unique<Lddc>(xfer_format, multi_topic, data_src, output_type, publish_freq, frame_id);
   lddc_ptr_->SetRosNode(this);
 
   if (data_src == kSourceRawLidar) {
@@ -169,7 +173,7 @@ DriverNode::DriverNode(const rclcpp::NodeOptions & node_options)
     std::string cmdline_bd_code;
     this->get_parameter("cmdline_input_bd_code", cmdline_bd_code);
 
-    LdsLidar *read_lidar = LdsLidar::GetInstance(publish_freq);
+    LdsLidar * read_lidar = LdsLidar::GetInstance(publish_freq);
     lddc_ptr_->RegisterLds(static_cast<Lds *>(read_lidar));
 
     if ((read_lidar->InitLdsLidar(user_config_path))) {
@@ -192,7 +196,6 @@ RCLCPP_COMPONENTS_REGISTER_NODE(livox_ros::DriverNode)
 
 #endif  // defined BUILDING_ROS2
 
-
 void DriverNode::PointCloudDataPollThread()
 {
   std::future_status status;
@@ -212,24 +215,3 @@ void DriverNode::ImuDataPollThread()
     status = future_.wait_for(std::chrono::microseconds(0));
   } while (status == std::future_status::timeout);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

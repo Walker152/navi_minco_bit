@@ -26,19 +26,12 @@
 
 #include "small_rog_map/hybrid_esdf_map.hpp"
 
-namespace minco_planner
-{
-namespace smac
-{
+namespace minco_planner {
+namespace smac {
 
 SmacPlanner2DSimple::SmacPlanner2DSimple()
-: allow_unknown_(true),
-  max_iterations_(1000000),
-  tolerance_(0.125),
-  costmap_(nullptr),
-  size_x_(0),
-  size_y_(0),
-  motion_model_(MotionModel::TWOD)
+: allow_unknown_(true), max_iterations_(5000000), tolerance_(0.125), costmap_(nullptr), size_x_(0),
+  size_y_(0), motion_model_(MotionModel::TWOD)
 {
   search_info_.cost_penalty = 2.0;
 }
@@ -47,23 +40,20 @@ SmacPlanner2DSimple::~SmacPlanner2DSimple()
 {
 }
 
-void SmacPlanner2DSimple::setESDFMap(
-  const std::shared_ptr<small_rog_map::HybridESDFMap> & esdf_map)
+void SmacPlanner2DSimple::setESDFMap(const std::shared_ptr<small_rog_map::HybridESDFMap> & esdf_map)
 {
   esdf_map_ = esdf_map;
   // Cache is stamped per planning id; invalidate by resetting the counter.
   planning_id_ = 0u;
 }
 
-void SmacPlanner2DSimple::configure(
-  rclcpp_lifecycle::LifecycleNode::SharedPtr node,
+void SmacPlanner2DSimple::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node,
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
 {
   configure(node, costmap_ros, std::string{});
 }
 
-void SmacPlanner2DSimple::configure(
-  rclcpp_lifecycle::LifecycleNode::SharedPtr node,
+void SmacPlanner2DSimple::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node,
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
   const std::string & param_prefix)
 {
@@ -130,10 +120,7 @@ void SmacPlanner2DSimple::setCostmap(nav2_costmap_2d::Costmap2D * costmap)
   ensureSearchBuffers();
 }
 
-void SmacPlanner2DSimple::setParameters(
-  bool allow_unknown,
-  int max_iterations,
-  float tolerance)
+void SmacPlanner2DSimple::setParameters(bool allow_unknown, int max_iterations, float tolerance)
 {
   allow_unknown_ = allow_unknown;
   max_iterations_ = max_iterations;
@@ -169,8 +156,8 @@ float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my
     return 0.0f;
   }
 
-  const uint64_t index = static_cast<uint64_t>(my) * static_cast<uint64_t>(size_x_) +
-    static_cast<uint64_t>(mx);
+  const uint64_t index =
+    static_cast<uint64_t>(my) * static_cast<uint64_t>(size_x_) + static_cast<uint64_t>(mx);
 
   const size_t idx = static_cast<size_t>(index);
   if (esdf_cost_cache_id_[idx] == planning_id_) {
@@ -191,8 +178,7 @@ float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my
   }
 
   // Potential field: higher cost near obstacles, decays with distance.
-  float cost = static_cast<float>(
-    esdf_weight_ * std::exp(-dist / static_cast<double>(esdf_decay_)));
+  float cost = static_cast<float>(esdf_weight_ * std::exp(-dist / static_cast<double>(esdf_decay_)));
   if (esdf_max_cost_ > 0.0f && cost > esdf_max_cost_) {
     cost = esdf_max_cost_;
   }
@@ -221,8 +207,7 @@ float SmacPlanner2DSimple::evaluateInflationCost(unsigned char cell_cost)
   return 1.0f + search_info_.cost_penalty * (normalized_cost * normalized_cost);
 }
 
-bool SmacPlanner2DSimple::createPath(
-  const unsigned int & start_x,
+bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
   const unsigned int & start_y,
   const unsigned int & goal_x,
   const unsigned int & goal_y,
@@ -255,10 +240,10 @@ bool SmacPlanner2DSimple::createPath(
     planning_id_ = 1u;
   }
 
-  const uint64_t start_index = static_cast<uint64_t>(start_y) * static_cast<uint64_t>(size_x_) +
-    static_cast<uint64_t>(start_x);
-  const uint64_t goal_index = static_cast<uint64_t>(goal_y) * static_cast<uint64_t>(size_x_) +
-    static_cast<uint64_t>(goal_x);
+  const uint64_t start_index =
+    static_cast<uint64_t>(start_y) * static_cast<uint64_t>(size_x_) + static_cast<uint64_t>(start_x);
+  const uint64_t goal_index =
+    static_cast<uint64_t>(goal_y) * static_cast<uint64_t>(size_x_) + static_cast<uint64_t>(goal_x);
 
   const auto * charmap = costmap_->getCharMap();
   if (!charmap) {
@@ -266,12 +251,12 @@ bool SmacPlanner2DSimple::createPath(
   }
 
   const auto is_traversable = [this, charmap](const uint64_t index) -> bool {
-      const unsigned char cost = charmap[static_cast<size_t>(index)];
-      if (cost == nav2_costmap_2d::NO_INFORMATION) {
-        return allow_unknown_;
-      }
-      return cost < nav2_costmap_2d::LETHAL_OBSTACLE;
-    };
+    const unsigned char cost = charmap[static_cast<size_t>(index)];
+    if (cost == nav2_costmap_2d::NO_INFORMATION) {
+      return allow_unknown_;
+    }
+    return cost < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+  };
 
   if (!is_traversable(goal_index)) {
     return false;
@@ -283,15 +268,14 @@ bool SmacPlanner2DSimple::createPath(
   const float D2 = step_diagonal;
 
   const auto heuristic = [D, D2, goal_x, goal_y](const unsigned int x, const unsigned int y) {
-      const unsigned int dx = (x > goal_x) ? (x - goal_x) : (goal_x - x);
-      const unsigned int dy = (y > goal_y) ? (y - goal_y) : (goal_y - y);
-      const unsigned int min_d = (dx < dy) ? dx : dy;
-      return D * static_cast<float>(dx + dy) + (D2 - 2.0f * D) * static_cast<float>(min_d);
-    };
+    const unsigned int dx = (x > goal_x) ? (x - goal_x) : (goal_x - x);
+    const unsigned int dy = (y > goal_y) ? (y - goal_y) : (goal_y - y);
+    const unsigned int min_d = (dx < dy) ? dx : dy;
+    return D * static_cast<float>(dx + dy) + (D2 - 2.0f * D) * static_cast<float>(min_d);
+  };
 
-  const float tol_cells = (costmap_resolution_ > 1e-9) ?
-    static_cast<float>(tolerance_ / costmap_resolution_) :
-    tolerance_;
+  const float tol_cells =
+    (costmap_resolution_ > 1e-9) ? static_cast<float>(tolerance_ / costmap_resolution_) : tolerance_;
   const float tol_sq = tol_cells * tol_cells;
 
   // Min-heap open list
@@ -340,10 +324,7 @@ bool SmacPlanner2DSimple::createPath(
 
     // 8-connected neighbors: (dx,dy,cost)
     // No division/mod in the inner neighbor expansion loop.
-    const int offsets[8][2] = {
-      {-1, 0}, {1, 0}, {0, -1}, {0, 1},
-      {-1, -1}, {1, -1}, {-1, 1}, {1, 1}
-    };
+    const int offsets[8][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
 
     for (int k = 0; k < 8; ++k) {
       const int nx_i = static_cast<int>(cx_u) + offsets[k][0];

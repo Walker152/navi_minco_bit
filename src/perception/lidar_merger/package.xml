@@ -13,6 +13,7 @@
   <depend>rclcpp_components</depend>
   <depend>message_filters</depend>
   <depend>livox_ros_driver2</depend>
+  <depend>sensor_msgs</depend>
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

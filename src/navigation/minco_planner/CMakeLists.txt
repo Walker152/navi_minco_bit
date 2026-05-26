@@ -27,6 +27,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(ros_interfaces REQUIRED)
 find_package(PCL REQUIRED)
+find_package(OpenMP REQUIRED)
 
 nav2_package()
 
@@ -46,8 +47,11 @@ add_library(${library_name} SHARED
   ${TRAJ_OPT_SOURCES}
 )
 
-include_directories(
-  include
+target_include_directories(${library_name} 
+PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+PRIVATE
   ${EIGEN3_INCLUDE_DIR}
   ${PCL_INCLUDE_DIRS}
 )
@@ -69,6 +73,7 @@ ament_target_dependencies(${library_name}
 )
 
 target_link_libraries(${library_name}
+  OpenMP::OpenMP_CXX
   ${PCL_LIBRARIES}
 )
 

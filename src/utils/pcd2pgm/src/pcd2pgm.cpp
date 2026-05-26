@@ -5,8 +5,7 @@
 
 #include <rclcpp/qos.hpp>
 
-namespace pcd2pgm
-{
+namespace pcd2pgm {
 PCLFiltersNode::PCLFiltersNode(const rclcpp::NodeOptions & options) : Node("pcd2pgm", options)
 {
   declareParameters();
@@ -34,9 +33,14 @@ PCLFiltersNode::PCLFiltersNode(const rclcpp::NodeOptions & options) : Node("pcd2
   time_ = create_wall_timer(std::chrono::seconds(1), std::bind(&PCLFiltersNode::publishMap, this));
 }
 
-PCLFiltersNode::~PCLFiltersNode() {}
+PCLFiltersNode::~PCLFiltersNode()
+{
+}
 
-void PCLFiltersNode::publishMap() { map_publisher_->publish(map_topic_msg_); }
+void PCLFiltersNode::publishMap()
+{
+  map_publisher_->publish(map_topic_msg_);
+}
 
 void PCLFiltersNode::declareParameters()
 {
@@ -78,14 +82,13 @@ void PCLFiltersNode::passThroughFilter(
   passthrough.setNegative(flag_in);
   passthrough.filter(*cloud_after_PassThrough_);
 
-  RCLCPP_INFO(
-    get_logger(), "After PassThrough filtering, point cloud size: %lu",
+  RCLCPP_INFO(get_logger(),
+    "After PassThrough filtering, point cloud size: %lu",
     cloud_after_PassThrough_->points.size());
 }
 
 void PCLFiltersNode::radiusOutlierFilter(
-  const pcl::PointCloud<pcl::PointXYZ>::Ptr & pcd_cloud0, const double & radius,
-  const int & thre_count)
+  const pcl::PointCloud<pcl::PointXYZ>::Ptr & pcd_cloud0, const double & radius, const int & thre_count)
 {
   pcl::PointCloud<pcl::PointXYZ>::Ptr car(new pcl::PointCloud<pcl::PointXYZ>);
   cloud_after_Radius_ = car;
@@ -96,8 +99,8 @@ void PCLFiltersNode::radiusOutlierFilter(
   radiusoutlier.setMinNeighborsInRadius(thre_count);
   radiusoutlier.filter(*cloud_after_Radius_);
 
-  RCLCPP_INFO(
-    get_logger(), "After RadiusOutlier filtering, point cloud size: %lu",
+  RCLCPP_INFO(get_logger(),
+    "After RadiusOutlier filtering, point cloud size: %lu",
     cloud_after_Radius_->points.size());
 }
 

@@ -1,36 +1,37 @@
 #include "minco_core/minco_utils.hpp"
 
-#include <algorithm>
-#include <cmath>
-
 #include "data_structure/base/trajectory.h"
 
 namespace minco_planner::utils {
 
-double getDistFromTrapezoid(
-  double t,
-  double total_length,
-  double a_ref,
-  double v_peak,
-  double t_acc,
-  double t_flat)
+double quaternionToYaw(const geometry_msgs::msg::Quaternion & q)
 {
-  if (!(std::isfinite(t) && std::isfinite(total_length) && std::isfinite(a_ref) && std::isfinite(v_peak) &&
-        std::isfinite(t_acc) && std::isfinite(t_flat))) {
-    return 0.0;
+  const tf2::Quaternion tf_q(q.x, q.y, q.z, q.w);
+  double roll = 0.0;
+  double pitch = 0.0;
+  double yaw = 0.0;
+  tf2::Matrix3x3(tf_q).getRPY(roll, pitch, yaw);
+  return std::isfinite(yaw) ? yaw : 0.0;
+}
+
+double calCurvatureDecay(
+  double angle, double global_vmax, double deadzone, double saturation, double min_vel, double decay_power)
+{
+  if (angle < deadzone) {
+    return global_vmax;
   }
 
-  if (total_length <= 0.0) {
-    return 0.0;
-  }
-  if (a_ref <= 0.0 || v_peak <= 0.0 || t_acc <= 0.0) {
-    return 0.0;
-  }
+  const double clamped_angle = std::min(angle, saturation);
+  const double ratio = (clamped_angle - deadzone) / saturation;
+  const double local_vmax = min_vel + (global_vmax - min_vel) * std::exp(-ratio * decay_power);
 
-  const double t_total = 2.0 * t_acc + std::max(0.0, t_flat);
-  if (t <= 0.0) {
-    return 0.0;
-  }
+  return std::max(local_vmax, min_vel);
+}
+
+double getDistFromTrapezoid(
+  double t, double total_length, double a_ref, double v_peak, double t_acc, double t_flat, double t_dec)
+{
+  const double t_total = t_acc + std::max(0.0, t_flat) + std::max(0.0, t_dec);
   if (t >= t_total) {
     return total_length;
   }
@@ -56,9 +57,7 @@ double getDistFromTrapezoid(
 }
 
 Eigen::Vector3d interpolateByArcLength(
-  const std::vector<Eigen::Vector3d> & path,
-  const std::vector<double> & accumulated_dist,
-  double s)
+  const std::vector<Eigen::Vector3d> & path, const std::vector<double> & accumulated_dist, double s)
 {
   if (path.empty()) {
     return Eigen::Vector3d::Zero();
@@ -88,8 +87,7 @@ Eigen::Vector3d interpolateByArcLength(
   return path[idx0] + ratio * (path[idx1] - path[idx0]);
 }
 
-void publishOptimizedTrajectory(
-  const traj_opt::Trajectory & opt_traj,
+void publishOptimizedTrajectory(const traj_opt::Trajectory & opt_traj,
   const traj_opt::Trajectory & yaw_traj,
   const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
   uint32_t & trajectory_id_counter,
@@ -151,13 +149,13 @@ void publishOptimizedTrajectory(
   pub->publish(traj_msg);
 }
 
-void publishBackupTrajectory(
-  const traj_opt::Trajectory & backup_traj,
+void publishBackupTrajectory(const traj_opt::Trajectory & backup_traj,
   const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
   uint32_t & trajectory_id_counter,
   const std_msgs::msg::Header & header,
   int steps,
-  double t_step)
+  double t_step,
+  double fallback_yaw)
 {
   if (!pub || steps <= 0) {
     return;
@@ -186,12 +184,10 @@ void publishBackupTrajectory(
     acc.z() = 0.0;
     jer.z() = 0.0;
 
-    double yaw = 0.0;
+    double yaw = fallback_yaw;
     Eigen::Vector3d initial_vel = backup_traj.getVel(0.0);
     if (initial_vel.head<2>().norm() > 1e-4) {
       yaw = std::atan2(initial_vel(1), initial_vel(0));
-    } else if (i > 0) {
-      yaw = traj_msg.cmds[i - 1].yaw;
     }
 
     auto & cmd = traj_msg.cmds[i];
@@ -224,10 +220,52 @@ void publishBackupTrajectory(
   pub->publish(traj_msg);
 }
 
-std::vector<Eigen::Vector3d> getSparseWaypoints(
-  const std::vector<Eigen::Vector3d> & path,
+void publishEscapeCommand(const geometry_msgs::msg::PoseStamped & current_pose,
+  const Eigen::Vector2d & escape_vel,
+  double current_yaw,
+  const rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr & pub,
+  uint32_t & trajectory_id_counter,
+  const std_msgs::msg::Header & header)
+{
+  // const double escape_duration = 0.5;  // seconds
+  // 1. 构造空间伪轨迹 (平滑匀加速脱困曲线)
+  // 多项式定义: p(t) = c0*t^5 + c1*t^4 + c2*t^3 + c3*t^2 + c4*t + c5
+  traj_opt::Trajectory escape_traj;
+  Eigen::MatrixXd cMat(3, 6);
+  cMat.setZero();
+  // 第 5 列 (c5) -> 常数项 (t^0): 设定起点为机器人的当前位置
+  cMat(0, 5) = current_pose.pose.position.x;
+  cMat(1, 5) = current_pose.pose.position.y;
+  cMat(2, 5) = 0.0;
+
+  // 第 4 列 (c4) -> 一次项 (t^1): 初始速度强制为 0，防止 QP 求解器因无限加速度崩溃 (Error 36)
+  cMat(0, 4) = escape_vel.x();
+  cMat(1, 4) = escape_vel.y();
+  cMat(2, 4) = 0.0;
+
+  escape_traj.emplace_back(0.5, cMat);  // 持续 0.5s
+  escape_traj.start_WT =
+    static_cast<double>(header.stamp.sec) + static_cast<double>(header.stamp.nanosec) * 1e-9;
+
+  // 2. 构造姿态伪轨迹
+  traj_opt::Trajectory yaw_traj;
+  Eigen::MatrixXd yMat(3, 6);
+  yMat.setZero();
+
+  // 第 5 列 (c5) -> 常数项 (t^0): 锁定当前偏航角
+  yMat(0, 5) = current_yaw;
+
+  yaw_traj.emplace_back(0.5, yMat);
+  yaw_traj.start_WT = escape_traj.start_WT;
+
+  // 3. 下发
+  publishOptimizedTrajectory(escape_traj, yaw_traj, pub, trajectory_id_counter, header, 10, 0.05);
+}
+
+std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3d> & path,
   double max_vel,
   double max_acc,
+  bool goal_reached,
   const std::function<bool(const Eigen::Vector3d &, const Eigen::Vector3d &)> & is_line_free)
 {
   std::vector<Eigen::Vector3d> sparse;
@@ -270,8 +308,8 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(
   }
 
   // 2) Heuristic trapezoid / triangle velocity profile
-  const double v_ref = 0.8 * std::max(0.0, max_vel);
-  const double a_ref = std::max(1e-6, max_acc);
+  const double v_ref = max_vel;
+  const double a_ref = max_acc;
 
   if (v_ref <= 1e-6) {
     sparse.push_back(path.back());
@@ -282,16 +320,35 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(
   double v_peak = v_ref;
   double t_acc = v_ref / a_ref;
   double t_flat = 0.0;
-  if (total_length > 2.0 * d_acc_ref) {
-    const double d_flat = total_length - 2.0 * d_acc_ref;
+
+  double t_dec = goal_reached ? t_acc : 0.0;  // 到达全局终点时保留减速段，否则开放式巡航
+  const double d_dec = goal_reached ? d_acc_ref : 0.0;  // 末段减速所需距离
+  if (total_length > d_acc_ref + d_dec) {
+    const double d_flat = total_length - (d_acc_ref + d_dec);
     t_flat = d_flat / v_ref;
   } else {
-    v_peak = std::sqrt(std::max(0.0, total_length * a_ref));
-    t_acc = v_peak / a_ref;
-    t_flat = 0.0;
+    if (goal_reached) {
+      v_peak = std::sqrt(std::max(0.0, total_length * a_ref));  // 三角形 (加速+减速)
+      t_acc = v_peak / a_ref;
+      t_dec = t_acc;
+      t_flat = 0.0;
+    } else {
+      v_peak = std::sqrt(std::max(0.0, 2.0 * total_length * a_ref));  // 纯加速 (v^2 = 2as)
+      if (v_peak > v_ref) {
+        v_peak = v_ref;
+        double d_acc = 0.5 * v_peak * v_peak / a_ref;
+        t_acc = v_peak / a_ref;
+        t_dec = 0.0;
+        t_flat = (total_length - d_acc) / v_ref;
+      } else {
+        t_acc = v_peak / a_ref;
+        t_dec = 0.0;
+        t_flat = 0.0;
+      }
+    }
   }
 
-  const double t_total = 2.0 * t_acc + t_flat;
+  const double t_total = t_acc + t_flat + std::max(0.0, t_dec);
   if (!(std::isfinite(t_total) && t_total > 1e-6)) {
     sparse.push_back(path.back());
     return sparse;
@@ -347,8 +404,10 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(
   };
 
   // 3) Build Ideal Indices by time-uniform sampling in trapezoid time, then s(t)->raw index.
-  int n_segments = static_cast<int>(std::ceil(t_total / 0.25));
-  n_segments = std::max(4, std::min(6, n_segments));
+  // const double desired_spatial_res = 0.6;
+  // const int n_segments_spatial = static_cast<int>(std::ceil(total_length / desired_spatial_res));
+  const int n_segments_time = static_cast<int>(std::ceil(t_total / 0.5));
+  const int n_segments = std::max(4, n_segments_time);
   const double dt = t_total / static_cast<double>(n_segments);
 
   std::vector<size_t> target_indices;
@@ -358,7 +417,7 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(
   size_t last_added = 0u;
   for (int i = 1; i < n_segments; ++i) {
     const double t = static_cast<double>(i) * dt;
-    const double s = getDistFromTrapezoid(t, total_length, a_ref, v_peak, t_acc, t_flat);
+    const double s = getDistFromTrapezoid(t, total_length, a_ref, v_peak, t_acc, t_flat, t_dec);
     size_t idx = arcLengthToIndex(s);
     // enforce strictly increasing indices to preserve ordering and avoid duplicates
     idx = std::max(idx, last_added);
@@ -430,4 +489,235 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(
   return sparse;
 }
 
+double LimitLocalVel(const std::vector<Eigen::Vector3d> & sparse_path,
+  int seg_idx,
+  double global_vmax,
+  double deadzone,
+  double saturation,
+  double min_turn_vel,
+  double decay_power)
+{
+  if (!(std::isfinite(global_vmax) && global_vmax > 0.0)) {
+    return 0.0;
+  }
+
+  const int n = static_cast<int>(sparse_path.size());
+  if (seg_idx < 0 || seg_idx + 2 >= n) {
+    return global_vmax;
+  }
+
+  const Eigen::Vector2d d1 =
+    (sparse_path[static_cast<size_t>(seg_idx + 1)] - sparse_path[static_cast<size_t>(seg_idx)]).head<2>();
+  const Eigen::Vector2d d2 =
+    (sparse_path[static_cast<size_t>(seg_idx + 2)] - sparse_path[static_cast<size_t>(seg_idx + 1)])
+      .head<2>();
+  const double n1 = d1.norm();
+  const double n2 = d2.norm();
+  if (n1 <= 0.2 || n2 <= 0.2) {
+    return global_vmax;
+  }
+
+  const double dot = clampValue(d1.dot(d2) / (n1 * n2), -1.0, 1.0);
+  const double angle = std::acos(dot);
+  return calCurvatureDecay(angle, global_vmax, deadzone, saturation, min_turn_vel, decay_power);
+}
+
+double ComputeNextSpeed(double v_curr, double seg_len, double remain_after, double amax, double local_vmax)
+{
+  if (!(std::isfinite(v_curr) && v_curr >= 0.0)) {
+    v_curr = 0.0;
+  }
+  if (!(std::isfinite(seg_len) && seg_len > 0.0)) {
+    return 0.0;
+  }
+
+  const double a_safe = std::max(1e-3, std::abs(amax));
+  double v_next = std::sqrt(std::max(0.0, v_curr * v_curr + 2.0 * a_safe * seg_len));
+  if (std::isfinite(local_vmax) && local_vmax > 0.0) {
+    v_next = std::min(v_next, local_vmax);
+  }
+
+  const double v_cap_stop =
+    (remain_after > 1e-6) ? std::sqrt(std::max(0.0, 2.0 * a_safe * remain_after)) : 0.0;
+  v_next = std::min(v_next, v_cap_stop);
+
+  if (!std::isfinite(v_next) || v_next < 0.0) {
+    return 0.0;
+  }
+  return v_next;
+}
+
+double ComputeSegmentTime(
+  double seg_len, double v_curr, double v_next, double local_vmax, double amax, double min_seg_time)
+{
+  const double t_min = std::max(1e-3, min_seg_time);
+  double t = 0.0;
+  const double v_sum = v_curr + v_next;
+  if (v_sum > 1e-3) {
+    t = 2.0 * seg_len / v_sum;
+  } else {
+    t = seg_len / 0.1;
+  }
+
+  const double a_safe = std::max(1e-3, std::abs(amax));
+  const double required_dist = std::abs(v_curr * v_curr - v_next * v_next) / (2.0 * a_safe);
+  if (seg_len >= required_dist) {
+    const double t_kinematic = std::abs(v_curr - v_next) / a_safe;
+    t = std::max(t, t_kinematic);
+  }
+  if (local_vmax > 1e-6 && std::abs(v_next - local_vmax) < 1e-6 && v_curr < local_vmax - 1e-6) {
+    const double d_acc = (local_vmax * local_vmax - v_curr * v_curr) / (2.0 * a_safe);
+    if (std::isfinite(d_acc) && d_acc > 0.0 && seg_len > d_acc) {
+      const double t_acc = (local_vmax - v_curr) / a_safe;
+      const double t_cruise = (seg_len - d_acc) / local_vmax;
+      const double t_alt = t_acc + t_cruise;
+      if (std::isfinite(t_alt) && t_alt > 0.0) {
+        t = std::max(t, t_alt);
+      }
+    }
+  }
+
+  if (!std::isfinite(t) || t < t_min) {
+    return t_min;
+  }
+  return t;
+}
+
+void VelPropogation(const std::vector<double> & seg_len, double amax, std::vector<double> & local_vmaxs)
+{
+  if (seg_len.empty() || local_vmaxs.empty() || seg_len.size() != local_vmaxs.size()) {
+    return;
+  }
+
+  const int n = static_cast<int>(seg_len.size());
+  const double a_safe = std::max(1e-3, std::abs(amax));
+
+  for (int i = n - 2; i >= 0; --i) {
+    const double L = std::max(0.0, seg_len[static_cast<size_t>(i)]);
+    const double v_next = std::max(0.0, local_vmaxs[static_cast<size_t>(i + 1)]);
+    const double v_cap = std::sqrt(std::max(0.0, v_next * v_next + 2.0 * a_safe * L));
+    local_vmaxs[static_cast<size_t>(i)] =
+      std::min(std::max(0.0, local_vmaxs[static_cast<size_t>(i)]), v_cap);
+  }
+
+  for (int i = 1; i < n; ++i) {
+    const double L = std::max(0.0, seg_len[static_cast<size_t>(i - 1)]);
+    const double v_prev = std::max(0.0, local_vmaxs[static_cast<size_t>(i - 1)]);
+    const double v_cap = std::sqrt(std::max(0.0, v_prev * v_prev + 2.0 * a_safe * L));
+    local_vmaxs[static_cast<size_t>(i)] =
+      std::min(std::max(0.0, local_vmaxs[static_cast<size_t>(i)]), v_cap);
+  }
+}
+
+bool isLineFree(
+  nav2_costmap_2d::Costmap2D * costmap, const Eigen::Vector3d & p1, const Eigen::Vector3d & p2)
+{
+  if (!costmap) {
+    return true;
+  }
+
+  unsigned int mx, my;
+  double dist = (p2 - p1).norm();
+  int steps = static_cast<int>(std::ceil(dist / costmap->getResolution()));
+  if (steps <= 0) {
+    return true;
+  }
+
+  for (int i = 0; i <= steps; ++i) {
+    double t = static_cast<double>(i) / static_cast<double>(steps);
+    Eigen::Vector3d p = p1 + (p2 - p1) * t;
+    if (costmap->worldToMap(p.x(), p.y(), mx, my)) {
+      if (costmap->getCost(mx, my) >= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool worldToMap(nav2_costmap_2d::Costmap2D * costmap,
+  const rclcpp::Logger & logger,
+  double wx,
+  double wy,
+  unsigned int & mx,
+  unsigned int & my)
+{
+  if (!costmap) {
+    RCLCPP_DEBUG(logger, "worldToMap: costmap is null");
+    return false;
+  }
+
+  if (wx < costmap->getOriginX() || wy < costmap->getOriginY()) {
+    RCLCPP_DEBUG(logger,
+      "worldToMap: Position (%.2f, %.2f) is before origin (%.2f, %.2f)",
+      wx,
+      wy,
+      costmap->getOriginX(),
+      costmap->getOriginY());
+    return false;
+  }
+
+  double dx = (wx - costmap->getOriginX()) / costmap->getResolution();
+  double dy = (wy - costmap->getOriginY()) / costmap->getResolution();
+
+  if (dx < 0.0 || dy < 0.0) {
+    RCLCPP_DEBUG(logger, "worldToMap: Computed cell coordinates (%.2f, %.2f) are negative", dx, dy);
+    return false;
+  }
+
+  int mx_int = static_cast<int>(std::round(dx));
+  int my_int = static_cast<int>(std::round(dy));
+
+  if (mx_int < 0 || my_int < 0 || mx_int >= static_cast<int>(costmap->getSizeInCellsX()) ||
+      my_int >= static_cast<int>(costmap->getSizeInCellsY())) {
+    RCLCPP_DEBUG(logger,
+      "worldToMap: Cell coordinates (%d, %d) are out of bounds [0, %u) x [0, %u)",
+      mx_int,
+      my_int,
+      costmap->getSizeInCellsX(),
+      costmap->getSizeInCellsY());
+    return false;
+  }
+
+  mx = static_cast<unsigned int>(mx_int);
+  my = static_cast<unsigned int>(my_int);
+  return true;
+}
+
+void mapToWorld(nav2_costmap_2d::Costmap2D * costmap, double mx, double my, double & wx, double & wy)
+{
+  if (!costmap) {
+    wx = 0.0;
+    wy = 0.0;
+    return;
+  }
+  wx = costmap->getOriginX() + mx * costmap->getResolution();
+  wy = costmap->getOriginY() + my * costmap->getResolution();
+}
+
+void clearRobotCell(nav2_costmap_2d::Costmap2D * costmap, unsigned int mx, unsigned int my)
+{
+  if (!costmap) {
+    return;
+  }
+  costmap->setCost(mx, my, nav2_costmap_2d::FREE_SPACE);
+}
+void compensateLeverArm(double v_lidar_x,
+  double v_lidar_y,
+  double omega_z,
+  double yaw,
+  double & vx_global,
+  double & vy_global,
+  double & omega_global)
+{
+  const double v_body_x = v_lidar_x + omega_z * (-0.2);
+  const double v_body_y = v_lidar_y - omega_z * 0.0;
+
+  const double cos_yaw = std::cos(yaw);
+  const double sin_yaw = std::sin(yaw);
+
+  vx_global = v_body_x * cos_yaw - v_body_y * sin_yaw;
+  vy_global = v_body_x * sin_yaw + v_body_y * cos_yaw;
+  omega_global = omega_z;
+}
 }  // namespace minco_planner::utils
