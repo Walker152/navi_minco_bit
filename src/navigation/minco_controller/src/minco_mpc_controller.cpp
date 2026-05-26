@@ -184,10 +184,13 @@ void MincoMpcController::compensateLeverArm(double v_lidar_x,
 
   const double cos_yaw = std::cos(yaw);
   const double sin_yaw = std::sin(yaw);
-
   vx_global = v_body_x * cos_yaw - v_body_y * sin_yaw;
   vy_global = v_body_x * sin_yaw + v_body_y * cos_yaw;
   omega_global = omega_z;
+  // std::cout << "Raw velocities: vx_lidar=" << v_lidar_x << ", vy_lidar=" << v_lidar_y
+  //           << ", omega_z=" << omega_z << ", yaw=" << yaw << std::endl;
+  // std::cout << "Compensated velocities: vx_global=" << vx_global << ", vy_global=" << vy_global
+  //           << ", omega_global=" << omega_global << std::endl;
 }
 
 void MincoMpcController::extractGlobalVelocityAndYaw(const nav_msgs::msg::Odometry::SharedPtr & odom,
@@ -216,7 +219,6 @@ void MincoMpcController::extractGlobalVelocityAndYaw(const nav_msgs::msg::Odomet
   // 5. 计算全局杆臂补偿 (将底盘水平安装偏置旋转到全局系)
   double offset_global_x = std::cos(yaw_global) * lidar_offset_x_ - std::sin(yaw_global) * lidar_offset_y_;
   double offset_global_y = std::sin(yaw_global) * lidar_offset_x_ + std::cos(yaw_global) * lidar_offset_y_;
-
   // 6. 计算底盘旋转中心的全局速度
   vx_global = v_imu_global.x() + omega_global * offset_global_y;
   vy_global = v_imu_global.y() - omega_global * offset_global_x;
@@ -530,7 +532,7 @@ bool MincoMpcController::buildReferenceFromOptPath(
 void MincoMpcController::applyGravityCompensation(
   const nav_msgs::msg::Odometry::SharedPtr & odom, double & vx, double & vy)
 {
-  if (!odom || std::hypot(vx, vy) < 0.01) {
+  if (!odom) {
     return;
   }
 
@@ -541,19 +543,19 @@ void MincoMpcController::applyGravityCompensation(
   double pitch = 0.0;
   double yaw = 0.0;
   tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-
+  // std::cout << "Original roll: " << roll << ", pitch: " << pitch << ", yaw: " << yaw << std::endl;
   const double true_roll = roll - lidar_roll_offset_;
   constexpr double angle_threshold = 0.05;
-  constexpr double k_gravity_x = 2.0;
-  constexpr double k_gravity_y = 2.0;
+  constexpr double k_gravity_x = 1.0;
+  constexpr double k_gravity_y = 20.0;
 
   double body_comp_x = 0.0;
   double body_comp_y = 0.0;
   if (std::abs(pitch) > angle_threshold) {
-    body_comp_x = k_gravity_x * std::sin(pitch);
+    body_comp_x = k_gravity_x * std::sin(-pitch);
   }
   if (std::abs(true_roll) > angle_threshold) {
-    body_comp_y = k_gravity_y * std::sin(true_roll);
+    body_comp_y = k_gravity_y * std::sin(std::abs(true_roll));
   }
 
   if (body_comp_x == 0.0 && body_comp_y == 0.0) {
@@ -590,16 +592,17 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   curr.y = pose.pose.position.y;
   curr.yaw = normalizeYaw(tf2::getYaw(pose.pose.orientation));
   if (latest_odom) {
-    double vx = 0.0;
-    double vy = 0.0;
-    double omega = 0.0;
-    double yaw = 0.0;
-    extractGlobalVelocityAndYaw(latest_odom, vx, vy, omega, yaw);
+    double vx = latest_odom->twist.twist.linear.x;
+    double vy = latest_odom->twist.twist.linear.y;
+    double omega = latest_odom->twist.twist.angular.z;
+    double yaw = normalizeYaw(tf2::getYaw(latest_odom->pose.pose.orientation));
+    // extractGlobalVelocityAndYaw(latest_odom, vx, vy, omega, yaw);
+    compensateLeverArm(vx, vy, omega, yaw, curr.vx, curr.vy, curr.omega);
 
-    curr.yaw = normalizeYaw(yaw);
-    curr.vx = vx;
-    curr.vy = vy;
-    curr.omega = omega;
+    // curr.yaw = normalizeYaw(yaw);
+    // curr.vx = vx;
+    // curr.vy = vy;
+    // curr.omega = omega;
 
     const double noise_threshold = 0.03;
     if (std::abs(curr.vx) < noise_threshold) {
@@ -724,18 +727,11 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     cmd.twist.angular.z = 0.0;
     return cmd;
   }
-  // 4) 直接下发全局坐标系速度
+
+  // 5) 直接下发全局坐标系速度
   double vx_mpc = u_global.vx;
   double vy_mpc = u_global.vy;
   double wz = fixed_wz_;
-
-  if (cmd_vel_mpc_pub_) {
-    geometry_msgs::msg::Twist raw_cmd;
-    raw_cmd.linear.x = vx_mpc;
-    raw_cmd.linear.y = vy_mpc;
-    raw_cmd.angular.z = u_global.omega;
-    cmd_vel_mpc_pub_->publish(raw_cmd);
-  }
 
   // 小陀螺模式：当启用时，始终输出固定的旋转速度，而不使用 MPC 输出的角速度。
   if (!use_small_gyro_mode_) {
@@ -769,9 +765,39 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     vx = 0.0;
     vy = 0.0;
   }
-
-  applyGravityCompensation(latest_odom, vx, vy);
-
+  constexpr double goal_pos_threshold = 0.3;
+  bool stop_mpc_cmd = false;
+  geometry_msgs::msg::PoseStamped goal_pose_stamped;
+  {
+    std::lock_guard<std::mutex> lk(plan_mtx_);
+    if (!global_plan_.poses.empty()) {
+      goal_pose_stamped = global_plan_.poses.back();
+    }
+  }
+  if (!goal_pose_stamped.header.frame_id.empty()) {
+    geometry_msgs::msg::PoseStamped goal_pose_in_odom = goal_pose_stamped;
+    if (goal_pose_in_odom.header.frame_id != odom_frame_) {
+      try {
+        goal_pose_in_odom = tf_->transform(goal_pose_in_odom, odom_frame_);
+      } catch (const tf2::TransformException &) {
+        goal_pose_in_odom.header.frame_id.clear();
+      }
+    }
+    if (!goal_pose_in_odom.header.frame_id.empty()) {
+      const double dx = pose.pose.position.x - goal_pose_in_odom.pose.position.x;
+      const double dy = pose.pose.position.y - goal_pose_in_odom.pose.position.y;
+      const double dist = std::hypot(dx, dy);
+      stop_mpc_cmd = (dist <= goal_pos_threshold);
+    }
+  }
+  if (cmd_vel_mpc_pub_) {
+    geometry_msgs::msg::Twist raw_cmd;
+    raw_cmd.linear.x = stop_mpc_cmd ? 0.0 : vx;
+    raw_cmd.linear.y = stop_mpc_cmd ? 0.0 : vy;
+    raw_cmd.angular.z = stop_mpc_cmd ? 0.0 : wz;
+    cmd_vel_mpc_pub_->publish(raw_cmd);
+  }
+  // applyGravityCompensation(latest_odom, vx, vy);
   cmd.twist.linear.x = vx;
   cmd.twist.linear.y = vy;
   cmd.twist.angular.z = wz;

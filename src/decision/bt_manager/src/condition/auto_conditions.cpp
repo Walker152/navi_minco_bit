@@ -1,6 +1,8 @@
 #include "bt_manager/condition/auto_conditions.hpp"
+#include "bt_manager/utils/area.hpp"
 #include <cmath>
 #include <iostream>
+#include <sstream>
 
 namespace Sentry_BT {
 // ------------------- CheckRetreatCondition -------------------
@@ -14,8 +16,6 @@ BT::PortsList CheckRetreatCondition::providedPorts()
   return {
     BT::InputPort<float>("health_threshold"),
     BT::InputPort<float>("recovery_threshold"),
-    BT::InputPort<int>("ammo_threshold", 100, "Low ammo threshold"),
-    BT::InputPort<int>("ammo_recovery_threshold", 100, "Ammo recovery threshold"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
   };
 }
@@ -24,43 +24,102 @@ BT::NodeStatus CheckRetreatCondition::tick()
 {
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
-  auto health_threshold_ = getInput<float>("health_threshold");
-  auto recovery_threshold_ = getInput<float>("recovery_threshold");
-  auto ammo_threshold_ = getInput<int>("ammo_threshold");
-  auto ammo_recovery_threshold_ = getInput<int>("ammo_recovery_threshold");
-  if (!health_threshold_ || !recovery_threshold_ || !ammo_threshold_ || !ammo_recovery_threshold_) {
-    throw BT::RuntimeError("missing required input [health_threshold] or [recovery_threshold]");
-  }
-  float health_threshold = health_threshold_.value();
-  float recovery_threshold = recovery_threshold_.value();
-  int ammo_threshold = ammo_threshold_.value();
-  int ammo_recovery_threshold = ammo_recovery_threshold_.value();
+  auto health_threshold_ = getInput<float>("health_threshold").value_or(50.0f);
+  auto recovery_threshold_ = getInput<float>("recovery_threshold").value_or(50.0f);
+
   auto health = blackboard->get<float>("health");
-  auto ammo = blackboard->get<int>("bullets_remaining");
-  auto current_mode = blackboard->get<int>("current_mode");
+  auto current_mode = blackboard->get<NavMode>("current_mode");
 
   BT::NodeStatus result = BT::NodeStatus::FAILURE;
-  if (current_mode == Sentry_BT::NavMode::RETREAT) {
-    if (health >= recovery_threshold && ammo > ammo_recovery_threshold) {
-      blackboard->set<int>("current_mode", Sentry_BT::NavMode::PATROL);
+  if (current_mode == NavMode::RETREAT) {
+    if (health >= recovery_threshold_) {
+      blackboard->set<NavMode>("current_mode", NavMode::PATROL);
       result = BT::NodeStatus::FAILURE;
     } else {
       result = BT::NodeStatus::SUCCESS;
     }
-  } else if (health < health_threshold || ammo < ammo_threshold) {
-    blackboard->set<int>("current_mode", Sentry_BT::NavMode::RETREAT);
+  } else if (health < health_threshold_) {
+    blackboard->set<NavMode>("current_mode", NavMode::RETREAT);
     result = BT::NodeStatus::SUCCESS;
   }
 
   const bool active = (result == BT::NodeStatus::SUCCESS);
   std::ostringstream retreat_detail;
-  retreat_detail << "health=" << health << ", health_threshold=" << health_threshold
-                 << ", recovery_threshold=" << recovery_threshold << ", ammo=" << ammo
-                 << ", ammo_threshold=" << ammo_threshold;
+  retreat_detail << "health=" << health << ", health_threshold=" << health_threshold_
+                 << ", recovery_threshold=" << recovery_threshold_ << ", current_mode=" << current_mode;
   detail::logTransition(
     detail::TreeKind::NAV, "CheckRetreatCondition", active, retreat_detail.str(), branch);
 
   return result;
+}
+
+// ------------------- CheckGameTimeWindow -------------------
+CheckGameTimeWindow::CheckGameTimeWindow(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckGameTimeWindow::providedPorts()
+{
+  return {
+    BT::InputPort<int>("min_remaining", 0, "Minimum remaining match time, inclusive"),
+    BT::InputPort<int>("max_remaining", 420, "Maximum remaining match time, inclusive"),
+    BT::InputPort<bool>("require_game_started", true, "Require referee game_status == 4"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
+  };
+}
+
+BT::NodeStatus CheckGameTimeWindow::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const int min_remaining = getInput<int>("min_remaining").value_or(0);
+  const int max_remaining = getInput<int>("max_remaining").value_or(420);
+  const bool require_game_started = getInput<bool>("require_game_started").value_or(true);
+  const int game_time_remaining = blackboard->get<int>("game_time_remaining");
+  const int game_status = blackboard->get<int>("game_status");
+
+  const bool game_started = !require_game_started || game_status == 4;
+  const bool in_window =
+    game_started && game_time_remaining >= min_remaining && game_time_remaining <= max_remaining;
+
+  std::ostringstream oss;
+  oss << "game_time_remaining=" << game_time_remaining << ", min=" << min_remaining
+      << ", max=" << max_remaining << ", game_status=" << game_status
+      << ", require_game_started=" << require_game_started;
+  detail::logTransition(detail::TreeKind::NAV, "CheckGameTimeWindow", in_window, oss.str(), branch);
+
+  return in_window ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckBigEnergyActive -------------------
+CheckBigEnergyActive::CheckBigEnergyActive(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckBigEnergyActive::providedPorts()
+{
+  return {BT::InputPort<int>("active_status", 2, "Big energy active status value"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckBigEnergyActive::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const int active_status = getInput<int>("active_status").value_or(2);
+  const int big_energy_status = blackboard->get<int>("big_energy_status");
+  if (big_energy_status == 1) {
+    energy_activated = true;
+  }
+  const bool active = energy_activated;
+
+  std::ostringstream oss;
+  oss << "big_energy_status=" << big_energy_status << ", active_status=" << active_status;
+  detail::logTransition(detail::TreeKind::NAV, "CheckBigEnergyActive", active, oss.str(), branch);
+
+  return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckTargetLocked -------------------
@@ -72,7 +131,6 @@ CheckTargetLocked::CheckTargetLocked(const std::string & name, const BT::NodeCon
 BT::PortsList CheckTargetLocked::providedPorts()
 {
   return {
-    BT::InputPort<bool>("target_valid"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
   };
 }
@@ -86,55 +144,53 @@ BT::NodeStatus CheckTargetLocked::tick()
   static std::chrono::time_point<std::chrono::system_clock> last_seen_time =
     std::chrono::system_clock::now();
 
-  bool target_valid = false;
-  try {
-    target_valid = blackboard->get<bool>("target_valid");
-  } catch (...) {
-    detail::logTransition(
-      detail::TreeKind::NAV, "CheckTargetLocked", false, "target_valid unavailable", branch);
-    return BT::NodeStatus::FAILURE;
-  }
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const Point2D robot_point{current_pose.position.x, current_pose.position.y, 0.0};
 
-  try {
-    target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
-  } catch (...) {
-    detail::logTransition(
-      detail::TreeKind::NAV, "CheckTargetLocked", false, "target_pose unavailable", branch);
-    return BT::NodeStatus::FAILURE;
-  }
+  bool target_valid = blackboard->get<bool>("target_valid");
+  target_pose = blackboard->get<geometry_msgs::msg::Pose>("target_pose");
 
-  const Sentry_BT::Point2D target_point{target_pose.position.x, target_pose.position.y, 0.0};
+  const Point2D target_point{target_pose.position.x, target_pose.position.y, 0.0};
   const auto tactical_mode = blackboard->get<TacticalMode>("tactical_mode");
+  const auto armor_id = blackboard->get<int>("target_armor_id");
   const auto & include_areas = tracking_areas.at(tactical_mode);
 
   bool in_attack_area = false;
+  int target_area_index = -1;
   for (std::size_t i = 0; i < include_areas.size(); ++i) {
-    if (include_areas[i].contains(target_point)) {
+    if (include_areas[i].contains(target_point) && include_areas[i].contains(robot_point)) {
+      target_area_index = static_cast<int>(i);
       in_attack_area = true;
       break;
     }
   }
   bool condition_met = false;
-
-  if (in_attack_area && target_valid) {
-    last_seen_time = std::chrono::system_clock::now();
-    blackboard->set<int>("current_mode", Sentry_BT::NavMode::TRACING);
-    condition_met = true;
-    tick_count = 0;
-  } else if (in_attack_area) {
-    auto now = std::chrono::system_clock::now();
-    double lost_duration = std::chrono::duration<double>(now - last_seen_time).count();
-
-    // 容忍 1.0 秒内的视觉丢失
-    if (lost_duration < 1.0) {
-      tick_count++;
-      blackboard->set<int>("current_mode", Sentry_BT::NavMode::TRACING);
+  const bool target_in_engineering = engineering_zone.contains(target_point) && armor_id == 3;
+  const bool target_in_supply = enemy_supply_zone.contains(target_point);
+  blackboard->set("not_aim_enemy", target_in_engineering || target_in_supply);
+  // std::cout << "armor_id:" << armor_id << ",target_in_engineering:" << target_in_engineering <<
+  // "target_point:(" << target_point.x << "," << target_point.y << ")" << std::endl;
+  if (!target_in_engineering && !target_in_supply) {
+    if (in_attack_area && target_valid) {
+      last_seen_time = std::chrono::system_clock::now();
+      // blackboard->set<NavMode>("current_mode", NavMode::TRACING);
       condition_met = true;
+      tick_count = 0;
+    } else if (in_attack_area) {
+      auto now = std::chrono::system_clock::now();
+      double lost_duration = std::chrono::duration<double>(now - last_seen_time).count();
+
+      // 容忍 1.0 秒内的视觉丢失
+      if (lost_duration < 1.0) {
+        tick_count++;
+        // blackboard->set<NavMode>("current_mode", NavMode::TRACING);
+        condition_met = true;
+      } else {
+        tick_count = 0;
+      }
     } else {
       tick_count = 0;
     }
-  } else {
-    tick_count = 0;
   }
 
   std::ostringstream lock_detail;
@@ -173,11 +229,81 @@ BT::NodeStatus CheckOutpostRemained::tick()
 
   // 如果前哨站还在，切换到响应模式
   if (outpost_remained) {
-    blackboard->set<int>("current_mode", Sentry_BT::NavMode::RESPONSE);
+    blackboard->set<NavMode>("current_mode", NavMode::RESPONSE);
     return BT::NodeStatus::SUCCESS;
   }
 
   return BT::NodeStatus::FAILURE;
+}
+
+// ------------------- SetEnemyOutpostDestroyed -------------------
+SetEnemyOutpostDestroyed::SetEnemyOutpostDestroyed(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList SetEnemyOutpostDestroyed::providedPorts()
+{
+  return {BT::InputPort<bool>("enemy_outpost_destroyed", "Target enemy outpost destroyed state"),
+    BT::InputPort<bool>(
+      "exit_outpost_mode", false, "Set nav mode to patrol when disabling outpost response"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus SetEnemyOutpostDestroyed::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const auto target_destroyed = getInput<bool>("enemy_outpost_destroyed");
+  if (!target_destroyed) {
+    throw BT::RuntimeError("missing required input [enemy_outpost_destroyed]: ", target_destroyed.error());
+  }
+  const bool exit_outpost_mode = getInput<bool>("exit_outpost_mode").value_or(false);
+
+  const bool enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
+  if (enemy_outpost_destroyed != target_destroyed.value()) {
+    blackboard->set<bool>("enemy_outpost_destroyed", target_destroyed.value());
+    if (exit_outpost_mode && target_destroyed.value()) {
+      blackboard->set<NavMode>("current_mode", NavMode::PATROL);
+    }
+
+    std::ostringstream oss;
+    oss << "enemy_outpost_destroyed " << enemy_outpost_destroyed << " -> " << target_destroyed.value()
+        << ", exit_outpost_mode=" << exit_outpost_mode;
+    detail::logTransition(detail::TreeKind::NAV, "SetEnemyOutpostDestroyed", true, oss.str(), branch);
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  std::ostringstream oss;
+  oss << "enemy_outpost_destroyed already " << enemy_outpost_destroyed;
+  detail::logTransition(detail::TreeKind::NAV, "SetEnemyOutpostDestroyed", false, oss.str(), branch);
+  return BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckOwnOutpostAlive -------------------
+CheckOwnOutpostAlive::CheckOwnOutpostAlive(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckOwnOutpostAlive::providedPorts()
+{
+  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckOwnOutpostAlive::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const int own_outpost_health = blackboard->get<int>("own_outpost_health");
+  const bool alive = own_outpost_health > 0;
+
+  std::ostringstream oss;
+  oss << "own_outpost_health=" << own_outpost_health;
+  detail::logTransition(detail::TreeKind::NAV, "CheckOwnOutpostAlive", alive, oss.str(), branch);
+
+  return alive ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckManualOverride -------------------
@@ -188,66 +314,24 @@ CheckManualOverride::CheckManualOverride(const std::string & name, const BT::Nod
 
 BT::PortsList CheckManualOverride::providedPorts()
 {
-  return {BT::InputPort<double>("timeout_seconds", 4.0, "Manual override timeout when goal is unchanged"),
-    BT::InputPort<double>("same_goal_eps", 0.05, "Position epsilon to consider goal unchanged"),
-    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
 BT::NodeStatus CheckManualOverride::tick()
 {
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
-  const double timeout_seconds = getInput<double>("timeout_seconds").value_or(4.0);
-  const double same_goal_eps = getInput<double>("same_goal_eps").value_or(0.05);
 
-  const bool manual_active = blackboard->get<bool>("manual_override_active");
-  const bool goal_valid = blackboard->get<bool>("manual_override_goal_valid");
-  if (!manual_active || !goal_valid) {
-    blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
-    if (blackboard->get<int>("current_mode") == static_cast<int>(Sentry_BT::NavMode::MANUAL)) {
-      blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::PATROL));
-    }
-    initialized_ = false;
+  const auto current_control_mode = blackboard->get<ControlMode>("control_mode");
+  if (current_control_mode != ControlMode::MANUAL_CONTROL) {
     detail::logTransition(
-      detail::TreeKind::NAV, "CheckManualOverride", false, "manual inactive or goal invalid", branch);
+      detail::TreeKind::NAV, "CheckManualOverride", false, "not in manual control mode", branch);
     return BT::NodeStatus::FAILURE;
   }
 
-  const auto manual_goal = blackboard->get<Sentry_BT::Point2D>("manual_override_goal");
-  const auto now = std::chrono::steady_clock::now();
-
-  if (!initialized_) {
-    last_goal_ = manual_goal;
-    last_goal_change_time_ = now;
-    initialized_ = true;
-  }
-
-  const double delta = std::hypot(manual_goal.x - last_goal_.x, manual_goal.y - last_goal_.y);
-  if (delta > same_goal_eps) {
-    last_goal_ = manual_goal;
-    last_goal_change_time_ = now;
-  }
-
-  const double unchanged_seconds = std::chrono::duration<double>(now - last_goal_change_time_).count();
-  if (unchanged_seconds >= timeout_seconds) {
-    blackboard->set("manual_override_active", false);
-    blackboard->set("manual_override_goal_valid", false);
-    blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::AUTO);
-    blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::PATROL));
-    initialized_ = false;
-    detail::logTransition(
-      detail::TreeKind::NAV, "CheckManualOverride", false, "manual timeout reached", branch);
-    return BT::NodeStatus::FAILURE;
-  }
-
-  blackboard->set<Sentry_BT::ControlMode>("control_mode", Sentry_BT::ControlMode::MANUAL_CONTROL);
-  blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::MANUAL));
-  {
-    std::ostringstream manual_detail;
-    manual_detail << "goal=(" << manual_goal.x << ", " << manual_goal.y << ")"
-                  << ", unchanged_seconds=" << unchanged_seconds << ", timeout_seconds=" << timeout_seconds;
-    detail::logTransition(detail::TreeKind::NAV, "CheckManualOverride", true, manual_detail.str(), branch);
-  }
+  blackboard->set<NavMode>("current_mode", NavMode::MANUAL);
+  detail::logTransition(
+    detail::TreeKind::NAV, "CheckManualOverride", true, "manual control active", branch);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -262,8 +346,6 @@ BT::PortsList CheckOutpostSafeResponse::providedPorts()
 {
   return {
     BT::InputPort<double>("stable_seconds", 5.0, "Required stable-health duration to release cooldown"),
-    BT::InputPort<double>("health_drop_threshold", 0.5, "Health drop threshold to trigger cooldown"),
-    BT::InputPort<double>("health_change_eps", 0.1, "Health change epsilon"),
     BT::InputPort<bool>("require_response_mode", false, "Require current nav mode to be RESPONSE"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
@@ -273,31 +355,21 @@ BT::NodeStatus CheckOutpostSafeResponse::tick()
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
   const double stable_seconds = getInput<double>("stable_seconds").value_or(5.0);
-  const double health_drop_threshold = getInput<double>("health_drop_threshold").value_or(0.5);
-  const double health_change_eps = getInput<double>("health_change_eps").value_or(0.1);
   const bool require_response_mode = getInput<bool>("require_response_mode").value_or(false);
 
   const float health = blackboard->get<float>("health");
-  int current_mode = blackboard->get<int>("current_mode");
+  auto current_mode = blackboard->get<NavMode>("current_mode");
   const bool outpost_remained = !blackboard->get<bool>("enemy_outpost_destroyed");
   const auto now = std::chrono::steady_clock::now();
 
-  if (!initialized_) {
-    last_health_ = health;
-    last_health_change_time_ = now;
-    initialized_ = true;
-  }
-
-  const bool health_changed = std::fabs(health - last_health_) > health_change_eps;
-  if (health_changed) {
+  const bool health_dropped = (last_health_ - health) > 1e-3;
+  if (health_dropped) {
     last_health_change_time_ = now;
   }
-
-  const bool health_dropped = (last_health_ - health) > health_drop_threshold;
-  if (current_mode == static_cast<int>(Sentry_BT::NavMode::RESPONSE) && health_dropped) {
+  if (current_mode == NavMode::RESPONSE && health_dropped) {
     cooldown_active_ = true;
-    blackboard->set<int>("current_mode", static_cast<int>(Sentry_BT::NavMode::PATROL));
-    current_mode = static_cast<int>(Sentry_BT::NavMode::PATROL);
+    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
+    current_mode = NavMode::PATROL;
   }
 
   last_health_ = health;
@@ -327,8 +399,7 @@ BT::NodeStatus CheckOutpostSafeResponse::tick()
   }
 
   blackboard->set("outpost_safe_cooldown_active", false);
-  const bool active =
-    require_response_mode ? (current_mode == static_cast<int>(Sentry_BT::NavMode::RESPONSE)) : true;
+  const bool active = require_response_mode ? (current_mode == static_cast<int>(NavMode::RESPONSE)) : true;
   {
     std::ostringstream safe_detail;
     safe_detail << "health=" << health << ", current_mode=" << current_mode
@@ -378,56 +449,6 @@ BT::NodeStatus CheckInStairsZone::tick()
   }
 
   return in_stairs_zone ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
-}
-
-// --------------------- CheckWillThroughTunnel ----------------------
-CheckWillThroughTunnel::CheckWillThroughTunnel(
-  const std::string & name, const BT::NodeConfiguration & config)
-: BT::ConditionNode(name, config)
-{
-  // 构造函数：初始化节点，不需要复杂操作
-}
-
-BT::PortsList CheckWillThroughTunnel::providedPorts()
-{
-  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
-}
-
-BT::NodeStatus CheckWillThroughTunnel::tick()
-{
-  auto blackboard = config().blackboard;
-  const std::string branch = getInput<std::string>("branch").value_or("");
-  auto lifter_current_pos = blackboard->get<LifterPos>("lifter_current_pos");
-  const bool through_tunnel = blackboard->get<bool>("through_tunnel");
-  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-  bool in_transform_zone = false;
-  for (const auto & zone : transform_zone) {
-    if (zone.contains({current_pose.position.x, current_pose.position.y, 0.0})) {
-      in_transform_zone = true;
-      break;
-    }
-  }
-
-  // Once already transformed in transform zone, keep lifter at bottom until leaving this zone.
-  const bool keep_bottom_locked = in_transform_zone && (lifter_current_pos == LifterPos::BOTTOM);
-  const bool will_through_tunnel = through_tunnel || keep_bottom_locked;
-
-  {
-    std::ostringstream tunnel_detail;
-    tunnel_detail << "through_tunnel=" << through_tunnel << ", in_transform_zone=" << in_transform_zone
-                  << ", lifter_current_pos=" << static_cast<int>(lifter_current_pos);
-    detail::logTransition(
-      detail::TreeKind::NAV, "CheckWillThroughTunnel", will_through_tunnel, tunnel_detail.str(), branch);
-  }
-
-  if (will_through_tunnel) {
-    blackboard->set<LifterPos>(
-      "desired_lifter_pos", LifterPos::BOTTOM);  // 设置目标升降位置为 1(bottom)，准备过隧道
-  } else {
-    blackboard->set<LifterPos>(
-      "desired_lifter_pos", LifterPos::TOP);  // 设置目标升降位置为 0(top)，准备不通过隧道
-  }
-  return BT::NodeStatus::SUCCESS;
 }
 
 // --------------------- CheckNoAllyBelowStairs ----------------------
@@ -555,26 +576,4 @@ BT::NodeStatus CheckOwnFortIdle::tick()
   return idle ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
-// --------------------- CheckEnemyBaseLowHp ----------------------
-CheckEnemyBaseLowHp::CheckEnemyBaseLowHp(const std::string & name, const BT::NodeConfiguration & config)
-: BT::ConditionNode(name, config)
-{
-}
-
-BT::PortsList CheckEnemyBaseLowHp::providedPorts()
-{
-  return {BT::InputPort<int>("threshold", 1000, "Enemy base HP threshold"),
-    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
-}
-
-BT::NodeStatus CheckEnemyBaseLowHp::tick()
-{
-  const std::string branch = getInput<std::string>("branch").value_or("");
-  detail::logTransition(detail::TreeKind::NAV,
-    "CheckEnemyBaseLowHp",
-    false,
-    "disabled: enemy base HP unavailable from IO",
-    branch);
-  return BT::NodeStatus::FAILURE;
-}
 }  // namespace Sentry_BT

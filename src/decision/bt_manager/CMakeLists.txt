@@ -38,9 +38,22 @@ file(GLOB_RECURSE BT_MANAGER_SOURCES CONFIGURE_DEPENDS
   "src/utils/*.cpp"
 )
 
+file(GLOB_RECURSE BT_TEST_SOURCES CONFIGURE_DEPENDS
+  "src/*.cpp"
+  "src/action/*.cpp"
+  "src/condition/*.cpp"
+  "src/utils/*.cpp"
+)
+
 list(REMOVE_ITEM BT_MANAGER_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/src/test/event_status_pub_test.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/stance_tree_test.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/match_simulator_test.cpp"
+)
+
+list(REMOVE_ITEM BT_TEST_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/event_status_pub_test.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/match_simulator_test.cpp"
 )
 
 add_executable(bt_manager_node 
@@ -51,10 +64,8 @@ add_executable(event_test
   src/test/event_status_pub_test.cpp
 )
 
-add_executable(stance_tree_test
-  src/test/stance_tree_test.cpp
-  src/condition/change_stance_condition.cpp
-  src/condition/gimbal_condition.cpp
+add_executable(match_simulator
+  src/test/match_simulator_test.cpp
 )
 
 ament_target_dependencies(event_test
@@ -69,7 +80,7 @@ ament_target_dependencies(event_test
   nav2_behavior_tree
 )
 
-ament_target_dependencies(stance_tree_test
+ament_target_dependencies(match_simulator
   rclcpp
   std_msgs
   ros_interfaces
@@ -78,9 +89,6 @@ ament_target_dependencies(stance_tree_test
   tf2
   tf2_ros
   tf2_geometry_msgs
-  behaviortree_cpp_v3
-  nav2_behavior_tree
-  ament_index_cpp
 )
 
 ament_target_dependencies(bt_manager_node
@@ -102,7 +110,7 @@ ament_target_dependencies(bt_manager_node
 install(TARGETS
   bt_manager_node
   event_test
-  stance_tree_test
+  match_simulator
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -269,7 +269,7 @@ local_costmap:
           marking: true
           clearing: true
           obstacle_range: 20.0
-          min_obstacle_height: 0.1
+          min_obstacle_height: 0.15
           max_obstacle_height: 0.5
           expected_update_rate: 0.0
           observation_persistence: 0.0
@@ -308,9 +308,9 @@ global_costmap:
       stvl_layer:
         plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
         enabled: true
-        voxel_decay: 0.8
+        voxel_decay: 1.2
         decay_model: 0
-        voxel_size: 0.15
+        voxel_size: 0.05
         track_unknown_space: true
         unknown_threshold: 15
         mark_threshold: 0
@@ -328,7 +328,7 @@ global_costmap:
           marking: true
           clearing: true
           obstacle_range: 10.0
-          min_obstacle_height: 0.0
+          min_obstacle_height: 0.1
           max_obstacle_height: 0.5
           expected_update_rate: 0.0
           observation_persistence: 0.0
@@ -337,7 +337,7 @@ global_costmap:
           voxel_min_points: 0
           clear_after_reading: true
           max_z: 2.0
-          min_z: 0.1
+          min_z: 0.15
           vertical_fov_angle: 1.03
           horizontal_fov_angle: 6.28
           decay_acceleration: 15.0
@@ -425,17 +425,17 @@ behavior_server:
     costmap_topic: local_costmap/costmap_raw
     footprint_topic: local_costmap/published_footprint
     cycle_frequency: 10.0
-    behavior_plugins: ["wait", "backup"]
+    behavior_plugins: ["wait"]
     wait:
       plugin: "nav2_behaviors/Wait"
-    backup:
-      # plugin: "nav2_behaviors/BackUp"
-      plugin: "nav2_behaviors/BackUpTwzFree"
-      local_costmap_global_frame: camera_init
-      local_costmap_robot_base_frame: base_link
-      robot_radius: 0.3
-      cost_threshold: 0.0
-      visualization: true
+    # backup:
+    #   # plugin: "nav2_behaviors/BackUp"
+    #   plugin: "nav2_behaviors/BackUpTwzFree"
+    #   local_costmap_global_frame: camera_init
+    #   local_costmap_robot_base_frame: base_link
+    #   robot_radius: 0.3
+    #   cost_threshold: 0.0
+    #   visualization: true
     global_frame: map
     robot_base_frame: base_link
     transform_tolerance: 0.1

@@ -30,7 +30,7 @@ namespace minco_planner {
 namespace smac {
 
 SmacPlanner2DSimple::SmacPlanner2DSimple()
-: allow_unknown_(true), max_iterations_(1000000), tolerance_(0.125), costmap_(nullptr), size_x_(0),
+: allow_unknown_(true), max_iterations_(5000000), tolerance_(0.125), costmap_(nullptr), size_x_(0),
   size_y_(0), motion_model_(MotionModel::TWOD)
 {
   search_info_.cost_penalty = 2.0;

@@ -171,7 +171,33 @@ bool RecoverServer::calculateEscapeVelocity(const geometry_msgs::msg::PoseStampe
 
   const double grad_norm = grad.norm();
   if (grad_norm < 1e-3) {
-    return false;
+    constexpr int num_samples = 36;        // 采样数量，每 10 度采一个点
+    constexpr double search_radius = 0.4;  // 搜索半径 0.4 米（稍微大于机器人的膨胀半径）
+
+    double max_esdf = -std::numeric_limits<double>::max();
+    double best_angle = 0.0;
+
+    for (int i = 0; i < num_samples; ++i) {
+      const double angle = (2.0 * M_PI * i) / num_samples;
+      const double sample_x = cx + search_radius * std::cos(angle);
+      const double sample_y = cy + search_radius * std::sin(angle);
+
+      const double current_esdf = esdf_func(Eigen::Vector3d(sample_x, sample_y, 0.0));
+
+      if (current_esdf > max_esdf) {
+        max_esdf = current_esdf;
+        best_angle = angle;
+      }
+    }
+
+    // 朝着最开阔（ESDF 最大）的角度输出逃逸速度
+    escape_vel_out.x() = config_.escape_speed * std::cos(best_angle);
+    escape_vel_out.y() = config_.escape_speed * std::sin(best_angle);
+
+    std::cout
+      << "\033[33m[MincoPlanner] Flat gradient detected, executing circular search recovery! Max ESDF: "
+      << max_esdf << " at angle " << best_angle * 180.0 / M_PI << " deg\033[0m" << std::endl;
+    return true;
   }
 
   escape_vel_out = (grad / grad_norm) * config_.escape_speed;

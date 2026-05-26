@@ -157,6 +157,17 @@ private:
   double lidar_offset_y_{0.0};
   double lidar_roll_offset_ = 0.0;
   bool use_small_gyro_mode_{true};
+
+  // Low-pass filter for MPC output to prevent stick-slip oscillation on slopes.
+  mutable Eigen::Vector3d prev_u_global_{0.0, 0.0, 0.0};
+  double vel_smooth_alpha_{0.3};
+
+  // P0: Integral action for unmodeled disturbances (gravity on slopes, slip).
+  // Leaky integrators of along-track and cross-track position errors.
+  mutable Eigen::Vector2d integral_err_{0.0, 0.0};
+  double k_i_along_{1.5};  // integral gain: along-track (boost on slopes)
+  double k_i_cross_{3.0};  // integral gain: cross-track (precision on curves)
+  double integral_decay_{0.98};
 };
 
 }  // namespace minco_controller
