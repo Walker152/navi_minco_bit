@@ -6,12 +6,15 @@
 #include "bt_manager/action/change_stance_action.hpp"
 #include "bt_manager/action/gimbal_action.hpp"
 #include "bt_manager/action/nav_action.hpp"
+#include "bt_manager/action/recovery_actions.hpp"
+#include "bt_manager/action/resource_actions.hpp"
 #include "bt_manager/action/tactical_action.hpp"
 #include "bt_manager/condition/auto_conditions.hpp"
 #include "bt_manager/condition/change_stance_condition.hpp"
 #include "bt_manager/condition/gimbal_condition.hpp"
+#include "bt_manager/condition/recovery_conditions.hpp"
+#include "bt_manager/condition/resource_conditions.hpp"
 #include "bt_manager/condition/tactical_condition.hpp"
-#include "bt_manager/new_test.hpp"
 
 namespace Sentry_BT {
 namespace {
@@ -35,9 +38,13 @@ void SentryBTManager::registerNodes()
 {
   // nav + common
   factory_.registerNodeType<CheckRetreatCondition>("CheckRetreatCondition");
+  factory_.registerNodeType<CheckGameTimeWindow>("CheckGameTimeWindow");
+  factory_.registerNodeType<CheckBigEnergyActive>("CheckBigEnergyActive");
   factory_.registerNodeType<CheckManualOverride>("CheckManualOverride");
   factory_.registerNodeType<CheckOutpostSafeResponse>("CheckOutpostSafeResponse");
   factory_.registerNodeType<CheckOutpostRemained>("CheckOutpostRemained");
+  factory_.registerNodeType<SetEnemyOutpostDestroyed>("SetEnemyOutpostDestroyed");
+  factory_.registerNodeType<CheckOwnOutpostAlive>("CheckOwnOutpostAlive");
   factory_.registerNodeType<CheckTargetLocked>("CheckTargetLocked");
   factory_.registerBuilder<NavigateToPoseAction>(
     "NavigateToPoseAction", [](const std::string & name, const BT::NodeConfiguration & config) {
@@ -47,8 +54,10 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<SetTargetCoordinate>("SetTargetCoordinate");
   factory_.registerNodeType<SetManualOverrideGoal>("SetManualOverrideGoal");
   factory_.registerNodeType<SetCoordinate>("SetCoordinate");
+  factory_.registerNodeType<SetNavMode>("SetNavMode");
   factory_.registerNodeType<ChangeMapAction>("ChangeMapAction");
   factory_.registerNodeType<Wait>("Wait");
+  factory_.registerNodeType<WaitManual>("WaitManual");
   factory_.registerNodeType<SetStairsPosition>("SetStairsPosition");
   factory_.registerNodeType<DescendStairsAction>("DescendStairsAction");
   factory_.registerNodeType<AccumulateAmmoPurchase>("AccumulateAmmoPurchase");
@@ -57,9 +66,26 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckAmmoLow>("CheckAmmoLow");
   factory_.registerNodeType<CheckTacticalModeCondition>("CheckTacticalModeCondition");
   factory_.registerNodeType<CheckOwnFortIdle>("CheckOwnFortIdle");
-  factory_.registerNodeType<CheckEnemyBaseLowHp>("CheckEnemyBaseLowHp");
-  factory_.registerNodeType<CheckWillThroughTunnel>("CheckWillThroughTunnel");
+  factory_.registerNodeType<EmergencyStop>("EmergencyStop");
+  // resource / exchange
+  factory_.registerNodeType<CheckCoinRemaining>("CheckCoinRemaining");
+  factory_.registerNodeType<CheckEngagedSafeResponse>("CheckEngagedSafeResponse");
+  factory_.registerNodeType<CheckRemoteExchangeCooldown>("CheckRemoteExchangeCooldown");
+  factory_.registerNodeType<CheckRemainingAmmoExchange>("CheckRemainingAmmoExchange");
+  factory_.registerNodeType<CheckAttackFortHealthExchangeNeeded>("CheckAttackFortHealthExchangeNeeded");
+  factory_.registerNodeType<CheckInZone>("CheckInZone");
+  factory_.registerNodeType<CheckCanFreeResurrect>("CheckCanFreeResurrect");
+  factory_.registerNodeType<CheckEnergyActive>("CheckEnergyActive");
+  factory_.registerNodeType<CheckCanActivateEnergy>("CheckCanActivateEnergy");
+  factory_.registerNodeType<RequestReviveAction>("RequestReviveAction");
+  factory_.registerNodeType<RequestRemoteAmmoExchangeAction>("RequestRemoteAmmoExchangeAction");
+  factory_.registerNodeType<RequestRemoteHealthExchangeAction>("RequestRemoteHealthExchangeAction");
   factory_.registerNodeType<ControlThroughTunnel>("ControlThroughTunnel");
+  factory_.registerNodeType<CheckTimeInZone>("CheckTimeInZone");
+  factory_.registerNodeType<SetTunnelRecoveryAttemptPoint>("SetTunnelRecoveryAttemptPoint");
+  factory_.registerNodeType<SetTunnelRecoveryRetreatPoint>("SetTunnelRecoveryRetreatPoint");
+  factory_.registerNodeType<SetGlobalVelocity>("SetGlobalVelocity");
+  factory_.registerNodeType<CheckNormalExchangeCooldown>("CheckNormalExchangeCooldown");
 
   // stance
   factory_.registerNodeType<CheckHeat>("CheckHeat");
@@ -69,9 +95,15 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckTargetDistance>("CheckTargetDistance");
   factory_.registerNodeType<CheckCrossZoneTransition>("CheckCrossZoneTransition");
   factory_.registerNodeType<CheckCapacitorCapacity>("CheckCapacitorCapacity");
+  factory_.registerNodeType<CheckStanceCooldown>("CheckStanceCooldown");
+  factory_.registerNodeType<CheckEnhanceLimit>("CheckEnhanceLimit");
   factory_.registerNodeType<CheckStanceRefreshRequired>("CheckStanceRefreshRequired");
   factory_.registerNodeType<SetGyroState>("SetGyroState");
+  factory_.registerNodeType<TunnelGyroAlignAction>("TunnelGyroAlignAction");
   factory_.registerNodeType<ChangeStance>("ChangeStance");
+  factory_.registerNodeType<UpdateEnhanceTime>("UpdateEnhanceTime");
+  factory_.registerNodeType<CheckTunnelDeformation>("CheckTunnelDeformation");
+  factory_.registerNodeType<CheckInEnemyFortZone>("CheckInEnemyFortZone");
 
   // gimbal
   factory_.registerNodeType<CheckTargetVisible>("CheckTargetVisible");
@@ -85,9 +117,6 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckAttackCondition>("CheckAttackCondition");
   factory_.registerNodeType<SetTacticalMode>("SetTacticalMode");
   factory_.registerNodeType<ChangeTacticalAction>("ChangeTacticalAction");
-
-  // debug
-  factory_.registerNodeType<BlackboardTestNode>("BlackboardTestNode");
 }
 
 bool SentryBTManager::loadTrees(const std::shared_ptr<BT::Blackboard> & blackboard)
@@ -97,7 +126,9 @@ bool SentryBTManager::loadTrees(const std::shared_ptr<BT::Blackboard> & blackboa
     const std::string gimbal_tree_xml = tree_root_dir_ + "/tree/gimbal_tree.xml";
     const std::string stance_tree_xml = tree_root_dir_ + "/tree/stance_tree.xml";
     const std::string tactical_tree_xml = tree_root_dir_ + "/tree/tactical_tree.xml";
+    const std::string resource_tree_xml = tree_root_dir_ + "/tree/resource_tree.xml";
 
+    resource_tree_ = factory_.createTreeFromFile(resource_tree_xml, blackboard);
     nav_tree_ = factory_.createTreeFromFile(nav_tree_xml, blackboard);
     gimbal_tree_ = factory_.createTreeFromFile(gimbal_tree_xml, blackboard);
     stance_tree_ = factory_.createTreeFromFile(stance_tree_xml, blackboard);
@@ -122,6 +153,16 @@ void SentryBTManager::tickMainExactlyOnce()
   tickTreeExactlyOnce(*main_tree_);
 }
 
+void SentryBTManager::tickStanceExactlyOnce()
+{
+  tickTreeExactlyOnce(stance_tree_);
+}
+
+void SentryBTManager::tickTacticalExactlyOnce()
+{
+  tickTreeExactlyOnce(tactical_tree_);
+}
+
 void SentryBTManager::run(double frequency_hz)
 {
   if (frequency_hz <= 0.0) {
@@ -130,13 +171,12 @@ void SentryBTManager::run(double frequency_hz)
 
   rclcpp::Rate loop_rate(frequency_hz);
   while (rclcpp::ok()) {
-    // Main scheduling hook.
+    // Tick order: resource (exchange/revive) -> tactical (mode) -> nav -> stance -> gimbal
+    tickTreeExactlyOnce(resource_tree_);
+    tickTreeExactlyOnce(tactical_tree_);
     tickMainExactlyOnce();
-
-    // Additional trees are also ticked here to keep the full framework integrated.
     tickTreeExactlyOnce(stance_tree_);
     tickTreeExactlyOnce(gimbal_tree_);
-    tickTreeExactlyOnce(tactical_tree_);
 
     loop_rate.sleep();
   }

@@ -46,8 +46,7 @@ double LimitLocalVel(const std::vector<Eigen::Vector3d> & sparse_path,
   double min_turn_vel,
   double decay_power);
 
-double ComputeNextSpeed(
-  double v_curr, double seg_len, double remain_after, double amax, double local_vmax);
+double ComputeNextSpeed(double v_curr, double seg_len, double remain_after, double amax, double local_vmax);
 
 double ComputeSegmentTime(
   double seg_len, double v_curr, double v_next, double local_vmax, double amax, double min_seg_time);
@@ -101,6 +100,13 @@ void mapToWorld(nav2_costmap_2d::Costmap2D * costmap, double mx, double my, doub
 // --- Costmap Cell Editing ---
 void clearRobotCell(nav2_costmap_2d::Costmap2D * costmap, unsigned int mx, unsigned int my);
 
-}  // namespace minco_planner::utils
+void compensateLeverArm(double v_lidar_x,
+  double v_lidar_y,
+  double omega_z,
+  double yaw,
+  double & vx_global,
+  double & vy_global,
+  double & omega_global);
 
+}  // namespace minco_planner::utils
 #endif  // MINCO_PLANNER__MINCO_UTILS_HPP_

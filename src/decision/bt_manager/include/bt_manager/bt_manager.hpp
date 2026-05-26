@@ -21,12 +21,15 @@ public:
 
   // Exposed hook for external schedulers that want exact single-tick control.
   void tickMainExactlyOnce();
+  void tickStanceExactlyOnce();
+  void tickTacticalExactlyOnce();
 
 private:
   void registerNodes();
   bool loadTrees(const std::shared_ptr<BT::Blackboard> & blackboard);
 
   BT::BehaviorTreeFactory factory_;
+  BT::Tree resource_tree_;
   BT::Tree nav_tree_;
   BT::Tree gimbal_tree_;
   BT::Tree stance_tree_;

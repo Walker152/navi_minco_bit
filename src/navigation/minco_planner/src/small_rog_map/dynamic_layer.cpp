@@ -255,37 +255,42 @@ void DynamicLayer::updateFromPointCloud(const sensor_msgs::msg::PointCloud2 & cl
   }
 
   // 3. Run EDT directly on the original occupancy mask.
-  std::vector<double> dist_sq_cells;
-  ESDFUtils::computeEDT2D(width, height, occ01, dist_sq_cells);
+  // 3.1 计算空闲空间到障碍物的正向距离平方
+  std::vector<double> dist_sq_pos;
+  ESDFUtils::computeEDT2D(width, height, occ01, dist_sq_pos);
+
+  // 3.2 构建反向掩码并计算障碍物内部到空闲空间的负向距离平方
+  // occ01 中 0=障碍物, 1=空闲。反向掩码 inv_occ 中 0=空闲(作为目标), 1=障碍物
+  std::vector<uint8_t> inv_occ(expected, 0U);
+  for (size_t i = 0; i < expected; ++i) {
+    inv_occ[i] = (occ01[i] == 0U) ? 1U : 0U;
+  }
+  std::vector<double> dist_sq_neg;
+  ESDFUtils::computeEDT2D(width, height, inv_occ, dist_sq_neg);
 
   std::vector<double> dist_m(expected, kFarDistance);
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
   for (size_t i = 0; i < expected; ++i) {
-    if (occ01[i] == 0U) {
-      dist_m[i] = kESDFStrength;
-      continue;
+    double d_raw = 0.0;
+
+    if (occ01[i] == 1U) {
+      // 位于空闲空间，获取正距离
+      const double d2 = dist_sq_pos[i];
+      d_raw = (d2 >= 1.0e19) ? kFarDistance : std::sqrt(d2) * resolution;
+    } else {
+      // 位于障碍物内部，获取负距离
+      const double d2 = dist_sq_neg[i];
+      d_raw = (d2 >= 1.0e19) ? -kFarDistance : -std::sqrt(d2) * resolution;
     }
-    const double d2 = dist_sq_cells[i];
-    if (d2 >= 1.0e19) {
-      dist_m[i] = kFarDistance;
-      continue;
-    }
-    const double d_raw = std::sqrt(d2) * resolution;
+
+    // 引入膨胀半径 (正距离变小，负距离变得更负，逻辑自洽)
     const double d_dilated = d_raw - dilation_radius_m;
+
     if (!std::isfinite(d_dilated)) {
-      dist_m[i] = kFarDistance;
+      dist_m[i] = (occ01[i] == 1U) ? kFarDistance : -kFarDistance;
       continue;
     }
-    if (d_dilated <= 0.0) {
-      dist_m[i] = kESDFStrength;
-      continue;
-    }
+
     dist_m[i] = d_dilated;
-    if (dist_m[i] > kFarDistance) {
-      dist_m[i] = kFarDistance;
-    }
   }
 
   // 4. Commit the new distance field

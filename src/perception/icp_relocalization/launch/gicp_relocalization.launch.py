@@ -9,7 +9,7 @@ import launch.conditions
 
 def generate_launch_description():
     pkg_share = get_package_share_directory('icp_relocalization')
-    msg_convert_pkg_share = get_package_share_directory('msg_convert')
+    # msg_convert_pkg_share = get_package_share_directory('msg_convert')
 
     default_config_path = os.path.join(pkg_share, 'config', 'gicp_relocalization.yaml')
     declare_gicp_config_cmd = DeclareLaunchArgument(
@@ -23,13 +23,13 @@ def generate_launch_description():
     ld.add_action(declare_gicp_config_cmd)
 
     # 包含 msg_convert 的 launch 文件
-    msg_convert_launch_path = os.path.join(msg_convert_pkg_share, 'launch', 'livox_to_pointcloud2.launch.py')
-    msg_convert_node = launch.actions.IncludeLaunchDescription(
-        launch.launch_description_sources.PythonLaunchDescriptionSource(msg_convert_launch_path),
-        launch_arguments={}.items(),
-    )
+    # msg_convert_launch_path = os.path.join(msg_convert_pkg_share, 'launch', 'livox_to_pointcloud2.launch.py')
+    # msg_convert_node = launch.actions.IncludeLaunchDescription(
+    #     launch.launch_description_sources.PythonLaunchDescriptionSource(msg_convert_launch_path),
+    #     launch_arguments={}.items(),
+    # )
 
-    ld.add_action(msg_convert_node)
+    # ld.add_action(msg_convert_node)
 
     # GICP重定位节点
     gicp_node = Node(

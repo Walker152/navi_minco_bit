@@ -67,15 +67,16 @@ void HybridESDFMap::updateDynamicMapFromPointCloud(const sensor_msgs::msg::Point
 
 void HybridESDFMap::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const
 {
-  // 1. Clamp the max distance used by the optimizer
-  // [Theory] For trajectory optimization, we mainly care about distances near obstacles.
   // Clamping far distances keeps the cost and gradients stable.
+  // 1. Clamp the max and min distance used by the optimizer
   constexpr double kMaxDist = 3.0;
+  // 定义最大穿透深度 (负值)，这取决于你的机器人半径或狭窄通道的容忍度
+  // 比如设置为 -1.0 表示深入障碍物1米内仍有梯度指引出来
+  constexpr double kMinDist = -1.5;
 
   auto clamp = [](double & d, Eigen::Vector3d & g) {
     if (!std::isfinite(d)) {
-      // Treat -inf as hard obstacle (distance 0), and +inf/NaN as far away.
-      d = (d < 0.0) ? 0.0 : kMaxDist;
+      d = (d < 0.0) ? kMinDist : kMaxDist;
       g.setZero();
       return;
     }
@@ -84,9 +85,10 @@ void HybridESDFMap::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::
       g.setZero();
       return;
     }
-    if (d < 0.0) {
-      d = 0.0;
-      g.setZero();
+    if (d < kMinDist) {
+      d = kMinDist;
+      g.setZero();  // 穿透太深超过阈值，不再提供梯度(避免数值发散)
+      return;
     }
   };
 

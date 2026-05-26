@@ -30,6 +30,37 @@ struct Point2D
   {
     return Point2D(x + other.x, y + other.y, yaw + other.yaw);
   }
+  Point2D operator=(const geometry_msgs::msg::Point & point)
+  {
+    x = point.x;
+    y = point.y;
+    return *this;
+  }
+};
+
+struct TunnelRecoveryConfig
+{
+  float tunnel_pass_yaw_target_rad;  // Desired yaw when passing this tunnel, in radians
+  Point2D recovery_point;            // Recovery/retreat point for this tunnel
+  Point2D forward_point;             // Forward attempt point for this tunnel
+  float recovery_vx;                 // Recovery linear velocity x in map frame
+  float recovery_vy;                 // Recovery linear velocity y in map frame
+
+  TunnelRecoveryConfig()
+  : tunnel_pass_yaw_target_rad(0.0f), recovery_point(), forward_point(), recovery_vx(0.0f),
+    recovery_vy(0.0f)
+  {
+  }
+
+  TunnelRecoveryConfig(float tunnel_pass_yaw_target_rad_,
+    const Point2D & recovery_point_,
+    const Point2D & forward_point_,
+    float recovery_vx_,
+    float recovery_vy_)
+  : tunnel_pass_yaw_target_rad(tunnel_pass_yaw_target_rad_), recovery_point(recovery_point_),
+    forward_point(forward_point_), recovery_vx(recovery_vx_), recovery_vy(recovery_vy_)
+  {
+  }
 };
 
 struct GimbalPatrolPoint
@@ -169,6 +200,22 @@ typedef enum _LifterPos
   BOTTOM = 1,  // 云台底部
   MIDDLE = 2   // 云台升降中
 } LifterPos;
+typedef enum _PitchPos
+{
+  UP = 0,
+  DOWN = 1,
+} PitchPos;
+typedef enum _EnergyRatio
+{
+  BELOW_1 = 0,
+  ABOVE_1 = 1,
+  ABOVE_5 = 2,
+  ABOVE_15 = 3,
+  ABOVE_30 = 4,
+  ABOVE_50 = 5,
+  ABOVE_100 = 6,
+  ABOVE_125 = 7,
+} EnergyRatio;
 typedef enum _NavMode
 {
   PATROL = 0,
@@ -182,9 +229,10 @@ typedef enum _NavGoal
 {
   HOME = 0,
   BONUS = 1,
-  OUTPOST = 2,
+  ENEMY_OUTPOST = 2,
   OWN_FORT = 3,
   ENEMY_FORT = 4,
+  OWN_OUTPOST = 5
 } NavGoal;
 
 typedef enum _SentryStance
@@ -234,6 +282,13 @@ struct PolygonVizConfig
 {
   std::string name;
   std::vector<Point2D> vertices;
+  std::array<float, 3> color;
+};
+
+struct CircleVizConfig
+{
+  std::string name;
+  Area_Circle area;
   std::array<float, 3> color;
 };
 

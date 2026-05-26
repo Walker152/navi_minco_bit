@@ -1,16 +1,34 @@
 cloud_registered_crop_filter:
   ros__parameters:
-    input_topic: /cloud_registered_dense
+    input_topic: /cloud_registered
     output_topic: /cloud_registered_filtered
     queue_size: 10
+    odom_topic: /aft_mapped_to_init
+    z_offset: 0.1
     filter_mode: transform_center   # transform_cloud | transform_center
     remove_inside: true             # true: remove points inside box, false: keep points inside box
+    log_stats: false                  # print crop hit statistics
+    stats_log_period_ms: 1000        # 0: print every frame
+    publish_visualization: true      # publish RViz MarkerArray for crop boxes and z plane
+    visualization_topic: /cloud_registered_crop_filter/markers
+    visualization_period_ms: 200     # 0: publish every frame
+    z_plane_size: 12.0               # square plane side length in cloud frame
+    z_plane_thickness: 0.03
+    box_padding: 0.15                # expand each crop box by this margin on every side
     position_frame: map
-    position:
-      x: 12.0
-      y: 6.0
-      z: 0.0
-    box_size:
-      x: 2.0
-      y: 2.0
-      z: 0.8
+    # positions:
+    #   x: [12.0, 6.8]
+    #   y: [6.0, 4.0]
+    #   z: [0.0, 0.0]
+    # box_sizes:
+    #   x: [1.0, 2.0]
+    #   y: [1.0, 2.0]
+    #   z: [2.0, 3.0]
+    positions:
+      x: [15.4, 19.2, 13.7, 9.8]
+      y: [1.5, 12.8, 13.4, 2.2]
+      z: [0.4, 0.4, 0.4, 0.4]
+    box_sizes:
+      x: [4.0, 2.0, 4.0, 2.0]
+      y: [2.0, 2.5, 2.0, 2.5]
+      z: [2.0, 2.0, 2.0, 2.0]

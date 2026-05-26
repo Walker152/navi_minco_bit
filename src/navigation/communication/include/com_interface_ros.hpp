@@ -1,6 +1,10 @@
 #pragma once
-
+// #define COMMUNICATION_DEBUG
 #include "header.hpp"
+#include "thread"
+#include <cstdlib>
+#include <deque>
+#include <limits>
 
 #include "ros_interfaces/msg/ally_robot_status.hpp"
 #include "ros_interfaces/msg/behavior.hpp"
@@ -35,8 +39,8 @@ public:
       return;
     ros_interfaces::msg::TeamInformation msg;
     for (int i = 0; i < 4; i++) {
-      msg.allies[i].armor_id = in.ally_status[i].robot_id;
-      msg.allies[i].remain_hp = in.ally_status[i].robot_hp;
+      msg.allies[i].robot_id = in.ally_status[i].robot_id;
+      msg.allies[i].robot_hp = in.ally_status[i].robot_hp;
       msg.allies[i].position.position.x = static_cast<double>(in.ally_status[i].robot_pos_x);
       msg.allies[i].position.position.y = static_cast<double>(in.ally_status[i].robot_pos_y);
     }
@@ -55,6 +59,9 @@ public:
     msg.coin_remaining = in.coin_remaining;
     msg.event_code = in.event_code;
     msg.game_status = in.game_status;
+    msg.manual_point_x = in.manual_point_x;
+    msg.manual_point_y = in.manual_point_y;
+    msg.manual_key = in.manual_key;
     msg.header.stamp = now();
     game_info_pub_->publish(msg);
   }
@@ -74,6 +81,7 @@ public:
     msg.speed_monitor_angle = in.speed_monitor_angle;
     msg.sentry_info_1 = in.sentry_info_1;
     msg.sentry_info_2 = in.sentry_info_2;
+    msg.energy_ratio = in.energy_ratio;
     msg.header.stamp = now();
     online_info_pub_->publish(msg);
   }
@@ -88,14 +96,23 @@ public:
     msg.armor_pos.y = static_cast<double>(in.armor_pos[1]);
     msg.armor_pos.z = static_cast<double>(in.armor_pos[2]);
     msg.armor_num = in.armor_num;
-    msg.yaw_imu = in.yaw_imu;
+    msg.yaw_camerainit_to_gimbal = in.yaw_camerainit_to_gimbal;
     msg.lifter_current_pos = in.lifter_current_pos;
     msg.is_transformable = in.is_transformable;
     msg.transform_state = in.transform_state;
     transform_state = in.transform_state;
-    msg.header.stamp = now();
+    const auto stamp = now();
+    msg.header.stamp = stamp;
     msg.capacitor_capacity = in.capacitor_capacity;
     offline_info_pub_->publish(msg);
+
+    {
+      std::lock_guard<std::mutex> lk(imu_mutex_);
+      if (chassis_imu_history_.size() >= kImuHistoryCapacity) {
+        chassis_imu_history_.pop_front();
+      }
+      chassis_imu_history_.push_back(ImuYawSample{stamp, in.chassis_imu_yaw});
+    }
   }
 
   void publishRadarInfo(const RadarInfo & in)
@@ -125,6 +142,8 @@ private:
   {
     cmd_vel_.linear.x = 0.0;
     cmd_vel_.linear.y = 0.0;
+    odom_.pose.pose.orientation.w = 1.0;
+    send_enable_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(2);
 
     comm_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     sub_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -133,10 +152,17 @@ private:
     sub_opt.callback_group = sub_cb_group_;
 
     chassis_sub_ = create_subscription<geometry_msgs::msg::Twist>(
-      "/cmd_vel",
+      "/cmd_vel_mpc",
       1,
       [this](geometry_msgs::msg::Twist::ConstSharedPtr msg) {
         sendChassisCtrlCB(msg);
+      },
+      sub_opt);
+    cmd_wrench_sub_ = create_subscription<geometry_msgs::msg::WrenchStamped>(
+      "/cmd_force_mpc",
+      1,
+      [this](geometry_msgs::msg::WrenchStamped::ConstSharedPtr msg) {
+        sendCmdWrenchCB(msg);
       },
       sub_opt);
     odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
@@ -146,13 +172,13 @@ private:
         odomCB(msg);
       },
       sub_opt);
-    astar_path_sub_ = create_subscription<nav_msgs::msg::Path>(
-      "/astar_path_vis",
-      rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
-      [this](nav_msgs::msg::Path::ConstSharedPtr msg) {
-        astarPathCB(msg);
-      },
-      sub_opt);
+    // astar_path_sub_ = create_subscription<nav_msgs::msg::Path>(
+    //   "/astar_path_vis",
+    //   rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
+    //   [this](nav_msgs::msg::Path::ConstSharedPtr msg) {
+    //     astarPathCB(msg);
+    //   },
+    //   sub_opt);
     behavior_sub_ = create_subscription<ros_interfaces::msg::Behavior>(
       "/sentry/behaivor_send",
       1,
@@ -170,11 +196,12 @@ private:
 
     map_frame_ = this->declare_parameter<std::string>("global_path.map_frame", "map");
     minimap_frame_ = this->declare_parameter<std::string>("global_path.minimap_frame", "minimap");
+    imu_yaw_window_ms_ = this->declare_parameter<int64_t>("communication.imu_yaw_window_ms", 20);
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
     com_timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(3), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
+      std::chrono::milliseconds(5), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
     path_timer_ = this->create_wall_timer(std::chrono::milliseconds(1000),
       std::bind(&ComInterfaceRos::sendGlobalPathLoop, this),
       comm_cb_group_);
@@ -183,45 +210,77 @@ private:
 
   void communicationLoop()
   {
+    if (std::chrono::steady_clock::now() < send_enable_time_) {
+      return;
+    }
+
+    // Chassis control variables
     float vx_mps = 0.0f;
     float vy_mps = 0.0f;
     float vw_rpm = 0.0f;
     float current_vx = 0.0f;
     float current_vy = 0.0f;
     float current_vw = 0.0f;
+    float fx_global = 0.0f;
+    float fy_global = 0.0f;
+    float fw_global = 0.0f;
+    float delta_yaw = 0.0f;
+
+    // Behavior-related variables
+    uint8_t pitch_mode = 0;
+    float scan_yaw_min_deg_ = 0.0f;
+    float scan_yaw_max_deg_ = 0.0f;
     uint8_t desire_stance = 0;
     uint8_t desire_lifter_pos = 0;
+    uint8_t comfirm_revive = 0;
+    uint16_t ammo_purchase_request = 0;
+    uint8_t ammo_req = 0;
+    uint8_t revive_req = 0;
+    uint8_t health_req = 0;
+    bool use_limited_scan = false;
+    bool not_aim_enemy = true;
+
     bool use_gyro_mode = false;
     float gyro_vel = 0.0f;
-    bool is_aim_outpost = false;
     geometry_msgs::msg::Quaternion odom_q;
-
     {
       // Snapshot shared state to avoid data races.
       std::lock_guard<std::mutex> lk(state_mutex_);
-      vx_mps = cmd_vel_.linear.x;
-      vy_mps = cmd_vel_.linear.y;
-      vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
-      // vw_rpm = 80.0f;
-      desire_stance = behavior_.desired_stance;
-      desire_lifter_pos = behavior_.desire_lifter_pos;
-      //   use_gyro_mode = behavior_.use_gyro_mode;
-      //   gyro_vel = behavior_.gyro_vel;
+      vx_mps = static_cast<float>(cmd_vel_.linear.x);
+      // vx_mps = 3.0f;
+      vy_mps = static_cast<float>(cmd_vel_.linear.y);
+      // vy_mps = 0.0f;
 
-      // if (use_gyro_mode) {
-      //   vw_rpm = gyro_vel;
-      // }
-      if (transform_state >= 0.85f) {
-        vx_mps *= 1.0;
-        vy_mps *= 1.0;
-        vw_rpm = 0.0;
-      }
-      odom_q = odom_.pose.pose.orientation;
+      vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
+
       current_vx = odom_.twist.twist.linear.x;
       current_vy = odom_.twist.twist.linear.y;
       current_vw = odom_.twist.twist.angular.z;
-      // vx_mps = 2.5;
-      // vy_mps = 0.0;
+      odom_q = odom_.pose.pose.orientation;
+      fx_global = cmd_wrench_.force.x;
+      fy_global = cmd_wrench_.force.y;
+      fw_global = cmd_wrench_.torque.z;
+      delta_yaw = delta_yaw_;
+
+      pitch_mode = behavior_.pitch_mode;
+      desire_stance = behavior_.desired_stance;
+      desire_lifter_pos = behavior_.desire_lifter_pos;
+      use_gyro_mode = behavior_.use_gyro_mode;
+      gyro_vel = behavior_.gyro_vel;
+      scan_yaw_min_deg_ = behavior_.scan_yaw_min;
+      scan_yaw_max_deg_ = behavior_.scan_yaw_max;
+      ammo_purchase_request = behavior_.ammo_purchase_request;
+      comfirm_revive = behavior_.revive_request;
+      ammo_req = behavior_.remote_ammo_request;
+      revive_req = behavior_.remote_revive_request;
+      health_req = behavior_.remote_health_request;
+      use_limited_scan = behavior_.use_limited_scan;
+      not_aim_enemy = behavior_.not_aim_enemy;
+      if (use_gyro_mode) {
+        vw_rpm = gyro_vel;
+      }
+
+      // vw_rpm = -80.0f;
     }
 
     tf2::Quaternion q;
@@ -237,10 +296,26 @@ private:
       current_vx,
       current_vy,
       current_vw,
-      is_aim_outpost,
+      fx_global,
+      fy_global,
+      fw_global,
+      1,
+      delta_yaw);
+
+    BehaviorData behavior_data(pitch_mode,
       desire_stance,
-      desire_lifter_pos);
+      desire_lifter_pos,
+      scan_yaw_min_deg_,
+      scan_yaw_max_deg_,
+      ammo_purchase_request,
+      comfirm_revive,
+      revive_req,
+      ammo_req,
+      health_req,
+      0,
+      not_aim_enemy);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
+#ifdef COMMUNICATION_DEBUG
     if (flag == 0) {
       static auto last_send_time = this->now();
       auto now_time = this->now();
@@ -250,12 +325,41 @@ private:
           NV(target.vy_mps),
           NV(target.vw_rpm),
           NV(target.current_yaw),
-          NV(target.is_aim_outpost),
-          NV(static_cast<int>(target.desire_stance)),
-          NV(static_cast<int>(target.desire_lifter_pos)));
+          NV(target.current_vx),
+          NV(target.current_vy),
+          NV(target.current_vw),
+          NV(target.fx_global),
+          NV(target.fy_global),
+          NV(target.fw_global));
         last_send_time = now_time;
       }
     }
+#endif
+    std::this_thread::sleep_for(
+      std::chrono::milliseconds(2));  // Avoid sending two packets in the same millisecond, which can cause
+                                      // issues for STM32's UART DMA parsing.
+    auto flag2 = Communication::send2stm32<BehaviorData>(behavior_data, ENUM_PACKET_BEHAVIOR_DATA);
+#ifdef COMMUNICATION_DEBUG
+    if (flag2 == 0) {
+      static auto last_send_time = this->now();
+      auto now_time = this->now();
+      if ((now_time - last_send_time).seconds() >= 1.0) {
+        LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM][BehaviorData] ",
+          NV(behavior_data.pitch_mode),
+          NV(static_cast<int>(behavior_data.desire_stance)),
+          NV(static_cast<int>(behavior_data.desire_lifter_pos)),
+          NV(behavior_data.scan_yaw_min_deg),
+          NV(behavior_data.scan_yaw_max_deg),
+          NV(behavior_data.ammo_purchase_request),
+          NV(behavior_data.revive_request),
+          NV(behavior_data.remote_revive_request),
+          NV(behavior_data.remote_ammo_request),
+          NV(behavior_data.remote_health_request),
+          NV(behavior_data.use_limited_scan));
+        last_send_time = now_time;
+      }
+    }
+#endif
   }
 
   void sendGlobalPathLoop()
@@ -291,9 +395,9 @@ private:
     mini_y = p_minimap.y();
   }
 
-  GlobalPath buildGlobalPathPacket(const nav_msgs::msg::Path & path)
+  bool tryBuildGlobalPathPacket(const nav_msgs::msg::Path & path, GlobalPath & out)
   {
-    GlobalPath out{};
+    out = GlobalPath{};
     constexpr size_t kSampleNum = 49;
     constexpr double kCoordScaleDm = 10.0;  // convert meter-based coords to decimeter for protocol
 
@@ -361,10 +465,33 @@ private:
     }
 
     if (valid_num == 0) {
-      return out;
+      return true;
     }
 
-    const auto tf_stamped = tf_buffer_->lookupTransform(minimap_frame_, map_frame_, tf2::TimePointZero);
+    if (!tf_buffer_->canTransform(minimap_frame_, map_frame_, tf2::TimePointZero)) {
+      RCLCPP_DEBUG_THROTTLE(this->get_logger(),
+        *this->get_clock(),
+        2000,
+        "Waiting for TF %s -> %s before packing global path",
+        map_frame_.c_str(),
+        minimap_frame_.c_str());
+      return false;
+    }
+
+    geometry_msgs::msg::TransformStamped tf_stamped;
+    try {
+      tf_stamped = tf_buffer_->lookupTransform(minimap_frame_, map_frame_, tf2::TimePointZero);
+    } catch (const tf2::TransformException & ex) {
+      RCLCPP_DEBUG_THROTTLE(this->get_logger(),
+        *this->get_clock(),
+        2000,
+        "Waiting for TF %s -> %s before packing global path: %s",
+        map_frame_.c_str(),
+        minimap_frame_.c_str(),
+        ex.what());
+      return false;
+    }
+
     tf2::Transform tf_map_to_minimap;
     tf2::fromMsg(tf_stamped.transform, tf_map_to_minimap);
 
@@ -401,12 +528,15 @@ private:
       out.delta_x[i] = 0;
       out.delta_y[i] = 0;
     }
-    return out;
+    return true;
   }
 
   void astarPathCB(const nav_msgs::msg::Path::ConstSharedPtr & pathPtr)
   {
-    GlobalPath packet = buildGlobalPathPacket(*pathPtr);
+    GlobalPath packet{};
+    if (!tryBuildGlobalPathPacket(*pathPtr, packet)) {
+      return;
+    }
     std::lock_guard<std::mutex> lk(path_mutex_);
     pending_global_path_ = packet;
   }
@@ -417,16 +547,74 @@ private:
     cmd_vel_ = *velPtr;
   }
 
-  void odomCB(const nav_msgs::msg::Odometry::ConstSharedPtr & odomPtr)
+  void sendCmdWrenchCB(const geometry_msgs::msg::WrenchStamped::ConstSharedPtr & wrenchPtr)
   {
     std::lock_guard<std::mutex> lk(state_mutex_);
-    odom_ = *odomPtr;
+    cmd_wrench_ = wrenchPtr->wrench;
+  }
+
+  void odomCB(const nav_msgs::msg::Odometry::ConstSharedPtr & odomPtr)
+  {
+    {
+      std::lock_guard<std::mutex> lk(state_mutex_);
+      odom_ = *odomPtr;
+    }
+    updateDeltaYaw(odomPtr->header.stamp, odomPtr->pose.pose.orientation);
+  }
+
+  void updateDeltaYaw(
+    const builtin_interfaces::msg::Time & stamp_msg, const geometry_msgs::msg::Quaternion & orientation)
+  {
+    const rclcpp::Time stamp(stamp_msg);
+    const int64_t window_ns = imu_yaw_window_ms_ * 1000000L;
+    float matched_imu_yaw = 0.0f;
+    bool found = false;
+
+    {
+      std::lock_guard<std::mutex> lk(imu_mutex_);
+      int64_t best_abs_ns = std::numeric_limits<int64_t>::max();
+      for (const auto & sample : chassis_imu_history_) {
+        const int64_t dt_ns = (sample.stamp - stamp).nanoseconds();
+        const int64_t abs_ns = std::llabs(dt_ns);
+        if (abs_ns <= window_ns && abs_ns < best_abs_ns) {
+          best_abs_ns = abs_ns;
+          matched_imu_yaw = sample.yaw;
+          found = true;
+        }
+      }
+    }
+
+    float delta = 0.0f;
+    if (found) {
+      tf2::Quaternion q;
+      tf2::fromMsg(orientation, q);
+      double roll = 0.0;
+      double pitch = 0.0;
+      double yaw = 0.0;
+      tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+      const float odom_yaw_deg = static_cast<float>(yaw * 180.0 / M_PI);
+      delta = odom_yaw_deg - matched_imu_yaw;
+      while (delta > 180.0f) {
+        delta -= 360.0f;
+      }
+      while (delta < -180.0f) {
+        delta += 360.0f;
+      }
+    }
+
+    {
+      std::lock_guard<std::mutex> lk(state_mutex_);
+      delta_yaw_ = delta;
+      // std::cout << "Delta yaw updated: " << delta_yaw_ << " degrees (matched_imu_yaw=" << matched_imu_yaw
+      //           << ", found=" << found << ")" << std::endl;
+    }
   }
 
   // Subscriptions
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr chassis_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr cmd_wrench_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr astar_path_sub_;
+  // rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr astar_path_sub_;
   rclcpp::Subscription<ros_interfaces::msg::Behavior>::SharedPtr behavior_sub_;
 
   // Publishers
@@ -447,6 +635,16 @@ private:
   // Shared state mutex
   std::mutex state_mutex_;
   std::mutex path_mutex_;
+  std::mutex imu_mutex_;
+
+  struct ImuYawSample
+  {
+    rclcpp::Time stamp;
+    float yaw;
+  };
+  static constexpr size_t kImuHistoryCapacity = 200;
+  std::deque<ImuYawSample> chassis_imu_history_;
+  int64_t imu_yaw_window_ms_{20};
 
   // Latest global path packet cache
   GlobalPath pending_global_path_{};
@@ -459,8 +657,11 @@ private:
 
   // State
   geometry_msgs::msg::Twist cmd_vel_;
+  geometry_msgs::msg::Wrench cmd_wrench_;
   nav_msgs::msg::Odometry odom_;
+  std::chrono::steady_clock::time_point send_enable_time_{std::chrono::steady_clock::now()};
   float transform_state = 0.0f;
+  float delta_yaw_{0.0f};
 };
 
 }  // namespace ns_com

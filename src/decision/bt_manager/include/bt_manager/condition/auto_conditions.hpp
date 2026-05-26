@@ -6,6 +6,7 @@
 #include "bt_manager/utils/log.hpp"
 #include <behaviortree_cpp_v3/condition_node.h>
 #include <chrono>
+#include <limits>
 
 namespace Sentry_BT {
 class CheckRetreatCondition : public BT::ConditionNode
@@ -15,15 +16,49 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+};
+
+class CheckGameTimeWindow : public BT::ConditionNode
+{
+public:
+  CheckGameTimeWindow(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckBigEnergyActive : public BT::ConditionNode
+{
+public:
+  CheckBigEnergyActive(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
 
 private:
-  double health_threshold;
+  bool energy_activated = false;
 };
 
 class CheckOutpostRemained : public BT::ConditionNode
 {
 public:
   CheckOutpostRemained(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class SetEnemyOutpostDestroyed : public BT::ConditionNode
+{
+public:
+  SetEnemyOutpostDestroyed(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckOwnOutpostAlive : public BT::ConditionNode
+{
+public:
+  CheckOwnOutpostAlive(const std::string & name, const BT::NodeConfiguration & config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
@@ -36,11 +71,6 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
-
-private:
-  bool initialized_ = false;
-  Point2D last_goal_;
-  std::chrono::steady_clock::time_point last_goal_change_time_;
 };
 
 class CheckOutpostSafeResponse : public BT::ConditionNode
@@ -52,8 +82,7 @@ public:
   BT::NodeStatus tick() override;
 
 private:
-  bool initialized_ = false;
-  float last_health_ = 100.0f;
+  float last_health_ = std::numeric_limits<float>::max();
   std::chrono::steady_clock::time_point last_health_change_time_;
   bool cooldown_active_ = false;
 };
@@ -74,18 +103,6 @@ public:
   CheckInStairsZone(const std::string & name, const BT::NodeConfiguration & config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
-};
-
-// 检查是否将要过隧道
-class CheckWillThroughTunnel : public BT::ConditionNode
-{
-public:
-  CheckWillThroughTunnel(const std::string & name, const BT::NodeConfiguration & config);
-  static BT::PortsList providedPorts();
-  BT::NodeStatus tick() override;
-
-private:
-  static bool last_state_;
 };
 
 class CheckNoAllyBelowStairs : public BT::ConditionNode
@@ -120,11 +137,4 @@ public:
   BT::NodeStatus tick() override;
 };
 
-class CheckEnemyBaseLowHp : public BT::ConditionNode
-{
-public:
-  CheckEnemyBaseLowHp(const std::string & name, const BT::NodeConfiguration & config);
-  static BT::PortsList providedPorts();
-  BT::NodeStatus tick() override;
-};
 }  // namespace Sentry_BT

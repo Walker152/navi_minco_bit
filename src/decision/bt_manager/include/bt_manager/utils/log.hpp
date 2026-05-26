@@ -6,8 +6,10 @@
 #include <atomic>
 #include <chrono>
 #include <ctime>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -84,9 +86,53 @@ inline std::atomic_bool & transitionLogEnabledFlag()
   return enabled;
 }
 
+inline std::atomic_bool & transitionLogFileEnabledFlag()
+{
+  static std::atomic_bool enabled{false};
+  return enabled;
+}
+
+inline std::mutex & transitionLogFileMutex()
+{
+  static std::mutex mutex;
+  return mutex;
+}
+
+inline std::string & transitionLogFilePath()
+{
+  static std::string path;
+  return path;
+}
+
+inline std::ofstream & transitionLogFileStream()
+{
+  static std::ofstream stream;
+  return stream;
+}
+
 inline void setTransitionLogEnabled(const bool enabled)
 {
   transitionLogEnabledFlag().store(enabled, std::memory_order_relaxed);
+}
+
+inline void setTransitionLogFilePath(const std::string & path)
+{
+  transitionLogFilePath() = path;
+}
+
+inline void setTransitionLogFileEnabled(const bool enabled)
+{
+  transitionLogFileEnabledFlag().store(enabled, std::memory_order_relaxed);
+  std::lock_guard<std::mutex> lock(transitionLogFileMutex());
+  auto & stream = transitionLogFileStream();
+  if (enabled) {
+    if (stream.is_open()) {
+      stream.close();
+    }
+    stream.open(transitionLogFilePath(), std::ios::out | std::ios::app);
+  } else if (stream.is_open()) {
+    stream.close();
+  }
 }
 
 inline bool isTransitionLogEnabled()
@@ -99,7 +145,9 @@ enum class TreeKind
   NAV,
   STANCE,
   GIMBAL,
-  TACTICAL
+  TACTICAL,
+  RECOVERY,
+  RESOURCE,
 };
 
 inline const std::string & treeColor(const TreeKind kind)
@@ -113,6 +161,10 @@ inline const std::string & treeColor(const TreeKind kind)
     return ::color_text::BLUE;
   case TreeKind::TACTICAL:
     return ::color_text::GREEN;
+  case TreeKind::RECOVERY:
+    return ::color_text::RED;
+  case TreeKind::RESOURCE:
+    return ::color_text::REDPURPLE;
   default:
     return ::color_text::WHITE;
   }
@@ -129,6 +181,10 @@ inline const char * treeLabel(const TreeKind kind)
     return "GIMBAL_TREE";
   case TreeKind::TACTICAL:
     return "TACTICAL_TREE";
+  case TreeKind::RECOVERY:
+    return "RECOVERY_TREE";
+  case TreeKind::RESOURCE:
+    return "RESOURCE_TREE";
   default:
     return "BT_TREE";
   }
@@ -145,12 +201,16 @@ inline void logTransition(const TreeKind tree_kind,
   }
 
   static std::unordered_map<std::string, bool> last_states;
+  static std::mutex last_states_mutex;
   const std::string key = std::string(treeLabel(tree_kind)) + "::" + branch + "::" + condition_name;
-  const auto it = last_states.find(key);
-  if (it != last_states.end() && it->second == active) {
-    return;
+  {
+    std::lock_guard<std::mutex> lock(last_states_mutex);
+    const auto it = last_states.find(key);
+    if (it != last_states.end() && it->second == active) {
+      return;
+    }
+    last_states[key] = active;
   }
-  last_states[key] = active;
 
   std::cout << treeColor(tree_kind) << "[" << treeLabel(tree_kind) << "]";
   if (!branch.empty()) {
@@ -164,6 +224,24 @@ inline void logTransition(const TreeKind tree_kind,
     std::cout << " | " << detail;
   }
   std::cout << ::color_text::RESET << std::endl;
+
+  if (transitionLogFileEnabledFlag().load(std::memory_order_relaxed)) {
+    std::ostringstream oss;
+    oss << '[' << treeLabel(tree_kind) << ']';
+    if (!branch.empty()) {
+      oss << '[' << branch << ']';
+    }
+    oss << ' ' << condition_name << " => " << (active ? "ACTIVE" : "INACTIVE");
+    if (!detail.empty()) {
+      oss << " | " << detail;
+    }
+    std::lock_guard<std::mutex> lock(transitionLogFileMutex());
+    auto & stream = transitionLogFileStream();
+    if (stream.is_open()) {
+      stream << oss.str() << '\n';
+      stream.flush();
+    }
+  }
 }
 }  // namespace detail
 }  // namespace Sentry_BT

@@ -21,6 +21,15 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class SetNavMode : public BT::SyncActionNode
+{
+public:
+  SetNavMode(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 class SetTargetCoordinate : public BT::SyncActionNode
 {
 public:
@@ -128,5 +137,32 @@ private:
   bool wait_param_available();
   bool has_params(std::vector<std::string> param_names);
   rclcpp::AsyncParametersClient::SharedPtr parameters_client_;
+};
+
+class WaitManual : public BT::StatefulActionNode
+{
+public:
+  WaitManual(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus onStart() override;
+  BT::NodeStatus onRunning() override;
+  void onHalted() override;
+
+private:
+  double wait_duration_s_;
+  double goal_radius_;
+  double fallback_timeout_s_;
+  std::chrono::time_point<std::chrono::steady_clock> start_time_;
+  std::chrono::time_point<std::chrono::steady_clock> arrival_time_;
+  Point2D last_goal_;
+};
+
+class EmergencyStop : public BT::SyncActionNode
+{
+public:
+  EmergencyStop(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
 };
 }  // namespace Sentry_BT

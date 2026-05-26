@@ -24,7 +24,9 @@ void MincoFsm::cancelGoal()
   if (recovery_server_) {
     recovery_server_->clearMissionGoal();
   }
-  changeState("CANCEL_GOAL", State::EMER_STOP);
+  // Disabled to prevent zero-velocity deadlock
+  // changeState("CANCEL_GOAL", State::EMER_STOP);
+  changeState("CANCEL_GOAL", State::WAIT_GOAL);
 }
 
 // -----------------------------------------------------------------------------
@@ -38,7 +40,9 @@ void MincoFsm::callMainFsmOnce()
   }
 
   // Consume latest goal (createPlan only sets this flag).
-  if (state_ != State::EMER_STOP && state_ != State::RECOVERING) {
+  // Disabled to prevent zero-velocity deadlock
+  // if (state_ != State::EMER_STOP && state_ != State::RECOVERING) {
+  if (state_ != State::RECOVERING) {
     geometry_msgs::msg::PoseStamped new_goal;
     if (planner_->consumePendingGoal(new_goal)) {
       goal_ = new_goal;
@@ -97,15 +101,18 @@ void MincoFsm::callMainFsmOnce()
       }
 
       if (decision == RecoverServer::RecoveryDecision::ENTER_EMER_STOP) {
-        changeState(emer_reason, State::EMER_STOP);
+        // Disabled to prevent zero-velocity deadlock
+        // changeState(emer_reason, State::EMER_STOP);
+        changeState(emer_reason, State::GENERATE_TRAJ);
         return;
       }
 
       // Recovery threshold not reached yet: stay in GENERATE_TRAJ and keep accumulating failures.
-      if (!stop_published_) {
-        planner_->publishEmergencyStop(current_pose);
-        stop_published_ = true;
-      }
+      // Disabled to prevent zero-velocity deadlock
+      // if (!stop_published_) {
+      //   planner_->publishEmergencyStop(current_pose);
+      //   stop_published_ = true;
+      // }
     };
 
     if (!planner_->PlanGlobalPath(current_pose, goal_)) {
@@ -115,12 +122,12 @@ void MincoFsm::callMainFsmOnce()
     }
     if (!planner_->ReplanLocal(current_pose)) {
       Eigen::Vector3d cur_p(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
-      double dist = planner_->getEsdfDistance(cur_p);
-      if (dist < 0.10) {
-        handle_generate_replan_failure("GEN_STUCK_TRIGGER_RECOVERING", "GENERATE_RECOVERY_FAIL");
-        return;
-      }
-      recovery_server_->onReplanSuccess();
+      // double dist = planner_->getEsdfDistance(cur_p);
+      // if (dist < 0.25) {
+      handle_generate_replan_failure("GEN_STUCK_TRIGGER_RECOVERING", "GENERATE_RECOVERY_FAIL");
+      // return;
+      // }
+      // recovery_server_->onReplanSuccess();
       return;
     }
 
@@ -141,10 +148,10 @@ void MincoFsm::callMainFsmOnce()
 
     // 容差限停检测：到达终点且速度足够低
     if (planner_->checkGoalReached(current_pose)) {
-      if (!goal_stop_published_) {
-        planner_->publishEmergencyStop(current_pose);
-        goal_stop_published_ = true;
-      }
+      // if (!goal_stop_published_) {
+      //   planner_->publishEmergencyStop(current_pose);
+      //   goal_stop_published_ = true;
+      // }
 
       if (planner_->getCurrentSpeed().head<2>().norm() < 0.3) {
         has_goal_ = false;
@@ -154,7 +161,8 @@ void MincoFsm::callMainFsmOnce()
       return;
     }
 
-    goal_stop_published_ = false;
+    // Disabled to prevent zero-velocity deadlock
+    // goal_stop_published_ = false;
 
     const double now_s = planner_->nowSeconds();
 
@@ -175,13 +183,18 @@ void MincoFsm::callMainFsmOnce()
     }
 
     if (!planner_->ReplanLocal(current_pose)) {
-      // 1. 失败诊断：区分是“前方路被挡”还是“自身被卡死”
+      // P0: If the old trajectory still has remaining time, keep following it.
+      if (!planner_->isTrajectoryTimeExpired(now_s)) {
+        return;
+      }
+
+      // 1. 失败诊断：区分是”前方路被挡”还是”自身被卡死”
       Eigen::Vector3d cur_p(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
       double dist = planner_->getEsdfDistance(cur_p);
 
       // 2. 诊断为安全 (ESDF >= 0.25m)：纯粹前方路障，立即绕路
-      if (dist >= 0.1) {
-        recovery_server_->onReplanSuccess();  // 清空失败计数
+      if (dist >= 0.25) {
+        // recovery_server_->onReplanSuccess();  // 清空失败计数
         changeState("PATH_BLOCKED_DETOUR", State::GENERATE_TRAJ);
         return;
       }
@@ -203,15 +216,18 @@ void MincoFsm::callMainFsmOnce()
       }
 
       if (decision == RecoverServer::RecoveryDecision::ENTER_EMER_STOP) {
-        changeState("FOLLOW_REPLAN_RECOVERY", State::EMER_STOP);
+        // Disabled to prevent zero-velocity deadlock
+        // changeState("FOLLOW_REPLAN_RECOVERY", State::EMER_STOP);
+        changeState("FOLLOW_REPLAN_RECOVERY", State::GENERATE_TRAJ);
         return;
       }
 
       // 4. 处于 NONE 状态
-      if (!stop_published_) {
-        planner_->publishEmergencyStop(current_pose);
-        stop_published_ = true;
-      }
+      // Disabled to prevent zero-velocity deadlock
+      // if (!stop_published_) {
+      //   planner_->publishEmergencyStop(current_pose);
+      //   stop_published_ = true;
+      // }
       return;
     }
 
@@ -231,7 +247,7 @@ void MincoFsm::callMainFsmOnce()
     double dist = planner_->getEsdfDistance(cur_p);
 
     // 条件1: 成功挤出泥坑 (ESDF 距离恢复安全)
-    if (dist > 0.25) {
+    if (dist > 0.40) {
       recovery_server_->finishRecovery(true, now_s);
       changeState("ESCAPE_SUCCESS", State::GENERATE_TRAJ);
       return;
@@ -240,66 +256,67 @@ void MincoFsm::callMainFsmOnce()
     // 条件2: 挣扎超时保护
     if (!recovery_server_->inRecovery(now_s)) {
       recovery_server_->finishRecovery(false, now_s);
-      changeState("ESCAPE_TIMEOUT", State::EMER_STOP);
+      // Disabled to prevent zero-velocity deadlock
+      // changeState("ESCAPE_TIMEOUT", State::EMER_STOP);
+      changeState("ESCAPE_TIMEOUT", State::GENERATE_TRAJ);
       return;
     }
 
     // 条件3: 持续高频下发伪指令覆盖 MPC
-    static double last_escape_pub_time = 0.0;
-    if (now_s - last_escape_pub_time > 0.2) {
-      planner_->publishEscapeCommand(current_pose, current_escape_vel_);
-      last_escape_pub_time = now_s;
-    }
+    planner_->publishEscapeCommand(current_pose, current_escape_vel_);
     return;
   }
 
-  case State::EMER_STOP: {
-    if (!has_odom) {
-      return;
-    }
-
-    // 1) First run: publish independent brake trajectory.
-    if (!stop_published_) {
-      planner_->publishEmergencyStop(current_pose);
-      stop_published_ = true;
-      emer_stop_start_time_ = planner_->nowSeconds();
-    }
-
-    // 2) Timeout protection: avoid deadlock.
-    const double now_s = planner_->nowSeconds();
-    if (std::isfinite(now_s) && std::isfinite(emer_stop_start_time_) &&
-        (now_s - emer_stop_start_time_) > 5.0) {
-      // Keep mission goal so FSM can retry planning automatically after emergency stop timeout.
-      changeState("EMER_TIMEOUT", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
-      return;
-    }
-
-    // 3) Still try to find safe path to recover without fully stopping.
-    bool recover_possible = false;
-    if (planner_->PlanGlobalPath(current_pose, goal_)) {
-      if (planner_->ReplanLocal(current_pose)) {
-        recover_possible = true;
+    // Disabled to prevent zero-velocity deadlock
+    /*
+    case State::EMER_STOP: {
+      if (!has_odom) {
+        return;
       }
-    }
 
-    if (recover_possible) {
-      recovery_server_->finishRecovery(true, now_s);
-      changeState("EMER_RECOVER", State::FOLLOW_TRAJ);
+      // 1) First run: publish independent brake trajectory.
+      if (!stop_published_) {
+        planner_->publishEmergencyStop(current_pose);
+        stop_published_ = true;
+        emer_stop_start_time_ = planner_->nowSeconds();
+      }
+
+      // 2) Timeout protection: avoid deadlock.
+      const double now_s = planner_->nowSeconds();
+      if (std::isfinite(now_s) && std::isfinite(emer_stop_start_time_) &&
+          (now_s - emer_stop_start_time_) > 2.0) {
+        // Keep mission goal so FSM can retry planning automatically after emergency stop timeout.
+        changeState("EMER_TIMEOUT", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
+        return;
+      }
+
+      // 3) Still try to find safe path to recover without fully stopping.
+      bool recover_possible = false;
+      if (planner_->PlanGlobalPath(current_pose, goal_)) {
+        if (planner_->ReplanLocal(current_pose)) {
+          recover_possible = true;
+        }
+      }
+
+      if (recover_possible) {
+        recovery_server_->finishRecovery(true, now_s);
+        changeState("EMER_RECOVER", State::FOLLOW_TRAJ);
+        return;
+      }
+
+      // 4) Blocking wait until fully stopped.
+      const Eigen::Vector3d speed = planner_->getCurrentSpeed();
+      if (std::isfinite(speed.head<2>().norm()) && speed.head<2>().norm() > 0.1) {
+        return;
+      }
+
+      // 5) Recovery: stopped, check safety before leaving EMER_STOP.
+      recovery_server_->finishRecovery(false, now_s);
+      // Keep mission goal so robot can continue navigating once it is safe/stopped.
+      changeState("EMER_SAFE", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
       return;
     }
-
-    // 4) Blocking wait until fully stopped.
-    const Eigen::Vector3d speed = planner_->getCurrentSpeed();
-    if (std::isfinite(speed.head<2>().norm()) && speed.head<2>().norm() > 0.1) {
-      return;
-    }
-
-    // 5) Recovery: stopped, check safety before leaving EMER_STOP.
-    recovery_server_->finishRecovery(false, now_s);
-    // Keep mission goal so robot can continue navigating once it is safe/stopped.
-    changeState("EMER_SAFE", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
-    return;
-  }
+    */
 
   default:
     break;
@@ -324,8 +341,9 @@ namespace {
     return "FOLLOW_TRAJ";
   case MincoFsm::State::RECOVERING:
     return "RECOVERING";
-  case MincoFsm::State::EMER_STOP:
-    return "EMER_STOP";
+  // Disabled to prevent zero-velocity deadlock
+  // case MincoFsm::State::EMER_STOP:
+  //   return "EMER_STOP";
   default:
     return "UNKNOWN";
   }
@@ -340,8 +358,10 @@ void MincoFsm::changeState(const char * caller, State new_state)
   }
 
   // Leaving recovery-related states: clear debug visualization and reset recovery runtime.
-  if ((state_ == State::RECOVERING || state_ == State::EMER_STOP) && new_state != State::RECOVERING &&
-      new_state != State::EMER_STOP) {
+  // Disabled to prevent zero-velocity deadlock
+  // if ((state_ == State::RECOVERING || state_ == State::EMER_STOP) && new_state != State::RECOVERING &&
+  //     new_state != State::EMER_STOP) {
+  if (state_ == State::RECOVERING && new_state != State::RECOVERING) {
     planner_->clearRecoveryDebugVisualization();
     recovery_server_->reset();
   }
@@ -353,8 +373,9 @@ void MincoFsm::changeState(const char * caller, State new_state)
 
   last_state_ = state_;
   state_ = new_state;
-  stop_published_ = false;
-  goal_stop_published_ = false;
+  // Disabled to prevent zero-velocity deadlock
+  // stop_published_ = false;
+  // goal_stop_published_ = false;
 }
 
 }  // namespace minco_planner
