@@ -2,10 +2,9 @@
 cd ~/2025-sentry-navi
 source ./install/setup.bash
 
-sleep 5
 # PTP Sync
 gnome-terminal -- bash -c "sudo ./scripts/ptp_sync.bash; exec bash"
-sleep 2
+sleep 10
 
 # MID360 
 gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_mixed_MID360.launch.py; exec bash"
