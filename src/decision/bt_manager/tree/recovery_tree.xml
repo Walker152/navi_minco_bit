@@ -1,0 +1,27 @@
+<root main_tree_to_execute="TunnelRecoverySubTree">
+  <BehaviorTree ID="TunnelRecoverySubTree">
+    <ReactiveSequence name="RecoveryExecution">
+      <CheckTimeInZone min_seconds="0.0" max_seconds="999.0" zone_name="transform_zone" />
+
+      <ReactiveFallback name="RecoveryPhases">
+        <Sequence name="Phase1">
+          <CheckTimeInZone min_seconds="30.0" max_seconds="40.0" />
+          <SetTunnelRecoveryAttemptPoint />
+          <NavigateToPoseAction />
+        </Sequence>
+
+        <Sequence name="Phase2">
+          <CheckTimeInZone min_seconds="40.0" max_seconds="50.0" />
+          <SetTunnelRecoveryRetreatPoint />
+          <NavigateToPoseAction />
+        </Sequence>
+
+        <Sequence name="Phase3">
+          <CheckTimeInZone min_seconds="50.0" max_seconds="999.0" />
+          <SetGlobalVelocity global_vx="0.0" use_tunnel_profile="true" />
+          <Wait milliseconds="100" />
+        </Sequence>
+      </ReactiveFallback>
+    </ReactiveSequence>
+  </BehaviorTree>
+</root>

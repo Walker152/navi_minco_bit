@@ -1,34 +1,139 @@
 #pragma once
 
-#include <behaviortree_cpp_v3/condition_node.h>
-#include "bt_manager/utils/nav_zone.hpp"
+#include "bt_manager/utils/area.hpp"
 #include "bt_manager/utils/log.hpp"
+#include <behaviortree_cpp_v3/condition_node.h>
 
-namespace Sentry_BT
+#include <string>
+
+namespace Sentry_BT {
+namespace detail {
+inline bool compareByMode(const float lhs, const float rhs, const std::string & mode)
 {
-class CheckMPCondition : public BT::ConditionNode
+  if (mode == "greater") {
+    return lhs >= rhs;
+  }
+  if (mode == "less") {
+    return lhs <= rhs;
+  }
+  return false;
+}
+}  // namespace detail
+
+class CheckHeat : public BT::ConditionNode
 {
 public:
-  CheckMPCondition(const std::string& name, const BT::NodeConfiguration& config);
+  CheckHeat(const std::string & name, const BT::NodeConfiguration & config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
 };
 
-class CheckAPCondition : public BT::ConditionNode
+class CheckOutpostTarget : public BT::ConditionNode
 {
 public:
-  CheckAPCondition(const std::string& name, const BT::NodeConfiguration& config);
+  CheckOutpostTarget(const std::string & name, const BT::NodeConfiguration & config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
 };
 
-class CheckDPCondition : public BT::ConditionNode
+class CheckEngagedStatus : public BT::ConditionNode
 {
 public:
-  CheckDPCondition(const std::string& name, const BT::NodeConfiguration& config);
+  CheckEngagedStatus(const std::string & name, const BT::NodeConfiguration & config);
 
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckHealth : public BT::ConditionNode
+{
+public:
+  CheckHealth(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckTargetDistance : public BT::ConditionNode
+{
+public:
+  CheckTargetDistance(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckCrossZoneTransition : public BT::ConditionNode
+{
+public:
+  CheckCrossZoneTransition(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckCapacitorCapacity : public BT::ConditionNode
+{
+public:
+  CheckCapacitorCapacity(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckStanceCooldown : public BT::ConditionNode
+{
+public:
+  CheckStanceCooldown(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckEnhanceLimit : public BT::ConditionNode
+{
+public:
+  CheckEnhanceLimit(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+/* deprecated - replaced by accumulated time logic */
+class CheckStanceRefreshRequired : public BT::ConditionNode
+{
+public:
+  CheckStanceRefreshRequired(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  SentryStance last_stance{SentryStance::DEFEND};
+  std::chrono::steady_clock::time_point hold_start{};
+};
+
+// 隧道变形控制：通过黑板标志位设置升降机构位置
+class CheckTunnelDeformation : public BT::ConditionNode
+{
+public:
+  CheckTunnelDeformation(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  float last_health_ = 100.0f;
+  bool health_initialized_ = false;
+  rclcpp::Time last_hurt_time_;
+};
+
+class CheckInEnemyFortZone : public BT::ConditionNode
+{
+public:
+  CheckInEnemyFortZone(const std::string & name, const BT::NodeConfiguration & config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
 };

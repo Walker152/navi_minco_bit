@@ -11,107 +11,108 @@
 #include "parameters.h"
 
 // === 系统状态和时间管理变量定义 ===
-bool is_first_frame = true;                    // 标识是否为第一帧数据，用于系统初始化
-double lidar_end_time = 0.0;                   // 当前激光雷达帧的结束时间戳
-double first_lidar_time = 0.0;                 // 第一帧激光雷达的时间戳，作为时间基准
-double time_con = 0.0;                         // 时间连续性检查变量
-double last_timestamp_lidar = -1.0;            // 上一帧激光雷达的时间戳
-double last_timestamp_imu = -1.0;              // 上一帧IMU数据的时间戳
-int pcd_index = 0;                             // PCD文件保存的索引编号
+bool is_first_frame = true;          // 标识是否为第一帧数据，用于系统初始化
+double lidar_end_time = 0.0;         // 当前激光雷达帧的结束时间戳
+double first_lidar_time = 0.0;       // 第一帧激光雷达的时间戳，作为时间基准
+double time_con = 0.0;               // 时间连续性检查变量
+double last_timestamp_lidar = -1.0;  // 上一帧激光雷达的时间戳
+double last_timestamp_imu = -1.0;    // 上一帧IMU数据的时间戳
+int pcd_index = 0;                   // PCD文件保存的索引编号
 // === iVox增量式地图配置 ===
-IVoxType::Options ivox_options_;               // iVox地图的配置选项
-int ivox_nearby_type = 6;                      // iVox邻近点搜索类型 (6=NEARBY6，18=NEARBY18，26=NEARBY26)
+IVoxType::Options ivox_options_;  // iVox地图的配置选项
+int ivox_nearby_type = 6;         // iVox邻近点搜索类型 (6=NEARBY6，18=NEARBY18，26=NEARBY26)
 
 // === 传感器外参标定参数 ===
-std::vector<double> extrinT(3, 0.0);          // 激光雷达到IMU的平移外参 [tx, ty, tz]
-std::vector<double> extrinR(9, 0.0);          // 激光雷达到IMU的旋转外参 (3x3矩阵展开)
+std::vector<double> extrinT(3, 0.0);  // 激光雷达到IMU的平移外参 [tx, ty, tz]
+std::vector<double> extrinR(9, 0.0);  // 激光雷达到IMU的旋转外参 (3x3矩阵展开)
 // === 滤波器状态向量 ===
-state_input state_in;                          // 输入模式状态向量 (24维) - IMU作为控制输入
-state_output state_out;                        // 输出模式状态向量 (30维) - IMU作为观测
+state_input state_in;    // 输入模式状态向量 (24维) - IMU作为控制输入
+state_output state_out;  // 输出模式状态向量 (30维) - IMU作为观测
 // === 传感器配置参数 ===
-std::string lid_topic, imu_topic;              // 激光雷达和IMU数据话题名称
+std::string lid_topic, imu_topic;  // 激光雷达和IMU数据话题名称
 
 // === 算法核心控制参数 ===
-bool prop_at_freq_of_imu = true;               // 是否以IMU频率进行状态传播
-bool check_satu = true;                        // 是否检查IMU数据饱和
-bool con_frame = false;                        // 是否连接多帧点云
-bool cut_frame = false;                        // 是否切分单帧点云
-bool use_imu_as_input = false;                 // IMU使用模式 (false: 作为观测, true: 作为输入)
-bool space_down_sample = true;                 // 是否进行空间降采样
-bool publish_odometry_without_downsample = false; // 是否发布未降采样的高频里程计
+bool prop_at_freq_of_imu = true;  // 是否以IMU频率进行状态传播
+bool check_satu = true;           // 是否检查IMU数据饱和
+bool con_frame = false;           // 是否连接多帧点云
+bool cut_frame = false;           // 是否切分单帧点云
+bool use_imu_as_input = false;    // IMU使用模式 (false: 作为观测, true: 作为输入)
+bool space_down_sample = true;    // 是否进行空间降采样
+bool publish_odometry_without_downsample = false;  // 是否发布未降采样的高频里程计
 // === 地图初始化参数 ===
-int init_map_size = 10;                        // 初始化地图所需的最少特征点数量
-int con_frame_num = 1;                         // 连接帧的数量
+int init_map_size = 10;  // 初始化地图所需的最少特征点数量
+int con_frame_num = 1;   // 连接帧的数量
 
 // === 几何匹配参数 ===
-double match_s = 81;                           // 点云匹配的搜索半径参数
-float plane_thr = 0.1f;                        // 平面特征提取阈值
-double filter_size_surf_min = 0.5;             // 表面特征点的降采样尺寸 (米)
-double filter_size_map_min = 0.5;              // 地图点的降采样尺寸 (米)
-double fov_deg = 180;                          // 激光雷达视场角 (度)
-float DET_RANGE = 450;                         // 激光雷达有效检测范围 (米)
+double match_s = 81;                // 点云匹配的搜索半径参数
+float plane_thr = 0.1f;             // 平面特征提取阈值
+double filter_size_surf_min = 0.5;  // 表面特征点的降采样尺寸 (米)
+double filter_size_map_min = 0.5;   // 地图点的降采样尺寸 (米)
+double fov_deg = 180;               // 激光雷达视场角 (度)
+float DET_RANGE = 450;              // 激光雷达有效检测范围 (米)
 
 // === IMU传感器参数 ===
-double satu_acc, satu_gyro;                    // IMU加速度计和陀螺仪饱和值
-double cut_frame_time_interval = 0.1;          // 帧切分时间间隔 (秒)
+double satu_acc, satu_gyro;            // IMU加速度计和陀螺仪饱和值
+double cut_frame_time_interval = 0.1;  // 帧切分时间间隔 (秒)
 // === IMU传感器配置 ===
-bool imu_en = true;                            // IMU使能标志
-double imu_time_inte = 0.005;                  // IMU数据积分时间间隔 (秒)
-double acc_norm;                               // 加速度计单位 (1.0: g, 9.81: m/s²)
+bool imu_en = true;            // IMU使能标志
+double imu_time_inte = 0.005;  // IMU数据积分时间间隔 (秒)
+double acc_norm;               // 加速度计单位 (1.0: g, 9.81: m/s²)
 
 // === 噪声模型参数 ===
 // 观测噪声
-double laser_point_cov = 0.01;                 // 激光雷达点云观测噪声协方差
-double imu_meas_acc_cov, imu_meas_omg_cov;     // IMU加速度和角速度测量噪声协方差
+double laser_point_cov = 0.01;              // 激光雷达点云观测噪声协方差
+double imu_meas_acc_cov, imu_meas_omg_cov;  // IMU加速度和角速度测量噪声协方差
 
 // 过程噪声
-double vel_cov;                                // 速度过程噪声协方差
-double acc_cov_input, gyr_cov_input;           // 输入模式下的加速度和角速度过程噪声
-double gyr_cov_output, acc_cov_output;         // 输出模式下的角速度和加速度过程噪声
-double b_gyr_cov, b_acc_cov;                   // 陀螺仪和加速度计偏置随机游走噪声
+double vel_cov;                         // 速度过程噪声协方差
+double acc_cov_input, gyr_cov_input;    // 输入模式下的加速度和角速度过程噪声
+double gyr_cov_output, acc_cov_output;  // 输出模式下的角速度和加速度过程噪声
+double b_gyr_cov, b_acc_cov;            // 陀螺仪和加速度计偏置随机游走噪声
 // === 传感器类型和文件管理 ===
-int lidar_type;                                // 激光雷达类型标识符
-int pcd_save_interval;                         // PCD文件保存间隔 (帧数)
+int lidar_type;         // 激光雷达类型标识符
+int pcd_save_interval;  // PCD文件保存间隔 (帧数)
 
 // === 重力参数 ===
-std::vector<double> gravity_init, gravity;     // 初始和当前估计的重力向量
+std::vector<double> gravity_init, gravity;  // 初始和当前估计的重力向量
 
 // === 系统功能控制 ===
-bool runtime_pos_log;                          // 运行时位姿日志记录使能
-bool pcd_save_en;                              // PCD点云文件保存使能
-bool path_en;                                  // 轨迹路径发布使能
-bool extrinsic_est_en = true;                  // 外参在线估计使能
-bool scan_pub_en, scan_body_pub_en;            // 点云数据发布使能
-bool tf_send_en;                               // TF坐标变换发布使能
+bool runtime_pos_log;                     // 运行时位姿日志记录使能
+bool pcd_save_en;                         // PCD点云文件保存使能
+double accumulated_map_publish_hz = 1.0;  // 累积地图低频发布频率
+bool path_en;                             // 轨迹路径发布使能
+bool extrinsic_est_en = true;             // 外参在线估计使能
+bool scan_pub_en, scan_body_pub_en;       // 点云数据发布使能
+bool tf_send_en;                          // TF坐标变换发布使能
 // === 模块对象指针 ===
-shared_ptr<Preprocess> p_pre;                  // 点云预处理模块指针
-shared_ptr<ImuProcess> p_imu;                   // IMU数据处理模块指针
+shared_ptr<Preprocess> p_pre;  // 点云预处理模块指针
+shared_ptr<ImuProcess> p_imu;  // IMU数据处理模块指针
 
 // === 滤波器时间状态变量 ===
-double time_update_last = 0.0;                 // 上次滤波器更新时间
-double time_current = 0.0;                     // 当前处理时间
-double time_predict_last_const = 0.0;          // 上次预测时间常量
-double t_last = 0.0;                           // 上一个时间点
+double time_update_last = 0.0;         // 上次滤波器更新时间
+double time_current = 0.0;             // 当前处理时间
+double time_predict_last_const = 0.0;  // 上次预测时间常量
+double t_last = 0.0;                   // 上一个时间点
 
 // === 时间同步参数 ===
-double time_diff_lidar_to_imu = 0.0;           // 激光雷达到IMU的时间偏移
+double time_diff_lidar_to_imu = 0.0;  // 激光雷达到IMU的时间偏移
 
 // === 先验地图配置 ===
-bool enable_prior_pcd;                         // 先验PCD地图使能标志
-string prior_pcd_map_path;                     // 先验PCD地图文件路径
-std::vector<double> init_pose;                 // 初始位姿 [x,y,z,qx,qy,qz,qw]
+bool enable_prior_pcd;          // 先验PCD地图使能标志
+string prior_pcd_map_path;      // 先验PCD地图文件路径
+std::vector<double> init_pose;  // 初始位姿 [x,y,z,qx,qy,qz,qw]
 
 // === 进阶时间控制参数 ===
-double lidar_time_inte = 0.1;                  // 激光雷达数据积分时间 (秒)
-double first_imu_time = 0.0;                   // 第一个IMU数据的时间戳
-int cut_frame_num = 1;                         // 帧切分数量
-int orig_odom_freq = 10;                       // 原始里程计频率 (Hz)
-double online_refine_time = 20.0;              // 在线优化时间 (秒)
-bool cut_frame_init = false;                   // 帧切分初始化标志
+double lidar_time_inte = 0.1;      // 激光雷达数据积分时间 (秒)
+double first_imu_time = 0.0;       // 第一个IMU数据的时间戳
+int cut_frame_num = 1;             // 帧切分数量
+int orig_odom_freq = 10;           // 原始里程计频率 (Hz)
+double online_refine_time = 20.0;  // 在线优化时间 (秒)
+bool cut_frame_init = false;       // 帧切分初始化标志
 
 // === 数据结构和文件流 ===
-MeasureGroup Measures;                         // 传感器数据测量组
-ofstream fout_out, fout_imu_pbp;               // 日志文件输出流
+MeasureGroup Measures;            // 传感器数据测量组
+ofstream fout_out, fout_imu_pbp;  // 日志文件输出流
 
 /**
  * @brief 从ROS2参数服务器读取所有系统参数
@@ -125,9 +126,9 @@ ofstream fout_out, fout_imu_pbp;               // 日志文件输出流
 void readParameters(std::shared_ptr<rclcpp::Node> & nh)
 {
   // === 模块初始化 ===
-  p_pre.reset(new Preprocess());    // 初始化点云预处理模块
-  p_imu.reset(new ImuProcess());     // 初始化IMU数据处理模块
-  
+  p_pre.reset(new Preprocess());  // 初始化点云预处理模块
+  p_imu.reset(new ImuProcess());  // 初始化IMU数据处理模块
+
   // === ROS2参数读取 ===
   try {
     // === 算法核心控制参数 ===
@@ -273,8 +274,7 @@ void readParameters(std::shared_ptr<rclcpp::Node> & nh)
     nh->get_parameter("mapping.extrinsic_R", extrinR);
 
     nh->declare_parameter<bool>("odometry.publish_odometry_without_downsample", false);
-    nh->get_parameter(
-      "odometry.publish_odometry_without_downsample", publish_odometry_without_downsample);
+    nh->get_parameter("odometry.publish_odometry_without_downsample", publish_odometry_without_downsample);
 
     nh->declare_parameter<bool>("publish.path_en", true);
     nh->get_parameter("publish.path_en", path_en);
@@ -297,6 +297,9 @@ void readParameters(std::shared_ptr<rclcpp::Node> & nh)
     nh->declare_parameter<int>("pcd_save.interval", -1);
     nh->get_parameter("pcd_save.interval", pcd_save_interval);
 
+    nh->declare_parameter<double>("pcd_save.accumulated_map_publish_hz", 1.0);
+    nh->get_parameter("pcd_save.accumulated_map_publish_hz", accumulated_map_publish_hz);
+
     nh->declare_parameter<double>("mapping.lidar_time_inte", 0.1);
     nh->get_parameter("mapping.lidar_time_inte", lidar_time_inte);
 
@@ -314,9 +317,9 @@ void readParameters(std::shared_ptr<rclcpp::Node> & nh)
   // === iVox地图配置 ===
   // 根据参数设置iVox邻近点搜索类型
   if (ivox_nearby_type == 0) {
-    ivox_options_.nearby_type_ = IVoxType::NearbyType::CENTER;    // 仅中心点，最快但精度最低
+    ivox_options_.nearby_type_ = IVoxType::NearbyType::CENTER;  // 仅中心点，最快但精度最低
   } else if (ivox_nearby_type == 6) {
-    ivox_options_.nearby_type_ = IVoxType::NearbyType::NEARBY6;   // 6邻域搜索，平衡性能
+    ivox_options_.nearby_type_ = IVoxType::NearbyType::NEARBY6;  // 6邻域搜索，平衡性能
   } else if (ivox_nearby_type == 18) {
     ivox_options_.nearby_type_ = IVoxType::NearbyType::NEARBY18;  // 18邻域搜索，高精度
   } else if (ivox_nearby_type == 26) {
@@ -335,7 +338,7 @@ void readParameters(std::shared_ptr<rclcpp::Node> & nh)
  * @return 欧拉角向量 [roll, pitch, yaw] (弧度)
  * @details 使用ZYX欧拉角约定：
  *          1. 先绕Z轴旋转 (Yaw)
- *          2. 再绕Y轴旋转 (Pitch) 
+ *          2. 再绕Y轴旋转 (Pitch)
  *          3. 最后绕X轴旋转 (Roll)
  *          同时处理万向锁 (Gimbal Lock) 奇异情况
  */
@@ -343,24 +346,24 @@ Eigen::Matrix<double, 3, 1> SO3ToEuler(const SO3 & rot)
 {
   // 计算sin(yaw)的幅度，用于判断是否接近万向锁状态
   double sy = sqrt(rot(0, 0) * rot(0, 0) + rot(1, 0) * rot(1, 0));
-  
+
   // 判断是否处于万向锁奇异状态 (pitch 接近 ±90度)
   bool singular = sy < 1e-6;
-  
+
   double x, y, z;  // roll, pitch, yaw
-  
+
   if (!singular) {
     // 正常情况：使用标准ZYX欧拉角提取公式
-    x = atan2(rot(2, 1), rot(2, 2));    // Roll:  绕X轴旋转角
-    y = atan2(-rot(2, 0), sy);          // Pitch: 绕Y轴旋转角
-    z = atan2(rot(1, 0), rot(0, 0));    // Yaw:   绕Z轴旋转角
+    x = atan2(rot(2, 1), rot(2, 2));  // Roll:  绕X轴旋转角
+    y = atan2(-rot(2, 0), sy);        // Pitch: 绕Y轴旋转角
+    z = atan2(rot(1, 0), rot(0, 0));  // Yaw:   绕Z轴旋转角
   } else {
     // 万向锁情况：采用替代计算方法
     x = atan2(-rot(1, 2), rot(1, 1));
     y = atan2(-rot(2, 0), sy);
     z = 0;  // 将Yaw角设为0，以解决不确定性
   }
-  
+
   // 返回欧拉角向量
   Eigen::Matrix<double, 3, 1> ang(x, y, z);
   return ang;
@@ -377,10 +380,10 @@ void open_file()
 {
   // 打开状态输出日志文件 (包含位置、姿态、速度等信息)
   fout_out.open(DEBUG_FILE_DIR("mat_out.txt"), ios::out);
-  
+
   // 打开IMU点对点处理日志文件 (记录高频处理过程)
   fout_imu_pbp.open(DEBUG_FILE_DIR("imu_pbp.txt"), ios::out);
-  
+
   // 检查文件打开状态并输出提示信息
   if (fout_out && fout_imu_pbp)
     std::cout << "~~~~ 日志文件打开成功: " << ROOT_DIR << std::endl;
@@ -394,22 +397,22 @@ void open_file()
  * @details 该函数为use_imu_as_input=true模式设置初始不确定性：
  *          状态向量结构 (24维)：
  *          [0:2]   位置     - 0.1   (较大不确定性)
- *          [3:5]   姿态     - 0.1   (较大不确定性) 
+ *          [3:5]   姿态     - 0.1   (较大不确定性)
  *          [6:8]   外参旋转 - 0.1   (较大不确定性)
  *          [9:11]  外参平移 - 0.1   (较大不确定性)
  *          [12:14] 速度     - 0.1   (较大不确定性)
  *          [15:17] 陀螺偏置 - 0.001 (中等不确定性)
- *          [18:20] 加速偏置 - 0.001 (中等不确定性) 
+ *          [18:20] 加速偏置 - 0.001 (中等不确定性)
  *          [21:23] 重力     - 0.0001(小不确定性)
  */
 void reset_cov(Eigen::Matrix<double, 24, 24> & P_init)
 {
   // 整体初始化为 0.1 * 单位矩阵 (表示较大的初始不确定性)
   P_init = MD(24, 24)::Identity() * 0.1;
-  
+
   // 重力向量的不确定性较小 (通常可以精确测量)
   P_init.block<3, 3>(21, 21) = MD(3, 3)::Identity() * 0.0001;
-  
+
   // IMU偏置的不确定性中等 (需要时间估计但相对稳定)
   P_init.block<6, 6>(15, 15) = MD(6, 6)::Identity() * 0.001;
 }
@@ -434,10 +437,10 @@ void reset_cov_output(Eigen::Matrix<double, 30, 30> & P_init_output)
 {
   // 整体初始化为 0.01 * 单位矩阵 (相比输入模式更信任初值)
   P_init_output = MD(30, 30)::Identity() * 0.01;
-  
+
   // 外参平移的不确定性极小 (通常可以精确测量)
   P_init_output.block<3, 3>(21, 21) = MD(3, 3)::Identity() * 0.0001;
-  
+
   // 瞬时角速度和加速度的不确定性中等
   // (这些状态变量在输出模式中被显式建模)
   P_init_output.block<6, 6>(24, 24) = MD(6, 6)::Identity() * 0.001;

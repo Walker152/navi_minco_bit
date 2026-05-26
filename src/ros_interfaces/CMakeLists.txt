@@ -22,13 +22,18 @@ find_package(rosidl_default_generators REQUIRED)
 
 # Declare ROS2 message, service, and action files
 set(msg_files
-  "msg/Detector.msg"
-  "msg/MultiDetect.msg"
-  "msg/EventStatus.msg"
-  "msg/Nav.msg"
+  "msg/cluster/DynamicObstacle.msg"
+  "msg/cluster/DynamicObstacleArray.msg"
   "msg/minco_traj/PositionCommand.msg"
   "msg/minco_traj/MpcPositionCommand.msg"
   "msg/Behavior.msg"
+  "msg/EnemyRobotStatus.msg"
+  "msg/RadarInfo.msg"
+  "msg/AllyRobotStatus.msg"
+  "msg/TeamInformation.msg"
+  "msg/GameInfo.msg"
+  "msg/SentryInfoOffline.msg"
+  "msg/SentryInfoOnline.msg"
 )
 
 # set(srv_files

@@ -21,7 +21,6 @@
  *
  */
 
-
 /**
  *	\file interfaces/octave/qpOASES_octave_utils.hpp
  *	\author Hans Joachim Ferreau, Andreas Potschka, Alexander Buchner
@@ -33,60 +32,54 @@
  *
  */
 
-
-
 /* Work-around for settings where mexErrMsgTxt causes unexpected behaviour. */
 #ifdef __AVOID_MEXERRMSGTXT__
-	#define myMexErrMsgTxt( TEXT ) mexPrintf( "%s\n\n",(TEXT) );
+#define myMexErrMsgTxt(TEXT) mexPrintf("%s\n\n", (TEXT));
 #else
-	#define myMexErrMsgTxt mexErrMsgTxt
+#define myMexErrMsgTxt mexErrMsgTxt
 #endif
-
 
 #include "mex.h"
 /* #include "matrix.h" */
 #include "string.h"
 #include <vector>
 
-
 /*
  * QProblem instance class
  */
 class QPInstance
 {
-	private:
-		static int_t s_nexthandle;
+private:
+  static int_t s_nexthandle;
 
-	public:
-		QPInstance(	uint_t _nV = 0,
-					uint_t _nC = 0,
-					HessianType _hessianType = HST_UNKNOWN,
-					BooleanType _isSimplyBounded = BT_FALSE
-					);
+public:
+  QPInstance(uint_t _nV = 0,
+    uint_t _nC = 0,
+    HessianType _hessianType = HST_UNKNOWN,
+    BooleanType _isSimplyBounded = BT_FALSE);
 
-		~QPInstance( );
-	
-		returnValue deleteQPMatrices();
-		
-		int_t getNV() const;
-		int_t getNC() const;
+  ~QPInstance();
 
-		int_t handle;
+  returnValue deleteQPMatrices();
 
-		SQProblem* sqp;
-		QProblemB* qpb;
-		BooleanType isSimplyBounded;
+  int_t getNV() const;
+  int_t getNC() const;
 
-		SymmetricMatrix* H;
-		Matrix* A;
-		sparse_int_t* Hir; 
-		sparse_int_t* Hjc; 
-		sparse_int_t* Air; 
-		sparse_int_t* Ajc;
-		real_t* Hv;
-		real_t* Av;
+  int_t handle;
+
+  SQProblem * sqp;
+  QProblemB * qpb;
+  BooleanType isSimplyBounded;
+
+  SymmetricMatrix * H;
+  Matrix * A;
+  sparse_int_t * Hir;
+  sparse_int_t * Hjc;
+  sparse_int_t * Air;
+  sparse_int_t * Ajc;
+  real_t * Hv;
+  real_t * Av;
 };
-
 
 /*
  *	end of file
