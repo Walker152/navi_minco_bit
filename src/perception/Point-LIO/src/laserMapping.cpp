@@ -14,6 +14,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/path.hpp>
 #include <std_msgs/msg/bool.hpp>
@@ -173,6 +174,13 @@ void MapIncremental()
     }
   }
   ivox_->AddPoints(points_to_add);
+
+  if (pcd_save_en && !points_to_add.empty()) {
+    global_map_ptr->points.insert(global_map_ptr->points.end(), points_to_add.begin(), points_to_add.end());
+    global_map_ptr->width = static_cast<uint32_t>(global_map_ptr->points.size());
+    global_map_ptr->height = 1;
+    global_map_ptr->is_dense = true;
+  }
 }
 
 void publish_init_map(
@@ -187,6 +195,27 @@ void publish_init_map(
   laserCloudmsg.header.stamp = get_ros_time(lidar_end_time);
   laserCloudmsg.header.frame_id = "camera_init";
   pubLaserCloudFullRes->publish(laserCloudmsg);
+}
+
+void publish_accumulated_map(
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pubLaserCloudMap)
+{
+  if (!pcd_save_en || accumulated_map_publish_hz <= 0.0 || !global_map_ptr || global_map_ptr->empty()) {
+    return;
+  }
+
+  static double last_publish_time = -std::numeric_limits<double>::infinity();
+  const double publish_period = 1.0 / accumulated_map_publish_hz;
+  if (lidar_end_time - last_publish_time < publish_period) {
+    return;
+  }
+  last_publish_time = lidar_end_time;
+
+  sensor_msgs::msg::PointCloud2 map_msg;
+  pcl::toROSMsg(*global_map_ptr, map_msg);
+  map_msg.header.stamp = get_ros_time(lidar_end_time);
+  map_msg.header.frame_id = "camera_init";
+  pubLaserCloudMap->publish(map_msg);
 }
 
 PointCloudXYZI::Ptr pcl_wait_pub(new PointCloudXYZI(500000, 1));
@@ -239,27 +268,6 @@ void publish_frame_body(
   laserCloudmsg.header.stamp = get_ros_time(lidar_end_time);
   laserCloudmsg.header.frame_id = "body";
   pubLaserCloudFull_body->publish(laserCloudmsg);
-}
-
-void publish_frame_dense_world(
-  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_laser_cloud_dense_world)
-{
-  if (!pub_laser_cloud_dense_world) {
-    return;
-  }
-
-  const int size = feats_undistort->points.size();
-  PointCloudXYZI::Ptr dense_world_cloud(new PointCloudXYZI(size, 1));
-
-  for (int i = 0; i < size; i++) {
-    pointBodyToWorld(&feats_undistort->points[i], &dense_world_cloud->points[i]);
-  }
-
-  sensor_msgs::msg::PointCloud2 cloud_msg;
-  pcl::toROSMsg(*dense_world_cloud, cloud_msg);
-  cloud_msg.header.stamp = get_ros_time(lidar_end_time);
-  cloud_msg.header.frame_id = "camera_init";
-  pub_laser_cloud_dense_world->publish(cloud_msg);
 }
 
 template <typename T> void set_posestamp(T & out)
@@ -425,7 +433,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     transform.child_frame_id = "body";
     transform.transform.translation.x = odomAftMapped.pose.pose.position.x;
     transform.transform.translation.y = odomAftMapped.pose.pose.position.y;
-    transform.transform.translation.z = 0;
+    transform.transform.translation.z = odomAftMapped.pose.pose.position.z;
     transform.transform.rotation.w = odomAftMapped.pose.pose.orientation.w;
     transform.transform.rotation.x = odomAftMapped.pose.pose.orientation.x;
     transform.transform.rotation.y = odomAftMapped.pose.pose.orientation.y;
@@ -436,9 +444,6 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     geometry_msgs::msg::TransformStamped transform_inverse;
     transform_inverse.header.frame_id = "camera_init";
     transform_inverse.child_frame_id = "base_link";
-    // transform_inverse.transform.translation.x = -0.00;
-    // transform_inverse.transform.translation.y = 0.21;
-    // transform_inverse.transform.translation.z = 0.0;
     tf2::Quaternion q;
     q.setRPY(0, 0, yaw_pose);
     // tf2::Vector3 offset_vec(0.0, 0.15, 0.0);
@@ -466,6 +471,19 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     transform_inverse.transform.rotation.z = 0;
     transform_inverse.header.stamp = odomAftMapped.header.stamp;
     tf_br->sendTransform(transform_inverse);
+
+    geometry_msgs::msg::TransformStamped transform_slam_base;
+    transform_slam_base.header.frame_id = "camera_init";
+    transform_slam_base.child_frame_id = "slambase";
+    transform_slam_base.transform.translation.x = odomAftMapped.pose.pose.position.x;
+    transform_slam_base.transform.translation.y = odomAftMapped.pose.pose.position.y;
+    transform_slam_base.transform.translation.z = odomAftMapped.pose.pose.position.z;
+    transform_slam_base.transform.rotation.w = q.w();
+    transform_slam_base.transform.rotation.x = q.x();
+    transform_slam_base.transform.rotation.y = q.y();
+    transform_slam_base.transform.rotation.z = q.z();
+    transform_slam_base.header.stamp = odomAftMapped.header.stamp;
+    tf_br->sendTransform(transform_slam_base);
   }
 }
 
@@ -559,8 +577,6 @@ int main(int argc, char ** argv)
     nh->create_subscription<sensor_msgs::msg::Imu>(imu_topic, rclcpp::SensorDataQoS(), imu_cbk);
   auto pub_laser_cloud_full_res =
     nh->create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered", 20);
-  auto pub_laser_cloud_dense_world =
-    nh->create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered_dense", 20);
   auto pub_laser_cloud_full_res_body =
     nh->create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered_body", 20);
   auto pub_laser_cloud_effect = nh->create_publisher<sensor_msgs::msg::PointCloud2>("cloud_effected", 20);
@@ -638,6 +654,7 @@ int main(int argc, char ** argv)
         {
           ivox_.reset(new IVoxType(ivox_options_));
         }
+        global_map_ptr->clear();
       }
 
       if (flg_first_scan) {
@@ -739,11 +756,21 @@ int main(int argc, char ** argv)
         if (init_feats_world->size() >= init_map_size) {
           if (enable_prior_pcd) {
             auto map_cloud = loadPointcloudFromPcd(prior_pcd_map_path);
-            ivox_->AddPoints(map_cloud->points);
+            if (map_cloud) {
+              ivox_->AddPoints(map_cloud->points);
+              if (pcd_save_en) {
+                *global_map_ptr += *map_cloud;
+              }
+            }
           } else {
             ivox_->AddPoints(init_feats_world->points);
+            if (pcd_save_en) {
+              *global_map_ptr += *init_feats_world;
+            }
           }
-          publish_init_map(pub_laser_cloud_map);
+          if (pcd_save_en) {
+            publish_init_map(pub_laser_cloud_map);
+          }
           init_feats_world.reset(new PointCloudXYZI());
           init_map = true;
         } else {
@@ -1211,12 +1238,10 @@ int main(int argc, char ** argv)
         publish_path(pub_path);
       if (scan_pub_en || pcd_save_en)
         publish_frame_world(pub_laser_cloud_full_res);
-      if (scan_pub_en)
-        publish_frame_dense_world(pub_laser_cloud_dense_world);
       if (scan_pub_en && scan_body_pub_en)
         publish_frame_body(pub_laser_cloud_full_res_body);
       if (scan_pub_en)
-        publish_init_map(pub_laser_cloud_map);
+        publish_accumulated_map(pub_laser_cloud_map);
 
       /*** Debug variables Logging ***/
       if (runtime_pos_log) {

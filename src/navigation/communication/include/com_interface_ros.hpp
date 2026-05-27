@@ -2,9 +2,9 @@
 // #define COMMUNICATION_DEBUG
 #include "header.hpp"
 #include "thread"
+#include <cstdlib>
 #include <deque>
 #include <limits>
-#include <cstdlib>
 
 #include "ros_interfaces/msg/ally_robot_status.hpp"
 #include "ros_interfaces/msg/behavior.hpp"
@@ -81,6 +81,7 @@ public:
     msg.speed_monitor_angle = in.speed_monitor_angle;
     msg.sentry_info_1 = in.sentry_info_1;
     msg.sentry_info_2 = in.sentry_info_2;
+    msg.energy_ratio = in.energy_ratio;
     msg.header.stamp = now();
     online_info_pub_->publish(msg);
   }
@@ -141,6 +142,8 @@ private:
   {
     cmd_vel_.linear.x = 0.0;
     cmd_vel_.linear.y = 0.0;
+    odom_.pose.pose.orientation.w = 1.0;
+    send_enable_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(2);
 
     comm_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     sub_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -169,13 +172,13 @@ private:
         odomCB(msg);
       },
       sub_opt);
-    astar_path_sub_ = create_subscription<nav_msgs::msg::Path>(
-      "/astar_path_vis",
-      rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
-      [this](nav_msgs::msg::Path::ConstSharedPtr msg) {
-        astarPathCB(msg);
-      },
-      sub_opt);
+    // astar_path_sub_ = create_subscription<nav_msgs::msg::Path>(
+    //   "/astar_path_vis",
+    //   rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
+    //   [this](nav_msgs::msg::Path::ConstSharedPtr msg) {
+    //     astarPathCB(msg);
+    //   },
+    //   sub_opt);
     behavior_sub_ = create_subscription<ros_interfaces::msg::Behavior>(
       "/sentry/behaivor_send",
       1,
@@ -207,6 +210,10 @@ private:
 
   void communicationLoop()
   {
+    if (std::chrono::steady_clock::now() < send_enable_time_) {
+      return;
+    }
+
     // Chassis control variables
     float vx_mps = 0.0f;
     float vy_mps = 0.0f;
@@ -231,7 +238,7 @@ private:
     uint8_t revive_req = 0;
     uint8_t health_req = 0;
     bool use_limited_scan = false;
-    bool is_aim_enemy = true;
+    bool not_aim_enemy = true;
 
     bool use_gyro_mode = false;
     float gyro_vel = 0.0f;
@@ -239,13 +246,13 @@ private:
     {
       // Snapshot shared state to avoid data races.
       std::lock_guard<std::mutex> lk(state_mutex_);
-      vx_mps = cmd_vel_.linear.x;
+      vx_mps = static_cast<float>(cmd_vel_.linear.x);
       // vx_mps = 3.0f;
-      vy_mps = cmd_vel_.linear.y;
+      vy_mps = static_cast<float>(cmd_vel_.linear.y);
       // vy_mps = 0.0f;
 
       vw_rpm = static_cast<float>(cmd_vel_.angular.z * 60.0 / (2.0 * M_PI));
-      
+
       current_vx = odom_.twist.twist.linear.x;
       current_vy = odom_.twist.twist.linear.y;
       current_vw = odom_.twist.twist.angular.z;
@@ -268,8 +275,11 @@ private:
       revive_req = behavior_.remote_revive_request;
       health_req = behavior_.remote_health_request;
       use_limited_scan = behavior_.use_limited_scan;
-      is_aim_enemy = behavior_.is_aim_enemy;
-      vw_rpm = gyro_vel;
+      not_aim_enemy = behavior_.not_aim_enemy;
+      if (use_gyro_mode) {
+        vw_rpm = gyro_vel;
+      }
+
       // vw_rpm = -80.0f;
     }
 
@@ -291,9 +301,8 @@ private:
       fw_global,
       1,
       delta_yaw);
-    
-    BehaviorData behavior_data(
-      pitch_mode,
+
+    BehaviorData behavior_data(pitch_mode,
       desire_stance,
       desire_lifter_pos,
       scan_yaw_min_deg_,
@@ -304,7 +313,7 @@ private:
       ammo_req,
       health_req,
       0,
-      is_aim_enemy);
+      not_aim_enemy);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
 #ifdef COMMUNICATION_DEBUG
     if (flag == 0) {
@@ -326,7 +335,9 @@ private:
       }
     }
 #endif
-    std::this_thread::sleep_for(std::chrono::milliseconds(2));  // Avoid sending two packets in the same millisecond, which can cause issues for STM32's UART DMA parsing.
+    std::this_thread::sleep_for(
+      std::chrono::milliseconds(2));  // Avoid sending two packets in the same millisecond, which can cause
+                                      // issues for STM32's UART DMA parsing.
     auto flag2 = Communication::send2stm32<BehaviorData>(behavior_data, ENUM_PACKET_BEHAVIOR_DATA);
 #ifdef COMMUNICATION_DEBUG
     if (flag2 == 0) {
@@ -384,9 +395,9 @@ private:
     mini_y = p_minimap.y();
   }
 
-  GlobalPath buildGlobalPathPacket(const nav_msgs::msg::Path & path)
+  bool tryBuildGlobalPathPacket(const nav_msgs::msg::Path & path, GlobalPath & out)
   {
-    GlobalPath out{};
+    out = GlobalPath{};
     constexpr size_t kSampleNum = 49;
     constexpr double kCoordScaleDm = 10.0;  // convert meter-based coords to decimeter for protocol
 
@@ -454,10 +465,33 @@ private:
     }
 
     if (valid_num == 0) {
-      return out;
+      return true;
     }
 
-    const auto tf_stamped = tf_buffer_->lookupTransform(minimap_frame_, map_frame_, tf2::TimePointZero);
+    if (!tf_buffer_->canTransform(minimap_frame_, map_frame_, tf2::TimePointZero)) {
+      RCLCPP_DEBUG_THROTTLE(this->get_logger(),
+        *this->get_clock(),
+        2000,
+        "Waiting for TF %s -> %s before packing global path",
+        map_frame_.c_str(),
+        minimap_frame_.c_str());
+      return false;
+    }
+
+    geometry_msgs::msg::TransformStamped tf_stamped;
+    try {
+      tf_stamped = tf_buffer_->lookupTransform(minimap_frame_, map_frame_, tf2::TimePointZero);
+    } catch (const tf2::TransformException & ex) {
+      RCLCPP_DEBUG_THROTTLE(this->get_logger(),
+        *this->get_clock(),
+        2000,
+        "Waiting for TF %s -> %s before packing global path: %s",
+        map_frame_.c_str(),
+        minimap_frame_.c_str(),
+        ex.what());
+      return false;
+    }
+
     tf2::Transform tf_map_to_minimap;
     tf2::fromMsg(tf_stamped.transform, tf_map_to_minimap);
 
@@ -494,12 +528,15 @@ private:
       out.delta_x[i] = 0;
       out.delta_y[i] = 0;
     }
-    return out;
+    return true;
   }
 
   void astarPathCB(const nav_msgs::msg::Path::ConstSharedPtr & pathPtr)
   {
-    GlobalPath packet = buildGlobalPathPacket(*pathPtr);
+    GlobalPath packet{};
+    if (!tryBuildGlobalPathPacket(*pathPtr, packet)) {
+      return;
+    }
     std::lock_guard<std::mutex> lk(path_mutex_);
     pending_global_path_ = packet;
   }
@@ -525,8 +562,8 @@ private:
     updateDeltaYaw(odomPtr->header.stamp, odomPtr->pose.pose.orientation);
   }
 
-  void updateDeltaYaw(const builtin_interfaces::msg::Time & stamp_msg,
-    const geometry_msgs::msg::Quaternion & orientation)
+  void updateDeltaYaw(
+    const builtin_interfaces::msg::Time & stamp_msg, const geometry_msgs::msg::Quaternion & orientation)
   {
     const rclcpp::Time stamp(stamp_msg);
     const int64_t window_ns = imu_yaw_window_ms_ * 1000000L;
@@ -568,9 +605,8 @@ private:
     {
       std::lock_guard<std::mutex> lk(state_mutex_);
       delta_yaw_ = delta;
-      std::cout << "Delta yaw updated: " << delta_yaw_ << " degrees (matched_imu_yaw=" << matched_imu_yaw
-                << ", found=" << found << ")" << std::endl;
-                
+      // std::cout << "Delta yaw updated: " << delta_yaw_ << " degrees (matched_imu_yaw=" << matched_imu_yaw
+      //           << ", found=" << found << ")" << std::endl;
     }
   }
 
@@ -578,7 +614,7 @@ private:
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr chassis_sub_;
   rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr cmd_wrench_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-  rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr astar_path_sub_;
+  // rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr astar_path_sub_;
   rclcpp::Subscription<ros_interfaces::msg::Behavior>::SharedPtr behavior_sub_;
 
   // Publishers
@@ -623,6 +659,7 @@ private:
   geometry_msgs::msg::Twist cmd_vel_;
   geometry_msgs::msg::Wrench cmd_wrench_;
   nav_msgs::msg::Odometry odom_;
+  std::chrono::steady_clock::time_point send_enable_time_{std::chrono::steady_clock::now()};
   float transform_state = 0.0f;
   float delta_yaw_{0.0f};
 };

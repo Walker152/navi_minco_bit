@@ -20,6 +20,10 @@ def generate_launch_description():
             'bt_debug_log_file',
             default_value=bt_manager_share + '/logs/bt_transition.log',
             description='Behavior-tree transition log file path'),
+        DeclareLaunchArgument(
+            'publish_area_markers',
+            default_value='true',
+            description='Whether to publish area markers for visualization'),
         Node(
             package='bt_manager',
             executable='bt_manager_node',
@@ -30,5 +34,6 @@ def generate_launch_description():
                 'bt_debug_log_to_file': ParameterValue(
                     LaunchConfiguration('bt_debug_log_to_file'), value_type=bool),
                 'bt_debug_log_file': LaunchConfiguration('bt_debug_log_file'),
+                'publish_area_markers': ParameterValue(LaunchConfiguration('publish_area_markers'), value_type=bool),
             }]),
     ])

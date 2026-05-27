@@ -8,7 +8,7 @@ namespace Sentry_BT {
 
 // ------------------- RequestReviveAction -------------------
 RequestReviveAction::RequestReviveAction(const std::string & name, const BT::NodeConfiguration & config)
-: BT::SyncActionNode(name, config)
+: BT::StatefulActionNode(name, config)  // 注意这里基类变了
 {
 }
 
@@ -17,48 +17,55 @@ BT::PortsList RequestReviveAction::providedPorts()
   return {BT::InputPort<std::string>("revive_type", "free", "free or instant")};
 }
 
-BT::NodeStatus RequestReviveAction::tick()
+BT::NodeStatus RequestReviveAction::onStart()
 {
   auto blackboard = config().blackboard;
   const std::string revive_type = getInput<std::string>("revive_type").value_or("free");
   if (revive_type == "free") {
     if (!blackboard->get<bool>("can_free_resurrect")) {
-    detail::logTransition(detail::TreeKind::RESOURCE,
-      "RequestReviveAction",
-      false,
-      "can_free_resurrect=false, revive_type=" + revive_type);
-    return BT::NodeStatus::FAILURE;
-  }
+      detail::logTransition(
+        detail::TreeKind::RESOURCE, "RequestReviveAction", false, "can_free_resurrect=false");
+      return BT::NodeStatus::FAILURE;
+    }
     blackboard->set<uint8_t>("revive_request", 1);
-    detail::logTransition(
-      detail::TreeKind::RESOURCE, "RequestReviveAction", true, "revive_type=free");
+    detail::logTransition(detail::TreeKind::RESOURCE, "RequestReviveAction", true, "revive_type=free");
   } else if (revive_type == "instant") {
     const int cost = blackboard->get<int>("instant_resurrect_cost");
     const int coin = blackboard->get<int>("coin_remaining");
     if (coin < cost) {
       detail::logTransition(
-        detail::TreeKind::RESOURCE,
-        "RequestReviveAction",
-        false,
-        "revive_type=instant, cost=" + std::to_string(cost) + ", coin=" + std::to_string(coin));
+        detail::TreeKind::RESOURCE, "RequestReviveAction", false, "revive_type=instant, not enough coin");
       return BT::NodeStatus::FAILURE;
     }
-    revive_request_num++;
-    blackboard->set<uint8_t>("remote_revive_request", revive_request_num);
-    detail::logTransition(
-      detail::TreeKind::RESOURCE,
-      "RequestReviveAction",
-      true,
-      "revive_type=instant, cost=" + std::to_string(cost));
+    blackboard->set<uint8_t>("remote_revive_request", 1);
+    detail::logTransition(detail::TreeKind::RESOURCE, "RequestReviveAction", true, "revive_type=instant");
   } else {
-    detail::logTransition(
-      detail::TreeKind::RESOURCE, "RequestReviveAction", false, "unknown revive_type=" + revive_type);
+    return BT::NodeStatus::FAILURE;
   }
+  return BT::NodeStatus::RUNNING;
+}
+
+// 第二帧：立即复位为 0，并报告成功
+BT::NodeStatus RequestReviveAction::onRunning()
+{
+  auto blackboard = config().blackboard;
+
+  blackboard->set<uint8_t>("revive_request", 0);
+  blackboard->set<uint8_t>("remote_revive_request", 0);
+
   return BT::NodeStatus::SUCCESS;
 }
 
+void RequestReviveAction::onHalted()
+{
+  auto blackboard = config().blackboard;
+  blackboard->set<uint8_t>("revive_request", 0);
+  blackboard->set<uint8_t>("remote_revive_request", 0);
+}
+
 // ------------------- RequestRemoteAmmoExchangeAction -------------------
-RequestRemoteAmmoExchangeAction::RequestRemoteAmmoExchangeAction(const std::string & name, const BT::NodeConfiguration & config)
+RequestRemoteAmmoExchangeAction::RequestRemoteAmmoExchangeAction(
+  const std::string & name, const BT::NodeConfiguration & config)
 : BT::SyncActionNode(name, config)
 {
 }
@@ -71,18 +78,20 @@ BT::PortsList RequestRemoteAmmoExchangeAction::providedPorts()
 BT::NodeStatus RequestRemoteAmmoExchangeAction::tick()
 {
   auto blackboard = config().blackboard;
-  ammo_exchange_request_num++;
-  blackboard->set<uint8_t>("remote_ammo_request", ammo_exchange_request_num);
-  detail::logTransition(
-    detail::TreeKind::RESOURCE,
+  const int success_count = blackboard->get<int>("remote_ammo_exchange_count");
+  const auto request_num = static_cast<uint8_t>(success_count + 1);
+  blackboard->set<uint8_t>("remote_ammo_request", request_num);
+  detail::logTransition(detail::TreeKind::RESOURCE,
     "RequestRemoteAmmoExchangeAction",
     true,
-    "total_request_num=" + std::to_string(static_cast<int>(ammo_exchange_request_num)));
+    "success_count=" + std::to_string(success_count) +
+      ", request_num=" + std::to_string(static_cast<int>(request_num)));
   return BT::NodeStatus::SUCCESS;
 }
 
 // ------------------- RequestRemoteHealthExchangeAction -------------------
-RequestRemoteHealthExchangeAction::RequestRemoteHealthExchangeAction(const std::string & name, const BT::NodeConfiguration & config)
+RequestRemoteHealthExchangeAction::RequestRemoteHealthExchangeAction(
+  const std::string & name, const BT::NodeConfiguration & config)
 : BT::SyncActionNode(name, config)
 {
 }
@@ -95,13 +104,14 @@ BT::PortsList RequestRemoteHealthExchangeAction::providedPorts()
 BT::NodeStatus RequestRemoteHealthExchangeAction::tick()
 {
   auto blackboard = config().blackboard;
-  ++health_exchange_request_num;
-  blackboard->set<uint8_t>("remote_health_request", health_exchange_request_num);
-  detail::logTransition(
-    detail::TreeKind::RESOURCE,
+  const int success_count = blackboard->get<int>("remote_health_exchange_count");
+  const auto request_num = static_cast<uint8_t>(success_count + 1);
+  blackboard->set<uint8_t>("remote_health_request", request_num);
+  detail::logTransition(detail::TreeKind::RESOURCE,
     "RequestRemoteHealthExchangeAction",
     true,
-    "total_request_num=" + std::to_string(static_cast<int>(health_exchange_request_num)));
+    "success_count=" + std::to_string(success_count) +
+      ", request_num=" + std::to_string(static_cast<int>(request_num)));
   return BT::NodeStatus::SUCCESS;
 }
 }  // namespace Sentry_BT

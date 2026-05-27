@@ -234,7 +234,7 @@ global_costmap:
         update_footprint_enabled: true
         combination_method: 1
         origin_z: 0.0
-        publish_voxel_map: true
+        publish_voxel_map: false
         transform_tolerance: 0.2
         mapping_mode: false
         map_save_duration: 60.0
@@ -292,7 +292,6 @@ planner_server:
       use_smac: true
       allow_unknown: false
       odom_topic: /aft_mapped_to_init
-
       corridor:
         robot_radius: 0.25
         extra_margin: 0.05
@@ -312,10 +311,10 @@ planner_server:
         max_velocity: 3.0
         max_acceleration: 2.0
         max_yaw_dot: 5.0
-        turn_angle_deadzone: 0.2
-        turn_angle_saturation: 1.2
+        turn_angle_deadzone: 0.1
+        turn_angle_saturation: 1.0
         min_turn_vel: 1.0
-        decay_power: 2.0
+        decay_power: 1.7
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16

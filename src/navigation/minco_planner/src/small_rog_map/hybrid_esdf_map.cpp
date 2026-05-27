@@ -72,7 +72,7 @@ void HybridESDFMap::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::
   constexpr double kMaxDist = 3.0;
   // 定义最大穿透深度 (负值)，这取决于你的机器人半径或狭窄通道的容忍度
   // 比如设置为 -1.0 表示深入障碍物1米内仍有梯度指引出来
-  constexpr double kMinDist = -1.5; 
+  constexpr double kMinDist = -1.5;
 
   auto clamp = [](double & d, Eigen::Vector3d & g) {
     if (!std::isfinite(d)) {
@@ -87,7 +87,7 @@ void HybridESDFMap::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::
     }
     if (d < kMinDist) {
       d = kMinDist;
-      g.setZero(); // 穿透太深超过阈值，不再提供梯度(避免数值发散)
+      g.setZero();  // 穿透太深超过阈值，不再提供梯度(避免数值发散)
       return;
     }
   };

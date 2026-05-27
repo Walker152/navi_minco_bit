@@ -5,6 +5,8 @@
 #include <behaviortree_cpp_v3/action_node.h>
 
 #include <chrono>
+#include <cstddef>
+#include <random>
 
 namespace Sentry_BT {
 class SetGyroState : public BT::SyncActionNode
@@ -14,6 +16,19 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+
+private:
+  bool shouldReverseRotation(
+    bool use_gyro, int ammo_purchase_total, int bullets_remaining, int game_time_remaining);
+
+  bool random_speed_enabled_{false};
+  bool random_initialized_{false};
+  float current_gyro_vel_{0.0f};
+  std::size_t current_speed_index_{0};
+  std::chrono::steady_clock::time_point last_speed_change_time_;
+  bool reverse_initialized_{false};
+  std::chrono::steady_clock::time_point reverse_start_time_;
+  std::mt19937 rng_{std::random_device{}()};
 };
 
 class TunnelGyroAlignAction : public BT::ActionNodeBase

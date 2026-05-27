@@ -14,7 +14,7 @@ inline bool compareByMode(const float lhs, const float rhs, const std::string & 
     return lhs >= rhs;
   }
   if (mode == "less") {
-    return lhs < rhs;
+    return lhs <= rhs;
   }
   return false;
 }
@@ -128,6 +128,14 @@ private:
   float last_health_ = 100.0f;
   bool health_initialized_ = false;
   rclcpp::Time last_hurt_time_;
+};
+
+class CheckInEnemyFortZone : public BT::ConditionNode
+{
+public:
+  CheckInEnemyFortZone(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
 };
 
 }  // namespace Sentry_BT

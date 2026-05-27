@@ -16,9 +16,49 @@ SetGyroState::SetGyroState(const std::string & name, const BT::NodeConfiguration
 
 BT::PortsList SetGyroState::providedPorts()
 {
-  return {BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
+  return {
+    BT::InputPort<bool>("use_gyro", "Whether to enable gyro mode"),
     BT::InputPort<float>("gyro_vel", "Gyro speed in rpm"),
+    BT::InputPort<bool>("random_speed", false, "Enable random gyro speed switching"),
+    BT::InputPort<float>("change_speed_duration", 0.0f, "Random speed change interval (s)"),
   };
+}
+
+bool SetGyroState::shouldReverseRotation(
+  bool use_gyro, int ammo_purchase_total, int bullets_remaining, int game_time_remaining)
+{
+  if (!use_gyro) {
+    reverse_initialized_ = false;
+    return false;
+  }
+
+  constexpr int kInitialAmmoAllowance = 300;
+  constexpr int kMatchDurationSec = 420;
+  constexpr int kAmmoAllowanceIntervalSec = 60;
+  constexpr int kAmmoAllowancePerInterval = 100;
+  const int elapsed_time = std::max(0, kMatchDurationSec - game_time_remaining);
+  const int time_bonus_ammo = (elapsed_time / kAmmoAllowanceIntervalSec) * kAmmoAllowancePerInterval;
+  const int fired_count =
+    std::max(0, kInitialAmmoAllowance + ammo_purchase_total + time_bonus_ammo - bullets_remaining);
+  if (fired_count <= 200) {
+    reverse_initialized_ = false;
+    return false;
+  }
+
+  constexpr double kMinReverseHz = 0.1;
+  constexpr double kMaxReverseHz = 0.2;
+  const double ratio = std::clamp((static_cast<double>(fired_count) - 200.0) / 100.0, 0.0, 1.0);
+  const double reverse_hz = kMinReverseHz + (kMaxReverseHz - kMinReverseHz) * ratio;
+
+  const auto now = std::chrono::steady_clock::now();
+  if (!reverse_initialized_) {
+    reverse_initialized_ = true;
+    reverse_start_time_ = now;
+  }
+
+  const double elapsed = std::chrono::duration<double>(now - reverse_start_time_).count();
+  const auto phase = static_cast<int>(std::floor(elapsed * reverse_hz));
+  return (phase % 2) == 0;
 }
 
 BT::NodeStatus SetGyroState::tick()
@@ -26,8 +66,30 @@ BT::NodeStatus SetGyroState::tick()
   auto blackboard = config().blackboard;
   const bool use_gyro = getInput<bool>("use_gyro").value_or(blackboard->get<bool>("use_gyro_mode"));
   const float gyro_vel = getInput<float>("gyro_vel").value_or(blackboard->get<float>("gyro_vel"));
+  const bool random_speed = getInput<bool>("random_speed").value_or(false);
+  const int ammo_purchase_total = blackboard->get<int>("ammo_purchase_total");
+  const int bullets_remaining = blackboard->get<int>("bullets_remaining");
+  const int game_time_remaining = blackboard->get<int>("game_time_remaining");
+
+  random_initialized_ = false;
+  random_speed_enabled_ = false;
+  current_gyro_vel_ = gyro_vel;
+
+  const bool reverse_now =
+    shouldReverseRotation(use_gyro, ammo_purchase_total, bullets_remaining, game_time_remaining);
+  // const bool reverse_now = false;
+  const float base_speed = reverse_now ? -current_gyro_vel_ : current_gyro_vel_;
+  float output_gyro_vel = base_speed;
+  if (random_speed) {
+    const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+    const auto & q = current_pose.orientation;
+    const double yaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+    const float speed_scale = 1.0f + 0.3f * static_cast<float>(std::sin(yaw));
+    output_gyro_vel = base_speed * speed_scale;
+  }
+
   blackboard->set("use_gyro_mode", use_gyro);
-  blackboard->set("gyro_vel", gyro_vel);
+  blackboard->set("gyro_vel", output_gyro_vel);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -149,8 +211,7 @@ BT::NodeStatus TunnelGyroAlignAction::tick()
   const double error_backward = wrapAngle(base_target_yaw + M_PI - current_yaw);
   double yaw_error = 0.0;
   if (!pid_initialized_) {
-    yaw_error =
-      (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
+    yaw_error = (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
   } else {
     const double forward_abs = std::abs(error_forward);
     const double backward_abs = std::abs(error_backward);
@@ -177,8 +238,7 @@ BT::NodeStatus TunnelGyroAlignAction::tick()
   std::ostringstream oss;
   oss << "tunnel_idx=" << active_tunnel_idx << ", gyro_vel=" << computed_gyro_vel
       << ", yaw_error=" << yaw_error;
-  detail::logTransition(
-    detail::TreeKind::STANCE, "TunnelGyroAlignAction", true, oss.str(), branch);
+  detail::logTransition(detail::TreeKind::STANCE, "TunnelGyroAlignAction", true, oss.str(), branch);
 
   return BT::NodeStatus::RUNNING;
 }
@@ -217,9 +277,14 @@ BT::NodeStatus ChangeStance::onStart()
   auto blackboard = config().blackboard;
   const std::string stance_str = getInput<std::string>("stance").value_or("DEFEND");
   desired_stance_ = parse_stance(stance_str);
+  const auto energy_ratio = blackboard->get<EnergyRatio>("energy_ratio");
+  if (energy_ratio == EnergyRatio::BELOW_1) {
+    desired_stance_ = SentryStance::MOVE;
+  }
   current_stance_ = blackboard->get<SentryStance>("current_stance");
 
   if (current_stance_ == desired_stance_) {
+    blackboard->set<SentryStance>("desired_stance", desired_stance_);
     return BT::NodeStatus::SUCCESS;
   }
   return applyStanceChange();
@@ -245,12 +310,16 @@ BT::NodeStatus ChangeStance::applyStanceChange()
   };
 
   auto blackboard = config().blackboard;
+  const auto energy_ratio = blackboard->get<EnergyRatio>("energy_ratio");
+  if (energy_ratio == EnergyRatio::BELOW_1) {
+    desired_stance_ = SentryStance::MOVE;
+  }
   current_stance_ = blackboard->get<SentryStance>("current_stance");
+  blackboard->set<SentryStance>("desired_stance", desired_stance_);
   if (current_stance_ == desired_stance_) {
     return BT::NodeStatus::SUCCESS;
   }
 
-  blackboard->set<SentryStance>("desired_stance", desired_stance_);
   // blackboard->set<SentryStance>("current_stance", desired_stance_);
   // std::cout << MAGENTA << "[STANCE_TREE]" << GREEN << "Change from stance "
   //           << stance_to_string(current_stance_) << " to stance " << stance_to_string(desired_stance_)
@@ -277,7 +346,7 @@ BT::NodeStatus UpdateEnhanceTime::tick()
   const int game_status = blackboard->get<int>("game_status");
 
   constexpr int kMaxGameTime = 420;
-  const bool game_active = (game_status > 0) || (current_time > 0 && current_time <= kMaxGameTime);
+  const bool game_active = (game_status == 4) || (current_time > 0 && current_time <= kMaxGameTime);
 
   if (last_game_time_ < 0) {
     last_game_time_ = current_time;

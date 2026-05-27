@@ -549,7 +549,6 @@ void MincoMpcController::applyGravityCompensation(
   constexpr double k_gravity_x = 1.0;
   constexpr double k_gravity_y = 20.0;
 
-
   double body_comp_x = 0.0;
   double body_comp_y = 0.0;
   if (std::abs(pitch) > angle_threshold) {
@@ -734,14 +733,6 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   double vy_mpc = u_global.vy;
   double wz = fixed_wz_;
 
-  if (cmd_vel_mpc_pub_) {
-    geometry_msgs::msg::Twist raw_cmd;
-    raw_cmd.linear.x = vx_mpc;
-    raw_cmd.linear.y = vy_mpc;
-    raw_cmd.angular.z = u_global.omega;
-    cmd_vel_mpc_pub_->publish(raw_cmd);
-  }
-
   // 小陀螺模式：当启用时，始终输出固定的旋转速度，而不使用 MPC 输出的角速度。
   if (!use_small_gyro_mode_) {
     wz = std::min(mpc_config_.omega_max, std::max(mpc_config_.omega_min, u_global.omega));
@@ -773,6 +764,38 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   if (std::hypot(vx, vy) < deadzone) {
     vx = 0.0;
     vy = 0.0;
+  }
+  constexpr double goal_pos_threshold = 0.3;
+  bool stop_mpc_cmd = false;
+  geometry_msgs::msg::PoseStamped goal_pose_stamped;
+  {
+    std::lock_guard<std::mutex> lk(plan_mtx_);
+    if (!global_plan_.poses.empty()) {
+      goal_pose_stamped = global_plan_.poses.back();
+    }
+  }
+  if (!goal_pose_stamped.header.frame_id.empty()) {
+    geometry_msgs::msg::PoseStamped goal_pose_in_odom = goal_pose_stamped;
+    if (goal_pose_in_odom.header.frame_id != odom_frame_) {
+      try {
+        goal_pose_in_odom = tf_->transform(goal_pose_in_odom, odom_frame_);
+      } catch (const tf2::TransformException &) {
+        goal_pose_in_odom.header.frame_id.clear();
+      }
+    }
+    if (!goal_pose_in_odom.header.frame_id.empty()) {
+      const double dx = pose.pose.position.x - goal_pose_in_odom.pose.position.x;
+      const double dy = pose.pose.position.y - goal_pose_in_odom.pose.position.y;
+      const double dist = std::hypot(dx, dy);
+      stop_mpc_cmd = (dist <= goal_pos_threshold);
+    }
+  }
+  if (cmd_vel_mpc_pub_) {
+    geometry_msgs::msg::Twist raw_cmd;
+    raw_cmd.linear.x = stop_mpc_cmd ? 0.0 : vx;
+    raw_cmd.linear.y = stop_mpc_cmd ? 0.0 : vy;
+    raw_cmd.angular.z = stop_mpc_cmd ? 0.0 : wz;
+    cmd_vel_mpc_pub_->publish(raw_cmd);
   }
   // applyGravityCompensation(latest_odom, vx, vy);
   cmd.twist.linear.x = vx;
