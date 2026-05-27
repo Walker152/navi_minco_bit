@@ -1,9 +1,6 @@
 #pragma once
 
-#include <chrono>
-#include <cmath>
 #include <iostream>
-#include <string>
 
 #include "bt_manager/utils/log.hpp"
 #include "bt_manager/utils/nav_zone.hpp"
@@ -145,13 +142,13 @@ public:
                 << nav_goal.y << ")" << RESET << std::endl;
     }
   }
-  
+
   void halt() override
   {
     has_last_goal_ = false;
     nav2_behavior_tree::BtActionNode<nav2_msgs::action::NavigateToPose>::halt();
   }
-  
+
   BT::NodeStatus on_cancelled() override
   {
     has_last_goal_ = false;
@@ -163,7 +160,7 @@ public:
     has_last_goal_ = false;
     return BT::NodeStatus::FAILURE;
   }
-  
+
 private:
   Sentry_BT::Point2D last_goal_{};
   bool has_last_goal_ = false;

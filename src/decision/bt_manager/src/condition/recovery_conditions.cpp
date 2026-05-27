@@ -65,12 +65,12 @@ BT::NodeStatus CheckTimeInZone::tick()
 
   auto blackboard = config().blackboard;
   const bool in_zone = blackboard->get<bool>("in_transform_zone");
-  const int zone_index = blackboard->get<int>("current_transform_zone_index");
+  const int zone_index = blackboard->get<int>("nearest_tunnel_idx");
 
   if (!in_zone) {
     was_in_zone_ = false;
-    detail::logTransition(detail::TreeKind::RECOVERY, "CheckTimeInZone", false,
-      "not in transform_zone", branch);
+    detail::logTransition(
+      detail::TreeKind::RECOVERY, "CheckTimeInZone", false, "not in transform_zone", branch);
     return BT::NodeStatus::FAILURE;
   }
 
@@ -83,15 +83,15 @@ BT::NodeStatus CheckTimeInZone::tick()
   const double duration = std::chrono::duration<double>(now - entry_time_).count();
   if (duration >= min_seconds && duration < max_seconds) {
     std::ostringstream oss;
-    oss << "zone_idx=" << zone_index << ", duration=" << duration
-        << "s, window=[" << min_seconds << ", " << max_seconds << ")";
+    oss << "zone_idx=" << zone_index << ", duration=" << duration << "s, window=[" << min_seconds << ", "
+        << max_seconds << ")";
     detail::logTransition(detail::TreeKind::RECOVERY, "CheckTimeInZone", true, oss.str(), branch);
     return BT::NodeStatus::SUCCESS;
   }
 
   std::ostringstream oss;
-  oss << "zone_idx=" << zone_index << ", duration=" << duration
-      << "s, window=[" << min_seconds << ", " << max_seconds << ")";
+  oss << "zone_idx=" << zone_index << ", duration=" << duration << "s, window=[" << min_seconds << ", "
+      << max_seconds << ")";
   detail::logTransition(detail::TreeKind::RECOVERY, "CheckTimeInZone", false, oss.str(), branch);
 
   return BT::NodeStatus::FAILURE;

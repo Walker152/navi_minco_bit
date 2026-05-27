@@ -16,15 +16,49 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+};
+
+class CheckGameTimeWindow : public BT::ConditionNode
+{
+public:
+  CheckGameTimeWindow(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckBigEnergyActive : public BT::ConditionNode
+{
+public:
+  CheckBigEnergyActive(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
 
 private:
-  double health_threshold;
+  bool energy_activated = false;
 };
 
 class CheckOutpostRemained : public BT::ConditionNode
 {
 public:
   CheckOutpostRemained(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class SetEnemyOutpostDestroyed : public BT::ConditionNode
+{
+public:
+  SetEnemyOutpostDestroyed(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckOwnOutpostAlive : public BT::ConditionNode
+{
+public:
+  CheckOwnOutpostAlive(const std::string & name, const BT::NodeConfiguration & config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;

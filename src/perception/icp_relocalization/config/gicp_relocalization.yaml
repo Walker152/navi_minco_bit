@@ -3,15 +3,15 @@ gicp_relocalization_node:
     # General Configuration
     mode: "initial_guess" # Options: "multi_guess", "initial_guess"
     # target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/2026rmuc.pcd"
-    target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/111.pcd"
-    # target_pcd_file: "src/navigation/navi2_bringup/maps/hotel.pcd"
+    # target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/111.pcd"
+    target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/pcd_rmuc2026_jinan_trans.pcd"
     # target_pcd_file: "src/navigation/navi2_bringup/maps/pcd/2026rmul.pcd"
     map_frame: "map"
     visualization_en: true
-    source_cloud_topic: "/cloud_registered_dense"
+    source_cloud_topic: "/cloud_registered"
     alignment_frequency: 5.0
     accumulate_frames: 3
-    tf_publish_frequency: 30.0
+    tf_publish_frequency: 100.0
     # Convergence Criteria (small_gicp score, lower is better)
     gicp:
       score_threshold: 200.0

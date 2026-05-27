@@ -271,7 +271,7 @@ void DynamicLayer::updateFromPointCloud(const sensor_msgs::msg::PointCloud2 & cl
   std::vector<double> dist_m(expected, kFarDistance);
   for (size_t i = 0; i < expected; ++i) {
     double d_raw = 0.0;
-    
+
     if (occ01[i] == 1U) {
       // 位于空闲空间，获取正距离
       const double d2 = dist_sq_pos[i];
@@ -284,12 +284,12 @@ void DynamicLayer::updateFromPointCloud(const sensor_msgs::msg::PointCloud2 & cl
 
     // 引入膨胀半径 (正距离变小，负距离变得更负，逻辑自洽)
     const double d_dilated = d_raw - dilation_radius_m;
-    
+
     if (!std::isfinite(d_dilated)) {
       dist_m[i] = (occ01[i] == 1U) ? kFarDistance : -kFarDistance;
       continue;
     }
-    
+
     dist_m[i] = d_dilated;
   }
 

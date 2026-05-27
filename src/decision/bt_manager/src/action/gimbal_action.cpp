@@ -1,8 +1,5 @@
 #include "bt_manager/action/gimbal_action.hpp"
-
-#include <algorithm>
-#include <iostream>
-#include <sstream>
+#include "bt_manager/utils/nav_zone.hpp"
 
 namespace Sentry_BT {
 TrackTargetAction::TrackTargetAction(const std::string & name, const BT::NodeConfiguration & config)
@@ -66,18 +63,16 @@ SetGimbalPose::SetGimbalPose(const std::string & name, const BT::NodeConfigurati
 
 BT::PortsList SetGimbalPose::providedPorts()
 {
-  return {BT::InputPort<float>("pan"), BT::InputPort<float>("tilt")};
+  return {BT::InputPort<int>("mode")};
 }
 
 BT::NodeStatus SetGimbalPose::tick()
 {
   auto blackboard = config().blackboard;
 
-  const auto pan = getInput<float>("pan");
-  const auto tilt = getInput<float>("tilt");
-  const float target_pan = pan ? pan.value() : 0.0f;
-  const float target_tilt = tilt ? tilt.value() : 0.0f;
-
+  const auto gimbal_mode = getInput<int>("mode");
+  const PitchPos pos = gimbal_mode == 1 ? PitchPos::DOWN : PitchPos::UP;
+  blackboard->set<PitchPos>("pitch_mode", pos);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -102,7 +97,10 @@ BT::NodeStatus SetGimbalPoseByAreaAction::tick()
   bool is_in_zone = false;
   PatrolZoneType target_zone;
 
-  if (enemy_defense_zone.contains(current_pt)) {
+  if (own_outpost_buff_zone.contains(current_pt)) {
+    target_zone = PatrolZoneType::OWN_OUTPOST;
+    is_in_zone = true;
+  } else if (enemy_defense_zone.contains(current_pt)) {
     target_zone = PatrolZoneType::ENEMY_DEFENSE;
     is_in_zone = true;
   } else if (own_defense_zone.contains(current_pt)) {

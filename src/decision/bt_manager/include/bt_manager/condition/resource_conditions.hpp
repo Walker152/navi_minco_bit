@@ -42,6 +42,7 @@ public:
 private:
   int last_exchange_count_ = 0;
   std::chrono::steady_clock::time_point last_exchange_time_{};
+  bool initialized_ = false;
 };
 
 class CheckRemainingAmmoExchange : public BT::ConditionNode
@@ -50,6 +51,29 @@ public:
   CheckRemainingAmmoExchange(const std::string & name, const BT::NodeConfiguration & config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+};
+
+class CheckAttackFortHealthExchangeNeeded : public BT::ConditionNode
+{
+public:
+  CheckAttackFortHealthExchangeNeeded(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  bool requested_ = false;
+};
+
+class CheckNormalExchangeCooldown : public BT::ConditionNode
+{
+public:
+  CheckNormalExchangeCooldown(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  bool initialized_ = false;
+  std::chrono::time_point<std::chrono::steady_clock> last_exchange_time_;
 };
 
 class CheckInZone : public BT::ConditionNode
