@@ -33,8 +33,7 @@ private:
     const Eigen::Matrix3f & R,
     const Eigen::Vector3f & t);
 
-  static sensor_msgs::msg::PointCloud2 customMsgToPointCloud2(
-    const livox_ros_driver2::msg::CustomMsg & msg,
+  static sensor_msgs::msg::PointCloud2 customMsgToPointCloud2(const livox_ros_driver2::msg::CustomMsg & msg,
     const std_msgs::msg::Header & header,
     const Eigen::Matrix4f * transform = nullptr);
 
@@ -54,6 +53,7 @@ private:
   int qos_depth_ = 10;
   bool best_effort_ = true;
   int sync_queue_size_ = 20;
+  double max_sync_interval_ms_ = 5.0;
   bool publish_pointcloud_ = false;
 
   std::vector<double> extrinsic_back_to_front_;

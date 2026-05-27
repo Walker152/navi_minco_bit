@@ -47,7 +47,6 @@ void Communication::__open(const std::string & name,
   int stop_length,
   char check_type)
 {
-  
   if (fd_manager.exist(name))
     return;
   int fd = MyUtils::Net::SerialPort::open(port, baud_rate, n_bits, stop_length, check_type);
@@ -144,26 +143,25 @@ void Communication::stm32_read_cb(ByteArray arr)
       case ENUM_PACKET_ALLY_STATUS: {
         const TeamInfo * team_data = (const TeamInfo *)(buf + sizeof(PacketHeader));
 #ifdef COM_DEBUG
-          LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Team] ",
-            NV(static_cast<int>(team_data->ally_status[0].robot_id)),
-            NV(team_data->ally_status[0].robot_hp),
-            NV(team_data->ally_status[0].robot_pos_x),
-            NV(team_data->ally_status[0].robot_pos_y),
-            NV(static_cast<int>(team_data->ally_status[1].robot_id)),
-            NV(team_data->ally_status[1].robot_hp),
-            NV(team_data->ally_status[1].robot_pos_x),
-            NV(team_data->ally_status[1].robot_pos_y),
-            NV(static_cast<int>(team_data->ally_status[2].robot_id)),
-            NV(team_data->ally_status[2].robot_hp),
-            NV(team_data->ally_status[2].robot_pos_x),
-            NV(team_data->ally_status[2].robot_pos_y),
-            NV(static_cast<int>(team_data->ally_status[3].robot_id)),
-            NV(team_data->ally_status[3].robot_hp),
-            NV(team_data->ally_status[3].robot_pos_x),
-            NV(team_data->ally_status[3].robot_pos_y),
-            NV(team_data->outpost_hp),
-            NV(team_data->base_hp)
-          );
+        LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Team] ",
+          NV(static_cast<int>(team_data->ally_status[0].robot_id)),
+          NV(team_data->ally_status[0].robot_hp),
+          NV(team_data->ally_status[0].robot_pos_x),
+          NV(team_data->ally_status[0].robot_pos_y),
+          NV(static_cast<int>(team_data->ally_status[1].robot_id)),
+          NV(team_data->ally_status[1].robot_hp),
+          NV(team_data->ally_status[1].robot_pos_x),
+          NV(team_data->ally_status[1].robot_pos_y),
+          NV(static_cast<int>(team_data->ally_status[2].robot_id)),
+          NV(team_data->ally_status[2].robot_hp),
+          NV(team_data->ally_status[2].robot_pos_x),
+          NV(team_data->ally_status[2].robot_pos_y),
+          NV(static_cast<int>(team_data->ally_status[3].robot_id)),
+          NV(team_data->ally_status[3].robot_hp),
+          NV(team_data->ally_status[3].robot_pos_x),
+          NV(team_data->ally_status[3].robot_pos_y),
+          NV(team_data->outpost_hp),
+          NV(team_data->base_hp));
 #endif
         auto ros_ptr = ros_if_;
         if (ros_ptr)
@@ -175,11 +173,11 @@ void Communication::stm32_read_cb(ByteArray arr)
         // std::cout << YELLOW << "[COM] Received GameInfo packet." << RESET << std::endl;
         const GameInfo * game_data = (const GameInfo *)(buf + sizeof(PacketHeader));
 #ifdef COM_DEBUG
-          LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Game] ",
-            NV(static_cast<int>(game_data->coin_remaining)),
-            NV(static_cast<int>(game_data->event_code)),
-            NV(static_cast<int>(game_data->game_status)),
-            NV(static_cast<int>(game_data->game_time_remaining)));
+        LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Game] ",
+          NV(static_cast<int>(game_data->coin_remaining)),
+          NV(static_cast<int>(game_data->event_code)),
+          NV(static_cast<int>(game_data->game_status)),
+          NV(static_cast<int>(game_data->game_time_remaining)));
 #endif
         auto ros_ptr = ros_if_;
         if (ros_ptr)
@@ -191,17 +189,17 @@ void Communication::stm32_read_cb(ByteArray arr)
         const SentryInfoOnline * sentry_server_data =
           (const SentryInfoOnline *)(buf + sizeof(PacketHeader));
 #ifdef COM_DEBUG
-          LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Sol] ",
-            NV(sentry_server_data->bullets_remaining),
-            NV(sentry_server_data->cooling_value),
-            NV(sentry_server_data->current_heat),
-            NV(sentry_server_data->heat_limit),
-            NV(sentry_server_data->self_health),
-            NV(sentry_server_data->sentry_info_1),
-            NV(sentry_server_data->sentry_info_2),
-            NV(sentry_server_data->sentry_pos_x),
-            NV(sentry_server_data->sentry_pos_y),
-            NV(sentry_server_data->speed_monitor_angle));
+        LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Sol] ",
+          NV(sentry_server_data->bullets_remaining),
+          NV(sentry_server_data->cooling_value),
+          NV(sentry_server_data->current_heat),
+          NV(sentry_server_data->heat_limit),
+          NV(sentry_server_data->self_health),
+          NV(sentry_server_data->sentry_info_1),
+          NV(sentry_server_data->sentry_info_2),
+          NV(sentry_server_data->sentry_pos_x),
+          NV(sentry_server_data->sentry_pos_y),
+          NV(sentry_server_data->speed_monitor_angle));
 #endif
         auto ros_ptr = ros_if_;
         if (ros_ptr)
@@ -213,17 +211,17 @@ void Communication::stm32_read_cb(ByteArray arr)
         const SentryInfoOffline * sentry_self_data =
           (const SentryInfoOffline *)(buf + sizeof(PacketHeader));
 #ifdef COM_DEBUG
-          LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Sof] ",
-            NV(sentry_self_data->armor_num),
-            NV(static_cast<float>(sentry_self_data->armor_pos[0])),
-            NV(static_cast<float>(sentry_self_data->armor_pos[1])),
-            NV(static_cast<float>(sentry_self_data->armor_pos[2])),
-            NV(sentry_self_data->is_get),
-            NV(sentry_self_data->is_transformable),
-            NV(sentry_self_data->lifter_current_pos),
-            NV(sentry_self_data->transform_state),
-            NV(sentry_self_data->yaw_camerainit_to_gimbal),
-            NV(sentry_self_data->capacitor_capacity));
+        LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Sof] ",
+          NV(sentry_self_data->armor_num),
+          NV(static_cast<float>(sentry_self_data->armor_pos[0])),
+          NV(static_cast<float>(sentry_self_data->armor_pos[1])),
+          NV(static_cast<float>(sentry_self_data->armor_pos[2])),
+          NV(sentry_self_data->is_get),
+          NV(sentry_self_data->is_transformable),
+          NV(sentry_self_data->lifter_current_pos),
+          NV(sentry_self_data->transform_state),
+          NV(sentry_self_data->yaw_camerainit_to_gimbal),
+          NV(sentry_self_data->capacitor_capacity));
 #endif
         auto ros_ptr = ros_if_;
         if (ros_ptr)
@@ -235,40 +233,40 @@ void Communication::stm32_read_cb(ByteArray arr)
         const RadarInfo * radar_data = (const RadarInfo *)(buf + sizeof(PacketHeader));
         // TODO:还没写完调试日志输出，待写
 #ifdef COM_DEBUG
-          LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Rdr] ",
-            NV(static_cast<int>(radar_data->enemy_status[0].robot_id)),
-            NV(radar_data->enemy_status[0].robot_hp),
-            NV(radar_data->enemy_status[0].allowed_projectile),
-            NV(radar_data->enemy_status[0].robot_pos_x),
-            NV(radar_data->enemy_status[0].robot_pos_y),
-            NV(static_cast<int>(radar_data->enemy_status[1].robot_id)),
-            NV(radar_data->enemy_status[1].robot_hp),
-            NV(radar_data->enemy_status[1].allowed_projectile),
-            NV(radar_data->enemy_status[1].robot_pos_x),
-            NV(radar_data->enemy_status[1].robot_pos_y),
-            NV(static_cast<int>(radar_data->enemy_status[2].robot_id)),
-            NV(radar_data->enemy_status[2].robot_hp),
-            NV(radar_data->enemy_status[2].allowed_projectile),
-            NV(radar_data->enemy_status[2].robot_pos_x),
-            NV(radar_data->enemy_status[2].robot_pos_y),
-            NV(static_cast<int>(radar_data->enemy_status[3].robot_id)),
-            NV(radar_data->enemy_status[3].robot_hp),
-            NV(radar_data->enemy_status[3].allowed_projectile),
-            NV(radar_data->enemy_status[3].robot_pos_x),
-            NV(radar_data->enemy_status[3].robot_pos_y),
-            NV(static_cast<int>(radar_data->enemy_status[4].robot_id)),
-            NV(radar_data->enemy_status[4].robot_hp),
-            NV(radar_data->enemy_status[4].allowed_projectile),
-            NV(radar_data->enemy_status[4].robot_pos_x),
-            NV(radar_data->enemy_status[4].robot_pos_y),
-            NV(static_cast<int>(radar_data->enemy_status[5].robot_id)),
-            NV(radar_data->enemy_status[5].robot_hp),
-            NV(radar_data->enemy_status[5].allowed_projectile),
-            NV(radar_data->enemy_status[5].robot_pos_x),
-            NV(radar_data->enemy_status[5].robot_pos_y),
-            NV(radar_data->enemy_coin_accumulated),
-            NV(radar_data->enemy_coin_left),
-            NV(radar_data->is_enemy_outpost_sensed));
+        LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Rdr] ",
+          NV(static_cast<int>(radar_data->enemy_status[0].robot_id)),
+          NV(radar_data->enemy_status[0].robot_hp),
+          NV(radar_data->enemy_status[0].allowed_projectile),
+          NV(radar_data->enemy_status[0].robot_pos_x),
+          NV(radar_data->enemy_status[0].robot_pos_y),
+          NV(static_cast<int>(radar_data->enemy_status[1].robot_id)),
+          NV(radar_data->enemy_status[1].robot_hp),
+          NV(radar_data->enemy_status[1].allowed_projectile),
+          NV(radar_data->enemy_status[1].robot_pos_x),
+          NV(radar_data->enemy_status[1].robot_pos_y),
+          NV(static_cast<int>(radar_data->enemy_status[2].robot_id)),
+          NV(radar_data->enemy_status[2].robot_hp),
+          NV(radar_data->enemy_status[2].allowed_projectile),
+          NV(radar_data->enemy_status[2].robot_pos_x),
+          NV(radar_data->enemy_status[2].robot_pos_y),
+          NV(static_cast<int>(radar_data->enemy_status[3].robot_id)),
+          NV(radar_data->enemy_status[3].robot_hp),
+          NV(radar_data->enemy_status[3].allowed_projectile),
+          NV(radar_data->enemy_status[3].robot_pos_x),
+          NV(radar_data->enemy_status[3].robot_pos_y),
+          NV(static_cast<int>(radar_data->enemy_status[4].robot_id)),
+          NV(radar_data->enemy_status[4].robot_hp),
+          NV(radar_data->enemy_status[4].allowed_projectile),
+          NV(radar_data->enemy_status[4].robot_pos_x),
+          NV(radar_data->enemy_status[4].robot_pos_y),
+          NV(static_cast<int>(radar_data->enemy_status[5].robot_id)),
+          NV(radar_data->enemy_status[5].robot_hp),
+          NV(radar_data->enemy_status[5].allowed_projectile),
+          NV(radar_data->enemy_status[5].robot_pos_x),
+          NV(radar_data->enemy_status[5].robot_pos_y),
+          NV(radar_data->enemy_coin_accumulated),
+          NV(radar_data->enemy_coin_left),
+          NV(radar_data->is_enemy_outpost_sensed));
 #endif
         auto ros_ptr = ros_if_;
         if (ros_ptr)
@@ -278,7 +276,7 @@ void Communication::stm32_read_cb(ByteArray arr)
 
       default: {
 #ifdef COM_DEBUG
-          LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM][Warn] ", NV(header->packet_type));
+        LOG_DEBUG_BLOCK(std::string(YELLOW) + "[COM][Warn] ", NV(header->packet_type));
 #endif
       }
       }

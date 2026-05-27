@@ -1,7 +1,7 @@
 dbscan_cluster_node:
   ros__parameters:
     topics:
-      input: /cloud_registered_dense  
+      input: /cloud_registered  
       output: /clustered_obstacles  
 
     cluster:

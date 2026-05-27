@@ -18,6 +18,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
 {
   auto node_ptr = rclcpp::Node::SharedPtr(this, [](rclcpp::Node *) {
   });
+  this->declare_parameter<bool>("publish_area_markers", true);
   param_manager_ = std::make_shared<ParamManager>(node_ptr);
   // 订阅全局信息话题
   team_info_sub = this->create_subscription<ros_interfaces::msg::TeamInformation>(
@@ -104,7 +105,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto remote_ammo_request = blackboard_->get<uint8_t>("remote_ammo_request");
     const auto remote_health_request = blackboard_->get<uint8_t>("remote_health_request");
     const auto pitch_mode = blackboard_->get<PitchPos>("pitch_mode");
-    const auto is_aim_enemy = blackboard_->get<bool>("is_aim_enemy");
+    const auto not_aim_enemy = blackboard_->get<bool>("not_aim_enemy");
 
     ros_interfaces::msg::Behavior behavior_msg;
     behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
@@ -120,7 +121,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.remote_ammo_request = remote_ammo_request;
     behavior_msg.remote_health_request = remote_health_request;
     behavior_msg.pitch_mode = static_cast<uint8_t>(pitch_mode);
-    behavior_msg.is_aim_enemy = is_aim_enemy;
+    behavior_msg.not_aim_enemy = not_aim_enemy;
     behavior_pub->publish(behavior_msg);
 
     if (revive_request != 0) {
@@ -129,9 +130,19 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
   });
 
   area_marker_timer_ = this->create_wall_timer(std::chrono::seconds(1), [this]() {
-    area_visualizer_->publishAreaMarkers(this->now());
+    const bool publish_area_markers = this->get_parameter("publish_area_markers").as_bool();
+    if (publish_area_markers) {
+      area_visualizer_->publishAreaMarkers(this->now());
+      area_markers_published_ = true;
+    } else if (area_markers_published_) {
+      area_visualizer_->clearAreaMarkers(this->now());
+      area_markers_published_ = false;
+    }
   });
-  area_visualizer_->publishAreaMarkers(this->now());
+  if (this->get_parameter("publish_area_markers").as_bool()) {
+    area_visualizer_->publishAreaMarkers(this->now());
+    area_markers_published_ = true;
+  }
 
   tunnel_check_timer_ = this->create_wall_timer(std::chrono::milliseconds(100), [this]() {
     ros_interfaces::msg::MpcPositionCommand::SharedPtr snapshot;
@@ -191,7 +202,7 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   // 提取bit 5-6：己方大能量机关的激活状态
   uint8_t big_energy_status = (event_code >> 5) & 0x3;
   blackboard_->set<int>("big_energy_status", static_cast<int>(big_energy_status));
-
+  // std::cout << "big_energy_status:" << static_cast<int>(big_energy_status) <<std::endl;
   // 提取bit 25-26：己方堡垒增益点的占领状态
   uint8_t fort_occupation_status = (event_code >> 25) & 0x3;
   blackboard_->set<int>("fort_occupation_status", static_cast<int>(fort_occupation_status));
@@ -206,26 +217,30 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
     tf_utils->transformPoseToMap(manual_point_in, manual_point, "minimap");
   }
   Point2D manual_point_2d(manual_point.position.x, manual_point.position.y);
+  static Point2D last_manual_point(0.0, 0.0);
   blackboard_->set<Point2D>("manual_override_goal", manual_point_2d);
-
-  static int last_manual_key = 0;
-  if (msg->manual_key == last_manual_key) {
-    return;  // 只有在manual_key发生变化时才切换控制模式，避免重复切换
+  const bool manual_point_changed = std::hypot(manual_point.position.x - last_manual_point.x,
+                                      manual_point.position.y - last_manual_point.y) >= 0.001;
+  if (!manual_point_changed) {
+    return;
   }
-  last_manual_key = msg->manual_key;
-  switch (msg->manual_key)
-  {
+  last_manual_point = manual_point_2d;
+  switch (msg->manual_key) {
   case 65:  // 'A'键切换控制模式
     blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
     break;
+  case 66: {
+    const auto enemy_outpost_destroyed = blackboard_->get<bool>("enemy_outpost_destroyed");
+    blackboard_->set<bool>("enemy_outpost_destroyed", !enemy_outpost_destroyed);
+    break;
+  }
   case 0:  // '0'键切换回自动模式
     blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);
     break;
   default:
     break;
   }
-  std::cout << "Received manual_key: " << static_cast<int>(msg->manual_key)
-            << std::endl;
+  std::cout << "Received manual_key: " << static_cast<int>(msg->manual_key) << std::endl;
 }
 
 // 新增：雷达信息回调函数
@@ -234,7 +249,6 @@ void ros_interface::radarInfoCallback(const ros_interfaces::msg::RadarInfo::Shar
   // 存储敌方信息
   blackboard_->set<int>("enemy_coin_left", static_cast<int>(msg->enemy_coin_left));
   blackboard_->set<int>("enemy_coin_accumulated", static_cast<int>(msg->enemy_coin_accumulated));
-  blackboard_->set<bool>("enemy_outpost_destroyed", !(msg->is_enemy_outpost_sensed));
 
   // 存储所有敌方机器人状态
   ros_interfaces::msg::RadarInfo radar_info = *msg;
@@ -269,7 +283,6 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
   blackboard_->set<bool>("is_transformable", msg->is_transformable);
   blackboard_->set<float>("transform_state", msg->transform_state);
   blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
-  const auto current_pose = blackboard_->get<geometry_msgs::msg::Pose>("current_pose");
   auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
   float gimbal_yaw_init = msg->yaw_camerainit_to_gimbal;
   if (tf_utils) {
@@ -284,9 +297,11 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
     target_pose_in.position.x = (msg->armor_pos.x) / 1000.0;  // 转换为米
     target_pose_in.position.y = (msg->armor_pos.y) / 1000.0;
     target_pose_in.position.z = (msg->armor_pos.z) / 1000.0;
+    target_pose_in.orientation.w = 1.0;
 
     if (tf_utils) {
-      tf_utils->transformPoseToMap(target_pose_in, target_pose, "gimbal");
+      // tf_utils->transformPoseToMap(target_pose_in, target_pose, "gimbal");
+      tf_utils->transformGimbalToMap(target_pose_in, target_pose);
     }
     target_pose.orientation.w = 1.0;  // 设置默认朝向
     blackboard_->set<int>("target_armor_id", (int)msg->armor_num);
@@ -303,14 +318,15 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
   blackboard_->set<int>("cooling_value", static_cast<int>(msg->cooling_value));
   blackboard_->set<int>("heat_limit", static_cast<int>(msg->heat_limit));
   blackboard_->set<int>("current_heat", static_cast<int>(msg->current_heat));
-  blackboard_->set<float>("gimbal_yaw", msg->speed_monitor_angle);
+  blackboard_->set<float>("gimbal_yaw", static_cast<float>(msg->speed_monitor_angle));
+  blackboard_->set<EnergyRatio>("energy_ratio", static_cast<EnergyRatio>(msg->energy_ratio));
 
   // 解码sentry_info_2
   uint16_t sentry_info_2 = msg->sentry_info_2;
 
   // 提取bit 0：脱战状态
   bool is_disengaged = (sentry_info_2 & 0x0001) != 0;
-  // blackboard_->set<bool>("is_disengaged", is_disengaged);
+  blackboard_->set<bool>("is_disengaged", is_disengaged);
 
   // 提取bit 12-13：哨兵当前姿态
   uint8_t current_stance = (sentry_info_2 >> 12) & 0x3;
@@ -406,8 +422,9 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
       nearest_tunnel_idx = static_cast<int>(i);
     }
   }
-  // std::cout << "Current position: (" << current_point.x << ", " << current_point.y << "), in_transform_zone: "
-  //           << in_transform_zone << ", current_transform_zone_index: " << current_transform_zone_index
+  // std::cout << "Current position: (" << current_point.x << ", " << current_point.y <<
+  // "),in_transform_zone: "
+  //           << in_transform_zone
   //           << ", nearest_tunnel_idx: " << nearest_tunnel_idx << std::endl;
   bool current_in_tunnel = false;
   for (const auto & zone : tunnel_zone) {

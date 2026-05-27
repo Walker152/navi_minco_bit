@@ -124,8 +124,8 @@ void MincoFsm::callMainFsmOnce()
       Eigen::Vector3d cur_p(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
       // double dist = planner_->getEsdfDistance(cur_p);
       // if (dist < 0.25) {
-        handle_generate_replan_failure("GEN_STUCK_TRIGGER_RECOVERING", "GENERATE_RECOVERY_FAIL");
-        // return;
+      handle_generate_replan_failure("GEN_STUCK_TRIGGER_RECOVERING", "GENERATE_RECOVERY_FAIL");
+      // return;
       // }
       // recovery_server_->onReplanSuccess();
       return;
@@ -267,56 +267,56 @@ void MincoFsm::callMainFsmOnce()
     return;
   }
 
-  // Disabled to prevent zero-velocity deadlock
-  /*
-  case State::EMER_STOP: {
-    if (!has_odom) {
-      return;
-    }
-
-    // 1) First run: publish independent brake trajectory.
-    if (!stop_published_) {
-      planner_->publishEmergencyStop(current_pose);
-      stop_published_ = true;
-      emer_stop_start_time_ = planner_->nowSeconds();
-    }
-
-    // 2) Timeout protection: avoid deadlock.
-    const double now_s = planner_->nowSeconds();
-    if (std::isfinite(now_s) && std::isfinite(emer_stop_start_time_) &&
-        (now_s - emer_stop_start_time_) > 2.0) {
-      // Keep mission goal so FSM can retry planning automatically after emergency stop timeout.
-      changeState("EMER_TIMEOUT", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
-      return;
-    }
-
-    // 3) Still try to find safe path to recover without fully stopping.
-    bool recover_possible = false;
-    if (planner_->PlanGlobalPath(current_pose, goal_)) {
-      if (planner_->ReplanLocal(current_pose)) {
-        recover_possible = true;
+    // Disabled to prevent zero-velocity deadlock
+    /*
+    case State::EMER_STOP: {
+      if (!has_odom) {
+        return;
       }
-    }
 
-    if (recover_possible) {
-      recovery_server_->finishRecovery(true, now_s);
-      changeState("EMER_RECOVER", State::FOLLOW_TRAJ);
+      // 1) First run: publish independent brake trajectory.
+      if (!stop_published_) {
+        planner_->publishEmergencyStop(current_pose);
+        stop_published_ = true;
+        emer_stop_start_time_ = planner_->nowSeconds();
+      }
+
+      // 2) Timeout protection: avoid deadlock.
+      const double now_s = planner_->nowSeconds();
+      if (std::isfinite(now_s) && std::isfinite(emer_stop_start_time_) &&
+          (now_s - emer_stop_start_time_) > 2.0) {
+        // Keep mission goal so FSM can retry planning automatically after emergency stop timeout.
+        changeState("EMER_TIMEOUT", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
+        return;
+      }
+
+      // 3) Still try to find safe path to recover without fully stopping.
+      bool recover_possible = false;
+      if (planner_->PlanGlobalPath(current_pose, goal_)) {
+        if (planner_->ReplanLocal(current_pose)) {
+          recover_possible = true;
+        }
+      }
+
+      if (recover_possible) {
+        recovery_server_->finishRecovery(true, now_s);
+        changeState("EMER_RECOVER", State::FOLLOW_TRAJ);
+        return;
+      }
+
+      // 4) Blocking wait until fully stopped.
+      const Eigen::Vector3d speed = planner_->getCurrentSpeed();
+      if (std::isfinite(speed.head<2>().norm()) && speed.head<2>().norm() > 0.1) {
+        return;
+      }
+
+      // 5) Recovery: stopped, check safety before leaving EMER_STOP.
+      recovery_server_->finishRecovery(false, now_s);
+      // Keep mission goal so robot can continue navigating once it is safe/stopped.
+      changeState("EMER_SAFE", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
       return;
     }
-
-    // 4) Blocking wait until fully stopped.
-    const Eigen::Vector3d speed = planner_->getCurrentSpeed();
-    if (std::isfinite(speed.head<2>().norm()) && speed.head<2>().norm() > 0.1) {
-      return;
-    }
-
-    // 5) Recovery: stopped, check safety before leaving EMER_STOP.
-    recovery_server_->finishRecovery(false, now_s);
-    // Keep mission goal so robot can continue navigating once it is safe/stopped.
-    changeState("EMER_SAFE", has_goal_ ? State::GENERATE_TRAJ : State::WAIT_GOAL);
-    return;
-  }
-  */
+    */
 
   default:
     break;

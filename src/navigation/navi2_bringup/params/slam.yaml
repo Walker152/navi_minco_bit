@@ -10,7 +10,7 @@ slam_toolbox:
     # ROS Parameters
     odom_frame: camera_init
     map_frame: map
-    base_frame: base_link
+    base_frame: slambase
     scan_topic: /scan
     mode: lifelong #localization
     scan_queue_size: 50
@@ -57,8 +57,6 @@ slam_toolbox:
     loop_search_space_dimension: 8.0
     loop_search_space_resolution: 0.05
     loop_search_space_smear_deviation: 0.03
-    loop_search_maximum_distance: 3.0
-
     # Scan Matcher Parameters
     distance_variance_penalty: 0.5      
     angle_variance_penalty: 1.0    

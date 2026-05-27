@@ -3,25 +3,52 @@
     <ReactiveSequence name="StanceTreeRoot">
       <CheckTunnelDeformation />
       <UpdateEnhanceTime />
+      
       <ReactiveFallback name="StancePriorityRoot">
-        
-        <!-- <Sequence name="RuleRefresh">
-          <CheckStanceRefreshRequired max_hold_seconds="180" target_stance="{target_stance}" branch="RuleRefresh"/>
-          <SetGyroState use_gyro="true" gyro_vel="50.0" />
-          <CheckStanceCooldown cooldown="5.0" branch="RuleRefresh" />
-          <ChangeStance name="ChangeStanceRefresh" stance="{target_stance}" />
-        </Sequence> -->
+        <ReactiveSequence name="ManualAttackTunnelDefendAlignBranch">
+          <CheckTacticalModeCondition mode="attack" branch="ManualAttackTunnelDefendAlignBranch" />
+          <CheckCrossZoneTransition branch="ManualAttackTunnelDefendAlignBranch" />
+          <ChangeStance name="ChangeStanceManualAttackTunnelDefend" stance="DEFEND" />
+          <TunnelGyroAlignAction branch="ManualAttackTunnelDefendAlignBranch"
+                                 kp="1.5"
+                                 ki="0.1"
+                                 kd="0.0"
+                                 deadzone_rad="0.05"
+                                 max_abs_gyro_vel="60.0" />
+          <!-- <CheckStanceCooldown cooldown="5.0" branch="ManualAttackTunnelDefendAlignBranch" /> -->
+        </ReactiveSequence>
 
         <ReactiveSequence name="MoveStanceNoGyroBranch">
           <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch" />
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
           <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch"
-                                 kp="1.0"
+                                 kp="1.5"
                                  ki="0.1"
                                  kd="0.0"
                                  deadzone_rad="0.05"
-                                 max_abs_gyro_vel="50.0" />
+                                 max_abs_gyro_vel="60.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
+        </ReactiveSequence>
+
+        <ReactiveSequence name="AttackFortDefendGyroBranch">
+          <CheckTacticalModeCondition mode="attack" branch="AttackFortDefendGyroBranch" />
+          <ReactiveFallback name="EnemyFortGyroSelector">
+            <Sequence name="ArrivedEnemyFortRandomGyro">
+              <CheckInEnemyFortZone branch="ArrivedEnemyFortRandomGyro" />
+              <SetGyroState use_gyro="true"
+                            gyro_vel="80.0"
+                            random_speed="false" />
+            </Sequence>
+            <Sequence name="NotArriveEnemyFortNoGyro">
+              <Inverter>
+                <CheckInEnemyFortZone branch="ArrivedEnemyFortRandomGyro" />
+              </Inverter>
+              <SetGyroState use_gyro="false"
+                            gyro_vel="0.0"
+                            random_speed="false" />
+            </Sequence>
+          </ReactiveFallback>
+          <ChangeStance name="ChangeStanceAttackFortDefend" stance="DEFEND" />
         </ReactiveSequence>
 
         <Sequence name="AbsoluteAttackBranch">
@@ -29,50 +56,58 @@
             <CheckHeat threshold="200" mode="greater" branch="AbsoluteAttackBranch" />
             <CheckOutpostTarget goal_distance_threshold="0.5" branch="AbsoluteAttackBranch" />
           </Fallback>
-          <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" />
-          <SetGyroState use_gyro="true" gyro_vel="50.0" />
+          <!-- <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" /> -->
+          <SetGyroState use_gyro="true" 
+                        gyro_vel="40.0" 
+                        random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="AbsoluteAttackBranch" /> -->
           <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
-        </Sequence>
-
-        <Sequence name="PursuitStanceBranch">
-          <CheckTargetLocked name="CheckTargetLocked" branch="PursuitStance"/>
-          <CheckTargetDistance threshold="4.0" mode="greater" branch="PursuitStanceBranch" />
-          <SetGyroState use_gyro="true" gyro_vel="50.0" />
-          <!-- <CheckStanceCooldown cooldown="5.0" branch="PursuitStanceBranch" /> -->
-          <ChangeStance name="ChangeStancePursuit" stance="MOVE" />
         </Sequence>
 
         <Sequence name="CombatAttackBranch">
           <CheckEngagedStatus expected="true" branch="CombatAttackBranch" />
           <CheckHealth threshold="50" mode="greater" branch="CombatAttackBranch" />
-          <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" />
-          <SetGyroState use_gyro="true" gyro_vel="50.0" />
+          <!-- <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" /> -->
+          <SetGyroState use_gyro="true" 
+                        gyro_vel="80.0" 
+                        random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
           <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
         </Sequence>
 
-        <Sequence name="MoveStanceGyroBranch">
-          <Fallback name="MoveGyroConditions">
-            <CheckCapacitorCapacity threshold="0" mode="less" branch="MoveStanceGyroBranch" />
-            <CheckEngagedStatus expected="false" branch="MoveStanceGyroBranch" />
-          </Fallback>
-          <SetGyroState use_gyro="true" gyro_vel="50.0" />
-          <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
-          <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
-        </Sequence>
-
         <Sequence name="DefendStanceBranch">
           <CheckEngagedStatus expected="true" branch="DefendStanceBranch" />
-          <CheckHealth threshold="40" mode="less" branch="DefendStanceBranch" />
-          <CheckEnhanceLimit target_stance="DEFEND" max_time_sec="180" />
-          <SetGyroState use_gyro="true" gyro_vel="50.0" />
+          <CheckHealth threshold="50" mode="less" branch="DefendStanceBranch" />
+          <!-- <CheckEnhanceLimit target_stance="DEFEND" max_time_sec="180" /> -->
+          <SetGyroState use_gyro="true" 
+                        gyro_vel="80.0" 
+                        random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefendStanceBranch" /> -->
           <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
         </Sequence>
 
+        <Sequence name="MoveStanceGyroBranch">
+          <Fallback name="MoveGyroConditions">
+            <CheckCapacitorCapacity threshold="30" mode="less" branch="MoveStanceGyroBranch" />
+            <CheckEngagedStatus expected="false" branch="MoveStanceGyroBranch" />
+          </Fallback>
+          <SetGyroState use_gyro="true" 
+                        gyro_vel="20.0" 
+                        random_speed="false" />
+          <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
+          <Fallback name="MoveStanceSelector">
+            <Sequence name="DisengagedHighlandDefendBranch">
+              <CheckInZone zone_name="highland" branch="DisengagedHighlandDefendBranch" />
+              <ChangeStance name="ChangeStanceDisengagedHighlandDefend" stance="DEFEND" />
+            </Sequence>
+            <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
+          </Fallback>
+        </Sequence>
+        
         <Sequence name="DefaultDefendBranch">
-          <SetGyroState use_gyro="true" gyro_vel="50.0" />
+          <SetGyroState use_gyro="true" 
+                        gyro_vel="80.0" 
+                        random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefaultDefendBranch" /> -->
           <ChangeStance name="DefaultDefendStance" stance="DEFEND" />
         </Sequence>

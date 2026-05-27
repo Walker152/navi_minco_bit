@@ -81,7 +81,8 @@ BT::NodeStatus CheckEngagedSafeResponse::tick()
     const double stable_duration = std::chrono::duration<double>(now - last_health_change_time_).count();
     if (stable_duration < stable_seconds) {
       std::ostringstream oss;
-      oss << "cooldown active, stable_duration=" << stable_duration << ", stable_seconds=" << stable_seconds;
+      oss << "cooldown active, stable_duration=" << stable_duration
+          << ", stable_seconds=" << stable_seconds;
       detail::logTransition(
         detail::TreeKind::RESOURCE, "CheckEngagedSafeResponse", false, oss.str(), branch);
       return BT::NodeStatus::FAILURE;
@@ -92,8 +93,7 @@ BT::NodeStatus CheckEngagedSafeResponse::tick()
   if (!exit_key.empty()) {
     blackboard->set<bool>(exit_key, false);
   }
-  detail::logTransition(
-    detail::TreeKind::RESOURCE, "CheckEngagedSafeResponse", true, "safe", branch);
+  detail::logTransition(detail::TreeKind::RESOURCE, "CheckEngagedSafeResponse", true, "safe", branch);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -107,6 +107,8 @@ CheckRemoteExchangeCooldown::CheckRemoteExchangeCooldown(
 BT::PortsList CheckRemoteExchangeCooldown::providedPorts()
 {
   return {BT::InputPort<double>("cooldown_seconds", 6.0, "Cooldown after exchange"),
+    BT::InputPort<std::string>(
+      "exchange_count_key", "remote_ammo_exchange_count", "Blackboard key for successful exchange count"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
@@ -115,9 +117,17 @@ BT::NodeStatus CheckRemoteExchangeCooldown::tick()
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
   const double cooldown_seconds = getInput<double>("cooldown_seconds").value_or(6.0);
-  const int current_count = blackboard->get<int>("remote_ammo_exchange_count");
+  const std::string exchange_count_key =
+    getInput<std::string>("exchange_count_key").value_or("remote_ammo_exchange_count");
+  const int current_count = blackboard->get<int>(exchange_count_key);
   const auto now = std::chrono::steady_clock::now();
 
+  if (!initialized_) {
+    last_exchange_count_ = current_count;
+    last_exchange_time_ = now - std::chrono::seconds(static_cast<long>(cooldown_seconds) +
+                                                     1);  // initialize to be out of cooldown
+    initialized_ = true;
+  }
   if (current_count > last_exchange_count_) {
     last_exchange_count_ = current_count;
     last_exchange_time_ = now;
@@ -125,11 +135,59 @@ BT::NodeStatus CheckRemoteExchangeCooldown::tick()
 
   const double elapsed = std::chrono::duration<double>(now - last_exchange_time_).count();
   const bool in_cooldown = elapsed < cooldown_seconds;
+
+  if (!in_cooldown) {
+    last_exchange_count_ = current_count;
+    last_exchange_time_ = now;
+  }
   std::ostringstream oss;
-  oss << "exchange_count=" << current_count << ", elapsed=" << elapsed
-      << ", cooldown=" << cooldown_seconds;
+  oss << "exchange_count_key=" << exchange_count_key << ", exchange_count=" << current_count
+      << ", elapsed=" << elapsed << ", cooldown=" << cooldown_seconds;
   detail::logTransition(
     detail::TreeKind::RESOURCE, "CheckRemoteExchangeCooldown", !in_cooldown, oss.str(), branch);
+  return in_cooldown ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- CheckNormalExchangeCooldown -------------------
+CheckNormalExchangeCooldown::CheckNormalExchangeCooldown(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckNormalExchangeCooldown::providedPorts()
+{
+  return {BT::InputPort<double>("cooldown_seconds", 1.5, "Cooldown after normal exchange"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckNormalExchangeCooldown::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const double cooldown_seconds = getInput<double>("cooldown_seconds").value_or(1.5);
+  const auto now = std::chrono::steady_clock::now();
+
+  // 1. 初始化：开局将上一次兑换时间设为很久以前，确保第一次能够顺利放行
+  if (!initialized_) {
+    last_exchange_time_ = now - std::chrono::seconds(static_cast<long>(cooldown_seconds + 1.0));
+    initialized_ = true;
+  }
+
+  // 2. 计算距离上次放行经过的时间
+  const double elapsed = std::chrono::duration<double>(now - last_exchange_time_).count();
+  const bool in_cooldown = elapsed < cooldown_seconds;
+
+  // 3. 核心防抖逻辑：如果不处于冷却，意味着本次 tick 会返回 SUCCESS 并触发后续买弹动作。
+  if (!in_cooldown) {
+    last_exchange_time_ = now;
+  }
+
+  std::ostringstream oss;
+  oss << "elapsed=" << elapsed << ", cooldown=" << cooldown_seconds;
+  detail::logTransition(
+    detail::TreeKind::RESOURCE, "CheckNormalExchangeCooldown", !in_cooldown, oss.str(), branch);
+
   return in_cooldown ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
 }
 
@@ -158,6 +216,55 @@ BT::NodeStatus CheckRemainingAmmoExchange::tick()
   return available ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
+// ------------------- CheckAttackFortHealthExchangeNeeded -------------------
+CheckAttackFortHealthExchangeNeeded::CheckAttackFortHealthExchangeNeeded(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckAttackFortHealthExchangeNeeded::providedPorts()
+{
+  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckAttackFortHealthExchangeNeeded::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+
+  const auto tactical_mode = blackboard->get<TacticalMode>("tactical_mode");
+  const auto current_mode = blackboard->get<NavMode>("current_mode");
+  const int game_time_remaining = blackboard->get<int>("game_time_remaining");
+  const int game_status = blackboard->get<int>("game_status");
+  const int big_energy_status = blackboard->get<int>("big_energy_status");
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const Point2D point{current_pose.position.x, current_pose.position.y, 0.0};
+  const bool in_attack_transform_zone =
+    transform_zone[1].contains(point) || transform_zone[3].contains(point);
+  const bool attack_fort_window =
+    game_status == 4 && game_time_remaining >= 0 && game_time_remaining <= 120;
+  if (!attack_fort_window) {
+    requested_ = false;
+  }
+
+  const bool needed = attack_fort_window && tactical_mode == TacticalMode::OFFENSIVE &&
+                      current_mode == NavMode::RESPONSE && in_attack_transform_zone && !requested_;
+  if (needed) {
+    requested_ = true;
+  }
+
+  std::ostringstream oss;
+  oss << std::boolalpha << "tactical_mode=" << static_cast<int>(tactical_mode)
+      << ", current_mode=" << static_cast<int>(current_mode)
+      << ", game_time_remaining=" << game_time_remaining << ", game_status=" << game_status
+      << ", big_energy_status=" << big_energy_status
+      << ", in_attack_transform_zone=" << in_attack_transform_zone << ", requested=" << requested_;
+  detail::logTransition(
+    detail::TreeKind::RESOURCE, "CheckAttackFortHealthExchangeNeeded", needed, oss.str(), branch);
+  return needed ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
 // ------------------- CheckInZone -------------------
 CheckInZone::CheckInZone(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
@@ -166,7 +273,10 @@ CheckInZone::CheckInZone(const std::string & name, const BT::NodeConfiguration &
 
 BT::PortsList CheckInZone::providedPorts()
 {
-  return {BT::InputPort<std::string>("zone_name", "", "Zone: enemy_defense/own_defense/highland"),
+  return {BT::InputPort<std::string>("zone_name",
+            "",
+            "Zone: enemy_defense/own_defense/highland/own_outpost_zone/enemy_outpost_zone/"
+            "own_supply_zone/enemy_supply_zone"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
@@ -186,6 +296,14 @@ BT::NodeStatus CheckInZone::tick()
     in_zone = own_defense_zone.contains(point);
   } else if (zone_name == "highland") {
     in_zone = highland_zone.contains(point);
+  } else if (zone_name == "own_outpost_zone") {
+    in_zone = own_outpost_buff_zone.contains(point);
+  } else if (zone_name == "enemy_outpost_zone") {
+    in_zone = enemy_outpost_buff_zone.contains(point);
+  } else if (zone_name == "own_supply_zone") {
+    in_zone = own_supply_zone.contains(point);
+  } else if (zone_name == "enemy_supply_zone") {
+    in_zone = enemy_supply_zone.contains(point);
   }
 
   std::ostringstream oss;
@@ -195,8 +313,7 @@ BT::NodeStatus CheckInZone::tick()
 }
 
 // ------------------- CheckCanFreeResurrect -------------------
-CheckCanFreeResurrect::CheckCanFreeResurrect(
-  const std::string & name, const BT::NodeConfiguration & config)
+CheckCanFreeResurrect::CheckCanFreeResurrect(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
 {
 }
@@ -214,8 +331,7 @@ BT::NodeStatus CheckCanFreeResurrect::tick()
 }
 
 // ------------------- CheckEnergyActive -------------------
-CheckEnergyActive::CheckEnergyActive(
-  const std::string & name, const BT::NodeConfiguration & config)
+CheckEnergyActive::CheckEnergyActive(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
 {
 }
@@ -234,8 +350,7 @@ BT::NodeStatus CheckEnergyActive::tick()
   const bool active = big_energy == 0 || small_energy == 0 || big_energy == 2 || small_energy == 2;
   std::ostringstream oss;
   oss << "big_energy_status=" << big_energy << ", small_energy_status=" << small_energy;
-  detail::logTransition(
-    detail::TreeKind::RESOURCE, "CheckEnergyActive", active, oss.str(), branch);
+  detail::logTransition(detail::TreeKind::RESOURCE, "CheckEnergyActive", active, oss.str(), branch);
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 

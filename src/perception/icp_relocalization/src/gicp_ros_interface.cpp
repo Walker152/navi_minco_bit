@@ -254,8 +254,8 @@ void GicpRosInterface::startTfPublishTimer()
     tf_publish_timer_.reset();
   }
 
-  tf_publish_timer_ = this->create_wall_timer(
-    tf_publish_period_, std::bind(&GicpRosInterface::tfPublishTimerCallback, this),
+  tf_publish_timer_ = this->create_wall_timer(tf_publish_period_,
+    std::bind(&GicpRosInterface::tfPublishTimerCallback, this),
     callback_group_utility_);
 }
 
