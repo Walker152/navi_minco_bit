@@ -38,7 +38,9 @@ def generate_launch_description():
             # arguments=['6.7', '3.9', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['12', '5.0', '0', '1.57', '0', '0', 'map', 'camera_init'],
             # 2026 rmuc
-            arguments=['4.0', '7.3', '0', '0', '0', '0', 'map', 'camera_init'],
+            # x坐标：台阶到基地边缘1655mm+基地长1881mm+车身y半长198.5mm+地图投影边缘300mm=4036mm
+            # y坐标：场地y半长7500mm-半车宽191mm=7309mm
+            arguments=['4.034', '7.3', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
         # 静态TF: map -> minimap
