@@ -17,6 +17,8 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
     cloud_topic = LaunchConfiguration('cloud_topic')
     scan_topic = LaunchConfiguration('scan_topic')
+    map_topic = LaunchConfiguration('map_topic')
+    map_updates_topic = LaunchConfiguration('map_updates_topic')
 
     # Convert PointCloud2 to LaserScan for mapping and costmaps.
     pcl_to_scan_cmd = Node(
@@ -55,7 +57,11 @@ def generate_launch_description():
             slam_params,
             {
             'use_sim_time': use_sim_time,
-        }]
+        }],
+        remappings=[
+            ('/map', map_topic),
+            ('/map_updates', map_updates_topic)
+        ]
 
     )
 
@@ -64,7 +70,11 @@ def generate_launch_description():
         executable='rviz2',
         name='rviz2',
         output='screen',
-        arguments=['-d', os.path.join(nav2_pkg_dir, 'params', 'rviz.rviz')]
+        arguments=['-d', os.path.join(nav2_pkg_dir, 'config', 'slam.rviz')],
+        remappings=[
+            ('/map', map_topic),
+            ('/map_updates', map_updates_topic)
+        ]
     )   
     # Assemble launch actions.
     ld = LaunchDescription()
@@ -81,6 +91,14 @@ def generate_launch_description():
         'scan_topic',
         default_value='/scan',
         description='Output LaserScan topic'))
+    ld.add_action(DeclareLaunchArgument(
+        'map_topic',
+        default_value='/map',
+        description='SLAM occupancy grid topic published by slam_toolbox'))
+    ld.add_action(DeclareLaunchArgument(
+        'map_updates_topic',
+        default_value='/map_updates',
+        description='SLAM incremental map update topic published by slam_toolbox'))
 
     ld.add_action(pcl_to_scan_cmd)
     ld.add_action(slam_cmd)
