@@ -95,7 +95,7 @@
             </ReactiveSequence> -->
 
             <ReactiveSequence name="GlobalAmmoSupply">
-              <CheckAmmoLow ammo_threshold="100" branch="GlobalAmmoSupply" />
+              <CheckAmmoLow ammo_threshold="0" branch="GlobalAmmoSupply" />
               <ReactiveFallback name="GlobalAmmoSupplyZoneSelector">
                 <!-- <ReactiveSequence name="GlobalOutpostAmmoSupply">
                   <ReactiveFallback>
