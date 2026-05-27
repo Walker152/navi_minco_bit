@@ -44,7 +44,8 @@ BT::NodeStatus CheckNearEnemyOutpost::tick()
   const auto pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const auto enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
   if (enemy_outpost_destroyed) {
-    detail::logTransition(detail::TreeKind::GIMBAL, "CheckNearEnemyOutpost", false, "enemy outpost destroyed", branch);
+    detail::logTransition(
+      detail::TreeKind::GIMBAL, "CheckNearEnemyOutpost", false, "enemy outpost destroyed", branch);
     return BT::NodeStatus::FAILURE;
   }
   const bool near_outpost = enemy_outpost_watch_zone.contains({pose.position.x, pose.position.y, 0.0});
