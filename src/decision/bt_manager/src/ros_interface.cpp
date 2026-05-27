@@ -219,9 +219,8 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   Point2D manual_point_2d(manual_point.position.x, manual_point.position.y);
   static Point2D last_manual_point(0.0, 0.0);
   blackboard_->set<Point2D>("manual_override_goal", manual_point_2d);
-  const bool manual_point_changed =
-    std::hypot(manual_point.position.x - last_manual_point.x,
-      manual_point.position.y - last_manual_point.y) >= 0.001;
+  const bool manual_point_changed = std::hypot(manual_point.position.x - last_manual_point.x,
+                                      manual_point.position.y - last_manual_point.y) >= 0.001;
   if (!manual_point_changed) {
     return;
   }
@@ -284,7 +283,6 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
   blackboard_->set<bool>("is_transformable", msg->is_transformable);
   blackboard_->set<float>("transform_state", msg->transform_state);
   blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
-  const auto current_pose = blackboard_->get<geometry_msgs::msg::Pose>("current_pose");
   auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
   float gimbal_yaw_init = msg->yaw_camerainit_to_gimbal;
   if (tf_utils) {
@@ -299,9 +297,11 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
     target_pose_in.position.x = (msg->armor_pos.x) / 1000.0;  // 转换为米
     target_pose_in.position.y = (msg->armor_pos.y) / 1000.0;
     target_pose_in.position.z = (msg->armor_pos.z) / 1000.0;
+    target_pose_in.orientation.w = 1.0;
 
     if (tf_utils) {
-      tf_utils->transformPoseToMap(target_pose_in, target_pose, "gimbal");
+      // tf_utils->transformPoseToMap(target_pose_in, target_pose, "gimbal");
+      tf_utils->transformGimbalToMap(target_pose_in, target_pose);
     }
     target_pose.orientation.w = 1.0;  // 设置默认朝向
     blackboard_->set<int>("target_armor_id", (int)msg->armor_num);
@@ -422,7 +422,8 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
       nearest_tunnel_idx = static_cast<int>(i);
     }
   }
-  // std::cout << "Current position: (" << current_point.x << ", " << current_point.y << "),in_transform_zone: "
+  // std::cout << "Current position: (" << current_point.x << ", " << current_point.y <<
+  // "),in_transform_zone: "
   //           << in_transform_zone
   //           << ", nearest_tunnel_idx: " << nearest_tunnel_idx << std::endl;
   bool current_in_tunnel = false;

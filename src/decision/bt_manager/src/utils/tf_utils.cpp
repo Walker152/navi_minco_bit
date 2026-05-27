@@ -34,6 +34,14 @@ void TransformUtils::updateGimbalYawInit(float yaw)
 {
   NormalizeAngle(yaw);
   latest_gimbal_yaw_deg_.store(yaw, std::memory_order_relaxed);
+  const double yaw_rad = static_cast<double>(yaw) * M_PI / 180.0;
+  const double cos_yaw = std::cos(yaw_rad);
+  const double sin_yaw = std::sin(yaw_rad);
+  {
+    std::lock_guard<std::mutex> lock(gimbal_to_map_mutex_);
+    gimbal_to_map_rotation_ = {cos_yaw, -sin_yaw, sin_yaw, cos_yaw};
+  }
+  gimbal_yaw_initialized_.store(true, std::memory_order_relaxed);
 }
 
 float TransformUtils::getCurrentYawDeg()
@@ -101,6 +109,38 @@ bool TransformUtils::transformPoseToMap(const geometry_msgs::msg::Pose & input_p
   } catch (const tf2::TransformException & ex) {
     return false;
   }
+}
+
+bool TransformUtils::transformGimbalToMap(const geometry_msgs::msg::Pose & input_pose,
+  geometry_msgs::msg::Pose & output_pose)
+{
+  geometry_msgs::msg::Pose current_pose_copy;
+  {
+    std::lock_guard<std::mutex> lock(current_pose_mutex_);
+    current_pose_copy = current_pose_;
+  }
+
+  std::array<double, 4> rotation;
+  {
+    std::lock_guard<std::mutex> lock(gimbal_to_map_mutex_);
+    rotation = gimbal_to_map_rotation_;
+  }
+
+  output_pose.position.x = current_pose_copy.position.x +
+                           rotation[0] * input_pose.position.x +
+                           rotation[1] * input_pose.position.y;
+  output_pose.position.y = current_pose_copy.position.y +
+                           rotation[2] * input_pose.position.x +
+                           rotation[3] * input_pose.position.y;
+  output_pose.position.z = current_pose_copy.position.z + input_pose.position.z;
+
+  output_pose.orientation = input_pose.orientation;
+  if (output_pose.orientation.x == 0.0 && output_pose.orientation.y == 0.0 &&
+      output_pose.orientation.z == 0.0 && output_pose.orientation.w == 0.0) {
+    output_pose.orientation.w = 1.0;
+  }
+
+  return true;
 }
 
 bool TransformUtils::waitForTransform(const std::string & target_frame, const std::string & source_frame)

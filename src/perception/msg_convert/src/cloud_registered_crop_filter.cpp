@@ -72,12 +72,9 @@ public:
       this->declare_parameter<std::vector<double>>("positions.y", std::vector<double>{});
     const auto centers_z =
       this->declare_parameter<std::vector<double>>("positions.z", std::vector<double>{});
-    const auto sizes_x =
-      this->declare_parameter<std::vector<double>>("box_sizes.x", std::vector<double>{});
-    const auto sizes_y =
-      this->declare_parameter<std::vector<double>>("box_sizes.y", std::vector<double>{});
-    const auto sizes_z =
-      this->declare_parameter<std::vector<double>>("box_sizes.z", std::vector<double>{});
+    const auto sizes_x = this->declare_parameter<std::vector<double>>("box_sizes.x", std::vector<double>{});
+    const auto sizes_y = this->declare_parameter<std::vector<double>>("box_sizes.y", std::vector<double>{});
+    const auto sizes_z = this->declare_parameter<std::vector<double>>("box_sizes.z", std::vector<double>{});
 
     if (!centers_x.empty() || !centers_y.empty() || !centers_z.empty()) {
       if (centers_x.size() == centers_y.size() && centers_x.size() == centers_z.size()) {
@@ -310,7 +307,8 @@ private:
 
     const std::string crop_frame = (filter_mode_ == "transform_cloud") ? filter_frame : cloud_frame;
     if (shouldPublishVisualization()) {
-      publishVisualization(msg->header.stamp, crop_frame, cloud_frame, centers, effective_sizes, odom_ready, min_z);
+      publishVisualization(
+        msg->header.stamp, crop_frame, cloud_frame, centers, effective_sizes, odom_ready, min_z);
     }
 
     const size_t filter_input_points = cloud_for_filter->points.size();
@@ -357,8 +355,8 @@ private:
           continue;
         }
 
-        const bool inside = p.x >= box_min_x && p.x <= box_max_x && p.y >= box_min_y &&
-                            p.y <= box_max_y && p.z >= box_min_z && p.z <= box_max_z;
+        const bool inside = p.x >= box_min_x && p.x <= box_max_x && p.y >= box_min_y && p.y <= box_max_y &&
+                            p.z >= box_min_z && p.z <= box_max_z;
         if (inside) {
           inside_mask[point_i] = 1;
           if (should_log_stats) {
@@ -450,10 +448,9 @@ private:
 
     std::ostringstream oss;
     oss << "[CropStats] raw=" << raw_points << " after_z=" << filter_input_points
-        << " output=" << output_points << " changed=" << changed_points
-        << " mode=" << filter_mode_ << " cloud_frame=" << cloud_frame
-        << " filter_frame=" << filter_frame << " need_tf=" << (need_transform ? "true" : "false")
-        << " odom_z_filter=";
+        << " output=" << output_points << " changed=" << changed_points << " mode=" << filter_mode_
+        << " cloud_frame=" << cloud_frame << " filter_frame=" << filter_frame
+        << " need_tf=" << (need_transform ? "true" : "false") << " odom_z_filter=";
     if (odom_ready) {
       oss << min_z;
     } else {
@@ -466,11 +463,10 @@ private:
       const float half_z = 0.5f * sizes[i].z();
       const size_t hits = i < box_hit_counts.size() ? box_hit_counts[i] : 0;
       oss << " | box" << i << " center=(" << centers[i].x() << "," << centers[i].y() << ","
-          << centers[i].z() << ") size=(" << sizes[i].x() << "," << sizes[i].y() << ","
-          << sizes[i].z() << ") min=(" << centers[i].x() - half_x << ","
-          << centers[i].y() - half_y << "," << centers[i].z() - half_z << ") max=("
-          << centers[i].x() + half_x << "," << centers[i].y() + half_y << ","
-          << centers[i].z() + half_z << ") hits=" << hits;
+          << centers[i].z() << ") size=(" << sizes[i].x() << "," << sizes[i].y() << "," << sizes[i].z()
+          << ") min=(" << centers[i].x() - half_x << "," << centers[i].y() - half_y << ","
+          << centers[i].z() - half_z << ") max=(" << centers[i].x() + half_x << ","
+          << centers[i].y() + half_y << "," << centers[i].z() + half_z << ") hits=" << hits;
     }
 
     RCLCPP_INFO(this->get_logger(), "%s", oss.str().c_str());
@@ -495,9 +491,8 @@ private:
     }
 
     const int64_t now_ns = this->now().nanoseconds();
-    if (last_visualization_time_ns_ == 0 ||
-        now_ns - last_visualization_time_ns_ >=
-          static_cast<int64_t>(visualization_period_ms_) * 1000000LL) {
+    if (last_visualization_time_ns_ == 0 || now_ns - last_visualization_time_ns_ >=
+                                              static_cast<int64_t>(visualization_period_ms_) * 1000000LL) {
       last_visualization_time_ns_ = now_ns;
       return true;
     }

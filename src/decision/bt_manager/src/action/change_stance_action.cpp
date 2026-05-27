@@ -37,8 +37,7 @@ bool SetGyroState::shouldReverseRotation(
   constexpr int kAmmoAllowanceIntervalSec = 60;
   constexpr int kAmmoAllowancePerInterval = 100;
   const int elapsed_time = std::max(0, kMatchDurationSec - game_time_remaining);
-  const int time_bonus_ammo =
-    (elapsed_time / kAmmoAllowanceIntervalSec) * kAmmoAllowancePerInterval;
+  const int time_bonus_ammo = (elapsed_time / kAmmoAllowanceIntervalSec) * kAmmoAllowancePerInterval;
   const int fired_count =
     std::max(0, kInitialAmmoAllowance + ammo_purchase_total + time_bonus_ammo - bullets_remaining);
   if (fired_count <= 200) {

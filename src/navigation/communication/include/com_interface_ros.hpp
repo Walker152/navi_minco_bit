@@ -279,7 +279,6 @@ private:
       if (use_gyro_mode) {
         vw_rpm = gyro_vel;
       }
-      
       // vw_rpm = -80.0f;
     }
 
