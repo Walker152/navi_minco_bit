@@ -75,7 +75,7 @@ void TransformUtils::publishDynamicTransform()
   geometry_msgs::msg::TransformStamped dynamic_transform;
 
   // 设置时间戳为当前时间
-  dynamic_transform.header.stamp = this->now();
+  dynamic_transform.header.stamp = this->now() - rclcpp::Duration(0, 10000000);  // 减去10ms，确保tf2能正确处理
   dynamic_transform.header.frame_id = "base_link";
   dynamic_transform.child_frame_id = "gimbal";
 
