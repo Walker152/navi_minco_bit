@@ -54,8 +54,7 @@ BT::NodeStatus CheckRetreatCondition::tick()
 }
 
 // ------------------- CheckGameTimeWindow -------------------
-CheckGameTimeWindow::CheckGameTimeWindow(
-  const std::string & name, const BT::NodeConfiguration & config)
+CheckGameTimeWindow::CheckGameTimeWindow(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
 {
 }
@@ -94,8 +93,7 @@ BT::NodeStatus CheckGameTimeWindow::tick()
 }
 
 // ------------------- CheckBigEnergyActive -------------------
-CheckBigEnergyActive::CheckBigEnergyActive(
-  const std::string & name, const BT::NodeConfiguration & config)
+CheckBigEnergyActive::CheckBigEnergyActive(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
 {
 }
@@ -112,7 +110,7 @@ BT::NodeStatus CheckBigEnergyActive::tick()
   const std::string branch = getInput<std::string>("branch").value_or("");
   const int active_status = getInput<int>("active_status").value_or(2);
   const int big_energy_status = blackboard->get<int>("big_energy_status");
-  if(big_energy_status == 1) {
+  if (big_energy_status == 1) {
     energy_activated = true;
   }
   const bool active = energy_activated;
@@ -167,10 +165,11 @@ BT::NodeStatus CheckTargetLocked::tick()
     }
   }
   bool condition_met = false;
-  const bool target_in_engineering = engineering_zone.contains(target_point) && armor_id == 2;
+  const bool target_in_engineering = engineering_zone.contains(target_point) && armor_id == 3;
   const bool target_in_supply = enemy_supply_zone.contains(target_point);
   blackboard->set("not_aim_enemy", target_in_engineering || target_in_supply);
-
+  // std::cout << "armor_id:" << armor_id << ",target_in_engineering:" << target_in_engineering <<
+  // "target_point:(" << target_point.x << "," << target_point.y << ")" << std::endl;
   if (!target_in_engineering && !target_in_supply) {
     if (in_attack_area && target_valid) {
       last_seen_time = std::chrono::system_clock::now();
@@ -182,7 +181,7 @@ BT::NodeStatus CheckTargetLocked::tick()
       double lost_duration = std::chrono::duration<double>(now - last_seen_time).count();
 
       // 容忍 1.0 秒内的视觉丢失
-      if (lost_duration < 1.0) { 
+      if (lost_duration < 1.0) {
         tick_count++;
         // blackboard->set<NavMode>("current_mode", NavMode::TRACING);
         condition_met = true;
@@ -247,7 +246,8 @@ SetEnemyOutpostDestroyed::SetEnemyOutpostDestroyed(
 BT::PortsList SetEnemyOutpostDestroyed::providedPorts()
 {
   return {BT::InputPort<bool>("enemy_outpost_destroyed", "Target enemy outpost destroyed state"),
-    BT::InputPort<bool>("exit_outpost_mode", false, "Set nav mode to patrol when disabling outpost response"),
+    BT::InputPort<bool>(
+      "exit_outpost_mode", false, "Set nav mode to patrol when disabling outpost response"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
@@ -277,8 +277,7 @@ BT::NodeStatus SetEnemyOutpostDestroyed::tick()
 
   std::ostringstream oss;
   oss << "enemy_outpost_destroyed already " << enemy_outpost_destroyed;
-  detail::logTransition(
-    detail::TreeKind::NAV, "SetEnemyOutpostDestroyed", false, oss.str(), branch);
+  detail::logTransition(detail::TreeKind::NAV, "SetEnemyOutpostDestroyed", false, oss.str(), branch);
   return BT::NodeStatus::FAILURE;
 }
 

@@ -1,7 +1,9 @@
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <geometry_msgs/msg/pose.hpp>
+#include <mutex>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -25,6 +27,10 @@ public:
     geometry_msgs::msg::Pose & output_pose,
     const std::string & child_frame);
 
+  // 手动坐标转换函数（从gimbal系转换到map系，跳过tf2查询）
+  bool transformGimbalToMap(const geometry_msgs::msg::Pose & input_pose,
+    geometry_msgs::msg::Pose & output_pose);
+
   // 坐标转换函数（从map系转换到target系）
   bool transformMapPose(const geometry_msgs::msg::Pose & input_pose,
     geometry_msgs::msg::Pose & output_pose,
@@ -41,6 +47,8 @@ public:
 private:
   std::mutex current_pose_mutex_;
   geometry_msgs::msg::Pose current_pose_;
+  std::mutex gimbal_to_map_mutex_;
+  std::array<double, 4> gimbal_to_map_rotation_{1.0, 0.0, 0.0, 1.0};
 
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;  // 动态发布器
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;

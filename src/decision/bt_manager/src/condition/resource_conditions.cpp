@@ -256,8 +256,8 @@ BT::NodeStatus CheckAttackFortHealthExchangeNeeded::tick()
 
   std::ostringstream oss;
   oss << std::boolalpha << "tactical_mode=" << static_cast<int>(tactical_mode)
-      << ", current_mode=" << static_cast<int>(current_mode) << ", game_time_remaining="
-      << game_time_remaining << ", game_status=" << game_status
+      << ", current_mode=" << static_cast<int>(current_mode)
+      << ", game_time_remaining=" << game_time_remaining << ", game_status=" << game_status
       << ", big_energy_status=" << big_energy_status
       << ", in_attack_transform_zone=" << in_attack_transform_zone << ", requested=" << requested_;
   detail::logTransition(
