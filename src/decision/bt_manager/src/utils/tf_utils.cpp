@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <rclcpp/duration.hpp>
 #include <string>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/utils.h>
@@ -75,7 +76,7 @@ void TransformUtils::publishDynamicTransform()
   geometry_msgs::msg::TransformStamped dynamic_transform;
 
   // 设置时间戳为当前时间
-  dynamic_transform.header.stamp = this->now();
+  dynamic_transform.header.stamp = this->now() - rclcpp::Duration(0, 10000000);
   dynamic_transform.header.frame_id = "base_link";
   dynamic_transform.child_frame_id = "gimbal";
 
