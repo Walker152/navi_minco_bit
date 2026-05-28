@@ -16,8 +16,8 @@ inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
     Point2D{7.5, 5.5}, Point2D{10.0, 5.5}, Point2D{11.5, 5.5},
     Point2D{11.5, 0.1}, Point2D{10.0, 0.1}, Point2D{7.5, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{19.8, 15.0},
-    Point2D{19.8, 11.5}, Point2D{18.75, 11.5}, Point2D{17.0, 11.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{20.8, 15.0},
+    Point2D{20.8, 11.5}, Point2D{18.75, 11.5}, Point2D{17.0, 11.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
     Point2D{7.6, 8.8}, Point2D{11.0, 13.8}, Point2D{16.7, 13.8},
     Point2D{16.7, 12.5}, Point2D{12.7, 12.5}, Point2D{10.3, 8.8}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
@@ -92,7 +92,9 @@ inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{13.3, 9.7},
   Point2D{14.7, 9.7},
 };
-inline Area_Circle enemy_fort_zone{Point2D{22.0, 7.5}, 0.7};
+inline Area_Circle enemy_fort_zone{Point2D{22.0, 7.5}, 1.0};
+inline Area_Circle enemy_fort_engage_zone{Point2D{22.0, 7.5}, 0.3};
+
 inline AreaPolygon<6, Point2D> own_highland_buff_zone{
   Point2D{13.0, 12.3},
   Point2D{13.0, 11.1},
