@@ -746,7 +746,7 @@ EmergencyStop::EmergencyStop(const std::string & name, const BT::NodeConfigurati
 
 BT::PortsList EmergencyStop::providedPorts()
 {
-  return {};
+  return {BT::InputPort<bool>("enable_combat_stop", true, "Stop when engaged in transform zone")};
 }
 
 BT::NodeStatus EmergencyStop::tick()
@@ -754,15 +754,69 @@ BT::NodeStatus EmergencyStop::tick()
   auto blackboard = config().blackboard;
   const bool current_in_tunnel = blackboard->get<bool>("current_in_tunnel");
   const bool in_transform_zone = blackboard->get<bool>("in_transform_zone");
-  const bool is_disengaged = blackboard->get<bool>("is_disengaged");
-  const bool engaged = !is_disengaged;
+  const bool through_tunnel = blackboard->get<bool>("through_tunnel");
+  const auto desired_lifter_pos = blackboard->get<LifterPos>("desired_lifter_pos");
+  const auto current_lifter_pos = blackboard->get<LifterPos>("lifter_current_pos");
+  const float transform_state = blackboard->get<float>("transform_state");
+  const auto now = std::chrono::steady_clock::now();
 
-  // 触发条件：在变形区、没进隧道、正在挨打
-  const bool should_stop = in_transform_zone && !current_in_tunnel && engaged;
+  const bool tunnel_context =
+    through_tunnel || current_in_tunnel || (in_transform_zone && desired_lifter_pos == LifterPos::BOTTOM);
+  const bool desired_lifter_started_down =
+    has_lifter_sample_ && previous_desired_lifter_pos_ == LifterPos::TOP &&
+    desired_lifter_pos == LifterPos::BOTTOM;
+  const bool current_lifter_reported_down =
+    has_lifter_sample_ && previous_current_lifter_pos_ == LifterPos::TOP &&
+    current_lifter_pos == LifterPos::BOTTOM;
+  const bool tunnel_transform_started =
+    tunnel_context && (desired_lifter_started_down || current_lifter_reported_down ||
+                        (!has_lifter_sample_ && desired_lifter_pos == LifterPos::BOTTOM));
+
+  if (tunnel_transform_started) {
+    monitoring_tunnel_transform_ = true;
+    transform_below_threshold_ = false;
+    below_threshold_since_ = now;
+  }
+
+  if (monitoring_tunnel_transform_ || tunnel_transform_failed_) {
+    if (transform_state >= 98.0f) {
+      monitoring_tunnel_transform_ = false;
+      transform_below_threshold_ = false;
+      tunnel_transform_failed_ = false;
+    } else {
+      if (transform_state < 95.0f) {
+        if (!transform_below_threshold_) {
+          transform_below_threshold_ = true;
+          below_threshold_since_ = now;
+        } else if (std::chrono::duration<double>(now - below_threshold_since_).count() > 5.0) {
+          tunnel_transform_failed_ = true;
+        }
+      } else {
+        transform_below_threshold_ = false;
+      }
+    }
+  }
+
+  if (!tunnel_context && !tunnel_transform_failed_) {
+    monitoring_tunnel_transform_ = false;
+    transform_below_threshold_ = false;
+  }
+
+  // 触发条件：在变形区、没进隧道
+  const bool should_stop = tunnel_transform_failed_;
   std::ostringstream detail;
   detail << std::boolalpha << "in_transform_zone=" << in_transform_zone
-         << ", current_in_tunnel=" << current_in_tunnel << ", is_disengaged=" << is_disengaged;
+         << ", current_in_tunnel=" << current_in_tunnel << ", through_tunnel=" << through_tunnel
+         << ", desired_lifter_pos=" << static_cast<int>(desired_lifter_pos)
+         << ", current_lifter_pos=" << static_cast<int>(current_lifter_pos)
+         << ", transform_state=" << transform_state
+         << ", monitoring_tunnel_transform=" << monitoring_tunnel_transform_
+         << ", tunnel_transform_failed=" << tunnel_transform_failed_;
   detail::logTransition(detail::TreeKind::NAV, "EmergencyStop", should_stop, detail.str());
+
+  previous_desired_lifter_pos_ = desired_lifter_pos;
+  previous_current_lifter_pos_ = current_lifter_pos;
+  has_lifter_sample_ = true;
 
   if (should_stop) {
     const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");

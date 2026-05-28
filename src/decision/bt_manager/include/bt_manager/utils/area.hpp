@@ -16,11 +16,11 @@ inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
     Point2D{7.5, 5.5}, Point2D{10.0, 5.5}, Point2D{11.5, 5.5},
     Point2D{11.5, 0.1}, Point2D{10.0, 0.1}, Point2D{7.5, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{19.5, 15.0},
-    Point2D{19.5, 11.5}, Point2D{18.75, 11.5}, Point2D{17.0, 11.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{19.8, 15.0},
+    Point2D{19.8, 11.5}, Point2D{18.75, 11.5}, Point2D{17.0, 11.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{7.3, 8.8}, Point2D{11.0, 13.8}, Point2D{16.7, 13.8},
-    Point2D{16.7, 12.5}, Point2D{12.7, 12.5}, Point2D{10.1, 8.8}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{7.6, 8.8}, Point2D{11.0, 13.8}, Point2D{16.7, 13.8},
+    Point2D{16.7, 12.5}, Point2D{12.7, 12.5}, Point2D{10.3, 8.8}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
     Point2D{12.3, 3.0}, Point2D{15.65, 3.0}, Point2D{19.0, 3.0},
     Point2D{19.0, 1.2}, Point2D{15.65, 1.2}, Point2D{12.3, 1.2}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
@@ -64,7 +64,7 @@ inline AreaPolygon<8, Point2D> own_defense_zone{
   Point2D{0.3, 9.8}, 
   Point2D{8.3, 9.8},
   Point2D{11.0, 13.6},
-  Point2D{13.5, 13.6},
+  Point2D{13.3, 13.6},
   Point2D{9.6, 8.4},
   Point2D{9.6, 6.9},
   Point2D{10.6, 4.4},
@@ -74,7 +74,7 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{28.7, 5.2}, 
   Point2D{20.7, 5.2},
   Point2D{18.0, 1.4},
-  Point2D{16.1, 1.4},
+  Point2D{15.8, 1.4},
   Point2D{19.4, 6.6},
   Point2D{19.4, 8.1},
   Point2D{18.4, 10.6},
@@ -161,13 +161,15 @@ inline std::vector<Point2D> nav_points = {
 
 inline std::vector<PatrolPoint> patrol_points_normal = {
   // for rmuc
-  {{16.0, 11.2, 0.0}, 5000},
-  // {{17.3, 8.5, 0.0}, 5000},
-  {{12.2, 10.5, 0.0}, 5000},
+  // {{16.0, 11.2, 0.0}, 5000},
+  {{20.6, 14.0, 0.0}, 5000},  // 雷霆大坐点位
+  // {{12.2, 10.5, 0.0}, 5000},
 };
 
 inline std::vector<PatrolPoint> patrol_points_attack = {
-  {{16.0, 12.0, 0.0}, 5000}, {{17.3, 7.9, 0.0}, 5000}, {{15.3, 11.0, 0.0}, 6000}
+  // {{16.0, 12.0, 0.0}, 5000}, 
+  {{20.6, 14.0, 0.0}, 5000}, 
+  // {{15.3, 11.0, 0.0}, 6000}
 };
 #endif
 #ifdef TEST_AREA
