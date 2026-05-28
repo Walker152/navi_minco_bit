@@ -1,15 +1,19 @@
 <root main_tree_to_execute="GimbalTree">
   <BehaviorTree ID="GimbalTree">
     <ReactiveFallback name="GimbalPriorityRoot">
-      <ReactiveSequence name="Priority2SpecialResponseScan">
+      <ReactiveSequence name="Priority1SpecialResponseScan">
         <CheckEngagedSafeResponse stable_seconds="5.0"
                                   exit_mode="-1"
                                   exit_blackboard_key="outpost_safe_cooldown_active"
-                                  branch="Priority2SpecialResponseScan" />
+                                  branch="Priority1SpecialResponseScan" />
         <CheckOutpostTarget name="CheckGimbalOutpostTarget"
                             goal_distance_threshold="0.5"
-                            branch="Priority2SpecialResponseScan" />
+                            branch="Priority1SpecialResponseScan" />
         <SetGimbalPose name="SetOutpostInspectPose" mode="0"/>
+      </ReactiveSequence>
+      <ReactiveSequence name="Priority2StairZoneScan">
+        <CheckInStairsZone branch="Priority2StairZoneScan" />
+        <SetGimbalPoseByAreaAction name="SetStairZoneGimbal" />
       </ReactiveSequence>
       <ReactiveSequence name="Priority3NormalScan">
         <SetGimbalPose name="SetNormalInspectPose" mode="1" />
