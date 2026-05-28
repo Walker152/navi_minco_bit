@@ -19,8 +19,8 @@ inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
     Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{19.5, 15.0},
     Point2D{19.5, 11.5}, Point2D{18.75, 11.5}, Point2D{17.0, 11.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{8.8, 10.6}, Point2D{11.0, 13.8}, Point2D{16.7, 13.8},
-    Point2D{16.7, 12.5}, Point2D{12.7, 12.5}, Point2D{11.2, 10.6}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{7.6, 9.1}, Point2D{11.0, 13.8}, Point2D{16.7, 13.8},
+    Point2D{16.7, 12.5}, Point2D{12.7, 12.5}, Point2D{10.6, 9.1}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
     Point2D{12.3, 3.0}, Point2D{15.65, 3.0}, Point2D{19.0, 3.0},
     Point2D{19.0, 1.2}, Point2D{15.65, 1.2}, Point2D{12.3, 1.2}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
