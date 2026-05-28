@@ -97,7 +97,9 @@
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
           <Fallback name="MoveStanceSelector">
             <Sequence name="DisengagedHighlandDefendBranch">
-              <CheckInZone zone_name="highland" branch="DisengagedHighlandDefendBranch" />
+              <Inverter>
+                <CheckInZone zone_name="own_defend" branch="DisengagedHighlandDefendBranch" />
+              </Inverter>
               <ChangeStance name="ChangeStanceDisengagedHighlandDefend" stance="DEFEND" />
             </Sequence>
             <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
