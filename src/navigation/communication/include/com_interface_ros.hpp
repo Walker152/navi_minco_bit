@@ -312,7 +312,7 @@ private:
       revive_req,
       ammo_req,
       health_req,
-      0,
+      use_limited_scan,
       not_aim_enemy);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
 #ifdef COMMUNICATION_DEBUG

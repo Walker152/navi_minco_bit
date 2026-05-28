@@ -97,18 +97,28 @@ BT::NodeStatus SetGimbalPoseByAreaAction::tick()
   bool is_in_zone = false;
   PatrolZoneType target_zone;
 
-  if (own_outpost_buff_zone.contains(current_pt)) {
-    target_zone = PatrolZoneType::OWN_OUTPOST;
-    is_in_zone = true;
-  } else if (enemy_defense_zone.contains(current_pt)) {
-    target_zone = PatrolZoneType::ENEMY_DEFENSE;
-    is_in_zone = true;
-  } else if (own_defense_zone.contains(current_pt)) {
-    target_zone = PatrolZoneType::OWN_DEFENSE;
-    is_in_zone = true;
-  } else if (highland_zone.contains(current_pt)) {
-    target_zone = PatrolZoneType::HIGHLAND;
-    is_in_zone = true;
+  for (const auto & zone : stairs_zone) {
+    if (zone.contains(current_pt)) {
+      target_zone = PatrolZoneType::STAIRZONE;
+      is_in_zone = true;
+      break;
+    }
+  }
+
+  if (!is_in_zone) {
+    if (own_outpost_buff_zone.contains(current_pt)) {
+      target_zone = PatrolZoneType::OWN_OUTPOST;
+      is_in_zone = true;
+    } else if (enemy_defense_zone.contains(current_pt)) {
+      target_zone = PatrolZoneType::ENEMY_DEFENSE;
+      is_in_zone = true;
+    } else if (own_defense_zone.contains(current_pt)) {
+      target_zone = PatrolZoneType::OWN_DEFENSE;
+      is_in_zone = true;
+    } else if (highland_zone.contains(current_pt)) {
+      target_zone = PatrolZoneType::HIGHLAND;
+      is_in_zone = true;
+    }
   }
 
   if (is_in_zone) {
