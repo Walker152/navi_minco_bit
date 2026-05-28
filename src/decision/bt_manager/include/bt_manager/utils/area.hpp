@@ -19,8 +19,8 @@ inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
     Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{19.5, 15.0},
     Point2D{19.5, 11.5}, Point2D{18.75, 11.5}, Point2D{17.0, 11.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{8.8, 10.6}, Point2D{11.0, 13.8}, Point2D{16.7, 13.8},
-    Point2D{16.7, 12.5}, Point2D{12.7, 12.5}, Point2D{11.2, 10.6}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{7.6, 9.1}, Point2D{11.0, 13.8}, Point2D{16.7, 13.8},
+    Point2D{16.7, 12.5}, Point2D{12.7, 12.5}, Point2D{10.6, 9.1}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
     Point2D{12.3, 3.0}, Point2D{15.65, 3.0}, Point2D{19.0, 3.0},
     Point2D{19.0, 1.2}, Point2D{15.65, 1.2}, Point2D{12.3, 1.2}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
@@ -148,7 +148,7 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 inline std::vector<Point2D> nav_points = {
   {3.0, 3.0, 0.0},   // HOME
   {12.8, 5.5, 0.0},  // BONUS
-  {15.3, 11.3, 0.0}, // ENEMY_OUTPOST
+  {15.2, 11.2, 0.0}, // ENEMY_OUTPOST
   {7.2, 7.5, 0.0},   // OWN_FORT
   {22.0, 7.5, 0.0},  // ENEMY_FORT
   {12.1, 3.9, 0.0}   // OWN_OUTPOST
@@ -161,9 +161,9 @@ inline std::vector<Point2D> nav_points = {
 
 inline std::vector<PatrolPoint> patrol_points_normal = {
   // for rmuc
-  {{16.0, 11.7, 0.0}, 5000},
+  {{16.0, 11.2, 0.0}, 5000},
   // {{17.3, 8.5, 0.0}, 5000},
-  {{12.5, 10.5, 0.0}, 5000},
+  {{12.2, 10.5, 0.0}, 5000},
 };
 
 inline std::vector<PatrolPoint> patrol_points_attack = {
