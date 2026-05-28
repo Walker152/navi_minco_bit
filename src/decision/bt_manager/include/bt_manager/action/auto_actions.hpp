@@ -164,5 +164,14 @@ public:
   EmergencyStop(const std::string & name, const BT::NodeConfiguration & config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+
+private:
+  bool has_lifter_sample_ = false;
+  LifterPos previous_desired_lifter_pos_ = LifterPos::TOP;
+  LifterPos previous_current_lifter_pos_ = LifterPos::TOP;
+  bool monitoring_tunnel_transform_ = false;
+  bool transform_below_threshold_ = false;
+  bool tunnel_transform_failed_ = false;
+  std::chrono::steady_clock::time_point below_threshold_since_;
 };
 }  // namespace Sentry_BT
