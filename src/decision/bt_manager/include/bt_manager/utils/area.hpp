@@ -13,14 +13,14 @@ namespace Sentry_BT {
 // for rmuc
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
   AreaPolygon<6, Point2D>{
-    Point2D{8.5, 5.0}, Point2D{10.0, 5.0}, Point2D{11.5, 5.0},
-    Point2D{11.5, 0.1}, Point2D{10.0, 0.1}, Point2D{8.5, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{7.5, 5.5}, Point2D{10.0, 5.5}, Point2D{11.5, 5.5},
+    Point2D{11.5, 0.1}, Point2D{10.0, 0.1}, Point2D{7.5, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
     Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{19.5, 15.0},
     Point2D{19.5, 11.5}, Point2D{18.75, 11.5}, Point2D{17.0, 11.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{7.6, 9.1}, Point2D{11.0, 13.8}, Point2D{16.7, 13.8},
-    Point2D{16.7, 12.5}, Point2D{12.7, 12.5}, Point2D{10.6, 9.1}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{7.3, 8.8}, Point2D{11.0, 13.8}, Point2D{16.7, 13.8},
+    Point2D{16.7, 12.5}, Point2D{12.7, 12.5}, Point2D{10.1, 8.8}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
     Point2D{12.3, 3.0}, Point2D{15.65, 3.0}, Point2D{19.0, 3.0},
     Point2D{19.0, 1.2}, Point2D{15.65, 1.2}, Point2D{12.3, 1.2}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
@@ -52,11 +52,11 @@ inline std::array<Area_Square, 2> stairs_lower_safe_zone{
 };
 inline AreaPolygon<8, Point2D> highland_zone{
   Point2D{13.2, 12.7}, 
-  Point2D{10.9, 10.0},
+  Point2D{10.9, 9.8},
   Point2D{10.9, 4.8},
   Point2D{13.5, 2.3},
   Point2D{15.8, 2.3},
-  Point2D{18.1, 5.0},
+  Point2D{18.1, 5.2},
   Point2D{18.1, 10.2},
   Point2D{15.5, 12.7},
 };
@@ -64,7 +64,7 @@ inline AreaPolygon<8, Point2D> own_defense_zone{
   Point2D{0.3, 9.8}, 
   Point2D{8.3, 9.8},
   Point2D{11.0, 13.6},
-  Point2D{12.9, 13.6},
+  Point2D{13.5, 13.6},
   Point2D{9.6, 8.4},
   Point2D{9.6, 6.9},
   Point2D{10.6, 4.4},
