@@ -161,7 +161,7 @@ inline std::vector<Point2D> nav_points = {
 
 inline std::vector<PatrolPoint> patrol_points_normal = {
   // for rmuc
-  // {{16.0, 11.2, 0.0}, 5000},
+  // {{15.5, 9.0, 0.0}, 5000},
   {{20.6, 14.0, 0.0}, 5000},  // 雷霆大坐点位
   // {{12.2, 10.5, 0.0}, 5000},
 };
@@ -347,7 +347,8 @@ enum class PatrolZoneType {
   ENEMY_DEFENSE,
   OWN_DEFENSE,
   HIGHLAND,
-  OWN_OUTPOST
+  OWN_OUTPOST,
+  STAIRZONE
 };
 
 struct PatrolZoneTypeHash {
@@ -362,19 +363,22 @@ inline std::unordered_map<TacticalMode, std::unordered_map<PatrolZoneType, Gimba
     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
-    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}}
+    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
+    {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
   }},
   {TacticalMode::DEFENSIVE, {
     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
-    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}}
+    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
+    {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
   }},
   {TacticalMode::BALANCED, {
     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
-    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}}
+    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
+    {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
   }}
 };
 
