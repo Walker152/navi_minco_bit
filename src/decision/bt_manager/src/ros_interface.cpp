@@ -285,6 +285,7 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
   blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
   auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
   float gimbal_yaw_init = msg->yaw_camerainit_to_gimbal;
+  // std::cout << "Received gimbal_yaw_init: " << gimbal_yaw_init << " degrees" << std::endl;
   if (tf_utils) {
     tf_utils->updateGimbalYawInit(gimbal_yaw_init);
   }
@@ -303,6 +304,15 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
       // tf_utils->transformPoseToMap(target_pose_in, target_pose, "gimbal");
       tf_utils->transformGimbalToMap(target_pose_in, target_pose);
     }
+    // geometry_msgs::msg::Pose test_pos;
+    // geometry_msgs::msg::Pose test_pos_out;
+    // test_pos.position.x = 4.56;
+    // test_pos.position.y = 10.11;
+    // test_pos.position.z = 0.0;
+    // test_pos.orientation.w = 1.0;
+    // std::cout <<"\033[32m target_pose = (" << target_pose.position.x << "," << target_pose.position.y << ")\033[0m" << std::endl;
+    // tf_utils->transformGimbalToMap(test_pos, test_pos_out);
+    // std::cout <<"\033[34m test_pos_out = (" << test_pos_out.position.x << "," << test_pos_out.position.y << ")\033[0m" << std::endl;
     target_pose.orientation.w = 1.0;  // 设置默认朝向
     blackboard_->set<int>("target_armor_id", (int)msg->armor_num);
     blackboard_->set<geometry_msgs::msg::Pose>("target_pose", target_pose);

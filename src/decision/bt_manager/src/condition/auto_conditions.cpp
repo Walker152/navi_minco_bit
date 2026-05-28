@@ -166,11 +166,12 @@ BT::NodeStatus CheckTargetLocked::tick()
   }
   bool condition_met = false;
   const bool target_in_engineering =
-    target_valid && engineering_zone.contains(target_point) && armor_id == 2;
+    target_valid && engineering_zone.contains(target_point) && armor_id == 4;
   const bool target_in_supply = target_valid && enemy_supply_zone.contains(target_point);
   blackboard->set("not_aim_enemy", target_in_engineering || target_in_supply);
   // std::cout << "armor_id:" << armor_id << ",target_in_engineering:" << target_in_engineering <<
-  // "target_point:(" << target_point.x << "," << target_point.y << ")" << std::endl;
+  // " target_point:(" << target_point.x << "," << target_point.y << ")" <<" not_aim_enemy:" << (target_in_engineering || target_in_supply) << " target_valid:" << target_valid << std::endl;
+  // std::cout << "current_pose =(" << current_pose.position.x << "," << current_pose.position.y << ")" << std::endl;
   if (!target_in_engineering && !target_in_supply) {
     if (in_attack_area && target_valid) {
       last_seen_time = std::chrono::system_clock::now();
