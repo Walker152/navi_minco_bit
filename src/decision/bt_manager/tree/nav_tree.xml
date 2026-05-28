@@ -20,9 +20,11 @@
               <NavigateToPoseAction name="NavigateManualEnemyFort" />
             </ReactiveSequence>
             <ReactiveSequence name="ManualPointResponse">
-              <SetManualOverrideGoal name="SetManualOverrideGoal" />
+              <SetManualOverrideGoal name="SetManualOverrideGoal"
+                                     wait_duration_s="10.0"
+                                     goal_radius="0.5"
+                                     fallback_timeout_s="60.0" />
               <NavigateToPoseAction name="NavigateManualOverrideGoal" />
-              <WaitManual name="WaitManual" wait_duration_s="5.0" goal_radius="0.5" fallback_timeout_s="60.0" />
             </ReactiveSequence>
           </ReactiveFallback>
         </ReactiveSequence>

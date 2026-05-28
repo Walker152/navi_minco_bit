@@ -46,6 +46,15 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+
+private:
+  double wait_duration_s_ = 5.0;
+  double goal_radius_ = 0.5;
+  double fallback_timeout_s_ = 60.0;
+  std::chrono::time_point<std::chrono::steady_clock> start_time_;
+  std::chrono::time_point<std::chrono::steady_clock> arrival_time_;
+  Point2D last_goal_;
+  bool has_last_goal_ = false;
 };
 
 class SelectPatrolPoint : public BT::SyncActionNode
@@ -137,25 +146,6 @@ private:
   bool wait_param_available();
   bool has_params(std::vector<std::string> param_names);
   rclcpp::AsyncParametersClient::SharedPtr parameters_client_;
-};
-
-class WaitManual : public BT::StatefulActionNode
-{
-public:
-  WaitManual(const std::string & name, const BT::NodeConfiguration & config);
-
-  static BT::PortsList providedPorts();
-  BT::NodeStatus onStart() override;
-  BT::NodeStatus onRunning() override;
-  void onHalted() override;
-
-private:
-  double wait_duration_s_;
-  double goal_radius_;
-  double fallback_timeout_s_;
-  std::chrono::time_point<std::chrono::steady_clock> start_time_;
-  std::chrono::time_point<std::chrono::steady_clock> arrival_time_;
-  Point2D last_goal_;
 };
 
 class EmergencyStop : public BT::SyncActionNode

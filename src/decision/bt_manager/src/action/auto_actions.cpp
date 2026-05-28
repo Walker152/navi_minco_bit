@@ -166,26 +166,67 @@ SetManualOverrideGoal::SetManualOverrideGoal(const std::string & name, const BT:
 
 BT::PortsList SetManualOverrideGoal::providedPorts()
 {
-  return {};
+  return {BT::InputPort<double>("wait_duration_s", 5.0, "Release manual mode after arrival"),
+    BT::InputPort<double>("goal_radius", 0.5, "Radius tolerance to manual goal"),
+    BT::InputPort<double>("fallback_timeout_s", 60.0, "Release manual mode timeout")};
 }
 
 BT::NodeStatus SetManualOverrideGoal::tick()
 {
   auto blackboard = config().blackboard;
+  wait_duration_s_ = getInput<double>("wait_duration_s").value_or(5.0);
+  goal_radius_ = getInput<double>("goal_radius").value_or(0.5);
+  fallback_timeout_s_ = getInput<double>("fallback_timeout_s").value_or(60.0);
 
   const auto manual_goal = blackboard->get<Point2D>("manual_override_goal");
   blackboard->set("nav_goal", manual_goal);
   blackboard->set<NavMode>("current_mode", NavMode::MANUAL);
 
-  static Point2D last_goal;
-  static bool has_last_goal = false;
   const bool goal_changed =
-    !has_last_goal || std::hypot(manual_goal.x - last_goal.x, manual_goal.y - last_goal.y) > 0.01;
+    !has_last_goal_ || std::hypot(manual_goal.x - last_goal_.x, manual_goal.y - last_goal_.y) > 0.01;
   if (goal_changed) {
     std::cout << CYAN << "Set manual override goal to (" << manual_goal.x << ", " << manual_goal.y << ")"
               << RESET << std::endl;
-    last_goal = manual_goal;
-    has_last_goal = true;
+    last_goal_ = manual_goal;
+    has_last_goal_ = true;
+    start_time_ = std::chrono::steady_clock::now();
+    arrival_time_ = std::chrono::steady_clock::time_point{};
+  } else if (start_time_ == std::chrono::steady_clock::time_point{}) {
+    start_time_ = std::chrono::steady_clock::now();
+  }
+
+  const auto now = std::chrono::steady_clock::now();
+  const double total_elapsed = std::chrono::duration<double>(now - start_time_).count();
+  if (total_elapsed >= fallback_timeout_s_) {
+    blackboard->set<ControlMode>("control_mode", ControlMode::AUTO);
+    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
+    arrival_time_ = std::chrono::steady_clock::time_point{};
+    std::ostringstream detail;
+    detail << "fallback timeout, elapsed=" << total_elapsed << "s, switching to AUTO";
+    detail::logTransition(detail::TreeKind::NAV, "SetManualOverrideGoal", false, detail.str());
+    return BT::NodeStatus::FAILURE;
+  }
+
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const double distance =
+    std::hypot(current_pose.position.x - manual_goal.x, current_pose.position.y - manual_goal.y);
+  if (distance > goal_radius_) {
+    arrival_time_ = std::chrono::steady_clock::time_point{};
+  } else {
+    if (arrival_time_ == std::chrono::steady_clock::time_point{}) {
+      arrival_time_ = now;
+    }
+    const double arrived_elapsed = std::chrono::duration<double>(now - arrival_time_).count();
+    if (arrived_elapsed >= wait_duration_s_) {
+      blackboard->set<ControlMode>("control_mode", ControlMode::AUTO);
+      blackboard->set<NavMode>("current_mode", NavMode::PATROL);
+      arrival_time_ = std::chrono::steady_clock::time_point{};
+      std::ostringstream detail;
+      detail << "arrived distance=" << distance << ", elapsed=" << arrived_elapsed
+             << "s, switching to AUTO";
+      detail::logTransition(detail::TreeKind::NAV, "SetManualOverrideGoal", false, detail.str());
+      return BT::NodeStatus::FAILURE;
+    }
   }
 
   return BT::NodeStatus::SUCCESS;
@@ -656,88 +697,6 @@ void ControlThroughTunnel::onHalted()
   return;
 }
 
-// ------------------- WaitManual -------------------
-WaitManual::WaitManual(const std::string & name, const BT::NodeConfiguration & config)
-: BT::StatefulActionNode(name, config), wait_duration_s_(3.0), goal_radius_(0.5), fallback_timeout_s_(60.0)
-{
-}
-
-BT::PortsList WaitManual::providedPorts()
-{
-  return {BT::InputPort<double>("wait_duration_s", 3.0, "Wait duration at goal in seconds"),
-    BT::InputPort<double>("goal_radius", 0.5, "Radius tolerance to goal"),
-    BT::InputPort<double>("fallback_timeout_s", 60.0, "Fallback timeout in seconds")};
-}
-
-BT::NodeStatus WaitManual::onStart()
-{
-  wait_duration_s_ = getInput<double>("wait_duration_s").value_or(3.0);
-  goal_radius_ = getInput<double>("goal_radius").value_or(0.5);
-  fallback_timeout_s_ = getInput<double>("fallback_timeout_s").value_or(60.0);
-  start_time_ = std::chrono::steady_clock::now();
-  arrival_time_ = std::chrono::steady_clock::time_point{};
-
-  std::ostringstream detail;
-  detail << "duration=" << wait_duration_s_ << "s, radius=" << goal_radius_
-         << ", fallback=" << fallback_timeout_s_ << "s";
-  detail::logTransition(detail::TreeKind::NAV, "WaitManual", true, detail.str());
-  return BT::NodeStatus::RUNNING;
-}
-
-BT::NodeStatus WaitManual::onRunning()
-{
-  auto blackboard = config().blackboard;
-  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-  const auto manual_goal = blackboard->get<Point2D>("manual_override_goal");
-
-  auto now = std::chrono::steady_clock::now();
-
-  double total_elapsed = std::chrono::duration<double>(now - start_time_).count();
-  if (total_elapsed >= fallback_timeout_s_) {
-    blackboard->set<ControlMode>("control_mode", ControlMode::AUTO);
-    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
-    std::ostringstream detail;
-    detail << "fallback timeout, elapsed=" << total_elapsed << "s, switching to AUTO";
-    detail::logTransition(detail::TreeKind::NAV, "WaitManual", false, detail.str());
-    return BT::NodeStatus::SUCCESS;
-  }
-
-  double goal_delta = std::hypot(manual_goal.x - last_goal_.x, manual_goal.y - last_goal_.y);
-  if (goal_delta > goal_radius_) {
-    arrival_time_ = std::chrono::steady_clock::time_point{};
-  }
-  last_goal_ = manual_goal;
-
-  double distance =
-    std::hypot(current_pose.position.x - manual_goal.x, current_pose.position.y - manual_goal.y);
-
-  if (distance > goal_radius_) {
-    arrival_time_ = std::chrono::steady_clock::time_point{};
-    return BT::NodeStatus::RUNNING;
-  }
-
-  if (arrival_time_ == std::chrono::steady_clock::time_point{}) {
-    arrival_time_ = now;
-  }
-
-  double elapsed = std::chrono::duration<double>(now - arrival_time_).count();
-  if (elapsed >= wait_duration_s_) {
-    blackboard->set<ControlMode>("control_mode", ControlMode::AUTO);
-    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
-    std::ostringstream detail;
-    detail << "elapsed=" << elapsed << "s, switching to AUTO";
-    detail::logTransition(detail::TreeKind::NAV, "WaitManual", false, detail.str());
-    return BT::NodeStatus::SUCCESS;
-  }
-
-  return BT::NodeStatus::RUNNING;
-}
-
-void WaitManual::onHalted()
-{
-  arrival_time_ = std::chrono::steady_clock::time_point{};
-}
-
 // ------------------- EmergencyStop -------------------
 EmergencyStop::EmergencyStop(const std::string & name, const BT::NodeConfiguration & config)
 : BT::SyncActionNode(name, config)
@@ -772,9 +731,16 @@ BT::NodeStatus EmergencyStop::tick()
     tunnel_context && (desired_lifter_started_down || current_lifter_reported_down ||
                         (!has_lifter_sample_ && desired_lifter_pos == LifterPos::BOTTOM));
 
+  if (!tunnel_context) {
+    monitoring_tunnel_transform_ = false;
+    transform_below_threshold_ = false;
+    tunnel_transform_failed_ = false;
+  }
+
   if (tunnel_transform_started) {
     monitoring_tunnel_transform_ = true;
     transform_below_threshold_ = false;
+    tunnel_transform_failed_ = false;
     below_threshold_since_ = now;
   }
 
@@ -795,11 +761,6 @@ BT::NodeStatus EmergencyStop::tick()
         transform_below_threshold_ = false;
       }
     }
-  }
-
-  if (!tunnel_context && !tunnel_transform_failed_) {
-    monitoring_tunnel_transform_ = false;
-    transform_below_threshold_ = false;
   }
 
   // 触发条件：在变形区、没进隧道
