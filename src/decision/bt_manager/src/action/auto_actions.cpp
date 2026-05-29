@@ -240,9 +240,7 @@ SelectPatrolPoint::SelectPatrolPoint(const std::string & name, const BT::NodeCon
 
 BT::PortsList SelectPatrolPoint::providedPorts()
 {
-  return {
-    BT::InputPort<int>("patrol_branch", 0, "Branch index for patrol point set")
-  };
+  return {BT::InputPort<int>("patrol_branch", 0, "Branch index for patrol point set")};
 }
 
 BT::NodeStatus SelectPatrolPoint::tick()
@@ -264,14 +262,14 @@ BT::NodeStatus SelectPatrolPoint::tick()
   // 读取分支索引
   int branch = 0;
   if (!getInput<int>("patrol_branch", branch)) {
-    branch = 0;   // 默认使用第 0 个分支
+    branch = 0;  // 默认使用第 0 个分支
   }
   blackboard->set<int>("patrol_branch", branch);
   // 根据战术模式和分支索引选择巡逻点列表
-  std::vector<Sentry_BT::PatrolPoint> patrol_points;   // 最终使用的列表
+  std::vector<Sentry_BT::PatrolPoint> patrol_points;  // 最终使用的列表
   const auto branch_map_it = Sentry_BT::tactical_patrol_branches.find(tactical_mode);
   if (branch_map_it != Sentry_BT::tactical_patrol_branches.end()) {
-    const auto& branches = branch_map_it->second;
+    const auto & branches = branch_map_it->second;
     // 索引合法性检查，越界则退回分支 0
     if (branch >= 0 && branch < static_cast<int>(branches.size())) {
       patrol_points = branches[branch];
@@ -326,19 +324,19 @@ BT::NodeStatus Wait::onStart()
   TacticalMode tactical_mode = TacticalMode::BALANCED;
   blackboard->get<TacticalMode>("tactical_mode", tactical_mode);
   auto branch = blackboard->get<int>("patrol_branch");
-    
+
   const auto branch_map_it = Sentry_BT::tactical_patrol_branches.find(tactical_mode);
-  const PatrolList& patrol_list = [&]() -> const PatrolList& {
+  const PatrolList & patrol_list = [&]() -> const PatrolList & {
     if (branch_map_it != Sentry_BT::tactical_patrol_branches.end()) {
-      const auto& branches = branch_map_it->second;
+      const auto & branches = branch_map_it->second;
       if (branch >= 0 && branch < static_cast<int>(branches.size())) {
         return branches[branch];
       }
     }
-    
+
     return Sentry_BT::normal_patrol_branches.at(0);
   }();
-  
+
   int effective_index = patrol_index;
   if (patrol_index >= static_cast<int>(patrol_list.size())) {
     effective_index = 0;
@@ -752,12 +750,12 @@ BT::NodeStatus EmergencyStop::tick()
 
   const bool tunnel_context =
     through_tunnel || current_in_tunnel || (in_transform_zone && desired_lifter_pos == LifterPos::BOTTOM);
-  const bool desired_lifter_started_down =
-    has_lifter_sample_ && previous_desired_lifter_pos_ == LifterPos::TOP &&
-    desired_lifter_pos == LifterPos::BOTTOM;
-  const bool current_lifter_reported_down =
-    has_lifter_sample_ && previous_current_lifter_pos_ == LifterPos::TOP &&
-    current_lifter_pos == LifterPos::BOTTOM;
+  const bool desired_lifter_started_down = has_lifter_sample_ &&
+                                           previous_desired_lifter_pos_ == LifterPos::TOP &&
+                                           desired_lifter_pos == LifterPos::BOTTOM;
+  const bool current_lifter_reported_down = has_lifter_sample_ &&
+                                            previous_current_lifter_pos_ == LifterPos::TOP &&
+                                            current_lifter_pos == LifterPos::BOTTOM;
   const bool tunnel_transform_started =
     tunnel_context && (desired_lifter_started_down || current_lifter_reported_down ||
                         (!has_lifter_sample_ && desired_lifter_pos == LifterPos::BOTTOM));

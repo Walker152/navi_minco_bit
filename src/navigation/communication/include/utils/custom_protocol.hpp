@@ -154,7 +154,7 @@ struct __attribute__((packed, aligned(1))) _BehaviorData
   uint8_t remote_ammo_request{};     // 远程买弹请求
   uint8_t remote_health_request{};   // 远程买血请求
   bool use_limited_scan{};           // 是否使用限制性扫描模式
-  bool not_aim_enemy{};               // 是否瞄准敌方目标
+  bool not_aim_enemy{};              // 是否瞄准敌方目标
 
   _BehaviorData(uint8_t _pitch_mode,
     uint8_t _desire_stance,

@@ -76,7 +76,8 @@ void TransformUtils::publishDynamicTransform()
   geometry_msgs::msg::TransformStamped dynamic_transform;
 
   // 设置时间戳为当前时间
-  dynamic_transform.header.stamp = this->now() - rclcpp::Duration(0, 10000000);  // 减去10ms，确保tf2能正确处理
+  dynamic_transform.header.stamp =
+    this->now() - rclcpp::Duration(0, 10000000);  // 减去10ms，确保tf2能正确处理
   dynamic_transform.header.frame_id = "base_link";
   dynamic_transform.child_frame_id = "gimbal";
 
@@ -112,8 +113,8 @@ bool TransformUtils::transformPoseToMap(const geometry_msgs::msg::Pose & input_p
   }
 }
 
-bool TransformUtils::transformGimbalToMap(const geometry_msgs::msg::Pose & input_pose,
-  geometry_msgs::msg::Pose & output_pose)
+bool TransformUtils::transformGimbalToMap(
+  const geometry_msgs::msg::Pose & input_pose, geometry_msgs::msg::Pose & output_pose)
 {
   geometry_msgs::msg::Pose current_pose_copy;
   {
@@ -127,11 +128,9 @@ bool TransformUtils::transformGimbalToMap(const geometry_msgs::msg::Pose & input
     rotation = gimbal_to_map_rotation_;
   }
 
-  output_pose.position.x = current_pose_copy.position.x +
-                           rotation[0] * input_pose.position.x +
+  output_pose.position.x = current_pose_copy.position.x + rotation[0] * input_pose.position.x +
                            rotation[1] * input_pose.position.y;
-  output_pose.position.y = current_pose_copy.position.y +
-                           rotation[2] * input_pose.position.x +
+  output_pose.position.y = current_pose_copy.position.y + rotation[2] * input_pose.position.x +
                            rotation[3] * input_pose.position.y;
   output_pose.position.z = current_pose_copy.position.z + input_pose.position.z;
 
