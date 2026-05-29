@@ -57,7 +57,25 @@ public:
       blackboard->set("patrol_index", patrol_index);
     }
 
-    const auto & patrol_points = Sentry_BT::patrol_points_normal;
+    TacticalMode tactical_mode = TacticalMode::BALANCED;
+    blackboard->get<TacticalMode>("tactical_mode", tactical_mode);
+    auto branch = blackboard->get<int>("patrol_branch");
+
+    // --- 根据战术模式和分支索引查找对应的巡逻点列表 ---
+    const PatrolList* patrol_points_ptr = nullptr;
+    auto it = Sentry_BT::tactical_patrol_branches.find(tactical_mode);
+    if (it != Sentry_BT::tactical_patrol_branches.end()) {
+      const auto& branches = it->second;
+      if (branch >= 0 && branch < static_cast<int>(branches.size())) {
+        patrol_points_ptr = &branches[branch];
+      }
+    }
+    // 回退到防守分支0
+    if (!patrol_points_ptr) {
+      patrol_points_ptr = &Sentry_BT::normal_patrol_branches.at(0);
+    }
+
+    const PatrolList& patrol_points = *patrol_points_ptr;
     if (patrol_points.empty()) {
       return false;
     }
