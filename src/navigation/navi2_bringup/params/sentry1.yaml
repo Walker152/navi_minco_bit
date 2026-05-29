@@ -314,7 +314,7 @@ planner_server:
         turn_angle_deadzone: 0.1
         turn_angle_saturation: 0.8
         min_turn_vel: 0.6
-        decay_power: 1.7
+        decay_power: 2.0
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16

@@ -6,10 +6,10 @@
         <CheckTargetLocked name="CheckEarlyTargetLocked" branch="EarlyTargetAttack" />
       </ForceSuccess>
       <ReactiveFallback name="NavPriorityRoot">
-        <ReactiveSequence name="Priority0EmergencyStop">
+        <!-- <ReactiveSequence name="Priority0EmergencyStop">
           <EmergencyStop name="EmergencyStop" enable_combat_stop="false" />
           <NavigateToPoseAction name="NavigateEmergencyStop" />
-        </ReactiveSequence>
+        </ReactiveSequence> -->
 
         <ReactiveSequence name="Priority0ManualOverride">
           <CheckManualOverride name="CheckManualOverride" branch="Priority0ManualOverride" />
@@ -190,7 +190,7 @@
 
         <ReactiveSequence name="Priority5TrackPatrol">
           <Sequence name="PatrolByTacticalMode">
-            <SelectPatrolPoint name="SelectPatrolPoint" />
+            <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0"/>
             <NavigateToPoseAction name="NavigatePatrolPoint" />
             <Wait name="WaitAtPatrolPoint" />
           </Sequence>
