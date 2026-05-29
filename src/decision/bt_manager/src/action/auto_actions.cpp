@@ -240,7 +240,9 @@ SelectPatrolPoint::SelectPatrolPoint(const std::string & name, const BT::NodeCon
 
 BT::PortsList SelectPatrolPoint::providedPorts()
 {
-  return {};
+  return {
+    BT::InputPort<int>("patrol_branch", 0, "Branch index for patrol point set")
+  };
 }
 
 BT::NodeStatus SelectPatrolPoint::tick()
@@ -258,10 +260,29 @@ BT::NodeStatus SelectPatrolPoint::tick()
 
   TacticalMode tactical_mode = TacticalMode::BALANCED;
   blackboard->get<TacticalMode>("tactical_mode", tactical_mode);
-  std::vector<Sentry_BT::PatrolPoint> patrol_points = Sentry_BT::patrol_points_normal;
-  const auto patrol_it = tactical_patrol_map.find(tactical_mode);
-  if (patrol_it != tactical_patrol_map.end() && !patrol_it->second.empty()) {
-    patrol_points = patrol_it->second;
+
+  // 读取分支索引
+  int branch = 0;
+  if (!getInput<int>("patrol_branch", branch)) {
+    branch = 0;   // 默认使用第 0 个分支
+  }
+  blackboard->set<int>("patrol_branch", branch);
+  // 根据战术模式和分支索引选择巡逻点列表
+  std::vector<Sentry_BT::PatrolPoint> patrol_points;   // 最终使用的列表
+  const auto branch_map_it = Sentry_BT::tactical_patrol_branches.find(tactical_mode);
+  if (branch_map_it != Sentry_BT::tactical_patrol_branches.end()) {
+    const auto& branches = branch_map_it->second;
+    // 索引合法性检查，越界则退回分支 0
+    if (branch >= 0 && branch < static_cast<int>(branches.size())) {
+      patrol_points = branches[branch];
+    } else {
+      std::cerr << "[WARN] Invalid patrol_branch " << branch << " for tactical mode "
+                << static_cast<int>(tactical_mode) << ", fallback to branch 0" << std::endl;
+      patrol_points = branches.front();
+    }
+  } else {
+    // 没有匹配的战术模式时，回退到防守分支 0（安全起见）
+    patrol_points = Sentry_BT::normal_patrol_branches.at(0);
   }
 
   // 检查索引有效性
@@ -304,16 +325,26 @@ BT::NodeStatus Wait::onStart()
   auto patrol_index = blackboard->get<int>("patrol_index");
   TacticalMode tactical_mode = TacticalMode::BALANCED;
   blackboard->get<TacticalMode>("tactical_mode", tactical_mode);
-  auto patrol_list_it = tactical_patrol_map.find(tactical_mode);
-  const auto & patrol_list =
-    (patrol_list_it != tactical_patrol_map.end() && !patrol_list_it->second.empty())
-      ? patrol_list_it->second
-      : patrol_points_normal;
-
+  auto branch = blackboard->get<int>("patrol_branch");
+    
+  const auto branch_map_it = Sentry_BT::tactical_patrol_branches.find(tactical_mode);
+  const PatrolList& patrol_list = [&]() -> const PatrolList& {
+    if (branch_map_it != Sentry_BT::tactical_patrol_branches.end()) {
+      const auto& branches = branch_map_it->second;
+      if (branch >= 0 && branch < static_cast<int>(branches.size())) {
+        return branches[branch];
+      }
+    }
+    
+    return Sentry_BT::normal_patrol_branches.at(0);
+  }();
+  
+  int effective_index = patrol_index;
   if (patrol_index >= static_cast<int>(patrol_list.size())) {
-    patrol_index = 0;
+    effective_index = 0;
   }
-  auto wait_time = patrol_list[patrol_index].duration_ms;
+
+  auto wait_time = patrol_list[effective_index].duration_ms;
   if (!wait_time) {
     auto time = getInput<int>("milliseconds");
     wait_time = time.value();
