@@ -13,17 +13,17 @@ namespace Sentry_BT {
 // for rmuc
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
   AreaPolygon<6, Point2D>{
-    Point2D{7.0, 6.0}, Point2D{10.0, 6.0}, Point2D{12.0, 6.0},
-    Point2D{12.0, 0.1}, Point2D{10.0, 0.1}, Point2D{7.0, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{6.5, 6.5}, Point2D{10.0, 6.5}, Point2D{13.0, 6.5},
+    Point2D{13.0, 0.1}, Point2D{10.0, 0.1}, Point2D{6.5, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{22.0, 15.0},
-    Point2D{22.0, 9.0}, Point2D{18.75, 9.0}, Point2D{17.0, 9.0}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{16.0, 15.0}, Point2D{18.75, 15.0}, Point2D{22.0, 15.0},
+    Point2D{22.0, 8.5}, Point2D{18.75, 8.5}, Point2D{16.0, 8.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{7.6, 8.8}, Point2D{11.0, 14.5}, Point2D{17.5, 14.5},
-    Point2D{17.5, 12.5}, Point2D{12.7, 12.5}, Point2D{10.3, 8.8}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{7.6, 8.8}, Point2D{11.0, 14.5}, Point2D{18.5, 14.5},
+    Point2D{18.5, 12.5}, Point2D{12.7, 12.5}, Point2D{10.3, 8.8}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{21.4, 6.2}, Point2D{18.0, 0.5}, Point2D{11.5, 0.5},
-    Point2D{11.5, 2.5}, Point2D{16.3, 2.5}, Point2D{18.7, 6.2}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{21.4, 6.2}, Point2D{18.0, 0.5}, Point2D{10.5, 0.5},
+    Point2D{10.5, 2.5}, Point2D{16.3, 2.5}, Point2D{18.7, 6.2}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
