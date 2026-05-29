@@ -471,7 +471,7 @@ BT::NodeStatus CheckInEnemyFortZone::tick()
   const std::string branch = getInput<std::string>("branch").value_or("");
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const Point2D p{current_pose.position.x, current_pose.position.y, 0.0};
-  const bool in_enemy_fort = enemy_fort_zone.contains(p);
+  const bool in_enemy_fort = enemy_fort_engage_zone.contains(p);
 
   std::ostringstream oss;
   oss << "pos=(" << current_pose.position.x << ", " << current_pose.position.y << ")";
