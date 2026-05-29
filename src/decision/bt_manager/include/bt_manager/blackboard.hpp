@@ -42,8 +42,8 @@ public:
     blackboard_->set("cmd_vel", geometry_msgs::msg::Twist());                     // 速度指令
     blackboard_->set("current_pose", geometry_msgs::msg::Pose());                 // 当前位姿缓存
     blackboard_->set("manual_override_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});  // 手动接管目标点
-    blackboard_->set("outpost_safe_cooldown_active", false);                      // 前哨站安全期是否生效
-    blackboard_->set("patrol_branch", 0);                                         // 巡逻分支索引
+    blackboard_->set("outpost_safe_cooldown_active", false);  // 前哨站安全期是否生效
+    blackboard_->set("patrol_branch", 0);                     // 巡逻分支索引
 
     // --- Gimbal Tree ---
     blackboard_->set("scan_yaw_min_deg", -180.0f);             // 巡检范围最小偏航
