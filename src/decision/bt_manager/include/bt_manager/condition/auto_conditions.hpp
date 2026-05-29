@@ -32,7 +32,6 @@ public:
   CheckBigEnergyActive(const std::string & name, const BT::NodeConfiguration & config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
-
 private:
   bool energy_activated = false;
 };
