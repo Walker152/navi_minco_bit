@@ -51,6 +51,8 @@ private:
   void resetPidState();
 
   bool pid_initialized_ = false;
+  bool target_yaw_selected_ = false;
+  double selected_target_yaw_ = 0.0;
   double integral_error_ = 0.0;
   double last_error_ = 0.0;
   std::chrono::steady_clock::time_point last_pid_time_;
