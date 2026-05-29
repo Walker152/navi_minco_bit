@@ -190,9 +190,10 @@
 
         <ReactiveSequence name="Priority5TrackPatrol">
           <Sequence name="PatrolByTacticalMode">
-            <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
+            <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
                                                         patrol_branch_balanced="0"
-                                                        patrol_branch_offensive="0"/>
+                                                        patrol_branch_offensive="0"/> -->
+            <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="1" />
             <NavigateToPoseAction name="NavigatePatrolPoint" />
             <Wait name="WaitAtPatrolPoint" />
           </Sequence>
