@@ -161,17 +161,27 @@ inline std::vector<Point2D> nav_points = {
   // {7.5, 6.8, 0.0}  // OUTPOST
 };
 
-inline std::vector<PatrolPoint> patrol_points_normal = {
-  // for rmuc
-  // {{15.5, 9.0, 0.0}, 5000},
-  {{20.6, 14.0, 0.0}, 5000},  // 雷霆大坐点位
-  // {{12.2, 10.5, 0.0}, 5000},
+using PatrolList = std::vector<PatrolPoint>; 
+inline std::vector<PatrolList> normal_patrol_branches = {
+    {  
+        {{20.6, 14.0, 0.0}, 5000}  // 雷霆大坐点位
+    },
+    {
+        {{15.5, 9.0, 0.0}, 5000},
+        {{12.2, 10.5, 0.0}, 5000}
+    }
+    //可继续加
 };
 
-inline std::vector<PatrolPoint> patrol_points_attack = {
-  // {{16.0, 12.0, 0.0}, 5000}, 
-  {{20.6, 14.0, 0.0}, 5000}, 
-  // {{15.3, 11.0, 0.0}, 6000}
+inline std::vector<PatrolList> attack_patrol_branches = {
+    {   
+        {{20.6, 14.0, 0.0}, 5000}
+    },
+    { 
+        {{16.0, 12.0, 0.0}, 5000},
+        {{15.3, 11.0, 0.0}, 6000}
+    }
+    //可继续加
 };
 #endif
 #ifdef TEST_AREA
@@ -385,12 +395,11 @@ inline std::unordered_map<TacticalMode, std::unordered_map<PatrolZoneType, Gimba
 };
 
 // 1. 底盘巡逻点映射表 (TacticalMode -> PatrolList)
-inline std::unordered_map<TacticalMode, PatrolList> tactical_patrol_map = {
-  {TacticalMode::OFFENSIVE, patrol_points_attack},
-  {TacticalMode::DEFENSIVE, patrol_points_normal},
-  {TacticalMode::BALANCED, patrol_points_normal}
+inline std::unordered_map<TacticalMode, std::vector<PatrolList>> tactical_patrol_branches = {
+    {TacticalMode::DEFENSIVE, normal_patrol_branches},
+    {TacticalMode::BALANCED, normal_patrol_branches},
+    {TacticalMode::OFFENSIVE, attack_patrol_branches}
 };
-
 // clang-format on
 inline const std::unordered_map<TacticalMode, std::vector<AreaPolygon<8, Point2D>>> tracking_areas = {
   {TacticalMode::DEFENSIVE, {own_defense_zone, highland_zone, enemy_defense_zone}},
