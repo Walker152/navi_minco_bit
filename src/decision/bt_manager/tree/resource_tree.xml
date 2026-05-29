@@ -18,7 +18,7 @@
               <CheckTacticalModeCondition mode="attack" branch="InstantRevive" />
             </Fallback>
             <CheckCoinRemaining threshold="{instant_resurrect_cost}" mode="greater" branch="InstantRevive" />
-            <RequestReviveAction revive_type="instant" />
+            <RequestReviveAction revive_type="instant" max_instant_revive_count="1" />
           </Sequence>
         </ReactiveFallback>
       </ReactiveSequence>

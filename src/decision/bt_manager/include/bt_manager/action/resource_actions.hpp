@@ -18,6 +18,7 @@ public:
   void onHalted() override;
 
 private:
+  int instant_revive_count_{0};
 };
 
 class RequestRemoteAmmoExchangeAction : public BT::SyncActionNode

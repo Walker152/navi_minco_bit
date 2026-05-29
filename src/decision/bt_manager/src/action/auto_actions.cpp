@@ -240,12 +240,13 @@ SelectPatrolPoint::SelectPatrolPoint(const std::string & name, const BT::NodeCon
 
 BT::PortsList SelectPatrolPoint::providedPorts()
 {
-  return {
-    // BT::InputPort<int>("patrol_branch_defensive", 0, "Branch index for patrol point set when in defensive mode"),
-    // BT::InputPort<int>("patrol_branch_balanced", 0, "Branch index for patrol point set when in balanced mode"),
-    // BT::InputPort<int>("patrol_branch_offensive", 0, "Branch index for patrol point set when in offensive mode")
-    BT::InputPort<int>("patrol_branch", 0, "Branch index for patrol point set")
-  };
+  return {// BT::InputPort<int>("patrol_branch_defensive", 0, "Branch index for patrol point set when in
+          // defensive mode"),
+    // BT::InputPort<int>("patrol_branch_balanced", 0, "Branch index for patrol point set when in balanced
+    // mode"),
+    // BT::InputPort<int>("patrol_branch_offensive", 0, "Branch index for patrol point set when in offensive
+    // mode")
+    BT::InputPort<int>("patrol_branch", 0, "Branch index for patrol point set")};
 }
 
 BT::NodeStatus SelectPatrolPoint::tick()
