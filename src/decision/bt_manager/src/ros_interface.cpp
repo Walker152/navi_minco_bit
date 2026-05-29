@@ -401,13 +401,17 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
   const auto current_pose = blackboard_->get<geometry_msgs::msg::Pose>("current_pose");
   const Point2D current_point{current_pose.position.x, current_pose.position.y};
   int current_transform_idx = -1;
+  std::vector<int> current_transform_indices;
   for (std::size_t i = 0; i < transform_zone.size(); ++i) {
     if (transform_zone[i].contains(current_point)) {
-      current_transform_idx = static_cast<int>(i);
-      break;
+      const int idx = static_cast<int>(i);
+      current_transform_indices.push_back(idx);
+      if (current_transform_idx < 0) {
+        current_transform_idx = idx;
+      }
     }
   }
-  const bool in_transform_zone = current_transform_idx >= 0;
+  const bool in_transform_zone = !current_transform_indices.empty();
 
   int current_tunnel_idx = -1;
   for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
@@ -424,14 +428,26 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
     active_tunnel_entered_ = false;
   };
 
-  bool through_tunnel_now = false;
-  if (current_transform_idx >= 0 && current_transform_idx < static_cast<int>(tunnel_areas.size())) {
-    through_tunnel_now = isTroughZone(msg, tunnel_areas[static_cast<std::size_t>(current_transform_idx)]);
+  int matched_tunnel_idx = -1;
+  if (msg) {
+    for (const auto & cmd : msg->cmds) {
+      const Point2D point{cmd.position.x, cmd.position.y};
+      for (const int idx : current_transform_indices) {
+        if (idx >= 0 && idx < static_cast<int>(tunnel_areas.size()) &&
+            tunnel_areas[static_cast<std::size_t>(idx)].contains(point)) {
+          matched_tunnel_idx = idx;
+          break;
+        }
+      }
+      if (matched_tunnel_idx >= 0) {
+        break;
+      }
+    }
   }
 
-  if (!tunnel_detect_latched_ && through_tunnel_now) {
+  if (!tunnel_detect_latched_ && matched_tunnel_idx >= 0) {
     tunnel_detect_latched_ = true;
-    active_tunnel_idx_ = current_transform_idx;
+    active_tunnel_idx_ = matched_tunnel_idx;
     active_tunnel_entered_ = current_tunnel_idx == active_tunnel_idx_;
   }
 
@@ -451,7 +467,9 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
     }
   }
 
-  int nearest_tunnel_idx = tunnel_detect_latched_ ? active_tunnel_idx_ : current_transform_idx;
+  int nearest_tunnel_idx =
+    tunnel_detect_latched_ ? active_tunnel_idx_ :
+    (matched_tunnel_idx >= 0 ? matched_tunnel_idx : current_transform_idx);
   if (nearest_tunnel_idx < 0) {
     double nearest_dist2 = std::numeric_limits<double>::infinity();
     for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
