@@ -239,7 +239,7 @@ private:
     uint8_t health_req = 0;
     bool use_limited_scan = false;
     bool not_aim_enemy = true;
-
+    bool use_capacitor = false;
     bool use_gyro_mode = false;
     float gyro_vel = 0.0f;
     geometry_msgs::msg::Quaternion odom_q;
@@ -312,7 +312,8 @@ private:
       ammo_req,
       health_req,
       use_limited_scan,
-      not_aim_enemy);
+      not_aim_enemy,
+      use_capacitor);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
 #ifdef COMMUNICATION_DEBUG
     if (flag == 0) {
@@ -354,7 +355,8 @@ private:
           NV(behavior_data.remote_revive_request),
           NV(behavior_data.remote_ammo_request),
           NV(behavior_data.remote_health_request),
-          NV(behavior_data.use_limited_scan));
+          NV(behavior_data.use_limited_scan),
+          NV(behavior_data.use_capacitor));
         last_send_time = now_time;
       }
     }
