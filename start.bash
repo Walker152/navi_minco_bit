@@ -6,15 +6,15 @@ source ./install/setup.bash
 gnome-terminal -- bash -c "sudo ./scripts/ptp_sync.bash; exec bash"
 sleep 10
 
-# MID360 
+# # MID360 
 gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_mixed_MID360.launch.py; exec bash"
 sleep 1
 
-# Lidar Merger
+# # Lidar Merger
 gnome-terminal -- bash -c "ros2 launch lidar_merger dual_lidar_merger.launch.py; exec bash"
 sleep 3
 
-# SLAM
+# # SLAM
 gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py; exec bash"
 sleep 1
 

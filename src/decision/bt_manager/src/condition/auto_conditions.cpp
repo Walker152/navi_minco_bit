@@ -170,7 +170,7 @@ BT::NodeStatus CheckTargetLocked::tick()
   const bool target_in_supply = target_valid && enemy_supply_zone.contains(target_point);
   blackboard->set("not_aim_enemy", target_in_engineering || target_in_supply);
   // std::cout << "armor_id:" << armor_id << ",target_in_engineering:" << target_in_engineering <<
-  // "target_point:(" << target_point.x << "," << target_point.y << ")" << std::endl;
+  // "target_point:(" << target_point.x << "," << target_point.y << ")" << "target_valid =" << target_valid << "target_in_supply =" << target_in_supply << std::endl;
   if (!target_in_engineering && !target_in_supply) {
     if (in_attack_area && target_valid) {
       last_seen_time = std::chrono::system_clock::now();

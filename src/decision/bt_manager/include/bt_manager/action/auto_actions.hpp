@@ -46,6 +46,15 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+
+private:
+  double wait_duration_s_ = 5.0;
+  double goal_radius_ = 0.5;
+  double fallback_timeout_s_ = 60.0;
+  std::chrono::time_point<std::chrono::steady_clock> start_time_;
+  std::chrono::time_point<std::chrono::steady_clock> arrival_time_;
+  Point2D last_goal_;
+  bool has_last_goal_ = false;
 };
 
 class SelectPatrolPoint : public BT::SyncActionNode
@@ -139,30 +148,20 @@ private:
   rclcpp::AsyncParametersClient::SharedPtr parameters_client_;
 };
 
-class WaitManual : public BT::StatefulActionNode
-{
-public:
-  WaitManual(const std::string & name, const BT::NodeConfiguration & config);
-
-  static BT::PortsList providedPorts();
-  BT::NodeStatus onStart() override;
-  BT::NodeStatus onRunning() override;
-  void onHalted() override;
-
-private:
-  double wait_duration_s_;
-  double goal_radius_;
-  double fallback_timeout_s_;
-  std::chrono::time_point<std::chrono::steady_clock> start_time_;
-  std::chrono::time_point<std::chrono::steady_clock> arrival_time_;
-  Point2D last_goal_;
-};
-
 class EmergencyStop : public BT::SyncActionNode
 {
 public:
   EmergencyStop(const std::string & name, const BT::NodeConfiguration & config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+
+private:
+  bool has_lifter_sample_ = false;
+  LifterPos previous_desired_lifter_pos_ = LifterPos::TOP;
+  LifterPos previous_current_lifter_pos_ = LifterPos::TOP;
+  bool monitoring_tunnel_transform_ = false;
+  bool transform_below_threshold_ = false;
+  bool tunnel_transform_failed_ = false;
+  std::chrono::steady_clock::time_point below_threshold_since_;
 };
 }  // namespace Sentry_BT
