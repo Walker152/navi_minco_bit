@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <rclcpp/duration.hpp>
 #include <string>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/utils.h>
