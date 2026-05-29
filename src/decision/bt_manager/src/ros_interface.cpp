@@ -400,26 +400,29 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
 {
   const auto current_pose = blackboard_->get<geometry_msgs::msg::Pose>("current_pose");
   const Point2D current_point{current_pose.position.x, current_pose.position.y};
-  bool in_transform_zone = false;
+  int current_transform_idx = -1;
   for (std::size_t i = 0; i < transform_zone.size(); ++i) {
     if (transform_zone[i].contains(current_point)) {
-      in_transform_zone = true;
+      current_transform_idx = static_cast<int>(i);
       break;
     }
   }
+  const bool in_transform_zone = current_transform_idx >= 0;
 
-  int nearest_tunnel_idx = -1;
-  double nearest_dist2 = std::numeric_limits<double>::infinity();
-  for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
-    const auto & zone = tunnel_zone[i];
-    const double center_x = (zone.top_left.x + zone.bottom_right.x) * 0.5;
-    const double center_y = (zone.top_left.y + zone.bottom_right.y) * 0.5;
-    const double dx = current_point.x - center_x;
-    const double dy = current_point.y - center_y;
-    const double dist2 = dx * dx + dy * dy;
-    if (dist2 < nearest_dist2) {
-      nearest_dist2 = dist2;
-      nearest_tunnel_idx = static_cast<int>(i);
+  int nearest_tunnel_idx = current_transform_idx;
+  if (nearest_tunnel_idx < 0) {
+    double nearest_dist2 = std::numeric_limits<double>::infinity();
+    for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
+      const auto & zone = tunnel_zone[i];
+      const double center_x = (zone.top_left.x + zone.bottom_right.x) * 0.5;
+      const double center_y = (zone.top_left.y + zone.bottom_right.y) * 0.5;
+      const double dx = current_point.x - center_x;
+      const double dy = current_point.y - center_y;
+      const double dist2 = dx * dx + dy * dy;
+      if (dist2 < nearest_dist2) {
+        nearest_dist2 = dist2;
+        nearest_tunnel_idx = static_cast<int>(i);
+      }
     }
   }
   // std::cout << "Current position: (" << current_point.x << ", " << current_point.y <<
@@ -438,11 +441,8 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
   blackboard_->set("nearest_tunnel_idx", nearest_tunnel_idx);
 
   bool through_tunnel_now = false;
-  for (const auto & zone : tunnel_areas) {
-    if (isTroughZone(msg, zone)) {
-      through_tunnel_now = true;
-      break;
-    }
+  if (current_transform_idx >= 0 && current_transform_idx < static_cast<int>(tunnel_areas.size())) {
+    through_tunnel_now = isTroughZone(msg, tunnel_areas[static_cast<std::size_t>(current_transform_idx)]);
   }
   if (!msg || msg->cmds.empty()) {
     if (!in_transform_zone) {

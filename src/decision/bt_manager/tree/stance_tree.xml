@@ -43,7 +43,7 @@
               <Inverter>
                 <CheckInEnemyFortZone branch="ArrivedEnemyFortRandomGyro" />
               </Inverter>
-              <SetGyroState use_gyro="false"
+              <SetGyroState use_gyro="true"
                             gyro_vel="0.0"
                             random_speed="false" />
             </Sequence>
