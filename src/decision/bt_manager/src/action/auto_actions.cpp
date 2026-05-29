@@ -241,9 +241,10 @@ SelectPatrolPoint::SelectPatrolPoint(const std::string & name, const BT::NodeCon
 BT::PortsList SelectPatrolPoint::providedPorts()
 {
   return {
-    BT::InputPort<int>("patrol_branch_defensive", 0, "Branch index for patrol point set when in defensive mode"),
-    BT::InputPort<int>("patrol_branch_balanced", 0, "Branch index for patrol point set when in balanced mode"),
-    BT::InputPort<int>("patrol_branch_offensive", 0, "Branch index for patrol point set when in offensive mode")
+    // BT::InputPort<int>("patrol_branch_defensive", 0, "Branch index for patrol point set when in defensive mode"),
+    // BT::InputPort<int>("patrol_branch_balanced", 0, "Branch index for patrol point set when in balanced mode"),
+    // BT::InputPort<int>("patrol_branch_offensive", 0, "Branch index for patrol point set when in offensive mode")
+    BT::InputPort<int>("patrol_branch", 0, "Branch index for patrol point set")
   };
 }
 
@@ -265,12 +266,15 @@ BT::NodeStatus SelectPatrolPoint::tick()
 
   // 读取分支索引
   int branch = 0;
-  if (tactical_mode == TacticalMode::DEFENSIVE) {
-    branch = getInput<int>("patrol_branch_defensive").value_or(0);
-  } else if (tactical_mode == TacticalMode::BALANCED) {
-    branch = getInput<int>("patrol_branch_balanced").value_or(0);
-  } else if (tactical_mode == TacticalMode::OFFENSIVE) {
-    branch = getInput<int>("patrol_branch_offensive").value_or(0);
+  // if (tactical_mode == TacticalMode::DEFENSIVE) {
+  //   branch = getInput<int>("patrol_branch_defensive").value_or(0);
+  // } else if (tactical_mode == TacticalMode::BALANCED) {
+  //   branch = getInput<int>("patrol_branch_balanced").value_or(0);
+  // } else if (tactical_mode == TacticalMode::OFFENSIVE) {
+  //   branch = getInput<int>("patrol_branch_offensive").value_or(0);
+  // }
+  if (!getInput<int>("patrol_branch", branch)) {
+    branch = 0;   // 默认使用第 0 个分支
   }
   blackboard->set<int>("patrol_branch", branch);
   // 根据战术模式和分支索引选择巡逻点列表
