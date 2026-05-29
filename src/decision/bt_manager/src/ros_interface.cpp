@@ -409,7 +409,49 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
   }
   const bool in_transform_zone = current_transform_idx >= 0;
 
-  int nearest_tunnel_idx = current_transform_idx;
+  int current_tunnel_idx = -1;
+  for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
+    if (tunnel_zone[i].contains(current_point)) {
+      current_tunnel_idx = static_cast<int>(i);
+      break;
+    }
+  }
+  const bool current_in_tunnel = current_tunnel_idx >= 0;
+
+  const auto reset_tunnel_latch = [this]() {
+    tunnel_detect_latched_ = false;
+    active_tunnel_idx_ = -1;
+    active_tunnel_entered_ = false;
+  };
+
+  bool through_tunnel_now = false;
+  if (current_transform_idx >= 0 && current_transform_idx < static_cast<int>(tunnel_areas.size())) {
+    through_tunnel_now = isTroughZone(msg, tunnel_areas[static_cast<std::size_t>(current_transform_idx)]);
+  }
+
+  if (!tunnel_detect_latched_ && through_tunnel_now) {
+    tunnel_detect_latched_ = true;
+    active_tunnel_idx_ = current_transform_idx;
+    active_tunnel_entered_ = current_tunnel_idx == active_tunnel_idx_;
+  }
+
+  if (tunnel_detect_latched_) {
+    if (active_tunnel_idx_ < 0 || active_tunnel_idx_ >= static_cast<int>(tunnel_areas.size())) {
+      reset_tunnel_latch();
+    } else {
+      const bool current_in_active_tunnel =
+        tunnel_areas[static_cast<std::size_t>(active_tunnel_idx_)].contains(current_point);
+      if (current_in_active_tunnel) {
+        active_tunnel_entered_ = true;
+      } else if (active_tunnel_entered_) {
+        reset_tunnel_latch();
+      } else if (!in_transform_zone) {
+        reset_tunnel_latch();
+      }
+    }
+  }
+
+  int nearest_tunnel_idx = tunnel_detect_latched_ ? active_tunnel_idx_ : current_transform_idx;
   if (nearest_tunnel_idx < 0) {
     double nearest_dist2 = std::numeric_limits<double>::infinity();
     for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
@@ -429,36 +471,11 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
   // "),in_transform_zone: "
   //           << in_transform_zone
   //           << ", nearest_tunnel_idx: " << nearest_tunnel_idx << std::endl;
-  bool current_in_tunnel = false;
-  for (const auto & zone : tunnel_zone) {
-    if (zone.contains(current_point)) {
-      current_in_tunnel = true;
-      break;
-    }
-  }
   blackboard_->set("current_in_tunnel", current_in_tunnel);
   blackboard_->set("in_transform_zone", in_transform_zone);
   blackboard_->set("nearest_tunnel_idx", nearest_tunnel_idx);
 
-  bool through_tunnel_now = false;
-  if (current_transform_idx >= 0 && current_transform_idx < static_cast<int>(tunnel_areas.size())) {
-    through_tunnel_now = isTroughZone(msg, tunnel_areas[static_cast<std::size_t>(current_transform_idx)]);
-  }
-  if (!msg || msg->cmds.empty()) {
-    if (!in_transform_zone) {
-      tunnel_detect_latched_ = false;
-    }
-    blackboard_->set("through_tunnel", in_transform_zone && tunnel_detect_latched_);
-    return in_transform_zone && tunnel_detect_latched_;
-  }
-
-  if (!in_transform_zone) {
-    tunnel_detect_latched_ = false;
-  } else if (through_tunnel_now) {
-    tunnel_detect_latched_ = true;
-  }
-
-  const bool through_tunnel_stable = in_transform_zone && tunnel_detect_latched_;
+  const bool through_tunnel_stable = tunnel_detect_latched_;
   blackboard_->set("through_tunnel", through_tunnel_stable);
   return through_tunnel_stable;
 }
