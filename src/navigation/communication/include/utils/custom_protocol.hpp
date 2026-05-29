@@ -155,6 +155,7 @@ struct __attribute__((packed, aligned(1))) _BehaviorData
   uint8_t remote_health_request{};   // 远程买血请求
   bool use_limited_scan{};           // 是否使用限制性扫描模式
   bool not_aim_enemy{};              // 是否瞄准敌方目标
+  bool use_capacitor{};              // 是否使用电容
 
   _BehaviorData(uint8_t _pitch_mode,
     uint8_t _desire_stance,
@@ -167,13 +168,14 @@ struct __attribute__((packed, aligned(1))) _BehaviorData
     uint8_t _remote_ammo_request,
     uint8_t _remote_health_request,
     bool _use_limited_scan,
-    bool _not_aim_enemy)
+    bool _not_aim_enemy,
+    bool _use_capacitor)
   : pitch_mode(_pitch_mode), desire_stance(_desire_stance), desire_lifter_pos(_desire_lifter_pos),
     scan_yaw_min_deg(_scan_yaw_min_deg), scan_yaw_max_deg(_scan_yaw_max_deg),
     ammo_purchase_request(_ammo_purchase_request), revive_request(_revive_request),
     remote_revive_request(_remote_revive_request), remote_ammo_request(_remote_ammo_request),
     remote_health_request(_remote_health_request), use_limited_scan(_use_limited_scan),
-    not_aim_enemy(_not_aim_enemy)
+    not_aim_enemy(_not_aim_enemy), use_capacitor(_use_capacitor)
   {
   }
 };

@@ -31,3 +31,4 @@ uint8 PITCH_TOP=0
 uint8 PITCH_BOTTOM=1
 
 bool not_aim_enemy
+bool use_capacitor
