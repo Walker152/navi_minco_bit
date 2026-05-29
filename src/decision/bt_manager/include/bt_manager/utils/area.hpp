@@ -30,10 +30,10 @@ inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{14.7, 11.0}, Point2D{15.7, 12.0}},
 };  // 假设这是奖励区域的坐标范围
 inline std::array<Area_Square, 4> tunnel_zone = {
-  Area_Square{Point2D{10.4, 3.6}, Point2D{9.3, 1.8}},     // Home Right Tunnel
-  Area_Square{Point2D{19.7, 13.2}, Point2D{18.6, 11.4}},  // Enemy Right Tunnel
-  Area_Square{Point2D{15.1, 13.8}, Point2D{12.1, 13.0}},  // Home Left Tunnel
-  Area_Square{Point2D{16.9, 2.0}, Point2D{13.9, 1.2}},    // Enemy Left Tunnel
+  Area_Square{Point2D{10.4, 3.6}, Point2D{9.3, 1.6}},     // Home Right Tunnel
+  Area_Square{Point2D{19.7, 13.4}, Point2D{18.6, 11.4}},  // Enemy Right Tunnel
+  Area_Square{Point2D{15.4, 13.8}, Point2D{11.8, 12.6}},  // Home Left Tunnel
+  Area_Square{Point2D{17.2, 2.4}, Point2D{13.6, 1.2}},    // Enemy Left Tunnel
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
