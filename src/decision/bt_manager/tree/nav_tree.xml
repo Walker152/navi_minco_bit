@@ -102,7 +102,7 @@
             </ReactiveSequence> -->
 
             <ReactiveSequence name="GlobalAmmoSupply">
-              <CheckAmmoLow ammo_threshold="0" branch="GlobalAmmoSupply" />
+              <CheckAmmoLow ammo_threshold="100" branch="GlobalAmmoSupply" />
               <ReactiveFallback name="GlobalAmmoSupplyZoneSelector">
                 <!-- <ReactiveSequence name="GlobalOutpostAmmoSupply">
                   <ReactiveFallback>
@@ -190,7 +190,7 @@
 
         <ReactiveSequence name="Priority5TrackPatrol">
           <Sequence name="PatrolByTacticalMode">
-            <SelectPatrolPoint name="SelectPatrolPoint" />
+            <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0"/>
             <NavigateToPoseAction name="NavigatePatrolPoint" />
             <Wait name="WaitAtPatrolPoint" />
           </Sequence>
