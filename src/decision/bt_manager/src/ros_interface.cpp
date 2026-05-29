@@ -471,9 +471,9 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
     }
   }
 
-  int nearest_tunnel_idx =
-    tunnel_detect_latched_ ? active_tunnel_idx_ :
-    (matched_tunnel_idx >= 0 ? matched_tunnel_idx : current_transform_idx);
+  int nearest_tunnel_idx = tunnel_detect_latched_
+                             ? active_tunnel_idx_
+                             : (matched_tunnel_idx >= 0 ? matched_tunnel_idx : current_transform_idx);
   if (nearest_tunnel_idx < 0) {
     double nearest_dist2 = std::numeric_limits<double>::infinity();
     for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
