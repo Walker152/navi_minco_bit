@@ -92,7 +92,7 @@
             <CheckEngagedStatus expected="false" branch="MoveStanceGyroBranch" />
           </Fallback>
           <SetGyroState use_gyro="true" 
-                        gyro_vel="20.0" 
+                        gyro_vel="40.0" 
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
           <Fallback name="MoveStanceSelector">
