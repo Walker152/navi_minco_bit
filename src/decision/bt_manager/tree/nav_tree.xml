@@ -14,17 +14,17 @@
         <ReactiveSequence name="Priority0ManualOverride">
           <CheckManualOverride name="CheckManualOverride" branch="Priority0ManualOverride" />
           <ReactiveFallback name="ManualGoalSelector">
-            <ReactiveSequence name="ManualAttackFortResponse">
-              <CheckTacticalModeCondition name="CheckManualAttackMode" mode="attack" branch="ManualAttackFortResponse" />
-              <SetCoordinate name="SetManualEnemyFortGoal" goal="4" />
-              <NavigateToPoseAction name="NavigateManualEnemyFort" />
-            </ReactiveSequence>
             <ReactiveSequence name="ManualPointResponse">
               <SetManualOverrideGoal name="SetManualOverrideGoal"
                                      wait_duration_s="10.0"
                                      goal_radius="0.5"
                                      fallback_timeout_s="60.0" />
               <NavigateToPoseAction name="NavigateManualOverrideGoal" />
+            </ReactiveSequence>
+            <ReactiveSequence name="ManualAttackFortResponse">
+              <CheckTacticalModeCondition name="CheckManualAttackMode" mode="attack" branch="ManualAttackFortResponse" />
+              <SetCoordinate name="SetManualEnemyFortGoal" goal="4" />
+              <NavigateToPoseAction name="NavigateManualEnemyFort" />
             </ReactiveSequence>
           </ReactiveFallback>
         </ReactiveSequence>
