@@ -30,10 +30,10 @@ inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{14.7, 11.0}, Point2D{15.7, 12.0}},
 };  // 假设这是奖励区域的坐标范围
 inline std::array<Area_Square, 4> tunnel_zone = {
-  Area_Square{Point2D{10.4, 3.6}, Point2D{9.3, 1.6}},     // Home Right Tunnel
-  Area_Square{Point2D{19.7, 13.4}, Point2D{18.6, 11.4}},  // Enemy Right Tunnel
-  Area_Square{Point2D{15.4, 13.8}, Point2D{11.8, 12.6}},  // Home Left Tunnel
-  Area_Square{Point2D{17.2, 2.4}, Point2D{13.6, 1.2}},    // Enemy Left Tunnel
+  Area_Square{Point2D{10.2, 3.6}, Point2D{9.5, 1.6}},     // Home Right Tunnel
+  Area_Square{Point2D{19.5, 13.2}, Point2D{18.8, 11.4}},  // Enemy Right Tunnel
+  Area_Square{Point2D{15.4, 13.8}, Point2D{12.1, 12.6}},  // Home Left Tunnel
+  Area_Square{Point2D{17.2, 2.2}, Point2D{13.6, 1.2}},    // Enemy Left Tunnel
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
@@ -167,8 +167,14 @@ inline std::vector<PatrolList> normal_patrol_branches = {
         {{20.2, 14.0, 0.0}, 5000}  // 雷霆大坐点位
     },
     {
-        {{16.5, 9.5, 0.0}, 5000},
-        {{12.2, 10.5, 0.0}, 5000}
+        {{21.0, 9.7, 0.0}, 5000},
+        {{24.0, 7.8, 0.0}, 5000},
+        {{20.4, 6.0, 0.0}, 5000} // 冲家巡逻点
+    },
+    {
+        {{16.1, 10.4, 0.0}, 5000},
+        {{12.6, 5.6, 0.0}, 5000},
+        // {{12.0, 10.4, 0.0}, 5000} // 高地巡逻点
     }
     //可继续加
 };
@@ -178,8 +184,14 @@ inline std::vector<PatrolList> attack_patrol_branches = {
         {{20.2, 14.0, 0.0}, 5000}
     },
     { 
-        {{16.5, 9.5, 0.0}, 5000},
-        {{12.2, 10.5, 0.0}, 5000}
+        {{21.0, 9.7, 0.0}, 5000},
+        {{24.0, 7.8, 0.0}, 5000},
+        {{20.4, 6.0, 0.0}, 5000}
+    },
+    {
+        {{16.1, 10.4, 0.0}, 5000},
+        {{12.6, 5.6, 0.0}, 5000},
+        // {{12.0, 10.4, 0.0}, 5000}
     }
     //可继续加
 };
