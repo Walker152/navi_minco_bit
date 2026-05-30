@@ -189,14 +189,32 @@
         </ReactiveSequence>
 
         <ReactiveSequence name="Priority5TrackPatrol">
-          <Sequence name="PatrolByTacticalMode">
-            <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
-                                                        patrol_branch_balanced="0"
-                                                        patrol_branch_offensive="0"/> -->
-            <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0" />
-            <NavigateToPoseAction name="NavigatePatrolPoint" />
-            <Wait name="WaitAtPatrolPoint" />
-          </Sequence>
+          <ReactiveFallback name="PatrolSelector">
+            <Sequence name="PatrolByTacticalMode">
+              <CheckGameTimeWindow name="CheckPatrolNormalWindow"
+                                   min_remaining="360"
+                                   max_remaining="420"
+                                   branch="Priority5TrackPatrol" />
+              <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
+                                                          patrol_branch_balanced="0"
+                                                          patrol_branch_offensive="0"/> -->
+              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="2" />
+              <NavigateToPoseAction name="NavigatePatrolPoint" />
+              <Wait name="WaitAtPatrolPoint" />
+            </Sequence>
+            <Sequence name="PatrolByTacticalMode">
+              <CheckGameTimeWindow name="CheckPatrolAttackWindow"
+                                   min_remaining="0"
+                                   max_remaining="360"
+                                   branch="Priority5TrackPatrol" />
+              <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
+                                                          patrol_branch_balanced="0"
+                                                          patrol_branch_offensive="0"/> -->
+              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="1" />
+              <NavigateToPoseAction name="NavigatePatrolPoint" />
+              <Wait name="WaitAtPatrolPoint" />
+            </Sequence>
+          </ReactiveFallback>
         </ReactiveSequence>
       </ReactiveFallback>
     </ReactiveSequence>
