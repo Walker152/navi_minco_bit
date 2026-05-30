@@ -86,8 +86,8 @@
           <ReactiveFallback name="GlobalResourceAndEarlySpecialSelector">
             <ReactiveSequence name="GlobalHealthRecovery">
               <CheckRetreatCondition name="CheckGlobalHealthRecoveryCondition"
-                                     health_threshold="30"
-                                     recovery_threshold="80"
+                                     health_threshold="40"
+                                     recovery_threshold="90"
                                      branch="GlobalHealthRecovery" />
               <SetNavMode name="SetGlobalHealthRetreatNavMode" mode="retreat" />
               <SetCoordinate name="SetGlobalHealthHomeGoal" goal="0" />
