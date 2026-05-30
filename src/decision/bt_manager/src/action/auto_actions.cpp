@@ -179,6 +179,9 @@ BT::NodeStatus SetManualOverrideGoal::tick()
   fallback_timeout_s_ = getInput<double>("fallback_timeout_s").value_or(60.0);
 
   const auto manual_goal = blackboard->get<Point2D>("manual_override_goal");
+  if (enemy_defense_zone.contains(manual_goal)) {
+    wait_duration_s_ = 30.0;
+  }
   blackboard->set("nav_goal", manual_goal);
   blackboard->set<NavMode>("current_mode", NavMode::MANUAL);
 
