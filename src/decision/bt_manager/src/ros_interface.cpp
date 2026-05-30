@@ -432,6 +432,8 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
     active_tunnel_entered_ = false;
   };
 
+  constexpr int min_tunnel_hit_count = 5;
+  std::array<int, 4> tunnel_hit_counts{};
   int matched_tunnel_idx = -1;
   if (msg) {
     for (const auto & cmd : msg->cmds) {
@@ -439,8 +441,10 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
       for (const int idx : current_transform_indices) {
         if (idx >= 0 && idx < static_cast<int>(tunnel_areas.size()) &&
             tunnel_areas[static_cast<std::size_t>(idx)].contains(point)) {
-          matched_tunnel_idx = idx;
-          break;
+          if (++tunnel_hit_counts[static_cast<std::size_t>(idx)] >= min_tunnel_hit_count) {
+            matched_tunnel_idx = idx;
+            break;
+          }
         }
       }
       if (matched_tunnel_idx >= 0) {
