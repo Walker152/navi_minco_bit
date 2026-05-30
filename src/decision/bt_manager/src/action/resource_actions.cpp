@@ -14,7 +14,8 @@ RequestReviveAction::RequestReviveAction(const std::string & name, const BT::Nod
 
 BT::PortsList RequestReviveAction::providedPorts()
 {
-  return {BT::InputPort<std::string>("revive_type", "free", "free or instant")};
+  return {BT::InputPort<std::string>("revive_type", "free", "free or instant"),
+    BT::InputPort<int>("max_instant_revive_count", 1, "Max instant revive request count")};
 }
 
 BT::NodeStatus RequestReviveAction::onStart()
@@ -30,6 +31,12 @@ BT::NodeStatus RequestReviveAction::onStart()
     blackboard->set<uint8_t>("revive_request", 1);
     detail::logTransition(detail::TreeKind::RESOURCE, "RequestReviveAction", true, "revive_type=free");
   } else if (revive_type == "instant") {
+    const int max_instant_revive_count = getInput<int>("max_instant_revive_count").value_or(1);
+    if (instant_revive_count_ >= max_instant_revive_count) {
+      detail::logTransition(
+        detail::TreeKind::RESOURCE, "RequestReviveAction", false, "revive_type=instant, count limit");
+      return BT::NodeStatus::FAILURE;
+    }
     const int cost = blackboard->get<int>("instant_resurrect_cost");
     const int coin = blackboard->get<int>("coin_remaining");
     if (coin < cost) {
@@ -38,6 +45,7 @@ BT::NodeStatus RequestReviveAction::onStart()
       return BT::NodeStatus::FAILURE;
     }
     blackboard->set<uint8_t>("remote_revive_request", 1);
+    ++instant_revive_count_;
     detail::logTransition(detail::TreeKind::RESOURCE, "RequestReviveAction", true, "revive_type=instant");
   } else {
     return BT::NodeStatus::FAILURE;

@@ -106,6 +106,9 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto remote_health_request = blackboard_->get<uint8_t>("remote_health_request");
     const auto pitch_mode = blackboard_->get<PitchPos>("pitch_mode");
     const auto not_aim_enemy = blackboard_->get<bool>("not_aim_enemy");
+    const auto current_pose = blackboard_->get<geometry_msgs::msg::Pose>("current_pose");
+    const Point2D current_position{current_pose.position.x, current_pose.position.y, 0.0};
+    const auto use_capacitor = enemy_fort_zone.contains(current_position);
 
     ros_interfaces::msg::Behavior behavior_msg;
     behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
@@ -122,6 +125,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.remote_health_request = remote_health_request;
     behavior_msg.pitch_mode = static_cast<uint8_t>(pitch_mode);
     behavior_msg.not_aim_enemy = not_aim_enemy;
+    behavior_msg.use_capacitor = use_capacitor;
     behavior_pub->publish(behavior_msg);
 
     if (revive_request != 0) {
@@ -410,65 +414,104 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
 {
   const auto current_pose = blackboard_->get<geometry_msgs::msg::Pose>("current_pose");
   const Point2D current_point{current_pose.position.x, current_pose.position.y};
-  bool in_transform_zone = false;
+  int current_transform_idx = -1;
+  std::vector<int> current_transform_indices;
   for (std::size_t i = 0; i < transform_zone.size(); ++i) {
     if (transform_zone[i].contains(current_point)) {
-      in_transform_zone = true;
+      const int idx = static_cast<int>(i);
+      current_transform_indices.push_back(idx);
+      if (current_transform_idx < 0) {
+        current_transform_idx = idx;
+      }
+    }
+  }
+  const bool in_transform_zone = !current_transform_indices.empty();
+
+  int current_tunnel_idx = -1;
+  for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
+    if (tunnel_zone[i].contains(current_point)) {
+      current_tunnel_idx = static_cast<int>(i);
       break;
     }
   }
+  const bool current_in_tunnel = current_tunnel_idx >= 0;
 
-  int nearest_tunnel_idx = -1;
-  double nearest_dist2 = std::numeric_limits<double>::infinity();
-  for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
-    const auto & zone = tunnel_zone[i];
-    const double center_x = (zone.top_left.x + zone.bottom_right.x) * 0.5;
-    const double center_y = (zone.top_left.y + zone.bottom_right.y) * 0.5;
-    const double dx = current_point.x - center_x;
-    const double dy = current_point.y - center_y;
-    const double dist2 = dx * dx + dy * dy;
-    if (dist2 < nearest_dist2) {
-      nearest_dist2 = dist2;
-      nearest_tunnel_idx = static_cast<int>(i);
+  const auto reset_tunnel_latch = [this]() {
+    tunnel_detect_latched_ = false;
+    active_tunnel_idx_ = -1;
+    active_tunnel_entered_ = false;
+  };
+
+  constexpr int min_tunnel_hit_count = 5;
+  std::array<int, 4> tunnel_hit_counts{};
+  int matched_tunnel_idx = -1;
+  if (msg) {
+    for (const auto & cmd : msg->cmds) {
+      const Point2D point{cmd.position.x, cmd.position.y};
+      for (const int idx : current_transform_indices) {
+        if (idx >= 0 && idx < static_cast<int>(tunnel_areas.size()) &&
+            tunnel_areas[static_cast<std::size_t>(idx)].contains(point)) {
+          if (++tunnel_hit_counts[static_cast<std::size_t>(idx)] >= min_tunnel_hit_count) {
+            matched_tunnel_idx = idx;
+            break;
+          }
+        }
+      }
+      if (matched_tunnel_idx >= 0) {
+        break;
+      }
+    }
+  }
+
+  if (!tunnel_detect_latched_ && matched_tunnel_idx >= 0) {
+    tunnel_detect_latched_ = true;
+    active_tunnel_idx_ = matched_tunnel_idx;
+    active_tunnel_entered_ = current_tunnel_idx == active_tunnel_idx_;
+  }
+
+  if (tunnel_detect_latched_) {
+    if (active_tunnel_idx_ < 0 || active_tunnel_idx_ >= static_cast<int>(tunnel_areas.size())) {
+      reset_tunnel_latch();
+    } else {
+      const bool current_in_active_tunnel =
+        tunnel_areas[static_cast<std::size_t>(active_tunnel_idx_)].contains(current_point);
+      if (current_in_active_tunnel) {
+        active_tunnel_entered_ = true;
+      } else if (active_tunnel_entered_) {
+        reset_tunnel_latch();
+      } else if (!in_transform_zone) {
+        reset_tunnel_latch();
+      }
+    }
+  }
+
+  int nearest_tunnel_idx = tunnel_detect_latched_
+                             ? active_tunnel_idx_
+                             : (matched_tunnel_idx >= 0 ? matched_tunnel_idx : current_transform_idx);
+  if (nearest_tunnel_idx < 0) {
+    double nearest_dist2 = std::numeric_limits<double>::infinity();
+    for (std::size_t i = 0; i < tunnel_zone.size(); ++i) {
+      const auto & zone = tunnel_zone[i];
+      const double center_x = (zone.top_left.x + zone.bottom_right.x) * 0.5;
+      const double center_y = (zone.top_left.y + zone.bottom_right.y) * 0.5;
+      const double dx = current_point.x - center_x;
+      const double dy = current_point.y - center_y;
+      const double dist2 = dx * dx + dy * dy;
+      if (dist2 < nearest_dist2) {
+        nearest_dist2 = dist2;
+        nearest_tunnel_idx = static_cast<int>(i);
+      }
     }
   }
   // std::cout << "Current position: (" << current_point.x << ", " << current_point.y <<
   // "),in_transform_zone: "
   //           << in_transform_zone
   //           << ", nearest_tunnel_idx: " << nearest_tunnel_idx << std::endl;
-  bool current_in_tunnel = false;
-  for (const auto & zone : tunnel_zone) {
-    if (zone.contains(current_point)) {
-      current_in_tunnel = true;
-      break;
-    }
-  }
   blackboard_->set("current_in_tunnel", current_in_tunnel);
   blackboard_->set("in_transform_zone", in_transform_zone);
   blackboard_->set("nearest_tunnel_idx", nearest_tunnel_idx);
 
-  bool through_tunnel_now = false;
-  for (const auto & zone : tunnel_areas) {
-    if (isTroughZone(msg, zone)) {
-      through_tunnel_now = true;
-      break;
-    }
-  }
-  if (!msg || msg->cmds.empty()) {
-    if (!in_transform_zone) {
-      tunnel_detect_latched_ = false;
-    }
-    blackboard_->set("through_tunnel", in_transform_zone && tunnel_detect_latched_);
-    return in_transform_zone && tunnel_detect_latched_;
-  }
-
-  if (!in_transform_zone) {
-    tunnel_detect_latched_ = false;
-  } else if (through_tunnel_now) {
-    tunnel_detect_latched_ = true;
-  }
-
-  const bool through_tunnel_stable = in_transform_zone && tunnel_detect_latched_;
+  const bool through_tunnel_stable = tunnel_detect_latched_;
   blackboard_->set("through_tunnel", through_tunnel_stable);
   return through_tunnel_stable;
 }
