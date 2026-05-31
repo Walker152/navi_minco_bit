@@ -196,6 +196,7 @@ inline std::vector<PatrolList> attack_patrol_branches = {
     //可继续加
 };
 #endif
+
 #ifdef TEST_AREA
 // for test
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
