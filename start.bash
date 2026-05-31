@@ -3,27 +3,27 @@ cd ~/2025-sentry-navi
 source ./install/setup.bash
 
 # PTP Sync
-# gnome-terminal -- bash -c "sudo ./scripts/ptp_sync.bash; exec bash"
-# sleep 10
+gnome-terminal -- bash -c "sudo ./scripts/ptp_sync.bash; exec bash"
+sleep 10
 
-# # # MID360 
-# gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_mixed_MID360.launch.py; exec bash"
-# sleep 1
+# MID360 
+gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_mixed_MID360.launch.py; exec bash"
+sleep 1
 
-# # Lidar Merger
-# gnome-terminal -- bash -c "ros2 launch lidar_merger dual_lidar_merger.launch.py; exec bash"
-# sleep 3
+# Lidar Merger
+gnome-terminal -- bash -c "ros2 launch lidar_merger dual_lidar_merger.launch.py; exec bash"
+sleep 3
 
-# # SLAM
-# gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py; exec bash"
-# sleep 1
+# SLAM
+gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py; exec bash"
+sleep 1
 
 # ICP
 # gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
 # sleep 1
 
 # Cloud Crop Filter
-# gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
 sleep 1
 
 # Navigation2
@@ -36,7 +36,7 @@ gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bas
 sleep 3
 
 # Communication
-# gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
 
 # Rosbag record
 ROSBAG_TOPICS=(
