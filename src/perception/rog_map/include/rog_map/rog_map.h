@@ -24,11 +24,9 @@
 #pragma once
 
 #include <rog_map/prob_map.h>
-#include <rog_map/spatio_temporal_map.h>
 #include <rog_map/rog_map_core/common_lib.hpp>
 #include <super_utils/type_utils.hpp>
 #include <fmt/color.h>
-#include <rog_map/elevation_map.h>
 
 namespace rog_map {
     using namespace std;
@@ -115,24 +113,6 @@ namespace rog_map {
 
         RobotState getRobotState() const;
 
-        // Elevation map interface
-        bool getElevationAtPosXY(const Vec3f &pos, double &z_out) const {
-            if (!elev_map_) return false;
-            return elev_map_->getElevationAtPosXY(pos, z_out);
-        }
-
-        bool getElevationAtIndex(const Vec3i &id_g, double &z_out) const {
-            if (!elev_map_) return false;
-            return elev_map_->getElevationAtIndex(id_g, z_out);
-        }
-
-        void updateElevationInBox(const Vec3f &box_min, const Vec3f &box_max) {
-            if (!elev_map_) return;
-            elev_map_->updateFromMap(*this, box_min, box_max);
-        }
-
-    ElevationMap::Ptr getElevationMap() const { return elev_map_; }
-
     protected:
 
         std::ofstream time_log_file_, map_info_log_file_;
@@ -146,8 +126,5 @@ namespace rog_map {
           const Vec3f & start_pos, Vec3f& nearest_pt, const double & max_dis) const ;
 
         RobotState robot_state_;
-                STVLConfig stvl_cfg_;
-                SpatioTemporalMap::Ptr stvl_map_;
-
     };
 }
