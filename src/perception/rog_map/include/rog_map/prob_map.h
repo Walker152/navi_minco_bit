@@ -28,7 +28,6 @@
 #include <rog_map/inf_map.h>
 #include <rog_map/free_cnt_map.h>
 #include <rog_map/esdf_map.h>
-#include <rog_map/elevation_map.h>
 #include <rog_map/rog_map_core/raycaster.h>
 
 
@@ -63,9 +62,6 @@ namespace rog_map {
 
         bool isFrontier(const Vec3i &id_g) const;
 
-        // 强制将某个全局栅格的状态重置为 Unknown (用于外部动态障碍物擦除)
-        void forceUnknown(const Vec3i &id_g);
-
         // Query result
         GridType getGridType(Vec3i &id_g) const;
 
@@ -86,8 +82,6 @@ namespace rog_map {
         Vec3f getLocalMapOrigin() const;
 
         Vec3f getLocalMapSize() const;
-
-        void getLocalUpdateBox(Vec3i &min_i, Vec3i &max_i) const;
 
         double getResolution() const{
             return sc_.resolution;
@@ -110,7 +104,6 @@ namespace rog_map {
         InfMap::Ptr inf_map_;
         FreeCntMap::Ptr fcnt_map_;
         ESDFMap::Ptr esdf_map_;
-        ElevationMap::Ptr elev_map_;
         /// Spherical neighborhood lookup table
         std::vector<float> occupancy_buffer_;
 

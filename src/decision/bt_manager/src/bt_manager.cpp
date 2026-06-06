@@ -57,7 +57,6 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<SetNavMode>("SetNavMode");
   factory_.registerNodeType<ChangeMapAction>("ChangeMapAction");
   factory_.registerNodeType<Wait>("Wait");
-  factory_.registerNodeType<WaitManual>("WaitManual");
   factory_.registerNodeType<SetStairsPosition>("SetStairsPosition");
   factory_.registerNodeType<DescendStairsAction>("DescendStairsAction");
   factory_.registerNodeType<AccumulateAmmoPurchase>("AccumulateAmmoPurchase");
