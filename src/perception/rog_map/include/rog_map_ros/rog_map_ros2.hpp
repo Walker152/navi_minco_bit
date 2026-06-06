@@ -40,12 +40,16 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <visualization_msgs/msg/marker_array.hpp>
 
 #include <rog_map/rog_map.h>
 #include <super_utils/color_msg_utils.hpp>
+
+#include <algorithm>
+#include <cmath>
 
 namespace rog_map {
     using namespace super_utils;
@@ -67,7 +71,8 @@ namespace rog_map {
         struct VisualizeMap {
             rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
                 occ_pub, unknown_pub, esdf_neg_pub, esdf_occ_pub,
-                occ_inf_pub, unknown_inf_pub, frontier_pub, esdf_pub;
+                occ_inf_pub, unknown_inf_pub, frontier_pub, esdf_pub, layer_height_pub, field_pub;
+            rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr layer_value_pub, layer_type_pub;
             rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr mkr_arr_pub;
             rclcpp::TimerBase::SharedPtr viz_timer;
             rclcpp::CallbackGroup::SharedPtr viz_reen_cbk_group;
@@ -157,9 +162,8 @@ namespace rog_map {
             rc_.unfinished_frame_cnt = 0;
             rc_.updete_lock.unlock();
 
-            updateProbMap(temp_pc, temp_pose);
+            updateMapInternal(temp_pc, temp_pose);
 
-            writeTimeConsumingToLog(time_log_file_);
         }
 
         void vizCallback() {
@@ -192,6 +196,34 @@ namespace rog_map {
                     cloud_msg.header.stamp = nh_->get_clock()->now();
                     vm_.unknown_inf_pub->publish(cloud_msg);
                 }
+            }
+
+            if (layer_ && !layer_->empty()) {
+                if (vm_.layer_value_pub && vm_.layer_value_pub->get_subscription_count() >= 1) {
+                    nav_msgs::msg::OccupancyGrid grid;
+                    fillLayerGrid(layer_->values(), grid);
+                    vm_.layer_value_pub->publish(grid);
+                }
+                if (vm_.layer_type_pub && vm_.layer_type_pub->get_subscription_count() >= 1) {
+                    std::vector<uint8_t> types(layer_->cells().size(), 0U);
+                    for (size_t i = 0; i < layer_->cells().size(); ++i) {
+                        types[i] = static_cast<uint8_t>(layer_->cells()[i].type);
+                    }
+                    nav_msgs::msg::OccupancyGrid grid;
+                    fillLayerGrid(types, grid);
+                    vm_.layer_type_pub->publish(grid);
+                }
+                if (vm_.layer_height_pub && vm_.layer_height_pub->get_subscription_count() >= 1) {
+                    sensor_msgs::msg::PointCloud2 height_cloud;
+                    fillLayerHeightCloud(height_cloud);
+                    vm_.layer_height_pub->publish(height_cloud);
+                }
+            }
+
+            if (field_ && field_->isValid() && vm_.field_pub && vm_.field_pub->get_subscription_count() >= 1) {
+                sensor_msgs::msg::PointCloud2 field_cloud;
+                fillFieldCloud(field_cloud);
+                vm_.field_pub->publish(field_cloud);
             }
 
             if (cfg_.frontier_extraction_en && vm_.frontier_pub->get_subscription_count() >= 1) {
@@ -308,6 +340,80 @@ namespace rog_map {
             cloud.header.frame_id = "world";
         }
 
+        void fillLayerGrid(const std::vector<uint8_t>& data, nav_msgs::msg::OccupancyGrid& grid) {
+            grid.header.stamp = nh_->get_clock()->now();
+            grid.header.frame_id = cfg_.frame_id;
+            grid.info.resolution = static_cast<float>(layer_->resolution());
+            grid.info.width = static_cast<uint32_t>(layer_->width());
+            grid.info.height = static_cast<uint32_t>(layer_->height());
+            grid.info.origin.position.x = layer_->origin().x();
+            grid.info.origin.position.y = layer_->origin().y();
+            grid.info.origin.orientation.w = 1.0;
+            grid.data.resize(data.size());
+            for (size_t i = 0; i < data.size(); ++i) {
+                grid.data[i] = static_cast<int8_t>(std::min<int>(100, data[i]));
+            }
+        }
+
+        void fillLayerHeightCloud(sensor_msgs::msg::PointCloud2& cloud) {
+            pcl::PointCloud<pcl::PointXYZI> pcl_cloud;
+            const auto& cells = layer_->cells();
+            pcl_cloud.reserve(cells.size());
+            for (int y = 0; y < layer_->height(); ++y) {
+                for (int x = 0; x < layer_->width(); ++x) {
+                    const size_t idx = static_cast<size_t>(y) * static_cast<size_t>(layer_->width()) +
+                                       static_cast<size_t>(x);
+                    if (idx >= cells.size()) {
+                        continue;
+                    }
+                    const auto& cell = cells[idx];
+                    if (cell.type == CellType::UNKNOWN) {
+                        continue;
+                    }
+                    pcl::PointXYZI p;
+                    p.x = static_cast<float>(layer_->origin().x() + (static_cast<double>(x) + 0.5) * layer_->resolution());
+                    p.y = static_cast<float>(layer_->origin().y() + (static_cast<double>(y) + 0.5) * layer_->resolution());
+                    p.z = cell.max_z;
+                    p.intensity = cell.height;
+                    pcl_cloud.push_back(p);
+                }
+            }
+            pcl::toROSMsg(pcl_cloud, cloud);
+            cloud.header.stamp = nh_->get_clock()->now();
+            cloud.header.frame_id = cfg_.frame_id;
+        }
+
+        void fillFieldCloud(sensor_msgs::msg::PointCloud2& cloud) {
+            pcl::PointCloud<pcl::PointXYZI> pcl_cloud;
+            const auto distances = field_->distances();
+            const int width = field_->width();
+            const int height = field_->height();
+            const double resolution = field_->resolution();
+            const Eigen::Vector2d origin = field_->origin();
+            pcl_cloud.reserve(distances.size());
+            for (int y = 0; y < height; ++y) {
+                for (int x = 0; x < width; ++x) {
+                    const size_t idx = static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x);
+                    if (idx >= distances.size()) {
+                        continue;
+                    }
+                    const double d = distances[idx];
+                    if (!std::isfinite(d)) {
+                        continue;
+                    }
+                    pcl::PointXYZI p;
+                    p.x = static_cast<float>(origin.x() + (static_cast<double>(x) + 0.5) * resolution);
+                    p.y = static_cast<float>(origin.y() + (static_cast<double>(y) + 0.5) * resolution);
+                    p.z = 0.0f;
+                    p.intensity = static_cast<float>(d);
+                    pcl_cloud.push_back(p);
+                }
+            }
+            pcl::toROSMsg(pcl_cloud, cloud);
+            cloud.header.stamp = nh_->get_clock()->now();
+            cloud.header.frame_id = cfg_.frame_id;
+        }
+
     public:
         typedef shared_ptr<ROGMapROS> Ptr;
 
@@ -338,6 +444,13 @@ namespace rog_map {
                     vm_.esdf_pub = nh_->create_publisher<sensor_msgs::msg::PointCloud2>("rog_map/esdf", qos);
                     // vm_.esdf_neg_pub = nh_->create_publisher<sensor_msgs::msg::PointCloud2>("rog_map/esdf/neg", qos);
                     // vm_.esdf_occ_pub = nh_->create_publisher<sensor_msgs::msg::PointCloud2>("rog_map/esdf/occ", qos);
+                }
+
+                if (cfg_.layer_en) {
+                    vm_.layer_value_pub = nh_->create_publisher<nav_msgs::msg::OccupancyGrid>("rog_map/layer/value", qos);
+                    vm_.layer_type_pub = nh_->create_publisher<nav_msgs::msg::OccupancyGrid>("rog_map/layer/type", qos);
+                    vm_.layer_height_pub = nh_->create_publisher<sensor_msgs::msg::PointCloud2>("rog_map/layer/height", qos);
+                    vm_.field_pub = nh_->create_publisher<sensor_msgs::msg::PointCloud2>("rog_map/field/points", qos);
                 }
 
                 if (cfg_.viz_time_rate > 0) {

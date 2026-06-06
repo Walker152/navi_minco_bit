@@ -23,11 +23,21 @@
 
 #include "rog_map/rog_map.h"
 
+#include <algorithm>
+#include <cmath>
+
+#include <rog_map/map_registry.hpp>
+
 using namespace rog_map;
 using namespace super_utils;
 void ROGMap::init() {
 
     initProbMap();
+
+    layer_ = std::make_shared<ProjectionLayer>();
+    field_ = std::make_shared<DynamicLayer>();
+    query_ = std::make_shared<QueryAdapter>();
+    MapRegistry::set(query_);
 
     map_info_log_file_.open(DEBUG_FILE_DIR("rm_info_log.csv"), std::ios::out | std::ios::trunc);
     time_log_file_.open(DEBUG_FILE_DIR("rm_performance_log.csv"), std::ios::out | std::ios::trunc);
@@ -72,6 +82,8 @@ void ROGMap::init() {
         if(cfg_.esdf_en) {
             esdf_map_->updateESDF3D(robot_state_.p);
         }
+        refreshLayers();
+        refreshQuery();
         cout << BLUE << " -- [ROGMap]Load pcd file success with " << pcd_map->size() << " pts." << RESET << endl;
         map_empty_ = false;
     }
@@ -254,11 +266,114 @@ void ROGMap::updateMap(const PointCloud& cloud, const Pose& pose) {
         return;
     }
 
+    updateMapInternal(cloud, pose);
+}
+
+void ROGMap::updateMapInternal(const PointCloud& cloud, const Pose& pose) {
     updateRobotState(pose);
+    const double now = getSystemWalltimeNow();
+    setUpdateTime(now);
     updateProbMap(cloud, pose);
 
+    bool decay_changed = false;
+    if (cfg_.decay_en) {
+        decay_changed = applyDecay(now);
+    }
+    if (decay_changed && cfg_.esdf_en) {
+        esdf_map_->updateESDF3D(robot_state_.p);
+    }
+
+    refreshLayers();
+    refreshQuery();
 
     writeTimeConsumingToLog(time_log_file_);
+}
+
+void ROGMap::refreshLayers() {
+    if (!cfg_.layer_en || !layer_) {
+        return;
+    }
+
+    ProjectionLayerConfig layer_cfg;
+    layer_cfg.unknown_as_occupied = cfg_.unknown_as_occupied;
+    layer_cfg.low_obstacle_height = cfg_.low_obstacle_height;
+    layer_cfg.obstacle_height = cfg_.obstacle_height;
+    layer_cfg.min_ratio = cfg_.min_ratio;
+    layer_cfg.min_observed_voxels = cfg_.min_observed_voxels;
+    layer_cfg.passable_cost = static_cast<uint8_t>(std::clamp(cfg_.passable_cost, 0, 252));
+
+    const int width = mapWidth();
+    const int height = mapHeight();
+    const double res = getResolution();
+    const Vec3i min_id = localMapMinIndex();
+    const Vec3f min_pos = localMapMinPosition();
+    const Eigen::Vector2d origin(min_pos.x() - 0.5 * res, min_pos.y() - 0.5 * res);
+
+    int z_min = 0;
+    int z_max = 0;
+    posToGlobalIndex(cfg_.layer_min_z, z_min);
+    posToGlobalIndex(cfg_.layer_max_z, z_max);
+    if (z_min > z_max) {
+        std::swap(z_min, z_max);
+    }
+    z_min = std::max(z_min, localMapMinIndex().z());
+    z_max = std::min(z_max, localMapMaxIndex().z());
+
+    layer_->update(width, height, res, origin, layer_cfg,
+        [this, min_id, z_min, z_max](int mx, int my) {
+            ColumnStats stats;
+            const int gx = min_id.x() + mx;
+            const int gy = min_id.y() + my;
+            for (int gz = z_min; gz <= z_max; ++gz) {
+                Vec3i id_g(gx, gy, gz);
+                GridType gt = getGridType(id_g);
+                if (gt == GridType::OCCUPIED || gt == GridType::KNOWN_FREE) {
+                    ++stats.observed;
+                    stats.last_update_time = std::max(stats.last_update_time, cellLastUpdateTime(id_g));
+                }
+                if (gt == GridType::OCCUPIED) {
+                    ++stats.occupied;
+                    Vec3f pos;
+                    globalIndexToPos(id_g, pos);
+                    stats.min_z = std::min(stats.min_z, pos.z());
+                    stats.max_z = std::max(stats.max_z, pos.z());
+                    stats.last_hit_time = std::max(stats.last_hit_time, cellLastHitTime(id_g));
+                }
+            }
+            return stats;
+        });
+
+    if (cfg_.field_en && field_ && !layer_->empty()) {
+        field_->updateFromMask(
+            layer_->width(),
+            layer_->height(),
+            layer_->resolution(),
+            layer_->origin(),
+            layer_->mask(),
+            cfg_.field_inflation_radius);
+    }
+}
+
+void ROGMap::refreshQuery() {
+    if (!query_ || !layer_ || layer_->empty()) {
+        return;
+    }
+
+    auto snapshot = std::make_shared<MapSnapshot>();
+    snapshot->width = layer_->width();
+    snapshot->height = layer_->height();
+    snapshot->resolution = layer_->resolution();
+    snapshot->origin_x = layer_->origin().x();
+    snapshot->origin_y = layer_->origin().y();
+    snapshot->values = layer_->values();
+    snapshot->types.resize(layer_->cells().size(), 0U);
+    for (size_t i = 0; i < layer_->cells().size(); ++i) {
+        snapshot->types[i] = static_cast<uint8_t>(layer_->cells()[i].type);
+    }
+    if (field_) {
+        snapshot->distances = field_->distances();
+    }
+    query_->update(snapshot, field_);
 }
 
 RobotState ROGMap::getRobotState() const {

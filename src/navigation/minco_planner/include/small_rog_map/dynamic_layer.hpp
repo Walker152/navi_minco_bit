@@ -36,6 +36,14 @@ public:
     const Eigen::Vector2d & origin,
     double dilation_radius_m);
 
+  void updateFromMask(
+    int width,
+    int height,
+    double resolution,
+    const Eigen::Vector2d & origin,
+    const std::vector<uint8_t> & mask,
+    double inflation_radius);
+
   // Query distance (meters) and gradient. If pos is outside the grid, returns far distance.
   void evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const;
 
@@ -54,6 +62,14 @@ private:
   void cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
 
   void buildDilationOffsets(int radius_cells, std::vector<Eigen::Vector2i> & offsets) const;
+
+  void rebuild(
+    int width,
+    int height,
+    double resolution,
+    const Eigen::Vector2d & origin,
+    const std::vector<uint8_t> & mask,
+    double inflation_radius);
 
   mutable std::mutex mutex_;
 

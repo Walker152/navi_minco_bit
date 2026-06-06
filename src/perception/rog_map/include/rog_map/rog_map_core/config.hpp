@@ -191,6 +191,22 @@ namespace rog_map {
             loader.LoadParam(name_space + "/raycasting/p_free", p_free, 0.30f);
             loader.LoadParam(name_space + "/raycasting/p_free", p_free, 0.30f);
 
+            loader.LoadParam(name_space + "/layer/enable", layer_en, true);
+            loader.LoadParam(name_space + "/layer/min_z", layer_min_z, -0.20);
+            loader.LoadParam(name_space + "/layer/max_z", layer_max_z, 0.80);
+            loader.LoadParam(name_space + "/layer/low_obstacle_height", low_obstacle_height, 0.07);
+            loader.LoadParam(name_space + "/layer/obstacle_height", obstacle_height, 0.14);
+            loader.LoadParam(name_space + "/layer/min_ratio", min_ratio, 0.35);
+            loader.LoadParam(name_space + "/layer/min_observed_voxels", min_observed_voxels, 2);
+            loader.LoadParam(name_space + "/layer/unknown_as_occupied", unknown_as_occupied, true);
+            loader.LoadParam(name_space + "/layer/passable_cost", passable_cost, 50);
+            loader.LoadParam(name_space + "/field/enable", field_en, true);
+            loader.LoadParam(name_space + "/field/inflation_radius", field_inflation_radius, 0.33);
+
+            loader.LoadParam(name_space + "/decay/enable", decay_en, true);
+            loader.LoadParam(name_space + "/decay/keep_time", keep_time, 0.4);
+            loader.LoadParam(name_space + "/decay/decay_time", decay_time, 1.2);
+
             vector<double> temp_ray_range;
             loader.LoadParam(name_space + "/raycasting/ray_range", temp_ray_range, vector<double>{0.3, 10});
             if (temp_ray_range.size() != 2) {
@@ -291,6 +307,23 @@ namespace rog_map {
         bool esdf_en{false};
         Vec3f esdf_local_update_box{};
         double esdf_resolution{};
+
+        bool layer_en{true};
+        double layer_min_z{-0.20};
+        double layer_max_z{0.80};
+        double low_obstacle_height{0.07};
+        double obstacle_height{0.14};
+        double min_ratio{0.35};
+        int min_observed_voxels{2};
+        bool unknown_as_occupied{true};
+        int passable_cost{50};
+
+        bool field_en{true};
+        double field_inflation_radius{0.33};
+
+        bool decay_en{true};
+        double keep_time{0.4};
+        double decay_time{1.2};
 
         bool load_pcd_en{false};
         bool use_dynamic_reconfigure{false};

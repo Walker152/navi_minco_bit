@@ -255,15 +255,43 @@ void DynamicLayer::updateFromPointCloud(const sensor_msgs::msg::PointCloud2 & cl
   }
 
   // 3. Run EDT directly on the original occupancy mask.
-  // 3.1 计算空闲空间到障碍物的正向距离平方
-  std::vector<double> dist_sq_pos;
-  ESDFUtils::computeEDT2D(width, height, occ01, dist_sq_pos);
+  rebuild(width, height, resolution, origin, occ01, dilation_radius_m);
+}
 
-  // 3.2 构建反向掩码并计算障碍物内部到空闲空间的负向距离平方
-  // occ01 中 0=障碍物, 1=空闲。反向掩码 inv_occ 中 0=空闲(作为目标), 1=障碍物
+void DynamicLayer::updateFromMask(
+  int width,
+  int height,
+  double resolution,
+  const Eigen::Vector2d & origin,
+  const std::vector<uint8_t> & mask,
+  double inflation_radius)
+{
+  rebuild(width, height, resolution, origin, mask, inflation_radius);
+}
+
+void DynamicLayer::rebuild(
+  int width,
+  int height,
+  double resolution,
+  const Eigen::Vector2d & origin,
+  const std::vector<uint8_t> & mask,
+  double inflation_radius)
+{
+  if (width <= 0 || height <= 0 || resolution <= 0.0) {
+    throw std::invalid_argument("DynamicLayer::rebuild: invalid grid metadata");
+  }
+
+  const size_t expected = static_cast<size_t>(width) * static_cast<size_t>(height);
+  if (mask.size() != expected) {
+    throw std::invalid_argument("DynamicLayer::rebuild: mask size mismatch");
+  }
+
+  std::vector<double> dist_sq_pos;
+  ESDFUtils::computeEDT2D(width, height, mask, dist_sq_pos);
+
   std::vector<uint8_t> inv_occ(expected, 0U);
   for (size_t i = 0; i < expected; ++i) {
-    inv_occ[i] = (occ01[i] == 0U) ? 1U : 0U;
+    inv_occ[i] = (mask[i] == 0U) ? 1U : 0U;
   }
   std::vector<double> dist_sq_neg;
   ESDFUtils::computeEDT2D(width, height, inv_occ, dist_sq_neg);
@@ -272,7 +300,7 @@ void DynamicLayer::updateFromPointCloud(const sensor_msgs::msg::PointCloud2 & cl
   for (size_t i = 0; i < expected; ++i) {
     double d_raw = 0.0;
 
-    if (occ01[i] == 1U) {
+    if (mask[i] == 1U) {
       // 位于空闲空间，获取正距离
       const double d2 = dist_sq_pos[i];
       d_raw = (d2 >= 1.0e19) ? kFarDistance : std::sqrt(d2) * resolution;
@@ -283,10 +311,10 @@ void DynamicLayer::updateFromPointCloud(const sensor_msgs::msg::PointCloud2 & cl
     }
 
     // 引入膨胀半径 (正距离变小，负距离变得更负，逻辑自洽)
-    const double d_dilated = d_raw - dilation_radius_m;
+    const double d_dilated = d_raw - inflation_radius;
 
     if (!std::isfinite(d_dilated)) {
-      dist_m[i] = (occ01[i] == 1U) ? kFarDistance : -kFarDistance;
+      dist_m[i] = (mask[i] == 1U) ? kFarDistance : -kFarDistance;
       continue;
     }
 

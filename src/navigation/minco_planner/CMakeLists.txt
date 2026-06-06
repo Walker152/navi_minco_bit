@@ -26,6 +26,7 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(ros_interfaces REQUIRED)
+find_package(rog_map REQUIRED)
 find_package(PCL REQUIRED)
 find_package(OpenMP REQUIRED)
 
@@ -70,6 +71,7 @@ ament_target_dependencies(${library_name}
   sensor_msgs
   tf2_ros
   ros_interfaces
+  rog_map
 )
 
 target_link_libraries(${library_name}
@@ -117,6 +119,7 @@ ament_export_dependencies(
   sensor_msgs
   tf2_ros
   ros_interfaces
+  rog_map
 )
 ament_export_targets(${library_name})
 ament_package()
