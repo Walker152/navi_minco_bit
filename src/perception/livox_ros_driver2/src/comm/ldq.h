@@ -53,6 +53,7 @@ bool InitQueue(LidarDataQueue *queue, uint32_t queue_size);
 bool DeInitQueue(LidarDataQueue *queue);
 void ResetQueue(LidarDataQueue *queue);
 bool QueuePrePop(LidarDataQueue *queue, StoragePacket *storage_packet);
+bool QueuePeek(LidarDataQueue *queue, const StoragePacket **storage_packet);
 void QueuePopUpdate(LidarDataQueue *queue);
 bool QueuePop(LidarDataQueue *queue, StoragePacket *storage_packet);
 uint32_t QueueUsedSize(LidarDataQueue *queue);

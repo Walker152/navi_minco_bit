@@ -13,6 +13,13 @@ output_type   = 0
 frame_id      = 'livox_frame'
 lvx_file_path = '/home/livox/livox_test.lvx'
 cmdline_bd_code = 'livox0000000001'
+enable_internal_lidar_merge = True
+merge_front_ip = '192.168.1.135'
+merge_back_ip = '192.168.1.122'
+merge_output_topic = 'livox/lidar'
+merge_frame_id = 'livox_frame'
+merge_max_interval_ms = 5.0
+merge_extrinsic_back_to_front = [0.0, 0.4, 0.0, -0.35453, 0.0, 0.0]
 
 cur_path = os.path.split(os.path.realpath(__file__))[0] + '/'
 # However, if you want to keep the relative path logic from your example, 
@@ -31,7 +38,14 @@ livox_ros2_params = [
     {"frame_id": frame_id},
     {"lvx_file_path": lvx_file_path},
     {"user_config_path": user_config_path},
-    {"cmdline_input_bd_code": cmdline_bd_code}
+    {"cmdline_input_bd_code": cmdline_bd_code},
+    {"enable_internal_lidar_merge": enable_internal_lidar_merge},
+    {"merge_front_ip": merge_front_ip},
+    {"merge_back_ip": merge_back_ip},
+    {"merge_output_topic": merge_output_topic},
+    {"merge_frame_id": merge_frame_id},
+    {"merge_max_interval_ms": merge_max_interval_ms},
+    {"merge_extrinsic_back_to_front": merge_extrinsic_back_to_front}
 ]
 
 def generate_launch_description():
