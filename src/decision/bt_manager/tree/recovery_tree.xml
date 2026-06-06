@@ -16,10 +16,11 @@
           <NavigateToPoseAction />
         </Sequence>
 
+
         <Sequence name="Phase3">
           <CheckTimeInZone min_seconds="50.0" max_seconds="999.0" />
           <SetGlobalVelocity global_vx="0.0" use_tunnel_profile="true" />
-          <Wait milliseconds="100" />
+          <Wait milliseconds="200" />
         </Sequence>
       </ReactiveFallback>
     </ReactiveSequence>
