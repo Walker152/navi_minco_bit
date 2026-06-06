@@ -24,6 +24,10 @@
 #pragma once
 
 #include <rog_map/prob_map.h>
+#include <rog_map/field_layer.hpp>
+#include <rog_map/map_query_interface.hpp>
+#include <rog_map/projection_layer.hpp>
+#include <rog_map/query_adapter.hpp>
 #include <rog_map/rog_map_core/common_lib.hpp>
 #include <super_utils/type_utils.hpp>
 #include <fmt/color.h>
@@ -113,9 +117,23 @@ namespace rog_map {
 
         RobotState getRobotState() const;
 
+        std::shared_ptr<MapQueryInterface> getQueryInterface() const {
+            return query_;
+        }
+
     protected:
 
         std::ofstream time_log_file_, map_info_log_file_;
+
+        std::shared_ptr<ProjectionLayer> layer_;
+        std::shared_ptr<DynamicLayer> field_;
+        std::shared_ptr<QueryAdapter> query_;
+
+        void updateMapInternal(const PointCloud& cloud, const Pose& pose);
+
+        void refreshLayers();
+
+        void refreshQuery();
 
         void updateRobotState(const Pose& pose);
 

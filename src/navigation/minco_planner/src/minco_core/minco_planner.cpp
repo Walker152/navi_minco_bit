@@ -8,13 +8,19 @@
 #include "minco_core/minco_fsm.hpp"
 #include "minco_core/minco_utils.hpp"
 #include "minco_core/visualizer.hpp"
+#include "rog_map/map_registry.hpp"
 #include <iostream>
 
 namespace minco_planner {
 
 using namespace color_text;
 
-MincoPlanner::MincoPlanner() : tf_(nullptr), costmap_(nullptr)
+static bool isLineFree(
+  const std::shared_ptr<rog_map::MapQueryInterface> & map,
+  const Eigen::Vector3d & p1,
+  const Eigen::Vector3d & p2);
+
+MincoPlanner::MincoPlanner() : tf_(nullptr)
 {
 }
 
@@ -33,8 +39,6 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   name_ = name;
   tf_ = tf;
   costmap_ros_ = costmap_ros;
-  costmap_ = costmap_ros_->getCostmap();
-  global_frame_ = costmap_ros_->getGlobalFrameID();  // map
 
   auto node = parent.lock();
   logger_ = node->get_logger();
@@ -42,6 +46,13 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   const std::string prefix = name_ + ".";
 
   // --- General config --------------------------------------------------------
+
+  std::string configured_global_frame = "map";
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "global_frame", rclcpp::ParameterValue(configured_global_frame));
+  node->get_parameter(prefix + "global_frame", configured_global_frame);
+  global_frame_ = costmap_ros_ ? costmap_ros_->getGlobalFrameID() : configured_global_frame;
+  map_ = rog_map::MapRegistry::get();
 
   nav2_util::declare_parameter_if_not_declared(node, prefix + "tolerance", rclcpp::ParameterValue(0.5));
   node->get_parameter(prefix + "tolerance", tolerance_);
@@ -225,12 +236,17 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
 
   // --- Components / publishers / timers -------------------------------------
 
-  astar_planner_ = std::make_unique<Astar>(costmap_->getSizeInCellsX(), costmap_->getSizeInCellsY());
+  const unsigned int init_size_x = map_ ? map_->sizeX() : 1U;
+  const unsigned int init_size_y = map_ ? map_->sizeY() : 1U;
+  astar_planner_ = std::make_unique<Astar>(init_size_x, init_size_y);
 
   if (use_smac_) {
     smac_planner_ = std::make_unique<minco_planner::smac::SmacPlanner2DSimple>();
     smac_planner_->configure(node, costmap_ros_, prefix);
     smac_planner_->setParameters(allow_unknown_, 1000000, tolerance_);
+    if (map_) {
+      smac_planner_->setMap(map_);
+    }
   }
 
   opt_path_pub_ = node->create_publisher<ros_interfaces::msg::MpcPositionCommand>(
@@ -270,8 +286,8 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
 
   // Load Static ESDF map.
   esdf_map_ = std::make_shared<small_rog_map::HybridESDFMap>();
-  esdf_map_->initRos(
-    parent, "/global_costmap/voxel_grid", esdf_resolution_, dynamic_esdf_size, dynamic_dilation_radius);
+  (void)dynamic_esdf_size;
+  (void)dynamic_dilation_radius;
 
   // Initialize ESDF window center once at startup so static validation works without odom.
   geometry_msgs::msg::PoseStamped init_pose;
@@ -294,6 +310,9 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
 
   if (use_smac_ && smac_planner_) {
     smac_planner_->setESDFMap(esdf_map_);
+    if (map_) {
+      smac_planner_->setMap(map_);
+    }
   }
 
   visualizer_ = std::make_unique<Visualizer>();
@@ -301,8 +320,10 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
 
   minco_optimizer_ = std::make_unique<MincoOptimizer>(minco_config);
   minco_optimizer_->setESDFMap(esdf_map_);
+  minco_optimizer_->setMap(map_);
 
   corridor_gen_ = std::make_shared<SimpleCorridorGenerator>(esdf_map_);
+  corridor_gen_->setMap(map_);
   corridor_gen_->setSafetyMargins(corridor_robot_radius, corridor_extra_margin);
 
   backup_opt_ = std::make_unique<traj_opt::BackupTrajOpt>();
@@ -329,6 +350,20 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
 
   on_set_parameters_callback_handle_ = node->add_on_set_parameters_callback(
     std::bind(&MincoPlanner::onSetParameters, this, std::placeholders::_1));
+}
+
+void MincoPlanner::setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map)
+{
+  map_ = map;
+  if (smac_planner_) {
+    smac_planner_->setMap(map_);
+  }
+  if (minco_optimizer_) {
+    minco_optimizer_->setMap(map_);
+  }
+  if (corridor_gen_) {
+    corridor_gen_->setMap(map_);
+  }
 }
 
 void MincoPlanner::activate()
@@ -609,7 +644,10 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
 bool MincoPlanner::PlanGlobalPath(
   const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal)
 {
-  if (!astar_planner_ || !costmap_) {
+  if (!map_) {
+    map_ = rog_map::MapRegistry::get();
+  }
+  if (!astar_planner_ || !map_) {
     return false;
   }
 
@@ -626,7 +664,19 @@ bool MincoPlanner::PlanGlobalPath(
 
 bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose)
 {
-  if (!costmap_ || !minco_optimizer_) {
+  if (!minco_optimizer_) {
+    return false;
+  }
+  if (!map_) {
+    map_ = rog_map::MapRegistry::get();
+    if (map_) {
+      minco_optimizer_->setMap(map_);
+      if (corridor_gen_) {
+        corridor_gen_->setMap(map_);
+      }
+    }
+  }
+  if (!map_ || !minco_optimizer_) {
     return false;
   }
 
@@ -659,7 +709,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     minco_config.max_acc,
     local_end_is_goal,
     [this](const Eigen::Vector3d & a, const Eigen::Vector3d & b) {
-      return utils::isLineFree(this->costmap_, a, b);
+      return isLineFree(this->map_, a, b);
     });
 
   std_msgs::msg::Header header_msg;
@@ -724,10 +774,10 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   //           << RESET << std::endl;
   // P1b: If the robot is inside an obstacle (ESDF dist < 0), project the
   // start position to the nearest free space along the ESDF gradient.
-  if (esdf_map_) {
+  if (map_) {
     double start_esdf_dist = 0.0;
     Eigen::Vector3d start_esdf_grad = Eigen::Vector3d::Zero();
-    esdf_map_->evaluate(start_state.col(0), start_esdf_dist, start_esdf_grad);
+    map_->evaluate(start_state.col(0), start_esdf_dist, start_esdf_grad);
     if (start_esdf_dist < 0.0 && start_esdf_grad.norm() > 1e-6) {
       constexpr double kMargin = 0.05;
       start_state.col(0) += (kMargin - start_esdf_dist) * start_esdf_grad.normalized();
@@ -1059,13 +1109,13 @@ void MincoPlanner::PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path
 // -----------------------------------------------------------------------------
 
 static bool projectStartToFreeCell(
-  nav2_costmap_2d::Costmap2D * costmap, unsigned int & mx, unsigned int & my)
+  const std::shared_ptr<rog_map::MapQueryInterface> & map, unsigned int & mx, unsigned int & my)
 {
-  const unsigned int nx = costmap->getSizeInCellsX();
-  const unsigned int ny = costmap->getSizeInCellsY();
-  auto isFree = [costmap](unsigned int x, unsigned int y) {
-    return costmap->getCost(x, y) < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
-  };
+  if (!map) {
+    return false;
+  }
+  const unsigned int nx = map->sizeX();
+  const unsigned int ny = map->sizeY();
   const int dx4[4] = {1, -1, 0, 0};
   const int dy4[4] = {0, 0, 1, -1};
   for (int k = 0; k < 4; ++k) {
@@ -1073,7 +1123,7 @@ static bool projectStartToFreeCell(
     int sy = static_cast<int>(my) + dy4[k];
     if (sx < 0 || sy < 0 || sx >= static_cast<int>(nx) || sy >= static_cast<int>(ny))
       continue;
-    if (isFree(static_cast<unsigned int>(sx), static_cast<unsigned int>(sy)))
+    if (map->isFree(static_cast<unsigned int>(sx), static_cast<unsigned int>(sy)))
       return false;
   }
   constexpr int kMaxRadius = 50;
@@ -1086,7 +1136,7 @@ static bool projectStartToFreeCell(
         int cy = static_cast<int>(my) + dy;
         if (cx < 0 || cy < 0 || cx >= static_cast<int>(nx) || cy >= static_cast<int>(ny))
           continue;
-        if (isFree(static_cast<unsigned int>(cx), static_cast<unsigned int>(cy))) {
+        if (map->isFree(static_cast<unsigned int>(cx), static_cast<unsigned int>(cy))) {
           mx = static_cast<unsigned int>(cx);
           my = static_cast<unsigned int>(cy);
           return true;
@@ -1095,6 +1145,31 @@ static bool projectStartToFreeCell(
     }
   }
   return false;
+}
+
+static bool isLineFree(
+  const std::shared_ptr<rog_map::MapQueryInterface> & map,
+  const Eigen::Vector3d & p1,
+  const Eigen::Vector3d & p2)
+{
+  if (!map || map->resolution() <= 0.0) {
+    return true;
+  }
+  const double dist = (p2 - p1).norm();
+  const int steps = static_cast<int>(std::ceil(dist / map->resolution()));
+  if (steps <= 0) {
+    return true;
+  }
+  for (int i = 0; i <= steps; ++i) {
+    const double t = static_cast<double>(i) / static_cast<double>(steps);
+    const Eigen::Vector3d p = p1 + (p2 - p1) * t;
+    unsigned int mx = 0;
+    unsigned int my = 0;
+    if (!map->worldToMap(p.x(), p.y(), mx, my) || !map->isFree(mx, my)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
@@ -1109,36 +1184,49 @@ bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
   plan.poses.clear();
   plan.header.stamp = rclcpp::Clock().now();
   plan.header.frame_id = global_frame_;
+  if (!map_) {
+    map_ = rog_map::MapRegistry::get();
+    if (map_) {
+      if (smac_planner_) {
+        smac_planner_->setMap(map_);
+      }
+      if (minco_optimizer_) {
+        minco_optimizer_->setMap(map_);
+      }
+      if (corridor_gen_) {
+        corridor_gen_->setMap(map_);
+      }
+    }
+  }
+  if (!map_) {
+    RCLCPP_ERROR(logger_, "MapQueryInterface is not available; planner will not query Nav2 costmap.");
+    return false;
+  }
 
   // 2. Search a discrete guide path using A*.
   double wx = start.position.x;
   double wy = start.position.y;
   unsigned int mx_start, my_start;
-  if (!utils::worldToMap(costmap_, logger_, wx, wy, mx_start, my_start)) {
+  if (!map_->worldToMap(wx, wy, mx_start, my_start)) {
     RCLCPP_ERROR(
       logger_, "Failed to convert start world coordinates (%.2f, %.2f) to map coordinates", wx, wy);
     return false;
   }
-  utils::clearRobotCell(costmap_, mx_start, my_start);
 
   // P1a: If start cell is surrounded by inflated obstacles, spiral-search
   // outward to find the nearest free cell so A* can expand from the start.
-  {
-    std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
-    projectStartToFreeCell(costmap_, mx_start, my_start);
-  }
+  projectStartToFreeCell(map_, mx_start, my_start);
 
   wx = goal.position.x;
   wy = goal.position.y;
   unsigned int mx_goal, my_goal;
-  if (!utils::worldToMap(costmap_, logger_, wx, wy, mx_goal, my_goal)) {
+  if (!map_->worldToMap(wx, wy, mx_goal, my_goal)) {
     RCLCPP_ERROR(
       logger_, "Failed to convert goal world coordinates (%.2f, %.2f) to map coordinates", wx, wy);
     return false;
   }
-  std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
-  unsigned int nx = costmap_->getSizeInCellsX();
-  unsigned int ny = costmap_->getSizeInCellsY();
+  unsigned int nx = map_->sizeX();
+  unsigned int ny = map_->sizeY();
 
   if (use_smac_ && smac_planner_) {
     // auto time = rclcpp::Clock().now().seconds();
@@ -1169,7 +1257,7 @@ bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
       pose.header = plan.header;
 
       double wx, wy;
-      utils::mapToWorld(costmap_, it->x, it->y, wx, wy);
+      map_->mapToWorld(static_cast<unsigned int>(it->x), static_cast<unsigned int>(it->y), wx, wy);
 
       pose.pose.position.x = wx;
       pose.pose.position.y = wy;
@@ -1194,7 +1282,12 @@ bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
     astar_planner_->setStart(static_cast<int>(mx_start), static_cast<int>(my_start));
     astar_planner_->setGoal(static_cast<int>(mx_goal), static_cast<int>(my_goal));
     astar_planner_->setupNavFn(true);
-    astar_planner_->setCostmap(costmap_->getCharMap(), true, allow_unknown_);
+    std::vector<unsigned char> query_costmap_copy;
+    const size_t map_size = static_cast<size_t>(nx) * static_cast<size_t>(ny);
+    if (!map_->copyValues(query_costmap_copy) || query_costmap_copy.size() != map_size) {
+      return false;
+    }
+    astar_planner_->setCostmap(query_costmap_copy.data(), true, allow_unknown_);
 
     int max_total_cycles = static_cast<int>(nx * ny) * 9999;
     int cycles_per_step = std::max(static_cast<int>(nx * ny / 20), static_cast<int>(nx + ny));
@@ -1230,7 +1323,7 @@ bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
       pose.header = plan.header;
 
       double wx, wy;
-      utils::mapToWorld(costmap_, path_x[i], path_y[i], wx, wy);
+      map_->mapToWorld(static_cast<unsigned int>(path_x[i]), static_cast<unsigned int>(path_y[i]), wx, wy);
 
       pose.pose.position.x = wx;
       pose.pose.position.y = wy;
@@ -1556,8 +1649,11 @@ bool MincoPlanner::validateTrajectory(
 
 bool MincoPlanner::checkCollision()
 {
-  if (!costmap_) {
-    return true;
+  if (!map_) {
+    map_ = rog_map::MapRegistry::get();
+  }
+  if (!map_) {
+    return false;
   }
 
   // Snapshot trajectory under mutex to avoid data races with ReplanLocal().
@@ -1576,25 +1672,22 @@ bool MincoPlanner::checkCollision()
   }
 
   const double dt = 0.05;
-  std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
 
   for (double t = 0.0; t <= dur; t += dt) {
     const Eigen::Vector3d pos = traj_snapshot.getPos(t);
     unsigned int mx, my;
-    if (!utils::worldToMap(costmap_, logger_, pos.x(), pos.y(), mx, my)) {
+    if (!map_->worldToMap(pos.x(), pos.y(), mx, my)) {
       return false;
     }
-    const unsigned char cost = costmap_->getCost(mx, my);
+    const unsigned char cost = map_->value(mx, my);
     if (cost == nav2_costmap_2d::LETHAL_OBSTACLE || cost == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
       return false;
     }
-    if (esdf_map_) {
-      double esdf_dist = 0.0;
-      Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
-      esdf_map_->evaluate(pos, esdf_dist, esdf_grad);
-      if (esdf_dist <= 0.0)
-        return false;
-    }
+    double esdf_dist = 0.0;
+    Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
+    map_->evaluate(pos, esdf_dist, esdf_grad);
+    if (esdf_dist <= 0.0)
+      return false;
   }
 
   return true;
@@ -1602,8 +1695,11 @@ bool MincoPlanner::checkCollision()
 
 bool MincoPlanner::checkCollision(const traj_opt::Trajectory & traj)
 {
-  if (!costmap_) {
-    return true;
+  if (!map_) {
+    map_ = rog_map::MapRegistry::get();
+  }
+  if (!map_) {
+    return false;
   }
 
   const double dur = traj.getTotalDuration();
@@ -1613,25 +1709,22 @@ bool MincoPlanner::checkCollision(const traj_opt::Trajectory & traj)
 
   // Dense sampling to catch slight obstacle penetration.
   const double dt = 0.05;
-  std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
 
   for (double t = 0.0; t <= dur; t += dt) {
     const Eigen::Vector3d pos = traj.getPos(t);
     unsigned int mx, my;
-    if (!utils::worldToMap(costmap_, logger_, pos.x(), pos.y(), mx, my)) {
+    if (!map_->worldToMap(pos.x(), pos.y(), mx, my)) {
       return false;
     }
-    const unsigned char cost = costmap_->getCost(mx, my);
+    const unsigned char cost = map_->value(mx, my);
     if (cost == nav2_costmap_2d::LETHAL_OBSTACLE || cost == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
       return false;
     }
-    if (esdf_map_) {
-      double esdf_dist = 0.0;
-      Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
-      esdf_map_->evaluate(pos, esdf_dist, esdf_grad);
-      if (esdf_dist <= 0.0)
-        return false;
-    }
+    double esdf_dist = 0.0;
+    Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
+    map_->evaluate(pos, esdf_dist, esdf_grad);
+    if (esdf_dist <= 0.0)
+      return false;
   }
 
   return true;
@@ -1756,10 +1849,38 @@ double MincoPlanner::getTrajectoryRemainTime() const
 
 bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
 {
-  if (!costmap_ros_) {
+  if (costmap_ros_) {
+    return costmap_ros_->getRobotPose(pose);
+  }
+
+  nav_msgs::msg::Odometry odom;
+  {
+    std::lock_guard<std::mutex> lk(odom_mutex_);
+    if (!has_latest_odom_) {
+      return false;
+    }
+    odom = latest_odom_;
+  }
+
+  geometry_msgs::msg::PoseStamped odom_pose;
+  odom_pose.header = odom.header;
+  odom_pose.pose = odom.pose.pose;
+  if (odom_pose.header.frame_id.empty() || odom_pose.header.frame_id == global_frame_ || !tf_) {
+    odom_pose.header.frame_id = odom_pose.header.frame_id.empty() ? global_frame_ : odom_pose.header.frame_id;
+    pose = odom_pose;
+    return true;
+  }
+
+  try {
+    pose = tf_->transform(odom_pose, global_frame_);
+    return true;
+  } catch (const tf2::TransformException & ex) {
+    RCLCPP_WARN_THROTTLE(
+      logger_, *rclcpp::Clock::make_shared(), 2000,
+      "[MincoPlanner] Failed to transform odom pose from %s to %s: %s",
+      odom_pose.header.frame_id.c_str(), global_frame_.c_str(), ex.what());
     return false;
   }
-  return costmap_ros_->getRobotPose(pose);
 }
 
 bool MincoPlanner::checkGoalReached(const geometry_msgs::msg::PoseStamped & current_pose)
@@ -1819,12 +1940,12 @@ bool MincoPlanner::isTrajectoryTimeExpired(double now_s) const
 
 double MincoPlanner::getEsdfDistance(const Eigen::Vector3d & pos) const
 {
-  if (!esdf_map_) {
+  if (!map_) {
     return 0.0;
   }
   double dist = 0.0;
   Eigen::Vector3d grad = Eigen::Vector3d::Zero();
-  esdf_map_->evaluate(pos, dist, grad);
+  map_->evaluate(pos, dist, grad);
   return dist;
 }
 

@@ -114,6 +114,7 @@ double MincoOptimizer::costFunctional(void * ptr, const VecDf & x, VecDf & g)
   const auto & local_magnitudes = opt_vars_.local_magnitudes;
   const auto & minco_solver_ = opt_vars_.minco_solver_;
   const auto & hybrid_esdf_map = opt_vars_.hybrid_esdf_map;
+  const auto & map = opt_vars_.map;
 
   opt_vars_.iter_num++;
 
@@ -153,6 +154,7 @@ double MincoOptimizer::costFunctional(void * ptr, const VecDf & x, VecDf & g)
     minco_solver_->getCoeffs(),
     waypoint_attractor,
     hybrid_esdf_map,
+    map,
     smooth_eps,
     integral_res,
     magnitudeBounds,
@@ -237,6 +239,7 @@ void MincoOptimizer::constraintsFunctional(const VecDf & T,
   const MatD3f & coeffs,
   const Mat3Df & waypoint_attractor,
   const small_rog_map::HybridESDFMap::Ptr & hybrid_esdf_map,
+  const std::shared_ptr<rog_map::MapQueryInterface> & map,
   const double & smooth_eps,
   const int & integral_res,
   const VecDf & magnitudeBounds,
@@ -248,6 +251,8 @@ void MincoOptimizer::constraintsFunctional(const VecDf & T,
   MatD3f & partialGradByCoeffs,
   VecDf & penalty_log)
 {
+  (void)hybrid_esdf_map;
+
   // 1. Unpack bounds and weights
   const auto & safe_dist = magnitudeBounds[0];
   // const auto & vmax = magnitudeBounds[1];
@@ -296,10 +301,10 @@ void MincoOptimizer::constraintsFunctional(const VecDf & T,
       Vec3f gradPos{0.0, 0.0, 0.0}, gradVel{0.0, 0.0, 0.0}, gradAcc{0.0, 0.0, 0.0};
 
       // For position cost
-      if (weightPos > 0.0 && hybrid_esdf_map) {
+      if (weightPos > 0.0 && map) {
         double esdf_dist = 0.0;
         Eigen::Vector3d esdf_grad;
-        hybrid_esdf_map->evaluate(pos.cast<double>(), esdf_dist, esdf_grad);
+        map->evaluate(pos.cast<double>(), esdf_dist, esdf_grad);
 
         const double violaPos = safe_dist - esdf_dist;
         double violaPosPena, violaPosPenaD;

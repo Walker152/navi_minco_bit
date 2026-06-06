@@ -30,7 +30,7 @@ namespace minco_planner {
 namespace smac {
 
 SmacPlanner2DSimple::SmacPlanner2DSimple()
-: allow_unknown_(true), max_iterations_(5000000), tolerance_(0.125), costmap_(nullptr), size_x_(0),
+: allow_unknown_(true), max_iterations_(5000000), tolerance_(0.125), size_x_(0),
   size_y_(0), motion_model_(MotionModel::TWOD)
 {
   search_info_.cost_penalty = 2.0;
@@ -47,6 +47,21 @@ void SmacPlanner2DSimple::setESDFMap(const std::shared_ptr<small_rog_map::Hybrid
   planning_id_ = 0u;
 }
 
+void SmacPlanner2DSimple::setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map)
+{
+  map_ = map;
+  if (!map_) {
+    return;
+  }
+  costmap_origin_x_ = map_->originX();
+  costmap_origin_y_ = map_->originY();
+  costmap_resolution_ = map_->resolution();
+  size_x_ = map_->sizeX();
+  size_y_ = map_->sizeY();
+  planning_id_ = 0u;
+  ensureSearchBuffers();
+}
+
 void SmacPlanner2DSimple::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node,
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
 {
@@ -59,14 +74,6 @@ void SmacPlanner2DSimple::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr n
 {
   node_ = node;
   costmap_ros_ = costmap_ros;
-  costmap_ = costmap_ros_->getCostmap();
-  if (costmap_) {
-    costmap_origin_x_ = costmap_->getOriginX();
-    costmap_origin_y_ = costmap_->getOriginY();
-    costmap_resolution_ = costmap_->getResolution();
-    size_x_ = costmap_->getSizeInCellsX();
-    size_y_ = costmap_->getSizeInCellsY();
-  }
 
   // Optional ESDF biasing (default off). ESDF map instance is injected via setESDFMap().
   auto full_key = [&param_prefix](const std::string & key) {
@@ -94,27 +101,6 @@ void SmacPlanner2DSimple::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr n
 
   if (esdf_decay_ <= 1e-3f) {
     esdf_decay_ = 1e-3f;
-  }
-
-  ensureSearchBuffers();
-}
-
-void SmacPlanner2DSimple::setCostmap(nav2_costmap_2d::Costmap2D * costmap)
-{
-  costmap_ = costmap;
-  if (!costmap_) {
-    return;
-  }
-
-  costmap_origin_x_ = costmap_->getOriginX();
-  costmap_origin_y_ = costmap_->getOriginY();
-  costmap_resolution_ = costmap_->getResolution();
-
-  const unsigned int new_size_x = costmap_->getSizeInCellsX();
-  const unsigned int new_size_y = costmap_->getSizeInCellsY();
-  if (new_size_x != size_x_ || new_size_y != size_y_) {
-    size_x_ = new_size_x;
-    size_y_ = new_size_y;
   }
 
   ensureSearchBuffers();
@@ -148,7 +134,7 @@ void SmacPlanner2DSimple::ensureSearchBuffers()
 
 float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my)
 {
-  if (!use_esdf_cost_ || !esdf_map_ || !costmap_) {
+  if (!use_esdf_cost_ || !map_) {
     return 0.0f;
   }
 
@@ -166,12 +152,13 @@ float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my
 
   // Compute world coordinates directly (avoid mapToWorld overhead).
   // Use cell center (mx+0.5, my+0.5) for smoother bias.
-  const double wx = costmap_origin_x_ + (static_cast<double>(mx) + 0.5) * costmap_resolution_;
-  const double wy = costmap_origin_y_ + (static_cast<double>(my) + 0.5) * costmap_resolution_;
+  double wx = 0.0;
+  double wy = 0.0;
+  map_->mapToWorld(mx, my, wx, wy);
 
   double dist = 0.0;
   Eigen::Vector3d grad(0.0, 0.0, 0.0);
-  esdf_map_->evaluate(Eigen::Vector3d(wx, wy, 0.0), dist, grad);
+  map_->evaluate(Eigen::Vector3d(wx, wy, 0.0), dist, grad);
 
   if (!std::isfinite(dist) || dist < 0.0) {
     dist = 0.0;
@@ -216,16 +203,16 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
 {
   path.clear();
 
-  if (!costmap_) {
+  if (!map_) {
     return false;
   }
 
   // Refresh cached metadata (avoid per-cell getters in the search loop).
-  costmap_origin_x_ = costmap_->getOriginX();
-  costmap_origin_y_ = costmap_->getOriginY();
-  costmap_resolution_ = costmap_->getResolution();
-  size_x_ = costmap_->getSizeInCellsX();
-  size_y_ = costmap_->getSizeInCellsY();
+  costmap_origin_x_ = map_->originX();
+  costmap_origin_y_ = map_->originY();
+  costmap_resolution_ = map_->resolution();
+  size_x_ = map_->sizeX();
+  size_y_ = map_->sizeY();
   ensureSearchBuffers();
 
   if (start_x >= size_x_ || start_y >= size_y_ || goal_x >= size_x_ || goal_y >= size_y_) {
@@ -245,7 +232,12 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
   const uint64_t goal_index =
     static_cast<uint64_t>(goal_y) * static_cast<uint64_t>(size_x_) + static_cast<uint64_t>(goal_x);
 
-  const auto * charmap = costmap_->getCharMap();
+  const size_t map_size = static_cast<size_t>(size_x_) * static_cast<size_t>(size_y_);
+  std::vector<unsigned char> map_charmap;
+  if (!map_->copyValues(map_charmap) || map_charmap.size() != map_size) {
+    return false;
+  }
+  const auto * charmap = map_charmap.data();
   if (!charmap) {
     return false;
   }

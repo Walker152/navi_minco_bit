@@ -15,6 +15,7 @@
 #include "utils/optimization/optimization_utils.h"
 
 #include "small_rog_map/hybrid_esdf_map.hpp"
+#include "rog_map/map_query_interface.hpp"
 
 namespace minco_planner {
 
@@ -84,6 +85,11 @@ public:
     opt_vars_.hybrid_esdf_map = esdf_map;
   }
 
+  void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map)
+  {
+    opt_vars_.map = map;
+  }
+
   // --- Trajectory Optimization ---
   double optimize(const std::vector<Eigen::Vector3d> & waypoints,
     const Eigen::Matrix3d & start_state,
@@ -107,6 +113,7 @@ private:
 
     // Environment map pointer.
     small_rog_map::HybridESDFMap::Ptr hybrid_esdf_map;
+    std::shared_ptr<rog_map::MapQueryInterface> map;
 
     VecDf magnitudeBounds;
     VecDf penaltyWeights;
@@ -154,6 +161,7 @@ private:
     const MatD3f & coeffs,
     const Mat3Df & waypoint_attractor,
     const small_rog_map::HybridESDFMap::Ptr & hybrid_esdf_map,
+    const std::shared_ptr<rog_map::MapQueryInterface> & map,
     const double & smooth_eps,
     const int & integral_res,
     const VecDf & magnitudeBounds,

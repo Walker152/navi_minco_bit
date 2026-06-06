@@ -14,6 +14,7 @@
 #include "visualization_msgs/msg/marker.hpp"
 
 #include "ros_interfaces/msg/position_command.hpp"
+#include "rog_map/map_query_interface.hpp"
 
 #include "minco_core/astar.hpp"
 #include "minco_core/corridor_generator.hpp"
@@ -53,6 +54,8 @@ public:
 
   bool PlanGlobalPath(
     const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal);
+
+  void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map);
 
   bool ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose);
   bool makePlan(const geometry_msgs::msg::Pose & start,
@@ -149,7 +152,7 @@ private:
   std::shared_ptr<tf2_ros::Buffer> tf_;
   nav2_util::LifecycleNode::WeakPtr node_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
-  nav2_costmap_2d::Costmap2D * costmap_;
+  std::shared_ptr<rog_map::MapQueryInterface> map_;
   std::string global_frame_, name_;
 
   // === Configurations & Parameters ===

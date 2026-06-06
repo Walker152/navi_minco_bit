@@ -25,9 +25,9 @@
 #include "smac_search/constants.hpp"
 #include "smac_search/types.hpp"
 
-#include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "rog_map/map_query_interface.hpp"
 
 namespace small_rog_map {
 class HybridESDFMap;
@@ -90,16 +90,12 @@ public:
     const std::string & param_prefix);
 
   /**
-   * @brief Set the costmap directly (alternative to costmap_ros)
-   * @param costmap Costmap2D pointer
-   */
-  void setCostmap(nav2_costmap_2d::Costmap2D * costmap);
-
-  /**
    * @brief Inject ESDF map used to bias search toward free-space center
    * @param esdf_map Shared ESDF map (world-frame query)
    */
   void setESDFMap(const std::shared_ptr<small_rog_map::HybridESDFMap> & esdf_map);
+
+  void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map);
 
   /**
    * @brief Create a path from start to goal
@@ -145,7 +141,7 @@ private:
   float tolerance_;
 
   // Costmap
-  nav2_costmap_2d::Costmap2D * costmap_;
+  std::shared_ptr<rog_map::MapQueryInterface> map_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   unsigned int size_x_;
   unsigned int size_y_;

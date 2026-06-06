@@ -20,6 +20,11 @@ void SimpleCorridorGenerator::setSafetyMargins(double robot_radius, double extra
   }
 }
 
+void SimpleCorridorGenerator::setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map)
+{
+  map_ = map;
+}
+
 PolyhedronH SimpleCorridorGenerator::generateSafeBox(
   const Eigen::Vector3d & center, double max_radius) const
 {
@@ -27,9 +32,9 @@ PolyhedronH SimpleCorridorGenerator::generateSafeBox(
   constexpr double kMinHalfSize = 0.05;  // meters
 
   double dist = 0.0;
-  if (esdf_map_) {
+  if (map_) {
     Eigen::Vector3d grad;
-    esdf_map_->evaluate(center, dist, grad);
+    map_->evaluate(center, dist, grad);
   }
 
   if (!std::isfinite(dist) || dist < 0.0) {

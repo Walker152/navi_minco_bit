@@ -99,6 +99,20 @@ namespace rog_map {
 
         void updateProbMap(const PointCloud &cloud, const Pose &pose);
 
+        void setUpdateTime(double now);
+
+        int mapWidth() const { return sc_.map_size_i.x(); }
+        int mapHeight() const { return sc_.map_size_i.y(); }
+        int mapDepth() const { return sc_.map_size_i.z(); }
+        Vec3i localMapMinIndex() const { return local_map_bound_min_i_; }
+        Vec3i localMapMaxIndex() const { return local_map_bound_max_i_; }
+        Vec3f localMapMinPosition() const { return local_map_bound_min_d_; }
+        Vec3f localMapMaxPosition() const { return local_map_bound_max_d_; }
+        double cellLastHitTime(const Vec3i &id_g) const;
+        double cellLastUpdateTime(const Vec3i &id_g) const;
+
+        bool applyDecay(double now);
+
     protected:
         rog_map::Config cfg_;
         InfMap::Ptr inf_map_;
@@ -106,6 +120,11 @@ namespace rog_map {
         ESDFMap::Ptr esdf_map_;
         /// Spherical neighborhood lookup table
         std::vector<float> occupancy_buffer_;
+        std::vector<float> last_hit_time_;
+        std::vector<float> last_update_time_;
+        std::vector<int> active_ids_;
+        std::vector<uint8_t> active_flags_;
+        double current_update_time_{0.0};
 
         bool map_empty_{true};
         struct RaycastData {
@@ -150,6 +169,10 @@ namespace rog_map {
         void resetCell(const int &hash_id) override;
 
         void probabilisticMapFromCache();
+
+        GridType classifyProb(const float &prob) const;
+
+        void updateCellState(const Vec3f &pos, const GridType &from_type, const GridType &to_type);
 
         void hitPointUpdate(const Vec3f &pos, const int &hash_id, const int &hit_num);
 

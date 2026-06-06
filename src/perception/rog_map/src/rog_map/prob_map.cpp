@@ -80,6 +80,10 @@ void ProbMap::initProbMap() {
 
 
     occupancy_buffer_.resize(map_size, 0);
+    last_hit_time_.resize(map_size, 0.0f);
+    last_update_time_.resize(map_size, 0.0f);
+    active_flags_.resize(map_size, 0U);
+    active_ids_.clear();
     raycast_data_.raycaster.setResolution(cfg_.resolution);
     raycast_data_.operation_cnt.resize(map_size, 0);
     raycast_data_.hit_cnt.resize(map_size, 0);
@@ -88,6 +92,10 @@ void ProbMap::initProbMap() {
 
     std::cout << GREEN << " -- [ProbMap] Init successfully -- ." << RESET << std::endl;
     printMapInformation();
+}
+
+void ProbMap::setUpdateTime(double now) {
+    current_update_time_ = now;
 }
 
 Vec3f ProbMap::getLocalMapOrigin() const {
@@ -186,6 +194,20 @@ bool ProbMap::isKnownFree(const Vec3i& id_g) const {
         return true;
     }
     return isKnownFree(occupancy_buffer_[getHashIndexFromGlobalIndex(id_g)]);
+}
+
+double ProbMap::cellLastHitTime(const Vec3i& id_g) const {
+    if (!insideLocalMap(id_g)) {
+        return 0.0;
+    }
+    return last_hit_time_[getHashIndexFromGlobalIndex(id_g)];
+}
+
+double ProbMap::cellLastUpdateTime(const Vec3i& id_g) const {
+    if (!insideLocalMap(id_g)) {
+        return 0.0;
+    }
+    return last_update_time_[getHashIndexFromGlobalIndex(id_g)];
 }
 
 bool ProbMap::isFrontier(const Vec3i& id_g) const {
@@ -545,6 +567,46 @@ void ProbMap::resetCell(const int& hash_id) {
         // nothing need to do
     }
     ret = 0;
+    if (hash_id >= 0 && hash_id < static_cast<int>(last_hit_time_.size())) {
+        last_hit_time_[hash_id] = 0.0f;
+        last_update_time_[hash_id] = 0.0f;
+        active_flags_[hash_id] = 0U;
+    }
+}
+
+GridType ProbMap::classifyProb(const float& prob) const {
+    if (isOccupied(prob)) {
+        return GridType::OCCUPIED;
+    }
+    if (isKnownFree(prob)) {
+        return GridType::KNOWN_FREE;
+    }
+    return GridType::UNKNOWN;
+}
+
+void ProbMap::updateCellState(const Vec3f& pos, const GridType& from_type, const GridType& to_type) {
+    if (from_type == to_type) {
+        return;
+    }
+
+    Vec3f center_pos;
+    Vec3i id_g;
+    posToGlobalIndex(pos, id_g);
+    globalIndexToPos(id_g, center_pos);
+
+    inf_map_->updateGridCounter(center_pos, from_type, to_type);
+    if (cfg_.esdf_en) {
+        esdf_map_->updateGridCounter(center_pos, from_type, to_type);
+    }
+
+    if (cfg_.frontier_extraction_en) {
+        if (from_type == KNOWN_FREE) {
+            fcnt_map_->updateFrontierCounter(id_g, false);
+        }
+        if (to_type == KNOWN_FREE) {
+            fcnt_map_->updateFrontierCounter(id_g, true);
+        }
+    }
 }
 
 void ProbMap::probabilisticMapFromCache() {
@@ -575,17 +637,7 @@ void ProbMap::probabilisticMapFromCache() {
 
 void ProbMap::hitPointUpdate(const Vec3f& pos, const int& hash_id, const int& hit_num) {
     float& ret = occupancy_buffer_[hash_id];
-    GridType from_type = UNDEFINED;
-
-    if (isOccupied(ret)) {
-        from_type = GridType::OCCUPIED;
-    }
-    else if (isKnownFree(ret)) {
-        from_type = GridType::KNOWN_FREE;
-    }
-    else {
-        from_type = GridType::UNKNOWN;
-    }
+    GridType from_type = classifyProb(ret);
 
 
     ret += cfg_.l_hit * hit_num;
@@ -593,80 +645,91 @@ void ProbMap::hitPointUpdate(const Vec3f& pos, const int& hash_id, const int& hi
         ret = cfg_.l_max;
     }
 
-    GridType to_type;
-    if (isOccupied(ret)) {
-        to_type = GridType::OCCUPIED;
-    }
-    else if (isKnownFree(ret)) {
-        to_type = GridType::KNOWN_FREE;
-    }
-    else {
-        to_type = GridType::UNKNOWN;
-    }
+    const GridType to_type = classifyProb(ret);
+    updateCellState(pos, from_type, to_type);
 
-    if (from_type != to_type) {
-        Vec3f center_pos;
-        Vec3i id_g;
-        posToGlobalIndex(pos, id_g);
-        globalIndexToPos(id_g, center_pos);
-        inf_map_->updateGridCounter(center_pos, from_type, to_type);
-        if (cfg_.esdf_en) {
-            esdf_map_->updateGridCounter(center_pos, from_type, to_type);
-        }
-        if (cfg_.frontier_extraction_en && from_type == KNOWN_FREE) {
-            Vec3i id_g;
-            posToGlobalIndex(pos, id_g);
-            fcnt_map_->updateFrontierCounter(id_g, false);
+    if (hash_id >= 0 && hash_id < static_cast<int>(last_hit_time_.size())) {
+        last_hit_time_[hash_id] = static_cast<float>(current_update_time_);
+        last_update_time_[hash_id] = static_cast<float>(current_update_time_);
+        if (!active_flags_[hash_id]) {
+            active_flags_[hash_id] = 1U;
+            active_ids_.push_back(hash_id);
         }
     }
 }
 
 void ProbMap::missPointUpdate(const Vec3f& pos, const int& hash_id, const int& hit_num) {
     float& ret = occupancy_buffer_[hash_id];
-    GridType from_type;
-    if (isOccupied(ret)) {
-        from_type = GridType::OCCUPIED;
-    }
-    else if (isKnownFree(ret)) {
-        from_type = GridType::KNOWN_FREE;
-    }
-    else {
-        from_type = GridType::UNKNOWN;
-    }
+    GridType from_type = classifyProb(ret);
     ret += cfg_.l_miss * hit_num;
     if (ret < cfg_.l_min) {
         ret = cfg_.l_min;
     }
 
-    GridType to_type;
-    if (isOccupied(ret)) {
-        to_type = GridType::OCCUPIED;
+    const GridType to_type = classifyProb(ret);
+    updateCellState(pos, from_type, to_type);
+
+    if (hash_id >= 0 && hash_id < static_cast<int>(last_update_time_.size())) {
+        last_update_time_[hash_id] = static_cast<float>(current_update_time_);
     }
-    else if (isKnownFree(ret)) {
-        to_type = GridType::KNOWN_FREE;
+}
+
+bool ProbMap::applyDecay(double now) {
+    if (!cfg_.decay_en || cfg_.decay_time <= 1.0e-6 || active_ids_.empty()) {
+        return false;
     }
-    else {
-        to_type = GridType::UNKNOWN;
-    }
-    // Catch the jump edge
-    if (from_type != to_type) {
-        Vec3f center_pos;
-        Vec3i id_g;
-        posToGlobalIndex(pos, id_g);
-        globalIndexToPos(id_g, center_pos);
-        // Update inf map
-        inf_map_->updateGridCounter(center_pos, from_type, to_type);
-        if (cfg_.esdf_en) {
-            esdf_map_->updateGridCounter(center_pos, from_type, to_type);
+
+    const double rate = std::max(0.0, (static_cast<double>(cfg_.l_occ) - static_cast<double>(cfg_.l_free)) /
+        std::max(1.0e-6, cfg_.decay_time));
+    bool changed = false;
+    std::vector<int> next_active;
+    next_active.reserve(active_ids_.size());
+
+    for (const int hash_id : active_ids_) {
+        if (hash_id < 0 || hash_id >= static_cast<int>(occupancy_buffer_.size()) || !active_flags_[hash_id]) {
+            continue;
         }
 
+        float& prob = occupancy_buffer_[hash_id];
+        const GridType from_type = classifyProb(prob);
+        if (from_type != GridType::OCCUPIED) {
+            active_flags_[hash_id] = 0U;
+            continue;
+        }
 
-        if (cfg_.frontier_extraction_en && to_type == KNOWN_FREE) {
-            Vec3i id_g;
-            posToGlobalIndex(pos, id_g);
-            fcnt_map_->updateFrontierCounter(id_g, true);
+        const double last_hit = last_hit_time_[hash_id];
+        const double last_update = last_update_time_[hash_id] > 0.0f ? last_update_time_[hash_id] : last_hit;
+        if (now - last_hit < cfg_.keep_time) {
+            next_active.push_back(hash_id);
+            continue;
+        }
+
+        const double dt = std::max(0.0, now - last_update);
+        if (dt <= 1.0e-6) {
+            next_active.push_back(hash_id);
+            continue;
+        }
+
+        prob = static_cast<float>(std::max(static_cast<double>(cfg_.l_min), static_cast<double>(prob) - rate * dt));
+        last_update_time_[hash_id] = static_cast<float>(now);
+
+        const GridType to_type = classifyProb(prob);
+        if (from_type != to_type) {
+            Vec3f pos;
+            hashIdToPos(hash_id, pos);
+            updateCellState(pos, from_type, to_type);
+            changed = true;
+        }
+
+        if (to_type == GridType::OCCUPIED) {
+            next_active.push_back(hash_id);
+        } else {
+            active_flags_[hash_id] = 0U;
         }
     }
+
+    active_ids_.swap(next_active);
+    return changed;
 }
 
 void ProbMap::raycastProcess(const PointCloud& input_cloud, const Vec3f& cur_odom) {
@@ -839,6 +902,10 @@ void ProbMap::resetLocalMap() {
     double unk_value = (cfg_.l_free + cfg_.l_occ)/2.0;
     // Clear local map
     std::fill(occupancy_buffer_.begin(), occupancy_buffer_.end(), unk_value);
+    std::fill(last_hit_time_.begin(), last_hit_time_.end(), 0.0f);
+    std::fill(last_update_time_.begin(), last_update_time_.end(), 0.0f);
+    std::fill(active_flags_.begin(), active_flags_.end(), 0U);
+    active_ids_.clear();
     while (!raycast_data_.update_cache_id_g.empty()) {
         raycast_data_.update_cache_id_g.pop();
     }
