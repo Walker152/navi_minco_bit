@@ -8,6 +8,7 @@
 
 // Project
 #include "small_rog_map/hybrid_esdf_map.hpp"
+#include "rog_map/map_query_interface.hpp"
 
 namespace minco_planner {
 
@@ -22,12 +23,15 @@ public:
 
   explicit SimpleCorridorGenerator(small_rog_map::HybridESDFMap::Ptr esdf_map);
 
+  void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map);
+
   void setSafetyMargins(double robot_radius, double extra_margin);
 
   PolyhedronH generateSafeBox(const Eigen::Vector3d & center, double max_radius = 2.0) const;
 
 private:
   small_rog_map::HybridESDFMap::Ptr esdf_map_;
+  std::shared_ptr<rog_map::MapQueryInterface> map_;
 
   double robot_radius_{0.4};
   double extra_margin_{0.15};
