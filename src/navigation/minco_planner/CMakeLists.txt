@@ -28,6 +28,7 @@ find_package(tf2_ros REQUIRED)
 find_package(ros_interfaces REQUIRED)
 find_package(rog_map REQUIRED)
 find_package(PCL REQUIRED)
+find_package(yaml-cpp REQUIRED)
 find_package(OpenMP REQUIRED)
 
 nav2_package()
@@ -46,6 +47,20 @@ add_library(${library_name} SHARED
   ${SMAC_SEARCH_SOURCES}
   ${MINCO_CORE_SOURCES}
   ${TRAJ_OPT_SOURCES}
+)
+
+target_compile_definitions(${library_name}
+PUBLIC
+  ROOT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/"
+  ORIGIN_AT_CORNER
+  USE_ROS2
+)
+
+target_compile_options(${library_name}
+PRIVATE
+  -Wno-error=unused-parameter
+  -Wno-error=unused-function
+  -Wno-error=ignored-qualifiers
 )
 
 target_include_directories(${library_name} 
@@ -77,6 +92,7 @@ ament_target_dependencies(${library_name}
 target_link_libraries(${library_name}
   OpenMP::OpenMP_CXX
   ${PCL_LIBRARIES}
+  yaml-cpp
 )
 
 pluginlib_export_plugin_description_file(nav2_core global_planner_plugin.xml)

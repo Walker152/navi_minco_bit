@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <rclcpp/rclcpp.hpp>
+
 #include <rog_map/rog_map_core/common_lib.hpp>
 #include <super_utils/yaml_loader.hpp>
 
@@ -190,22 +192,95 @@ namespace rog_map {
             loader.LoadParam(name_space + "/raycasting/p_occ", p_occ, 0.80f);
             loader.LoadParam(name_space + "/raycasting/p_free", p_free, 0.30f);
             loader.LoadParam(name_space + "/raycasting/p_free", p_free, 0.30f);
+            loader.LoadParam(name_space + "/raycasting/parallel_enable", parallel_raycast_en, true);
+            loader.LoadParam(name_space + "/performance/parallel_raycast_enable", parallel_raycast_en, parallel_raycast_en);
+            loader.LoadParam(name_space + "/raycasting/num_threads", raycast_num_threads, 4);
+            loader.LoadParam(name_space + "/performance/raycast_num_threads", raycast_num_threads, raycast_num_threads);
+            if (raycast_num_threads <= 0) {
+                std::cout << color_text::YELLOW
+                          << " -- [ROG] raycast_num_threads should be positive, reset to 1."
+                          << color_text::RESET << std::endl;
+                raycast_num_threads = 1;
+            }
 
             loader.LoadParam(name_space + "/layer/enable", layer_en, true);
+            loader.LoadParam(name_space + "/projection/enable", layer_en, layer_en);
             loader.LoadParam(name_space + "/layer/min_z", layer_min_z, -0.20);
+            loader.LoadParam(name_space + "/projection/min_z", layer_min_z, layer_min_z);
             loader.LoadParam(name_space + "/layer/max_z", layer_max_z, 0.80);
+            loader.LoadParam(name_space + "/projection/max_z", layer_max_z, layer_max_z);
             loader.LoadParam(name_space + "/layer/low_obstacle_height", low_obstacle_height, 0.07);
+            loader.LoadParam(name_space + "/projection/low_obstacle_height", low_obstacle_height, low_obstacle_height);
             loader.LoadParam(name_space + "/layer/obstacle_height", obstacle_height, 0.14);
+            loader.LoadParam(name_space + "/projection/obstacle_height", obstacle_height, obstacle_height);
             loader.LoadParam(name_space + "/layer/min_ratio", min_ratio, 0.35);
+            loader.LoadParam(name_space + "/projection/min_ratio", min_ratio, min_ratio);
             loader.LoadParam(name_space + "/layer/min_observed_voxels", min_observed_voxels, 2);
+            loader.LoadParam(name_space + "/projection/min_observed_voxels", min_observed_voxels, min_observed_voxels);
             loader.LoadParam(name_space + "/layer/unknown_as_occupied", unknown_as_occupied, true);
+            loader.LoadParam(name_space + "/projection/unknown_as_occupied", unknown_as_occupied, unknown_as_occupied);
             loader.LoadParam(name_space + "/layer/passable_cost", passable_cost, 50);
+            loader.LoadParam(name_space + "/projection/passable_cost", passable_cost, passable_cost);
+            loader.LoadParam(name_space + "/layer/hysteresis_enable", layer_hysteresis_en, true);
+            loader.LoadParam(name_space + "/projection/hysteresis_enable", layer_hysteresis_en, layer_hysteresis_en);
+            loader.LoadParam(name_space + "/layer/hysteresis_count", layer_hysteresis_count, 2);
+            loader.LoadParam(name_space + "/projection/hysteresis_count", layer_hysteresis_count, layer_hysteresis_count);
+            loader.LoadParam(name_space + "/layer/hole_fill_enable", layer_hole_fill_en, true);
+            loader.LoadParam(name_space + "/projection/hole_fill_enable", layer_hole_fill_en, layer_hole_fill_en);
+            loader.LoadParam(name_space + "/layer/hole_fill_radius", layer_hole_fill_radius, 1);
+            loader.LoadParam(name_space + "/projection/hole_fill_radius", layer_hole_fill_radius, layer_hole_fill_radius);
+            loader.LoadParam(name_space + "/layer/hole_fill_min_occupied_neighbors", layer_hole_fill_min_occupied_neighbors, 5);
+            loader.LoadParam(name_space + "/projection/hole_fill_min_occupied_neighbors",
+                             layer_hole_fill_min_occupied_neighbors, layer_hole_fill_min_occupied_neighbors);
+            if (min_observed_voxels <= 0) {
+                std::cout << color_text::YELLOW
+                          << " -- [ROG] min_observed_voxels should be positive, reset to 1."
+                          << color_text::RESET << std::endl;
+                min_observed_voxels = 1;
+            }
+            if (layer_hysteresis_count < 0) {
+                layer_hysteresis_count = 0;
+            }
+            if (layer_hole_fill_radius < 0) {
+                layer_hole_fill_radius = 0;
+            }
+            if (layer_hole_fill_min_occupied_neighbors < 0) {
+                layer_hole_fill_min_occupied_neighbors = 0;
+            }
+            loader.LoadParam(name_space + "/projection/terrain_enable", terrain_enable, false);
+            loader.LoadParam(name_space + "/projection/robot_body_z_min", robot_body_z_min, 0.02);
+            loader.LoadParam(name_space + "/projection/robot_body_z_max", robot_body_z_max, 0.30);
+            loader.LoadParam(name_space + "/projection/overhead_clearance_margin", overhead_clearance_margin, 0.03);
+            loader.LoadParam(name_space + "/projection/surface_thickness", surface_thickness, 0.08);
+            loader.LoadParam(name_space + "/projection/max_step_height", max_step_height, 0.10);
+            loader.LoadParam(name_space + "/projection/max_slope_deg", max_slope_deg, 18.0);
+            loader.LoadParam(name_space + "/projection/clearance_check_enable", clearance_check_enable, false);
+            loader.LoadParam(name_space + "/projection/min_clearance_height", min_clearance_height, 0.30);
+            loader.LoadParam(name_space + "/projection/tunnel_wall_min_height", tunnel_wall_min_height, 0.18);
+            loader.LoadParam(name_space + "/projection/passable_as_free", passable_as_free, false);
             loader.LoadParam(name_space + "/field/enable", field_en, true);
             loader.LoadParam(name_space + "/field/inflation_radius", field_inflation_radius, 0.33);
+            loader.LoadParam(name_space + "/field/max_distance", field_max_distance, 3.0);
+            loader.LoadParam(name_space + "/field/min_distance", field_min_distance, -1.0);
+            loader.LoadParam(name_space + "/field/clamp_distance", field_clamp_distance_en, true);
+            loader.LoadParam(name_space + "/field/smooth_grad_enable", field_smooth_grad_en, false);
+            loader.LoadParam(name_space + "/field/interpolation", field_interpolation, string("bilinear"));
+            if (field_max_distance <= 0.0) {
+                field_max_distance = 3.0;
+            }
+            if (field_min_distance > 0.0) {
+                field_min_distance = -1.0;
+            }
 
             loader.LoadParam(name_space + "/decay/enable", decay_en, true);
             loader.LoadParam(name_space + "/decay/keep_time", keep_time, 0.4);
             loader.LoadParam(name_space + "/decay/decay_time", decay_time, 1.2);
+            loader.LoadParam(name_space + "/decay/active_list_enable", decay_active_list_en, true);
+            loader.LoadParam(name_space + "/performance/dirty_column_enable", dirty_column_en, false);
+            loader.LoadParam(name_space + "/performance/field_update_rate", field_update_rate, 20.0);
+            loader.LoadParam(name_space + "/debug/layer_pub_enable", debug_layer_pub_en, true);
+            loader.LoadParam(name_space + "/debug/field_pub_enable", debug_field_pub_en, true);
+            loader.LoadParam(name_space + "/debug/pub_rate", debug_pub_rate, 5.0);
 
             vector<double> temp_ray_range;
             loader.LoadParam(name_space + "/raycasting/ray_range", temp_ray_range, vector<double>{0.3, 10});
@@ -230,13 +305,16 @@ namespace rog_map {
             resetMapSize();
 
             /// Probabilistic Update
-#define logit(x) (log((x) / (1 - (x))))
-            l_hit = logit(p_hit);
-            l_miss = logit(p_miss);
-            l_min = logit(p_min);
-            l_max = logit(p_max);
-            l_occ = logit(p_occ);
-            l_free = logit(p_free);
+            auto logit_value = [](const double x) {
+                return log(x / (1 - x));
+            };
+            l_hit = logit_value(p_hit);
+            l_miss = logit_value(p_miss);
+            l_min = logit_value(p_min);
+            l_max = logit_value(p_max);
+            l_occ = logit_value(p_occ);
+            l_free = logit_value(p_free);
+            decay_rate = (l_occ - l_free) / std::max(0.1, decay_time);
 
             int n_free = ceil(l_free / l_miss);
             int n_occ = ceil(l_occ / l_hit);
@@ -303,6 +381,383 @@ namespace rog_map {
             });
         }
 
+        template <typename NodeT>
+        void loadFromRosNode(const NodeT &node, const string &prefix) {
+            auto load = [&node, &prefix](const string &key, auto &value) {
+                const string param_name = prefix + "." + key;
+                if (!node->has_parameter(param_name)) {
+                    node->declare_parameter(param_name, rclcpp::ParameterValue(value));
+                }
+                node->get_parameter(param_name, value);
+            };
+
+            auto loadVec3 = [&node, &prefix](const string &key, const vector<double> &default_value) {
+                vector<double> values = default_value;
+                const string param_name = prefix + "." + key;
+                if (!node->has_parameter(param_name)) {
+                    node->declare_parameter(param_name, rclcpp::ParameterValue(values));
+                }
+                node->get_parameter(param_name, values);
+                if (values.size() != 3) {
+                    throw std::invalid_argument(param_name + " size is not 3!");
+                }
+                return Vec3f(values[0], values[1], values[2]);
+            };
+
+            auto loadVec2 = [&node, &prefix](const string &key, const vector<double> &default_value) {
+                vector<double> values = default_value;
+                const string param_name = prefix + "." + key;
+                if (!node->has_parameter(param_name)) {
+                    node->declare_parameter(param_name, rclcpp::ParameterValue(values));
+                }
+                node->get_parameter(param_name, values);
+                if (values.size() != 2) {
+                    throw std::invalid_argument(param_name + " size is not 2!");
+                }
+                return values;
+            };
+
+            esdf_resolution = 0.2;
+            esdf_en = false;
+            load("esdf.resolution", esdf_resolution);
+            load("esdf.enable", esdf_en);
+            esdf_local_update_box = loadVec3("esdf.local_update_box", vector<double>{10.0, 10.0, 2.0});
+
+            load_pcd_en = false;
+            pcd_name = "map.pcd";
+            load("load_pcd_en", load_pcd_en);
+            load("pcd_name", pcd_name);
+            if (load_pcd_en) {
+                pcd_name = replaceCmakeRootDir(pcd_name);
+            }
+
+            map_sliding_en = true;
+            map_sliding_thresh = -1.0;
+            load("map_sliding.enable", map_sliding_en);
+            load("map_sliding.threshold", map_sliding_thresh);
+            fix_map_origin = loadVec3("fix_map_origin", vector<double>{0.0, 0.0, 0.0});
+            frontier_extraction_en = false;
+            load("frontier_extraction_en", frontier_extraction_en);
+
+            ros_callback_en = false;
+            cloud_topic = "/cloud_registered";
+            dense_cloud_topic = "/cloud_registered_dense";
+            odom_topic = "/lidar_slam/odom";
+            odom_timeout = 0.05;
+            update_period_ms = 1;
+            use_dense_cloud = false;
+            load("ros_callback.enable", ros_callback_en);
+            load("ros_callback.cloud_topic", cloud_topic);
+            load("ros_callback.dense_cloud_topic", dense_cloud_topic);
+            load("ros_callback.odom_topic", odom_topic);
+            load("ros_callback.odom_timeout", odom_timeout);
+            load("ros_callback.update_period_ms", update_period_ms);
+            load("ros_callback.use_dense_cloud", use_dense_cloud);
+            if (update_period_ms <= 0) {
+                update_period_ms = 1;
+            }
+
+            visualization_en = false;
+            use_dynamic_reconfigure = false;
+            pub_unknown_map_en = false;
+            frame_id = "world";
+            load("frame_id", frame_id);
+            viz_time_rate = 0.0;
+            viz_frame_rate = 0;
+            visualization_lazy_publish = true;
+            load("visualization.enable", visualization_en);
+            load("visualization.use_dynamic_reconfigure", use_dynamic_reconfigure);
+            load("visualization.pub_unknown_map_en", pub_unknown_map_en);
+            load("visualization.frame_id", frame_id);
+            load("visualization.time_rate", viz_time_rate);
+            load("visualization.rate", viz_time_rate);
+            load("visualization.frame_rate", viz_frame_rate);
+            load("visualization.lazy_publish", visualization_lazy_publish);
+            visualization_range = loadVec3("visualization.range", vector<double>{10.0, 10.0, 2.0});
+            if (visualization_range.minCoeff() <= 0) {
+                visualization_en = false;
+            }
+            load("visualization.occupied.enable", viz_occupied_enable);
+            load("visualization.occupied.topic", viz_occupied_topic);
+            load("visualization.unknown.enable", viz_unknown_enable);
+            load("visualization.unknown.topic", viz_unknown_topic);
+            load("visualization.inflated_occupied.enable", viz_inflated_occupied_enable);
+            load("visualization.inflated_occupied.topic", viz_inflated_occupied_topic);
+            load("visualization.inflated_unknown.enable", viz_inflated_unknown_enable);
+            load("visualization.inflated_unknown.topic", viz_inflated_unknown_topic);
+            load("visualization.frontier.enable", viz_frontier_enable);
+            load("visualization.frontier.topic", viz_frontier_topic);
+            load("visualization.layer_value.enable", viz_layer_value_enable);
+            load("visualization.layer_value.topic", viz_layer_value_topic);
+            load("visualization.layer_type.enable", viz_layer_type_enable);
+            load("visualization.layer_type.topic", viz_layer_type_topic);
+            load("visualization.layer_confidence.enable", viz_layer_confidence_enable);
+            load("visualization.layer_confidence.topic", viz_layer_confidence_topic);
+            load("visualization.layer_height.enable", viz_layer_height_enable);
+            load("visualization.layer_height.topic", viz_layer_height_topic);
+            load("visualization.field.enable", viz_field_enable);
+            load("visualization.field.topic", viz_field_topic);
+            load("visualization.decay_cells.enable", viz_decay_cells_enable);
+            load("visualization.decay_cells.topic", viz_decay_cells_topic);
+            load("visualization.map_bound.enable", viz_map_bound_enable);
+            load("visualization.map_bound.topic", viz_map_bound_topic);
+
+            resolution = 0.1;
+            inflation_resolution = 0.1;
+            unk_inflation_en = false;
+            unk_inflation_step = 1;
+            inflation_step = 1;
+            intensity_thresh = -1;
+            map_size_d = Vec3f(10.0, 10.0, 0.0);
+            point_filt_num = 2;
+            load("resolution", resolution);
+            load("inflation_resolution", inflation_resolution);
+            load("unk_inflation_en", unk_inflation_en);
+            load("unk_inflation_step", unk_inflation_step);
+            load("inflation_step", inflation_step);
+            load("intensity_thresh", intensity_thresh);
+            map_size_d = loadVec3("map_size", vector<double>{10.0, 10.0, 0.0});
+            load("point_filt_num", point_filt_num);
+            if (point_filt_num <= 0) {
+                point_filt_num = 1;
+            }
+
+            raycasting_en = true;
+            batch_update_size = 1;
+            unk_thresh = 0.70;
+            p_hit = 0.70f;
+            p_miss = 0.70f;
+            p_min = 0.12f;
+            p_max = 0.97f;
+            p_occ = 0.80f;
+            p_free = 0.30f;
+            parallel_raycast_en = true;
+            raycast_num_threads = 4;
+            load("raycasting.enable", raycasting_en);
+            load("raycasting.batch_update_size", batch_update_size);
+            load("raycasting.unk_thresh", unk_thresh);
+            load("raycasting.p_hit", p_hit);
+            load("raycasting.p_miss", p_miss);
+            load("raycasting.p_min", p_min);
+            load("raycasting.p_max", p_max);
+            load("raycasting.p_occ", p_occ);
+            load("raycasting.p_free", p_free);
+            load("raycasting.parallel_enable", parallel_raycast_en);
+            load("performance.parallel_raycast_enable", parallel_raycast_en);
+            load("raycasting.num_threads", raycast_num_threads);
+            load("performance.raycast_num_threads", raycast_num_threads);
+            if (batch_update_size <= 0) {
+                batch_update_size = 1;
+            }
+            if (raycast_num_threads <= 0) {
+                raycast_num_threads = 1;
+            }
+
+            layer_en = true;
+            layer_min_z = -0.20;
+            layer_max_z = 0.80;
+            low_obstacle_height = 0.07;
+            obstacle_height = 0.14;
+            min_ratio = 0.35;
+            min_observed_voxels = 2;
+            unknown_as_occupied = true;
+            passable_cost = 50;
+            layer_hysteresis_en = true;
+            layer_hysteresis_count = 2;
+            layer_hole_fill_en = true;
+            layer_hole_fill_radius = 1;
+            layer_hole_fill_min_occupied_neighbors = 5;
+            load("layer.enable", layer_en);
+            load("projection.enable", layer_en);
+            load("layer.min_z", layer_min_z);
+            load("projection.min_z", layer_min_z);
+            load("layer.max_z", layer_max_z);
+            load("projection.max_z", layer_max_z);
+            load("layer.low_obstacle_height", low_obstacle_height);
+            load("projection.low_obstacle_height", low_obstacle_height);
+            load("layer.obstacle_height", obstacle_height);
+            load("projection.obstacle_height", obstacle_height);
+            load("layer.min_ratio", min_ratio);
+            load("projection.min_ratio", min_ratio);
+            load("layer.min_observed_voxels", min_observed_voxels);
+            load("projection.min_observed_voxels", min_observed_voxels);
+            load("layer.unknown_as_occupied", unknown_as_occupied);
+            load("projection.unknown_as_occupied", unknown_as_occupied);
+            load("layer.passable_cost", passable_cost);
+            load("projection.passable_cost", passable_cost);
+            load("layer.hysteresis_enable", layer_hysteresis_en);
+            load("projection.hysteresis_enable", layer_hysteresis_en);
+            load("layer.hysteresis_count", layer_hysteresis_count);
+            load("projection.hysteresis_count", layer_hysteresis_count);
+            load("layer.hole_fill_enable", layer_hole_fill_en);
+            load("projection.hole_fill_enable", layer_hole_fill_en);
+            load("layer.hole_fill_radius", layer_hole_fill_radius);
+            load("projection.hole_fill_radius", layer_hole_fill_radius);
+            load("layer.hole_fill_min_occupied_neighbors", layer_hole_fill_min_occupied_neighbors);
+            load("projection.hole_fill_min_occupied_neighbors", layer_hole_fill_min_occupied_neighbors);
+            terrain_enable = false;
+            robot_body_z_min = 0.02;
+            robot_body_z_max = 0.30;
+            overhead_clearance_margin = 0.03;
+            surface_thickness = 0.08;
+            max_step_height = 0.10;
+            max_slope_deg = 18.0;
+            clearance_check_enable = false;
+            min_clearance_height = 0.30;
+            tunnel_wall_min_height = 0.18;
+            passable_as_free = false;
+            load("projection.terrain_enable", terrain_enable);
+            load("projection.robot_body_z_min", robot_body_z_min);
+            load("projection.robot_body_z_max", robot_body_z_max);
+            load("projection.overhead_clearance_margin", overhead_clearance_margin);
+            load("projection.surface_thickness", surface_thickness);
+            load("projection.max_step_height", max_step_height);
+            load("projection.max_slope_deg", max_slope_deg);
+            load("projection.clearance_check_enable", clearance_check_enable);
+            load("projection.min_clearance_height", min_clearance_height);
+            load("projection.tunnel_wall_min_height", tunnel_wall_min_height);
+            load("projection.passable_as_free", passable_as_free);
+
+            field_en = true;
+            field_inflation_radius = 0.33;
+            field_max_distance = 3.0;
+            field_min_distance = -1.0;
+            field_clamp_distance_en = true;
+            field_smooth_grad_en = false;
+            field_interpolation = "bilinear";
+            field_update_rate = 20.0;
+            load("field.enable", field_en);
+            load("field.inflation_radius", field_inflation_radius);
+            load("field.max_distance", field_max_distance);
+            load("field.min_distance", field_min_distance);
+            load("field.clamp_distance", field_clamp_distance_en);
+            load("field.smooth_grad_enable", field_smooth_grad_en);
+            load("field.interpolation", field_interpolation);
+            load("field.update_rate", field_update_rate);
+            load("performance.field_update_rate", field_update_rate);
+            if (field_max_distance <= 0.0) {
+                field_max_distance = 3.0;
+            }
+            if (field_min_distance > 0.0) {
+                field_min_distance = -1.0;
+            }
+
+            decay_en = true;
+            keep_time = 0.4;
+            decay_time = 1.2;
+            decay_active_list_en = true;
+            dirty_column_en = false;
+            dirty_full_ratio = 0.30;
+            performance_enable = true;
+            performance_csv_enable = false;
+            performance_csv_path = "/tmp/rog_map_performance.csv";
+            performance_map_info_csv_path = "/tmp/rog_map_info.csv";
+            performance_publish_enable = true;
+            performance_topic = "/rog_map/performance";
+            performance_print_enable = false;
+            performance_summary_rate = 1.0;
+            debug_layer_pub_en = true;
+            debug_field_pub_en = true;
+            debug_pub_rate = 5.0;
+            load("decay.enable", decay_en);
+            load("decay.keep_time", keep_time);
+            load("decay.decay_time", decay_time);
+            load("decay.active_list_enable", decay_active_list_en);
+            load("performance.dirty_column_enable", dirty_column_en);
+            load("performance.dirty_full_ratio", dirty_full_ratio);
+            load("performance.enable", performance_enable);
+            load("performance.csv_enable", performance_csv_enable);
+            load("performance.csv_path", performance_csv_path);
+            load("performance.map_info_csv_path", performance_map_info_csv_path);
+            load("performance.publish_enable", performance_publish_enable);
+            load("performance.topic", performance_topic);
+            load("performance.print_enable", performance_print_enable);
+            load("performance.summary_rate", performance_summary_rate);
+            load("debug.layer_pub_enable", debug_layer_pub_en);
+            load("debug.field_pub_enable", debug_field_pub_en);
+            load("debug.pub_rate", debug_pub_rate);
+
+            auto ray_range = loadVec2("raycasting.ray_range", vector<double>{0.3, 10.0});
+            raycast_range_min = ray_range[0];
+            raycast_range_max = ray_range[1];
+            sqr_raycast_range_max = raycast_range_max * raycast_range_max;
+            sqr_raycast_range_min = raycast_range_min * raycast_range_min;
+            local_update_box_d = loadVec3("raycasting.local_update_box", vector<double>{999.0, 999.0, 999.0});
+
+            virtual_ground_height = -0.1;
+            virtual_ceil_height = -0.1;
+            load("virtual_ground_height", virtual_ground_height);
+            load("virtual_ceil_height", virtual_ceil_height);
+
+            resetMapSize();
+
+#define logit(x) (log((x) / (1 - (x))))
+            l_hit = logit(p_hit);
+            l_miss = logit(p_miss);
+            l_min = logit(p_min);
+            l_max = logit(p_max);
+            l_occ = logit(p_occ);
+            l_free = logit(p_free);
+            decay_rate = (l_occ - l_free) / std::max(0.1, decay_time);
+
+            inf_spherical_neighbor.clear();
+            unk_inf_spherical_neighbor.clear();
+            spherical_neighbor.clear();
+            for (int dx = -inflation_step; dx <= inflation_step; dx++) {
+                for (int dy = -inflation_step; dy <= inflation_step; dy++) {
+                    for (int dz = -inflation_step; dz <= inflation_step; dz++) {
+                        if (inflation_step == 1 ||
+                            dx * dx + dy * dy + dz * dz <= inflation_step * inflation_step) {
+                            inf_spherical_neighbor.emplace_back(dx, dy, dz);
+                        }
+                    }
+                }
+            }
+            std::sort(inf_spherical_neighbor.begin(), inf_spherical_neighbor.end(), [](const Vec3i &a, const Vec3i &b) {
+                return a.x() * a.x() + a.y() * a.y() + a.z() * a.z() < b.x() * b.x() + b.y() * b.y() + b.z() * b.z();
+            });
+
+            if (unk_inflation_en) {
+                for (int dx = -unk_inflation_step; dx <= unk_inflation_step; dx++) {
+                    for (int dy = -unk_inflation_step; dy <= unk_inflation_step; dy++) {
+                        for (int dz = -unk_inflation_step; dz <= unk_inflation_step; dz++) {
+                            if (unk_inflation_step == 1 ||
+                                dx * dx + dy * dy + dz * dz <= unk_inflation_step * unk_inflation_step) {
+                                unk_inf_spherical_neighbor.emplace_back(dx, dy, dz);
+                            }
+                        }
+                    }
+                }
+                std::sort(unk_inf_spherical_neighbor.begin(), unk_inf_spherical_neighbor.end(),
+                          [](const Vec3i &a, const Vec3i &b) {
+                              return a.x() * a.x() + a.y() * a.y() + a.z() * a.z() < b.x() * b.x() + b.y() * b.y() + b.
+                                      z() * b.z();
+                          });
+            }
+
+            constexpr double max_search_dis = 5.0;
+            const int max_seach_step = ceil(max_search_dis / resolution);
+            for (int dx = -max_seach_step; dx <= max_seach_step; dx++) {
+                for (int dy = -max_seach_step; dy <= max_seach_step; dy++) {
+                    for (int dz = -max_seach_step; dz <= max_seach_step; dz++) {
+                        if (dx * dx + dy * dy + dz * dz <= max_seach_step * max_seach_step) {
+                            spherical_neighbor.emplace_back(dx, dy, dz);
+                        }
+                    }
+                }
+            }
+            std::sort(spherical_neighbor.begin(), spherical_neighbor.end(), [](const Vec3i &a, const Vec3i &b) {
+                return a.x() * a.x() + a.y() * a.y() + a.z() * a.z() < b.x() * b.x() + b.y() * b.y() + b.z() * b.z();
+            });
+            RCLCPP_INFO(
+                node->get_logger(),
+                "[ROGMap Config] loaded prefix='%s', frame_id='%s', cloud='%s', odom='%s', resolution=%.3f, map_size=[%.2f %.2f %.2f], projection=%s, field=%s/%s, performance=%s, visualization=%s",
+                prefix.c_str(), frame_id.c_str(), cloud_topic.c_str(), odom_topic.c_str(), resolution,
+                map_size_d.x(), map_size_d.y(), map_size_d.z(),
+                layer_en ? "on" : "off", field_en ? "on" : "off", field_interpolation.c_str(),
+                performance_enable ? "on" : "off", visualization_en ? "on" : "off");
+        }
+
         // add 24.07.18 add esdf
         bool esdf_en{false};
         Vec3f esdf_local_update_box{};
@@ -317,13 +772,53 @@ namespace rog_map {
         int min_observed_voxels{2};
         bool unknown_as_occupied{true};
         int passable_cost{50};
+        bool layer_hysteresis_en{true};
+        int layer_hysteresis_count{2};
+        bool layer_hole_fill_en{true};
+        int layer_hole_fill_radius{1};
+        int layer_hole_fill_min_occupied_neighbors{5};
+        bool terrain_enable{false};
+        double robot_body_z_min{0.02};
+        double robot_body_z_max{0.30};
+        double overhead_clearance_margin{0.03};
+        double surface_thickness{0.08};
+        double max_step_height{0.10};
+        double max_slope_deg{18.0};
+        bool clearance_check_enable{false};
+        double min_clearance_height{0.30};
+        double tunnel_wall_min_height{0.18};
+        bool passable_as_free{false};
 
         bool field_en{true};
         double field_inflation_radius{0.33};
+        double field_max_distance{3.0};
+        double field_min_distance{-1.0};
+        bool field_clamp_distance_en{true};
+        bool field_smooth_grad_en{false};
+        string field_interpolation{"bilinear"};
 
         bool decay_en{true};
         double keep_time{0.4};
         double decay_time{1.2};
+        double decay_rate{0.0};
+        bool decay_active_list_en{true};
+
+        bool parallel_raycast_en{true};
+        int raycast_num_threads{4};
+        bool dirty_column_en{false};
+        double dirty_full_ratio{0.30};
+        double field_update_rate{20.0};
+        bool performance_enable{true};
+        bool performance_csv_enable{false};
+        string performance_csv_path{"/tmp/rog_map_performance.csv"};
+        string performance_map_info_csv_path{"/tmp/rog_map_info.csv"};
+        bool performance_publish_enable{true};
+        string performance_topic{"/rog_map/performance"};
+        bool performance_print_enable{false};
+        double performance_summary_rate{1.0};
+        bool debug_layer_pub_en{true};
+        bool debug_field_pub_en{true};
+        double debug_pub_rate{5.0};
 
         bool load_pcd_en{false};
         bool use_dynamic_reconfigure{false};
@@ -358,7 +853,9 @@ namespace rog_map {
         string frame_id{};
         bool map_sliding_en{true};
         Vec3f fix_map_origin{};
-        string odom_topic{}, cloud_topic{};
+        string odom_topic{}, cloud_topic{}, dense_cloud_topic{};
+        bool use_dense_cloud{false};
+        int update_period_ms{1};
         /* probability update */
         double raycast_range_min{}, raycast_range_max{};
         double sqr_raycast_range_min{}, sqr_raycast_range_max{};
@@ -375,6 +872,31 @@ namespace rog_map {
         Vec3f visualization_range{};
         double viz_time_rate{};
         int viz_frame_rate{};
+        bool visualization_lazy_publish{true};
+        bool viz_occupied_enable{true};
+        string viz_occupied_topic{"/rog_map/occupied"};
+        bool viz_unknown_enable{false};
+        string viz_unknown_topic{"/rog_map/unknown"};
+        bool viz_inflated_occupied_enable{false};
+        string viz_inflated_occupied_topic{"/rog_map/occupied_inflate"};
+        bool viz_inflated_unknown_enable{false};
+        string viz_inflated_unknown_topic{"/rog_map/unknown_inflate"};
+        bool viz_frontier_enable{false};
+        string viz_frontier_topic{"/rog_map/frontier"};
+        bool viz_layer_value_enable{true};
+        string viz_layer_value_topic{"/rog_map/layer_value"};
+        bool viz_layer_type_enable{true};
+        string viz_layer_type_topic{"/rog_map/layer_type"};
+        bool viz_layer_confidence_enable{false};
+        string viz_layer_confidence_topic{"/rog_map/layer_confidence"};
+        bool viz_layer_height_enable{true};
+        string viz_layer_height_topic{"/rog_map/layer_height"};
+        bool viz_field_enable{true};
+        string viz_field_topic{"/rog_map/field"};
+        bool viz_decay_cells_enable{false};
+        string viz_decay_cells_topic{"/rog_map/decay_cells"};
+        bool viz_map_bound_enable{true};
+        string viz_map_bound_topic{"/rog_map/map_bound"};
 
         double unk_thresh{};
         double map_sliding_thresh{};

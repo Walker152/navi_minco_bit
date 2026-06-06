@@ -4,7 +4,10 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <memory>
 #include <vector>
+
+#include "rog_map/map_query_interface.hpp"
 
 namespace minco_planner {
 
@@ -15,6 +18,7 @@ public:
   ~Astar();
 
   void setCostmap(const unsigned char * costmap, bool isROS = true, bool allow_unknown = true);
+  void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map);
   void setStart(int x, int y);
   void setGoal(int x, int y);
   bool calcPath(int nplan);
@@ -44,6 +48,7 @@ private:
   int start[2];
   int goal[2];
   bool allow_unknown;
+  std::shared_ptr<rog_map::MapQueryInterface> map_;
 
   float curT;
   float priInc;

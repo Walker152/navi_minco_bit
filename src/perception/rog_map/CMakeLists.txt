@@ -23,8 +23,10 @@ find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(OpenMP)
 
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -38,10 +40,19 @@ set(library_name ${PROJECT_NAME})
 file(GLOB_RECURSE ROG_MAP_SOURCES CONFIGURE_DEPENDS
         src/rog_map/*.cpp
         src/rog_map_ros/*.cpp
+        include/rog_map/rog_map_core/raycaster.cpp
 )
 
 add_library(${library_name} STATIC
         ${ROG_MAP_SOURCES}
+)
+
+target_compile_definitions(${library_name}
+        PUBLIC
+                QT_NO_VERSION_TAGGING
+                ROOT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/"
+                ORIGIN_AT_CORNER
+                USE_ROS2
 )
 
 target_include_directories(${library_name}
@@ -54,6 +65,7 @@ target_include_directories(${library_name}
 
 ament_target_dependencies(${library_name}
         rclcpp
+        rclcpp_lifecycle
         std_msgs
         sensor_msgs
         geometry_msgs
@@ -69,6 +81,10 @@ target_link_libraries(${library_name}
         yaml-cpp
 )
 
+if(OpenMP_CXX_FOUND)
+        target_link_libraries(${library_name} OpenMP::OpenMP_CXX)
+endif()
+
 install(TARGETS ${library_name}
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
@@ -79,10 +95,15 @@ install(DIRECTORY include/
         DESTINATION include
 )
 
+install(DIRECTORY config/
+        DESTINATION share/${PROJECT_NAME}/config
+)
+
 ament_export_include_directories(include)
 ament_export_libraries(${library_name})
 ament_export_dependencies(
         rclcpp
+        rclcpp_lifecycle
         std_msgs
         sensor_msgs
         geometry_msgs

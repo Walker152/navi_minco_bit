@@ -26,6 +26,11 @@
 #include "traj_opt/yaw_traj_opt.h"
 
 #include "utils/header/color_text.hpp"
+
+namespace rog_map {
+class ROGMapROS;
+}  // namespace rog_map
+
 namespace minco_planner {
 
 class Visualizer;
@@ -140,6 +145,12 @@ private:
   rcl_interfaces::msg::SetParametersResult onSetParameters(
     const std::vector<rclcpp::Parameter> & parameters);
 
+  bool configureRogMap(
+    const nav2_util::LifecycleNode::SharedPtr & node,
+    const std::string & plugin_prefix);
+
+  bool ensureMapAvailable();
+
   // === ROS 2 Interfaces (Publishers, Subscribers, Timers) ===
   rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_pub_;
   rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr backup_path_pub_;
@@ -153,6 +164,7 @@ private:
   nav2_util::LifecycleNode::WeakPtr node_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   std::shared_ptr<rog_map::MapQueryInterface> map_;
+  std::shared_ptr<rog_map::ROGMapROS> rog_map_ros_;
   std::string global_frame_, name_;
 
   // === Configurations & Parameters ===
