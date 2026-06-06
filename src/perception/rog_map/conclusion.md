@@ -1,170 +1,239 @@
-# 历史对话压缩总结：中科大哨兵 ROGMap 感知复现方案
+# ROGMap + MincoPlanner 当前项目总结
 
-## 1. 总体目标
+## 1. 总目标
 
-我正在复现中科大 RoboWalker 2025 哨兵技术报告中的导航系统。当前：
+当前项目目标是复现/改造中科大 RoboWalker 2025 哨兵导航方案中的动态感知与规划部分，重点是：
 
-* 规划器和控制器部分已经基本复现成功。
-* 感知和定位部分尚未完全完成。
-* 希望使用 **ROGMap** 为规划器提供动态地图。
-* 希望具备狭窄空间 / 地形跨越能力。
-* 希望在无先验地图或静态地图有误差的情况下，仍能依靠实时感知判断真实可通行性。
+* 基于 ROGMap 构建机器人中心动态 occupancy map；
+* 增加 parallel raycasting；
+* 增加 fading / decay 动态遗忘；
+* 从 3D occupancy 投影到 2D ProjectionLayer；
+* 构建 2D signed ESDF；
+* 通过 QueryAdapter 给 planner 提供统一查询接口；
+* MincoPlanner 使用 ROGMap 作为动态安全约束；
+* 维持 Nav2 plugin 形态，不单独做 planner 主节点；
+* 架构尽量类似 SUPER：同进程直接共享地图指针。
 
-核心思想：
+当前暂时不处理或不作为本轮重点：
 
-```text
-静态地图 / Nav2 costmap：
-  只能作为全局拓扑引导，不能作为安全约束。
-
-ROGMap：
-  作为真实局部环境来源，负责局部可通行判断、ESDF、碰撞检测、安全检查。
-```
-
----
-
-## 2. 里程计与点云输入问题
-
-当前使用普通 PointLIO，存在两个主要问题：
-
-1. MID360 点云频率约 10Hz，IMU 频率 200Hz，里程计更新受点云帧率限制。
-2. PointLIO 输出的 `/cloud_registered` 是经过较大尺度降采样后的世界系点云，约 0.5m leaf size，太稀疏，无法给 ROGMap 提供足够的栅格观测，容易造成地形空洞。
-
-讨论结论：
-
-* 暂时不做完整 Batch-LIWO。
-* 暂时不做轮速接口。
-* 第一阶段应保持 PointLIO 主定位链路不动，只新增一个给 ROGMap 使用的稠密点云输出：
-
-```text
-/lio/cloud_registered_dense
-```
-
-来源应为：
-
-```text
-feats_undistort
-  → 使用当前 EKF 状态转换到 world/camera_init
-  → 发布 dense undistorted world cloud
-```
-
-注意：
-
-```text
-LIO 匹配仍然使用降采样点云。
-ROGMap 使用稠密去畸变世界系点云。
-```
-
-可选快速提高频率：
-
-```text
-开启 Livox cut frame：
-  cut_frame_init = true
-  cut_frame_num = 5
-  point_filter_num = 1
-```
-
-完整 Batch-LIO / Batch-LIWO 放到后续阶段。
+* Batch-LIWO 完整复现；
+* 轮速融合；
+* 控制器；
+* 稠密点云发布与注入；
+* 跨进程 MapSnapshot / MapQueryClient；
+* 独立 rog_map_node；
+* 独立 sentry_planner_node / PlannerManager。
 
 ---
 
-## 3. ROGMap 复现目标
+## 2. 当前最终架构决策
 
-中科大报告中感知部分的关键点：
+已经确定采用：
 
 ```text
-ROGMap 3D Occupancy Grid
-  + ROS2
-  + parallel raycasting
-  + fading / decay
-  + 2D ESDF
-  + 高程分析 / 狭窄地形处理
+planner_server 进程
+  └── MincoPlanner Nav2 plugin
+        ├── 在 configure() 内创建 ROGMapROS
+        ├── ROGMapROS 使用 planner_server 的 LifecycleNode
+        ├── ROGMapROS 内部维护 ROGMap core
+        ├── MincoPlanner 持有 rog_map_ros_
+        ├── MincoPlanner 持有 map_ = rog_map_ros_->queryInterface()
+        ├── Smac / Astar / MincoOptimizer / Corridor 共用同一个 map_
+        └── MapRegistry 只作为同进程 fallback
 ```
 
-我们当前要复现的是 ROGMap 感知前端，不是 planner。
-
-ROGMap 最终内部链路应为：
+不再采用：
 
 ```text
-3D Occupancy Grid
-  → fading / decay 动态遗忘
-  → ProjectionLayer 高程投影
+standalone rog_map_node
+sentry_planner_node
+PlannerManager
+MapSnapshotPublisher
+MapQueryClient
+跨进程地图同步
+planner 通过 topic 订阅地图
+```
+
+之前有一次误把历史旧索引中的 `PlannerManager / sentry_planner_node` 当作当前源码残留，后来已修正。按最新上传文件来看，当前有效架构中没有这些作为主路径。
+
+---
+
+## 3. MincoPlanner 对 ROGMap 的调用方式
+
+最新 `minco_planner.cpp` 中，`MincoPlanner::configureRogMap()` 已经是正确架构：
+
+```cpp
+rog_map::Config rog_cfg;
+rog_cfg.loadFromRosNode(node, plugin_prefix + "rog_map");
+rog_map_ros_ = std::make_shared<rog_map::ROGMapROS>(node, rog_cfg);
+setMap(rog_map_ros_->queryInterface());
+rog_map::MapRegistry::set(map_);
+```
+
+也就是说：
+
+* ROGMap 在 MincoPlanner plugin 内部创建；
+* ROGMap 与 planner 同进程；
+* planner 通过 `MapQueryInterface` 查询地图；
+* `MapRegistry` 只是兜底，不是主架构。
+
+`setMap()` 会把同一个 `map_` 分发给：
+
+```text
+smac_planner_
+astar_planner_
+minco_optimizer_
+corridor_gen_
+```
+
+因此当前已经是 SUPER-like 的进程内地图指针共享状态。
+
+---
+
+## 4. sentry1.yaml 参数状态
+
+最新 `sentry1.yaml` 中，ROGMap 参数路径已经正确放在：
+
+```yaml
+planner_server:
+  ros__parameters:
+    MincoPlanner:
+      rog_map:
+        ...
+```
+
+这与代码中的：
+
+```cpp
+const std::string prefix = name_ + ".";
+rog_cfg.loadFromRosNode(node, prefix + "rog_map");
+```
+
+匹配。
+
+当前 yaml 中已经包含：
+
+```text
+frame_id
+resolution
+inflation_resolution
+map_size
+fix_map_origin
+map_sliding
+ros_callback
+raycasting
+decay
+projection
+field
+performance
+visualization
+```
+
+关键设置包括：
+
+```yaml
+ros_callback:
+  cloud_topic: /cloud_registered
+  dense_cloud_topic: /cloud_registered_dense
+  use_dense_cloud: false
+
+projection:
+  terrain_enable: true
+  robot_body_z_min: 0.02
+  robot_body_z_max: 0.30
+  max_slope_deg: 18.0
+  max_step_height: 0.10
+
+field:
+  interpolation: quadratic
+  update_rate: 20.0
+
+performance:
+  dirty_column_enable: true
+  dirty_full_ratio: 0.30
+```
+
+所以当前参数加载路径已经基本完备。
+但因为 `use_dense_cloud: false`，当前还不是稠密点云输入。
+
+---
+
+## 5. ROGMap 当前功能进度
+
+当前 ROGMap 已经形成完整主链路：
+
+```text
+3D ProbMap / Occupancy
+  → parallel raycasting
+  → hit / miss update
+  → fading / decay
+  → dirty column
+  → ProjectionLayer
   → DynamicLayer 2D signed ESDF
   → QueryAdapter snapshot
-  → MapQueryInterface 只读查询
+  → MincoPlanner MapQueryInterface
 ```
 
----
+### 5.1 ROGMap init
 
-## 4. 为什么不用 ROGMap 原生 3D ESDF 作为主 ESDF
-
-ROGMap 原生 ESDF 是 3D 几何距离场，适合空中机器人或 3D 避障。
-
-哨兵底盘规划需要的是：
-
-```text
-机器人在平面上能不能走
-底盘 footprint 到不可通行区域的距离
-低矮障碍是否可跨越
-```
-
-所以不能直接使用原版 3D ESDF 作为主规划距离场。
-
-正确链路是：
-
-```text
-3D Occupancy
-  → z-column 高程分析
-  → 2D value / mask
-  → 2D ESDF
-```
-
-其中：
-
-```text
-value:
-  给局部搜索 / 查询使用，类似 cost buffer。
-
-mask:
-  给 DynamicLayer / ESDF 使用。
-  mask = 0 表示 obstacle seed
-  mask = 1 表示 free
-```
-
----
-
-## 5. 当前 ROGMap 已经实现的骨架
-
-最新代码中已经看到以下结构：
+`ROGMap::init()` 当前会创建：
 
 ```text
 ProjectionLayer
 DynamicLayer
-ESDFUtils
 QueryAdapter
-MapRegistry
+PerformanceMonitor
 ```
 
-ROGMap 初始化中已经创建：
+并将 `query_` 注册到 `MapRegistry`。
 
-```cpp
-layer_ = std::make_shared<ProjectionLayer>();
-field_ = std::make_shared<DynamicLayer>();
-query_ = std::make_shared<QueryAdapter>();
-MapRegistry::set(query_);
-```
+### 5.2 主更新流程
 
-ROGMap 主流程已经接近：
+当前主流程为：
 
 ```text
-updateRobotState()
-setUpdateTime()
-updateProbMap()
-applyDecay()
-refreshLayers()
-refreshQuery()
+updateRobotState
+updateProbMap
+applyDecay
+refreshLayers
+refreshQuery
+PerformanceMonitor stats
 ```
 
-ProjectionLayer 当前已经实现：
+这已经符合动态地图前端主体链路。
+
+---
+
+## 6. 已完成或基本完成的模块
+
+### 6.1 parallel raycasting
+
+当前已经实现并行 raycasting：
+
+* OpenMP 条件满足时进入 parallel；
+* 每个线程使用 thread-local hit/miss；
+* merge 阶段统一去重；
+* hit 优先于 miss；
+* 避免多线程直接写 occupancy buffer。
+
+判断：基本完成。
+
+### 6.2 fading / decay
+
+当前 hit/miss/decay 会：
+
+* 更新 log odds；
+* 更新 `last_hit_time` / `last_update_time`；
+* active list 管理；
+* 状态变化时调用 `updateCellState()`；
+* 同步 inflation / ESDF counter / frontier counter；
+* 标记 dirty column。
+
+判断：基本完成。
+
+### 6.3 ProjectionLayer / 地形语义
+
+当前 ProjectionLayer 已经支持：
 
 ```text
 UNKNOWN
@@ -173,369 +242,328 @@ PASSABLE
 OCCUPIED
 ```
 
-并根据：
+并且不再只是 height-only，而是加入：
 
 ```text
-observed voxel 数量
-occupied voxel 数量
-min_z
-max_z
-height = max_z - min_z
-ratio = ((occupied + 1) * resolution) / max(height, resolution)
+occupied_in_body_band
+occupied_below_body
+occupied_above_body
+ground_z
+ceiling_z
+body_band_min_z / max_z
+slope_deg
+step_height
+traversable
 ```
 
-进行分类。
-
-DynamicLayer 当前已经支持：
-
-```cpp
-updateFromMask(...)
-```
-
-内部逻辑为：
+理论上可以处理：
 
 ```text
-mask → EDT → signed distance → inflation radius
+15° 梯形坡：
+  通过 max_slope_deg / max_step_height / surface_thickness 判为 PASSABLE/FREE。
+
+竖直隧道墙：
+  body_band_blocked + height + ratio 判为 OCCUPIED。
+
+800mm 通道：
+  左右墙 OCCUPIED，中间 FREE/PASSABLE，2D ESDF 提供通道距离。
+
+300mm 高洞口：
+  通过 body-band / ceiling_z 判断，不再简单因为顶梁存在就整列 OCCUPIED。
 ```
 
-QueryAdapter 当前已经提供：
+判断：算法结构已具备，但必须通过 bag/实地调参验证。
 
-```text
-worldToMap
-mapToWorld
-value
-values
-copyValues
-isValid
-isFree
-evaluate
-snapshot
-```
+### 6.4 dirty column
+
+当前已经实现：
+
+* dirty columns 标记；
+* `ProjectionLayer::updateFull()`；
+* `ProjectionLayer::updateDirty()`；
+* dirty column 膨胀；
+* dirty ratio 超阈值时 full update；
+* 统计 dirty count / expanded count / full refresh count / dirty update count。
+
+判断：主体完成。
+
+### 6.5 field update rate
+
+当前 field update 已经 dirty-aware：
+
+* Projection mask 变化后 `field_dirty_ = true`；
+* 根据 `field.update_rate` 控制 DynamicLayer 全量 EDT 重建；
+* 没到周期时沿用旧 distances；
+* snapshot 中有 field stale / sequence / stamp 语义；
+* 统计 `field_skipped_count`。
+
+判断：主体完成。
+
+### 6.6 DynamicLayer 2D signed ESDF
+
+当前 DynamicLayer 使用 2D EDT：
+
+* 对 mask 做 EDT；
+* 对 inverse mask 做 EDT；
+* 得到正负 signed distance；
+* 减去 inflation radius；
+* 支持 clamp；
+* 支持 bilinear / quadratic mode。
+
+判断：完成。
+
+### 6.7 QueryAdapter quadratic
+
+之前短板是 DynamicLayer 有 quadratic，但 planner 查询仍是 bilinear。
+最新 `query_adapter.cpp` 已经补齐：
+
+* `sampleBilinear()`；
+* `sampleQuadratic()`；
+* `snap->interpolation == QUADRATIC` 时优先二次插值；
+* fallback 到 bilinear；
+* clamp 后保证 grad 有限。
+
+判断：完成。
+说明：当前是 3x3 quadratic Lagrange 型插值，不是严格最小二乘二次曲面拟合，但工程上可以缓解 ESDF 梯度震荡。
+
+### 6.8 PerformanceMonitor
+
+已经独立出 `PerformanceMonitor`：
+
+* enable/csv/publish/print 开关；
+* scoped timer；
+* CSV 输出；
+* RuntimeStats。
+
+判断：基本完成。
+
+### 6.9 ROGMapVisualizer
+
+已经独立出 `ROGMapVisualizer` 管理 publisher/timer：
+
+* visualization 总开关；
+* 各子 topic 开关；
+* occupied / unknown / layer / field / decay_cells / performance / map_bound 等 publisher。
+
+判断：基本完成。
+注意：如果 `ROGMapROS` 里仍残留大量 fill/publish 逻辑，那么可视化还不是完全剥离，但不影响导航功能主链路。
 
 ---
 
-## 6. 当前 ROGMap 仍需继续改进的重点
+## 7. MincoPlanner 与 ROGMap 耦合状态
 
-目前 ROGMap 还没有完整复现中科大感知效果。后续需要补齐以下内容。
+当前 planner 侧：
 
-### 6.1 fading / decay 完整闭环
+* `MincoPlanner` 内部创建 `ROGMapROS`；
+* `map_ = rog_map_ros_->queryInterface()`；
+* `setMap(map_)` 分发给子模块；
+* Smac 支持 `setMap()`；
+* Smac 可用 `map_->evaluate()` 做 ESDF potential；
+* MincoOptimizer 已接收 `map_`；
+* Corridor 已接收 `map_`；
+* Astar 已接收 `map_`；
+* 轨迹碰撞/安全检查应优先查 ROGMap。
 
-现在代码里有 `applyDecay(now)` 调用，但需要确认并补齐完整闭环。
-
-必须做到：
-
-```text
-hit:
-  更新 log odds
-  更新 last_hit_time
-  更新 last_update_time
-  加入 active occupied list
-
-miss:
-  更新 log odds
-  更新 last_update_time
-
-decay:
-  遍历 active occupied cells
-  若 now - last_hit_time > keep_time:
-      按 decay_rate 衰减 log odds
-      若状态从 occupied 变 free/unknown:
-          同步更新 InfMap / CounterMap / Inflation
-          标记对应 column dirty 或触发 layer refresh
-```
-
-绝对不能只改 `occupancy_buffer_` 而不更新 inflation/counter，否则 3D map 清了，但 2D layer / ESDF 仍可能残留旧障碍。
-
-### 6.2 parallel raycasting
-
-ROGMap 需要支持多线程 raycasting，以便后续处理 dense cloud。
-
-原则：
+设计原则：
 
 ```text
-parallel section:
-  每个线程独立 raycast
-  生成 thread-local hit_ids / miss_ids
+静态地图 / Nav2 costmap：
+  只做 guide / 搜索引导。
 
-merge section:
-  合并 hit/miss
-  去重
-  hit 优先于 miss
-  串行或安全分块更新概率地图
+ROGMap：
+  用于动态障碍、安全距离、轨迹验证、优化约束。
 ```
 
-不要在多线程里直接写共享的 occupancy buffer、hit_cnt、miss_cnt、InfMap 或 CounterMap。
+判断：基本达到目标架构。
 
-### 6.3 ProjectionLayer 稳定化
+---
 
-当前简单高程分类可以跑，但还需要增强稳定性。
+## 8. 当前仍未完成或需要验证的部分
 
-需要加：
+### 8.1 稠密点云注入未完成
 
-```text
-temporal hysteresis:
-  防止 FREE / OCCUPIED / PASSABLE 抖动。
-
-small hole filling:
-  修补由点云稀疏造成的小 unknown/free 洞。
-
-confidence:
-  记录观测置信度，例如 observed / min_observed_voxels。
-```
-
-当前暂时不做复杂地形检测，比如 slope、ground band、step model。
-
-### 6.4 DynamicLayer / ESDF evaluate 稳定化
-
-当前 ESDF 通过 EDT 构建，基本正确。
-
-需要增强：
-
-```text
-越界保护
-NaN / inf 保护
-distance clamp
-far distance 处理
-gradient 异常保护
-```
-
-预留插值模式：
-
-```text
-bilinear
-quadratic  // 后续扩展
-```
-
-中科大报告里提到狭窄地形存在 ESDF 梯度震荡，他们用了二次插值和两次优化策略。当前阶段可以只预留接口，不强制完成 quadratic。
-
-### 6.5 QueryAdapter snapshot 安全
-
-当前 QueryAdapter 已有 snapshot 思路，但仍需增强：
-
-```text
-MapSnapshot 增加：
-  sequence
-  stamp
-
-推荐外部使用：
-  snapshot()
-  copyValues()
-
-弱化裸指针：
-  const unsigned char* values()
-```
-
-因为 `values()` 返回裸指针，在 snapshot 更新后可能出现生命周期风险。可以保留兼容，但要注释说明，优先用 `copyValues()` 或 `snapshot()`。
-
-### 6.6 Debug 可视化输出
-
-需要增加 ROS2 debug topic：
-
-```text
-/rog_map/layer/value
-/rog_map/layer/type
-/rog_map/layer/height
-/rog_map/layer/confidence
-/rog_map/field/distance
-/rog_map/debug/decay_cells
-/rog_map/debug/performance
-```
-
-没有这些 topic，很难判断问题来自：
-
-```text
-输入点云太稀疏
-3D occupancy 没打中
-高程分类错
-mask 错
-ESDF 错
-query 坐标错
-decay 没清干净
-```
-
-### 6.7 参数体系整理
-
-建议整理成：
+当前 yaml：
 
 ```yaml
-projection:
-  enable: true
-  min_z: -0.20
-  max_z: 0.80
-  unknown_as_occupied: true
-  min_observed_voxels: 2
-  low_obstacle_height: 0.07
-  obstacle_height: 0.14
-  min_ratio: 0.35
-  passable_cost: 60
-  hysteresis_enable: true
-  hysteresis_count: 2
-  hole_fill_enable: true
-  hole_fill_radius: 1
-
-field:
-  enable: true
-  inflation_radius: 0.30
-  max_distance: 3.0
-  min_distance: -1.0
-  clamp_distance: true
-  interpolation: bilinear
-
-decay:
-  enable: true
-  keep_time: 0.3
-  decay_time: 1.0
-  active_list_enable: true
-
-performance:
-  parallel_raycast_enable: true
-  raycast_num_threads: 4
-  dirty_column_enable: false
-  field_update_rate: 20.0
-
-debug:
-  layer_pub_enable: true
-  field_pub_enable: true
-  pub_rate: 5.0
+use_dense_cloud: false
+cloud_topic: /cloud_registered
+dense_cloud_topic: /cloud_registered_dense
 ```
 
-如果原配置系统不支持分组，可用前缀参数名。
+说明当前默认仍使用 `/cloud_registered`。
 
-### 6.8 性能日志和验证指标
+`laserMapping.cpp` 当前主要发布的是 `feats_down_world` 对应的 `/cloud_registered`，还没有真正将完整 `feats_undistort` 转换为 dense world cloud 并发布 `/cloud_registered_dense`。
 
-每帧记录：
+这是当前最大缺口。
+
+影响：
+
+* ProjectionLayer 地形语义稳定性受限；
+* 15°坡、300mm 洞口、800mm 通道的判断会受稀疏点云影响；
+* ROGMap 内部算法完成度高，但输入不足会影响实机表现。
+
+### 8.2 Batch-LIWO / 轮速融合未完成
+
+这不属于当前 ROGMap 改造范围。
+中科大完整系统还包括 Batch-LIWO、轮速融合、底盘观测器、控制器等，当前没有完整复现。
+
+### 8.3 实机 / bag 验证未完成
+
+当前只从代码结构判断，尚未看到：
+
+* colcon build 结果；
+* ros2 参数实际加载日志；
+* bag 回放；
+* layer_type / layer_value / field 可视化结果；
+* RM 场地测试；
+* Minco 轨迹优化实际避障效果。
+
+所以当前可以说“理论链路已具备”，不能说“实车稳定性已证明”。
+
+---
+
+## 9. 当前复现进度评分
+
+大致判断：
 
 ```text
-input_point_count
-prob_update_time
-raycast_time
-raycast_merge_time
-decay_time
-projection_time
-field_time
-query_refresh_time
-total_update_time
-
-occupied_count
-unknown_count
-passable_count
-free_count
-decayed_count
-```
-
-测试场景：
-
-```text
-1. 静态墙体
-2. 低矮可跨越障碍
-3. 动态障碍移走
-4. 稀疏观测空洞
-5. 狭窄通道
+ROGMap 内部链路：约 90%
+MincoPlanner 进程内指针架构：约 90%
+sentry1.yaml 参数路径：约 90%
+ProjectionLayer 地形语义：约 80%~85%
+dirty column + field update rate：约 85%~90%
+QueryAdapter quadratic：约 90%
+PerformanceMonitor / Visualizer：约 75%~85%
+稠密点云输入：未完成
+完整中科大系统复现：未完成
+RM 场地理论动态导航分析：可以开始
+实车比赛级稳定性：还需验证
 ```
 
 ---
 
-## 7. 当前 ROGMap 改造优先级
+## 10. 当前最终判断
 
-当前不讨论 planner，不处理 dense cloud 和复杂地形检测时，Codex 后续任务优先级为：
+除稠密点云注入以外，当前 ROGMap + MincoPlanner 已经从“骨架”进入“可理论分析和 bag 回放验证”的阶段。
 
-```text
-P0:
-  1. applyDecay 完整闭环
-  2. parallel raycasting
-  3. inflation/counter 状态一致性
-
-P1:
-  4. ProjectionLayer hysteresis
-  5. ProjectionLayer small hole filling
-  6. confidence 字段
-  7. debug topic
-
-P2:
-  8. QueryAdapter snapshot sequence/stamp
-  9. 弱化 values() 裸指针
-  10. DynamicLayer evaluate clamp / NaN 保护
-
-P3:
-  11. dirty column
-  12. ESDF quadratic interpolation 预留
-  13. field update 降频
-```
-
----
-
-## 8. Planner 相关历史结论，仅作背景
-
-虽然当前不处理 planner，但之前对 planner 的结论如下：
-
-静态地图 / Nav2 costmap 因为和实际环境有误差，不能作为安全约束，只能作为引导。
-
-推荐结构：
+当前已经具备：
 
 ```text
-Static Map / Nav2:
-  global guide only
-
-ROGMap:
-  local search
-  MINCO obstacle cost
-  collision check
-  recovery distance
-  emergency stop
-  trajectory validation
-```
-
-判断原则：
-
-```text
-只影响“往哪边走”：
-  可以用静态地图。
-
-影响“能不能走 / 能不能执行”：
-  必须用 ROGMap。
-```
-
----
-
-## 9. 已生成过的 Codex 任务范围
-
-上一轮已生成一版 Codex 目标执行 prompt，要求完成：
-
-```text
-fading / decay 完整闭环
+动态 occupancy
+fading / decay
 parallel raycasting
-ProjectionLayer 稳定化
-DynamicLayer evaluate 稳定化
-QueryAdapter snapshot 安全
-ROGMap debug 可视化
-参数体系整理
-性能日志和验证指标
-dirty column 预留
+ProjectionLayer 地形语义
+2D signed ESDF
+quadratic interpolation
+dirty column
+field.update_rate
+MapQueryInterface
+MincoPlanner 同进程直接持有 ROGMapROS
+sentry1.yaml 参数加载
 ```
 
-明确排除：
+当前还不能称为“完整中科大系统复现”，因为还缺：
 
 ```text
-dense cloud
-复杂地形检测
-planner 主逻辑
-轮速接口
-动态障碍聚类
-Batch-LIWO
+稠密点云注入
+Batch-LIWO / 轮速融合
+控制器闭环
+实机验证
+bag 回放验证
+参数调优
+```
+
+但如果问题限定为：
+
+```text
+除稠密点云注入以外，ROGMap + MincoPlanner 动态地图导航前端是否具备？
+```
+
+答案是：**基本具备。**
+
+---
+
+## 11. 下一轮优先任务建议
+
+下一轮最建议继续做这几件事：
+
+### 11.1 先做工程确认
+
+```bash
+grep -R "PlannerManager\|sentry_planner_node\|sentry_planner_rog_map" src include CMakeLists.txt launch
+```
+
+如果无有效引用，即可确认没有旧架构残留。
+
+然后：
+
+```bash
+colcon build --packages-select <rog_map_pkg> <minco_planner_pkg> --cmake-args -DCMAKE_BUILD_TYPE=Release
+```
+
+### 11.2 做 bag 回放验证
+
+重点看：
+
+```text
+/rog_map/layer_type
+/rog_map/layer_value
+/rog_map/layer_height
+/rog_map/field
+/rog_map/performance
+/opt_path
+/backup_path
+```
+
+验证：
+
+```text
+动态障碍出现 → OCCUPIED / ESDF 变小
+动态障碍移走 → decay 后清除
+坡面 → PASSABLE/FREE
+竖直墙 → OCCUPIED
+通道中心 → 正 ESDF 距离
+轨迹优化 → 避开动态障碍
+```
+
+### 11.3 再做稠密点云注入
+
+目标：
+
+```text
+feats_undistort
+  → 当前 EKF/LIO 状态
+  → world/camera_init
+  → /cloud_registered_dense
+  → ROGMap use_dense_cloud=true
+```
+
+这是后续提升地形识别稳定性的关键。
+
+### 11.4 最后做 RM 场地参数调优
+
+重点参数：
+
+```text
+projection.robot_body_z_min
+projection.robot_body_z_max
+projection.overhead_clearance_margin
+projection.min_clearance_height
+projection.max_slope_deg
+projection.max_step_height
+projection.surface_thickness
+projection.tunnel_wall_min_height
+field.inflation_radius
+field.update_rate
+decay.keep_time
+decay.decay_time
+raycasting.ray_range
 ```
 
 ---
 
-## 10. 下一轮对话建议起点
+## 12. 下一轮对话开头建议
 
-下一轮如果继续 ROGMap，应直接从这里开始：
+下一轮可以这样开头：
 
-```text
-请根据当前 ROGMap 代码，优先检查并补齐 applyDecay / timestamp / inflation-counter 同步闭环，然后再检查 updateProbMap 是否具备 parallel raycasting。暂时不要处理 planner、dense cloud、复杂地形检测。
-```
-
-当前核心判断：
-
-```text
-ROGMap 已经有结构，但还缺动态遗忘闭环、并行性能、语义稳定性、debug 可视化和状态一致性验证。
-```
+“以下是上一轮总结。请基于这个上下文继续分析最新代码/继续生成 Codex prompt/继续做 bag 验证方案。当前目标是保持 MincoPlanner 作为 Nav2 plugin，由 MincoPlanner 内部创建并持有 ROGMapROS，ROGMap 与 planner 同进程共享 MapQueryInterface，不做 standalone rog_map_node，也不做跨进程 MapQueryClient。除稠密点云注入外，ROGMap 主体链路已经基本完成，下一步重点是工程编译确认、bag 回放验证和稠密点云注入。”
