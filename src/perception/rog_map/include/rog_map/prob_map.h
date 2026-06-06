@@ -28,6 +28,7 @@
 #include <rog_map/inf_map.h>
 #include <rog_map/free_cnt_map.h>
 #include <rog_map/esdf_map.h>
+#include <rog_map/performance_monitor.hpp>
 #include <rog_map/rog_map_core/raycaster.h>
 
 
@@ -113,6 +114,8 @@ namespace rog_map {
 
         bool applyDecay(double now);
 
+        RuntimeStats runtimeStats() const { return runtime_stats_; }
+
     protected:
         rog_map::Config cfg_;
         InfMap::Ptr inf_map_;
@@ -124,6 +127,9 @@ namespace rog_map {
         std::vector<float> last_update_time_;
         std::vector<int> active_ids_;
         std::vector<uint8_t> active_flags_;
+        std::vector<int> dirty_column_ids_;
+        std::vector<uint8_t> dirty_column_flags_;
+        bool full_layer_refresh_required_{true};
         double current_update_time_{0.0};
 
         bool map_empty_{true};
@@ -137,9 +143,22 @@ namespace rog_map {
             std::mutex raycast_range_mtx;
         } raycast_data_;
 
+        struct RaycastLocalBuffer {
+            EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+            vec_E<Vec3i> hit_ids;
+            vec_E<Vec3i> miss_ids;
+        };
+
+        RuntimeStats runtime_stats_;
+
         vector<double> time_consuming_;
         vector<string> time_consuming_name_{"Total", "Raycast", "Update_cache", "Inflation", "PointCloudNumber",
-                                            "CacheNumber", "InflationNumber"};
+                                            "CacheNumber", "InflationNumber", "RaycastParallel", "RaycastMerge",
+                                            "HitCount", "MissCount", "Decay", "Projection", "Field",
+                                            "QueryRefresh", "OccupiedCount", "UnknownCount", "PassableCount",
+                                            "FreeCount", "DecayedCount", "DirtyColumnCount",
+                                            "DirtyExpandedColumnCount", "FullLayerRefreshCount",
+                                            "DirtyLayerUpdateCount", "FieldSkippedCount", "Visualization"};
 
         // standardization query
         // Known free < l_free
@@ -179,8 +198,15 @@ namespace rog_map {
         void missPointUpdate(const Vec3f &pos, const int &hash_id, const int &hit_num);
 
         void raycastProcess(const PointCloud &input_cloud, const Vec3f &cur_odom);
+        void raycastProcessSerial(const PointCloud &input_cloud, const Vec3f &cur_odom);
+        void raycastProcessParallel(const PointCloud &input_cloud, const Vec3f &cur_odom);
 
         void insertUpdateCandidate(const Vec3i &id_g, bool is_hit);
+        void markDirtyColumn(const Vec3i &id_g);
+        void clearDirtyColumns();
+        void markAllDirtyColumns();
+        const std::vector<int> &dirtyColumnIds() const { return dirty_column_ids_; }
+        bool fullLayerRefreshRequired() const { return full_layer_refresh_required_; }
 
         void updateLocalBox(const Vec3f &cur_odom);
 

@@ -23,9 +23,12 @@
 
 #pragma once
 
+#include <limits>
+
 #include <rog_map/prob_map.h>
 #include <rog_map/field_layer.hpp>
 #include <rog_map/map_query_interface.hpp>
+#include <rog_map/performance_monitor.hpp>
 #include <rog_map/projection_layer.hpp>
 #include <rog_map/query_adapter.hpp>
 #include <rog_map/rog_map_core/common_lib.hpp>
@@ -128,6 +131,13 @@ namespace rog_map {
         std::shared_ptr<ProjectionLayer> layer_;
         std::shared_ptr<DynamicLayer> field_;
         std::shared_ptr<QueryAdapter> query_;
+        std::unique_ptr<PerformanceMonitor> performance_monitor_;
+        uint64_t query_sequence_{0};
+        double last_field_update_time_{-std::numeric_limits<double>::infinity()};
+        bool field_dirty_{true};
+        uint64_t field_sequence_{0};
+        double last_field_stamp_{0.0};
+        bool field_stale_{true};
 
         void updateMapInternal(const PointCloud& cloud, const Pose& pose);
 

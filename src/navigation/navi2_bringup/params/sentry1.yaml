@@ -292,6 +292,143 @@ planner_server:
       use_smac: true
       allow_unknown: false
       odom_topic: /aft_mapped_to_init
+      rog_map:
+        frame_id: camera_init
+
+        resolution: 0.05
+        inflation_resolution: 0.05
+        map_size: [12.0, 12.0, 1.5]
+        fix_map_origin: [0.0, 0.0, 0.0]
+
+        map_sliding:
+          enable: true
+          threshold: 2.0
+
+        ros_callback:
+          enable: true
+          cloud_topic: /cloud_registered
+          dense_cloud_topic: /cloud_registered_dense
+          odom_topic: /aft_mapped_to_init
+          odom_timeout: 0.08
+          update_period_ms: 1
+          use_dense_cloud: false
+
+        raycasting:
+          enable: true
+          batch_update_size: 1
+          ray_range: [0.30, 10.0]
+          local_update_box: [10.0, 10.0, 1.5]
+          unk_thresh: 0.70
+          p_hit: 0.70
+          p_miss: 0.70
+          p_min: 0.12
+          p_max: 0.97
+          p_occ: 0.80
+          p_free: 0.30
+          parallel_enable: true
+          num_threads: 4
+
+        decay:
+          enable: true
+          keep_time: 0.35
+          decay_time: 1.0
+          active_list_enable: true
+
+        projection:
+          enable: true
+          min_z: -0.15
+          max_z: 0.80
+          unknown_as_occupied: true
+          min_observed_voxels: 2
+          low_obstacle_height: 0.08
+          obstacle_height: 0.16
+          min_ratio: 0.35
+          passable_cost: 50
+          hysteresis_enable: true
+          hysteresis_count: 2
+          hole_fill_enable: true
+          hole_fill_radius: 1
+          hole_fill_min_occupied_neighbors: 5
+          terrain_enable: true
+          robot_body_z_min: 0.02
+          robot_body_z_max: 0.30
+          overhead_clearance_margin: 0.03
+          surface_thickness: 0.08
+          max_step_height: 0.10
+          max_slope_deg: 18.0
+          clearance_check_enable: true
+          min_clearance_height: 0.30
+          tunnel_wall_min_height: 0.18
+          passable_as_free: true
+        field:
+          enable: true
+          inflation_radius: 0.30
+          max_distance: 3.0
+          min_distance: -1.0
+          clamp_distance: true
+          smooth_grad_enable: false
+          interpolation: quadratic
+          update_rate: 20.0
+
+        performance:
+          enable: true
+          csv_enable: false
+          csv_path: /tmp/rog_map_performance.csv
+          map_info_csv_path: /tmp/rog_map_info.csv
+          publish_enable: true
+          topic: /rog_map/performance
+          print_enable: false
+          summary_rate: 1.0
+          dirty_column_enable: true
+          dirty_full_ratio: 0.30
+          parallel_raycast_enable: true
+          raycast_num_threads: 4
+
+        visualization:
+          enable: true
+          frame_id: camera_init
+          rate: 5.0
+          range: [10.0, 10.0, 1.2]
+          lazy_publish: true
+
+          occupied:
+            enable: true
+            topic: /rog_map/occupied
+          unknown:
+            enable: false
+            topic: /rog_map/unknown
+          inflated_occupied:
+            enable: false
+            topic: /rog_map/occupied_inflate
+          inflated_unknown:
+            enable: false
+            topic: /rog_map/unknown_inflate
+          frontier:
+            enable: false
+            topic: /rog_map/frontier
+
+          layer_value:
+            enable: true
+            topic: /rog_map/layer_value
+          layer_type:
+            enable: true
+            topic: /rog_map/layer_type
+          layer_confidence:
+            enable: false
+            topic: /rog_map/layer_confidence
+          layer_height:
+            enable: true
+            topic: /rog_map/layer_height
+
+          field:
+            enable: true
+            topic: /rog_map/field
+          decay_cells:
+            enable: false
+            topic: /rog_map/decay_cells
+          map_bound:
+            enable: true
+            topic: /rog_map/map_bound
       corridor:
         robot_radius: 0.25
         extra_margin: 0.05

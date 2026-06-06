@@ -6,6 +6,120 @@
 
 namespace rog_map {
 
+namespace {
+
+bool sampleBilinear(
+    const MapSnapshot &snap,
+    int ix,
+    int iy,
+    double fx,
+    double fy,
+    double &dist,
+    Eigen::Vector3d &grad) {
+    const size_t width = static_cast<size_t>(snap.width);
+    const size_t idx00 = static_cast<size_t>(iy) * width + static_cast<size_t>(ix);
+    const size_t idx10 = static_cast<size_t>(iy) * width + static_cast<size_t>(ix + 1);
+    const size_t idx01 = static_cast<size_t>(iy + 1) * width + static_cast<size_t>(ix);
+    const size_t idx11 = static_cast<size_t>(iy + 1) * width + static_cast<size_t>(ix + 1);
+
+    const double d00 = snap.distances[idx00];
+    const double d10 = snap.distances[idx10];
+    const double d01 = snap.distances[idx01];
+    const double d11 = snap.distances[idx11];
+    if (!std::isfinite(d00) || !std::isfinite(d10) || !std::isfinite(d01) || !std::isfinite(d11)) {
+        return false;
+    }
+
+    const double lerp_y0 = (1.0 - fx) * d00 + fx * d10;
+    const double lerp_y1 = (1.0 - fx) * d01 + fx * d11;
+    dist = (1.0 - fy) * lerp_y0 + fy * lerp_y1;
+    if (!std::isfinite(dist)) {
+        return false;
+    }
+
+    grad.x() = ((1.0 - fy) * (d10 - d00) + fy * (d11 - d01)) / snap.resolution;
+    grad.y() = ((1.0 - fx) * (d01 - d00) + fx * (d11 - d10)) / snap.resolution;
+    grad.z() = 0.0;
+    if (!grad.allFinite()) {
+        grad.setZero();
+    }
+    return true;
+}
+
+bool sampleQuadratic(
+    const MapSnapshot &snap,
+    int ix,
+    int iy,
+    double fx,
+    double fy,
+    double &dist,
+    Eigen::Vector3d &grad) {
+    if (ix < 1 || iy < 1 || ix + 1 >= snap.width || iy + 1 >= snap.height) {
+        return false;
+    }
+    const size_t width = static_cast<size_t>(snap.width);
+    const auto sample = [&snap, width](int x, int y) {
+        return snap.distances[static_cast<size_t>(y) * width + static_cast<size_t>(x)];
+    };
+    const double wx[3] = {
+        0.5 * fx * (fx - 1.0),
+        1.0 - fx * fx,
+        0.5 * fx * (fx + 1.0)
+    };
+    const double wy[3] = {
+        0.5 * fy * (fy - 1.0),
+        1.0 - fy * fy,
+        0.5 * fy * (fy + 1.0)
+    };
+    const double dwx[3] = {fx - 0.5, -2.0 * fx, fx + 0.5};
+    const double dwy[3] = {fy - 0.5, -2.0 * fy, fy + 0.5};
+
+    dist = 0.0;
+    double dd_dx_pix = 0.0;
+    double dd_dy_pix = 0.0;
+    for (int dy = 0; dy < 3; ++dy) {
+        for (int dx = 0; dx < 3; ++dx) {
+            const double d = sample(ix + dx - 1, iy + dy - 1);
+            if (!std::isfinite(d)) {
+                return false;
+            }
+            dist += wx[dx] * wy[dy] * d;
+            dd_dx_pix += dwx[dx] * wy[dy] * d;
+            dd_dy_pix += wx[dx] * dwy[dy] * d;
+        }
+    }
+    if (!std::isfinite(dist)) {
+        return false;
+    }
+    grad.x() = dd_dx_pix / snap.resolution;
+    grad.y() = dd_dy_pix / snap.resolution;
+    grad.z() = 0.0;
+    if (!grad.allFinite()) {
+        grad.setZero();
+    }
+    return true;
+}
+
+void clampResult(const MapSnapshot &snap, double &dist, Eigen::Vector3d &grad) {
+    if (!std::isfinite(dist)) {
+        dist = snap.field_max_distance;
+        grad.setZero();
+        return;
+    }
+    if (snap.field_clamp_distance) {
+        const double unclamped = dist;
+        dist = std::clamp(dist, snap.field_min_distance, snap.field_max_distance);
+        if (unclamped != dist) {
+            grad.setZero();
+        }
+    }
+    if (!grad.allFinite()) {
+        grad.setZero();
+    }
+}
+
+}  // namespace
+
 void QueryAdapter::update(
     const std::shared_ptr<const MapSnapshot> &snapshot,
     const std::shared_ptr<DynamicLayer> &field) {
@@ -118,7 +232,7 @@ bool QueryAdapter::evaluate(const Eigen::Vector3d &pos, double &dist, Eigen::Vec
     const auto snap = snapshot();
     if (!snap || snap->width <= 1 || snap->height <= 1 || snap->resolution <= 0.0 ||
         snap->distances.size() != static_cast<size_t>(snap->width) * static_cast<size_t>(snap->height)) {
-        dist = 10.0;
+        dist = snap ? snap->field_max_distance : 10.0;
         grad.setZero();
         return false;
     }
@@ -128,38 +242,28 @@ bool QueryAdapter::evaluate(const Eigen::Vector3d &pos, double &dist, Eigen::Vec
     const int ix = static_cast<int>(std::floor(px));
     const int iy = static_cast<int>(std::floor(py));
     if (ix < 0 || iy < 0 || ix >= snap->width - 1 || iy >= snap->height - 1) {
-        dist = 10.0;
+        dist = snap->field_max_distance;
         grad.setZero();
         return false;
     }
 
     const double fx = px - static_cast<double>(ix);
     const double fy = py - static_cast<double>(iy);
-    const size_t width = static_cast<size_t>(snap->width);
-    const size_t idx00 = static_cast<size_t>(iy) * width + static_cast<size_t>(ix);
-    const size_t idx10 = static_cast<size_t>(iy) * width + static_cast<size_t>(ix + 1);
-    const size_t idx01 = static_cast<size_t>(iy + 1) * width + static_cast<size_t>(ix);
-    const size_t idx11 = static_cast<size_t>(iy + 1) * width + static_cast<size_t>(ix + 1);
 
-    const double d00 = snap->distances[idx00];
-    const double d10 = snap->distances[idx10];
-    const double d01 = snap->distances[idx01];
-    const double d11 = snap->distances[idx11];
-    if (!std::isfinite(d00) || !std::isfinite(d10) || !std::isfinite(d01) || !std::isfinite(d11)) {
-        dist = -std::numeric_limits<double>::infinity();
+    bool ok = false;
+    if (snap->interpolation == InterpolationMode::QUADRATIC) {
+        ok = sampleQuadratic(*snap, ix, iy, fx, fy, dist, grad);
+    }
+    if (!ok) {
+        ok = sampleBilinear(*snap, ix, iy, fx, fy, dist, grad);
+    }
+    if (!ok) {
+        dist = snap->field_max_distance;
         grad.setZero();
         return false;
     }
 
-    const double lerp_y0 = (1.0 - fx) * d00 + fx * d10;
-    const double lerp_y1 = (1.0 - fx) * d01 + fx * d11;
-    dist = (1.0 - fy) * lerp_y0 + fy * lerp_y1;
-
-    const double dd_dx_pix = (1.0 - fy) * (d10 - d00) + fy * (d11 - d01);
-    const double dd_dy_pix = (1.0 - fx) * (d01 - d00) + fx * (d11 - d10);
-    grad.x() = dd_dx_pix / snap->resolution;
-    grad.y() = dd_dy_pix / snap->resolution;
-    grad.z() = 0.0;
+    clampResult(*snap, dist, grad);
     return true;
 }
 
