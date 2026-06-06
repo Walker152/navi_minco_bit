@@ -110,6 +110,21 @@ bool QueuePrePop(LidarDataQueue * queue, StoragePacket * storage_packet)
   return true;
 }
 
+bool QueuePeek(LidarDataQueue * queue, const StoragePacket ** storage_packet)
+{
+  if (queue == nullptr || storage_packet == nullptr) {
+    return false;
+  }
+
+  if (QueueIsEmpty(queue)) {
+    return false;
+  }
+
+  uint32_t rd_idx = queue->rd_idx & queue->mask;
+  *storage_packet = &queue->storage_packet[rd_idx];
+  return true;
+}
+
 void QueuePopUpdate(LidarDataQueue * queue)
 {
   queue->rd_idx++;

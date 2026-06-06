@@ -28,6 +28,7 @@
 #include "include/livox_ros_driver2.h"
 
 #include "driver_node.h"
+#include "internal_lidar_merger.h"
 #include "lds.h"
 
 namespace livox_ros {
@@ -92,6 +93,9 @@ class Lddc final {
 
   // void SetRosPub(ros::Publisher *pub) { global_pub_ = pub; };  // NOT USED
   void SetPublishFrq(uint32_t frq) { publish_frq_ = frq; }
+#ifdef BUILDING_ROS2
+  void ConfigureInternalLidarMerge(const InternalLidarMergeConfig & config);
+#endif
 
  public:
   Lds *lds_;
@@ -99,6 +103,12 @@ class Lddc final {
  private:
   void PollingLidarPointCloudData(uint8_t index, LidarDevice *lidar);
   void PollingLidarImuData(uint8_t index, LidarDevice *lidar);
+#ifdef BUILDING_ROS2
+  void DistributeMergedPointCloudData();
+  bool GetMergeQueue(uint32_t handle, LidarDataQueue **queue);
+  void PublishMergedCustomMsg(std::unique_ptr<CustomMsg> msg);
+  void PublishMergedPointCloud2(std::unique_ptr<PointCloud2> cloud);
+#endif
 
   void PublishPointcloud2(LidarDataQueue *queue, uint8_t index);
   void PublishCustomPointcloud(LidarDataQueue *queue, uint8_t index);
@@ -130,6 +140,9 @@ class Lddc final {
 
   PublisherPtr GetCurrentPublisher(uint8_t index);
   PublisherPtr GetCurrentImuPublisher(uint8_t index);
+#ifdef BUILDING_ROS2
+  PublisherPtr GetMergedPublisher();
+#endif
 
  private:
   uint8_t transfer_format_;
@@ -151,11 +164,18 @@ class Lddc final {
 #elif defined BUILDING_ROS2
   PublisherPtr private_pub_[kMaxSourceLidar];
   PublisherPtr global_pub_;
+  PublisherPtr merged_pub_;
   PublisherPtr private_imu_pub_[kMaxSourceLidar];
   PublisherPtr global_imu_pub_;
 #endif
 
   livox_ros::DriverNode *cur_node_;
+#ifdef BUILDING_ROS2
+  InternalLidarMerger internal_lidar_merger_;
+  bool internal_lidar_merge_enabled_ = false;
+  uint32_t merge_drop_warn_count_ = 0;
+  uint32_t merge_duration_warn_count_ = 0;
+#endif
 };
 
 }  // namespace livox_ros
