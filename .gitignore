@@ -17,3 +17,5 @@ build-*/
 .venv/
 .log/
 .bash
+.cursor/
+.codegraph/
