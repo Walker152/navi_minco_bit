@@ -22,8 +22,39 @@
 */
 
 #include <rog_map/prob_map.h>
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 using namespace rog_map;
 using namespace super_utils;
+
+namespace {
+
+double elapsedMs(const std::chrono::steady_clock::time_point &start) {
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+
+bool vec3iLess(const Vec3i &a, const Vec3i &b) {
+    if (a.x() != b.x()) {
+        return a.x() < b.x();
+    }
+    if (a.y() != b.y()) {
+        return a.y() < b.y();
+    }
+    return a.z() < b.z();
+}
+
+void uniqueVec3i(vec_E<Vec3i> &ids) {
+    std::sort(ids.begin(), ids.end(), vec3iLess);
+    ids.erase(std::unique(ids.begin(), ids.end(), [](const Vec3i &a, const Vec3i &b) {
+        return a.x() == b.x() && a.y() == b.y() && a.z() == b.z();
+    }), ids.end());
+}
+
+}  // namespace
 
 void ProbMap::initProbMap() {
     static bool init_once{false};
@@ -34,7 +65,7 @@ void ProbMap::initProbMap() {
     initSlidingMap(cfg_.half_map_size_i, cfg_.resolution,
                    cfg_.map_sliding_en, cfg_.map_sliding_thresh,
                    cfg_.fix_map_origin);
-    time_consuming_.resize(7);
+    time_consuming_.resize(time_consuming_name_.size(), 0.0);
     inf_map_ = std::make_shared<InfMap>(cfg_);
 
 
@@ -84,6 +115,9 @@ void ProbMap::initProbMap() {
     last_update_time_.resize(map_size, 0.0f);
     active_flags_.resize(map_size, 0U);
     active_ids_.clear();
+    dirty_column_flags_.resize(static_cast<size_t>(sc_.map_size_i.x()) * static_cast<size_t>(sc_.map_size_i.y()), 0U);
+    dirty_column_ids_.clear();
+    full_layer_refresh_required_ = true;
     raycast_data_.raycaster.setResolution(cfg_.resolution);
     raycast_data_.operation_cnt.resize(map_size, 0);
     raycast_data_.hit_cnt.resize(map_size, 0);
@@ -245,6 +279,38 @@ bool ProbMap::isUnknownInflate(const Vec3f& pos) const {
 
 
 void ProbMap::writeTimeConsumingToLog(std::ofstream& log_file) {
+    if (!log_file.is_open()) {
+        return;
+    }
+    if (time_consuming_.size() < time_consuming_name_.size()) {
+        time_consuming_.resize(time_consuming_name_.size(), 0.0);
+    }
+    time_consuming_[0] = runtime_stats_.total_update_time;
+    time_consuming_[1] = runtime_stats_.raycast_time;
+    time_consuming_[2] = runtime_stats_.prob_update_time;
+    time_consuming_[3] = runtime_stats_.inflation_time;
+    time_consuming_[4] = runtime_stats_.input_point_count;
+    time_consuming_[5] = runtime_stats_.cache_count;
+    time_consuming_[6] = runtime_stats_.inflation_count;
+    time_consuming_[7] = runtime_stats_.raycast_parallel_time;
+    time_consuming_[8] = runtime_stats_.raycast_merge_time;
+    time_consuming_[9] = runtime_stats_.hit_count;
+    time_consuming_[10] = runtime_stats_.miss_count;
+    time_consuming_[11] = runtime_stats_.decay_time;
+    time_consuming_[12] = runtime_stats_.projection_time;
+    time_consuming_[13] = runtime_stats_.field_time;
+    time_consuming_[14] = runtime_stats_.query_refresh_time;
+    time_consuming_[15] = runtime_stats_.occupied_count;
+    time_consuming_[16] = runtime_stats_.unknown_count;
+    time_consuming_[17] = runtime_stats_.passable_count;
+    time_consuming_[18] = runtime_stats_.free_count;
+    time_consuming_[19] = runtime_stats_.decayed_count;
+    time_consuming_[20] = runtime_stats_.dirty_column_count;
+    time_consuming_[21] = runtime_stats_.dirty_expanded_column_count;
+    time_consuming_[22] = runtime_stats_.full_layer_refresh_count;
+    time_consuming_[23] = runtime_stats_.dirty_layer_update_count;
+    time_consuming_[24] = runtime_stats_.field_skipped_count;
+    time_consuming_[25] = runtime_stats_.visualization_time;
     for (long unsigned int i = 0; i < time_consuming_.size(); i++) {
         log_file << time_consuming_[i];
         if (i != time_consuming_.size() - 1)
@@ -254,6 +320,9 @@ void ProbMap::writeTimeConsumingToLog(std::ofstream& log_file) {
 }
 
 void ProbMap::writeMapInfoToLog(std::ofstream& log_file) {
+    if (!log_file.is_open()) {
+        return;
+    }
     log_file << "[ProbMap]" << std::endl;
     log_file << "\tmap_size_d: " << cfg_.map_size_d.transpose() << std::endl;
     log_file << "\tresolution: " << cfg_.resolution << std::endl;
@@ -274,6 +343,18 @@ void ProbMap::writeMapInfoToLog(std::ofstream& log_file) {
     log_file << "\tvirtual_ground_height: " << cfg_.virtual_ground_height << std::endl;
     log_file << "\tbatch_update_size: " << cfg_.batch_update_size << std::endl;
     log_file << "\tfrontier_extraction_en: " << cfg_.frontier_extraction_en << std::endl;
+    log_file << "\tparallel_raycast_en: " << cfg_.parallel_raycast_en << std::endl;
+    log_file << "\traycast_num_threads: " << cfg_.raycast_num_threads << std::endl;
+    log_file << "\tdecay_en: " << cfg_.decay_en << std::endl;
+    log_file << "\tdecay_keep_time: " << cfg_.keep_time << std::endl;
+    log_file << "\tdecay_time: " << cfg_.decay_time << std::endl;
+    log_file << "\tdecay_rate: " << cfg_.decay_rate << std::endl;
+    log_file << "\tlayer_hysteresis_en: " << cfg_.layer_hysteresis_en << std::endl;
+    log_file << "\tlayer_hysteresis_count: " << cfg_.layer_hysteresis_count << std::endl;
+    log_file << "\tlayer_hole_fill_en: " << cfg_.layer_hole_fill_en << std::endl;
+    log_file << "\tlayer_hole_fill_radius: " << cfg_.layer_hole_fill_radius << std::endl;
+    log_file << "\tfield_max_distance: " << cfg_.field_max_distance << std::endl;
+    log_file << "\tfield_min_distance: " << cfg_.field_min_distance << std::endl;
     inf_map_->writeMapInfoToLog(log_file);
 }
 
@@ -325,12 +406,15 @@ void ProbMap::slideAllMap(const rog_map::Vec3f& pos) {
     if (cfg_.esdf_en) {
         esdf_map_->mapSliding(pos);
     }
+    markAllDirtyColumns();
 }
 
 void ProbMap::updateProbMap(const PointCloud& cloud, const Pose& pose) {
     TimeConsuming tc("updateMap", false);
+    runtime_stats_ = RuntimeStats{};
     const Vec3f& pos = pose.first;
     time_consuming_[4] = cloud.size();
+    runtime_stats_.input_point_count = cloud.size();
     if (cfg_.map_sliding_en && !insideLocalMap(pos) && raycast_data_.batch_update_counter == 0) {
         std::cout << YELLOW << " -- [ROGMapCore] cur_pose out of map range, reset the map." << RESET << std::endl;
         std::cout << YELLOW << " -- [ROGMapCore] Sliding to map center at: " << pos.transpose() << RESET << std::endl;
@@ -360,17 +444,23 @@ void ProbMap::updateProbMap(const PointCloud& cloud, const Pose& pose) {
     TimeConsuming t_raycast("raycast", false);
     raycastProcess(cloud, pos);
     time_consuming_[1] = t_raycast.stop();
+    runtime_stats_.raycast_time = time_consuming_[1];
     raycast_data_.batch_update_counter++;
     if (raycast_data_.batch_update_counter >= cfg_.batch_update_size) {
         raycast_data_.batch_update_counter = 0;
         time_consuming_[5] = raycast_data_.update_cache_id_g.size();
+        runtime_stats_.cache_count = time_consuming_[5];
         TimeConsuming t_update("update", false);
         probabilisticMapFromCache();
         time_consuming_[2] = t_update.stop();
+        runtime_stats_.prob_update_time = time_consuming_[2];
         map_empty_ = false;
     }
     inf_map_->getInflationNumAndTime(time_consuming_[6], time_consuming_[3]);
+    runtime_stats_.inflation_count = time_consuming_[6];
+    runtime_stats_.inflation_time = time_consuming_[3];
     time_consuming_[0] = tc.stop();
+    runtime_stats_.total_update_time = time_consuming_[0];
 
     /* Update ESDF map */
     if (cfg_.esdf_en) {
@@ -568,6 +658,11 @@ void ProbMap::resetCell(const int& hash_id) {
     }
     ret = 0;
     if (hash_id >= 0 && hash_id < static_cast<int>(last_hit_time_.size())) {
+        Vec3f pos;
+        hashIdToPos(hash_id, pos);
+        Vec3i id_g;
+        posToGlobalIndex(pos, id_g);
+        markDirtyColumn(id_g);
         last_hit_time_[hash_id] = 0.0f;
         last_update_time_[hash_id] = 0.0f;
         active_flags_[hash_id] = 0U;
@@ -607,6 +702,7 @@ void ProbMap::updateCellState(const Vec3f& pos, const GridType& from_type, const
             fcnt_map_->updateFrontierCounter(id_g, true);
         }
     }
+    markDirtyColumn(id_g);
 }
 
 void ProbMap::probabilisticMapFromCache() {
@@ -647,6 +743,9 @@ void ProbMap::hitPointUpdate(const Vec3f& pos, const int& hash_id, const int& hi
 
     const GridType to_type = classifyProb(ret);
     updateCellState(pos, from_type, to_type);
+    Vec3i id_g;
+    posToGlobalIndex(pos, id_g);
+    markDirtyColumn(id_g);
 
     if (hash_id >= 0 && hash_id < static_cast<int>(last_hit_time_.size())) {
         last_hit_time_[hash_id] = static_cast<float>(current_update_time_);
@@ -668,6 +767,9 @@ void ProbMap::missPointUpdate(const Vec3f& pos, const int& hash_id, const int& h
 
     const GridType to_type = classifyProb(ret);
     updateCellState(pos, from_type, to_type);
+    Vec3i id_g;
+    posToGlobalIndex(pos, id_g);
+    markDirtyColumn(id_g);
 
     if (hash_id >= 0 && hash_id < static_cast<int>(last_update_time_.size())) {
         last_update_time_[hash_id] = static_cast<float>(current_update_time_);
@@ -675,25 +777,46 @@ void ProbMap::missPointUpdate(const Vec3f& pos, const int& hash_id, const int& h
 }
 
 bool ProbMap::applyDecay(double now) {
-    if (!cfg_.decay_en || cfg_.decay_time <= 1.0e-6 || active_ids_.empty()) {
+    runtime_stats_.decayed_count = 0.0;
+    if (!cfg_.decay_en || cfg_.decay_time <= 1.0e-6) {
         return false;
     }
 
-    const double rate = std::max(0.0, (static_cast<double>(cfg_.l_occ) - static_cast<double>(cfg_.l_free)) /
+    const double rate = cfg_.decay_rate > 0.0 ? cfg_.decay_rate :
+        std::max(0.0, (static_cast<double>(cfg_.l_occ) - static_cast<double>(cfg_.l_free)) /
         std::max(1.0e-6, cfg_.decay_time));
     bool changed = false;
+    int decayed_count = 0;
     std::vector<int> next_active;
     next_active.reserve(active_ids_.size());
 
-    for (const int hash_id : active_ids_) {
+    std::vector<int> scan_ids;
+    const std::vector<int> *ids = &active_ids_;
+    if (!cfg_.decay_active_list_en) {
+        scan_ids.reserve(occupancy_buffer_.size());
+        for (int hash_id = 0; hash_id < static_cast<int>(occupancy_buffer_.size()); ++hash_id) {
+            if (isOccupied(occupancy_buffer_[hash_id])) {
+                scan_ids.push_back(hash_id);
+            }
+        }
+        ids = &scan_ids;
+    } else if (active_ids_.empty()) {
+        return false;
+    }
+
+    for (const int hash_id : *ids) {
         if (hash_id < 0 || hash_id >= static_cast<int>(occupancy_buffer_.size()) || !active_flags_[hash_id]) {
-            continue;
+            if (cfg_.decay_active_list_en) {
+                continue;
+            }
         }
 
         float& prob = occupancy_buffer_[hash_id];
         const GridType from_type = classifyProb(prob);
         if (from_type != GridType::OCCUPIED) {
-            active_flags_[hash_id] = 0U;
+            if (cfg_.decay_active_list_en) {
+                active_flags_[hash_id] = 0U;
+            }
             continue;
         }
 
@@ -718,21 +841,44 @@ bool ProbMap::applyDecay(double now) {
             Vec3f pos;
             hashIdToPos(hash_id, pos);
             updateCellState(pos, from_type, to_type);
+            Vec3i id_g;
+            posToGlobalIndex(pos, id_g);
+            markDirtyColumn(id_g);
             changed = true;
+            ++decayed_count;
         }
 
         if (to_type == GridType::OCCUPIED) {
-            next_active.push_back(hash_id);
+            if (cfg_.decay_active_list_en) {
+                next_active.push_back(hash_id);
+            } else if (!active_flags_[hash_id]) {
+                active_flags_[hash_id] = 1U;
+                active_ids_.push_back(hash_id);
+            }
         } else {
             active_flags_[hash_id] = 0U;
         }
     }
 
-    active_ids_.swap(next_active);
+    if (cfg_.decay_active_list_en) {
+        active_ids_.swap(next_active);
+    }
+    runtime_stats_.decayed_count = decayed_count;
     return changed;
 }
 
 void ProbMap::raycastProcess(const PointCloud& input_cloud, const Vec3f& cur_odom) {
+#ifdef _OPENMP
+    if (cfg_.parallel_raycast_en && cfg_.raycasting_en && cfg_.raycast_num_threads > 1 &&
+        input_cloud.size() > static_cast<size_t>(cfg_.raycast_num_threads * 16)) {
+        raycastProcessParallel(input_cloud, cur_odom);
+        return;
+    }
+#endif
+    raycastProcessSerial(input_cloud, cur_odom);
+}
+
+void ProbMap::raycastProcessSerial(const PointCloud& input_cloud, const Vec3f& cur_odom) {
     // bounding box of updated region
     raycast_data_.cache_box_min = cur_odom;
     raycast_data_.cache_box_max = cur_odom;
@@ -855,6 +1001,150 @@ void ProbMap::raycastProcess(const PointCloud& input_cloud, const Vec3f& cur_odo
     }
 }
 
+void ProbMap::raycastProcessParallel(const PointCloud& input_cloud, const Vec3f& cur_odom) {
+    raycast_data_.cache_box_min = cur_odom;
+    raycast_data_.cache_box_max = cur_odom;
+    Vec3f raycast_box_min, raycast_box_max;
+
+    {
+        std::lock_guard<std::mutex> lck{raycast_data_.raycast_range_mtx};
+        raycast_box_max = raycast_data_.local_update_box_max;
+        raycast_box_min = raycast_data_.local_update_box_min;
+    }
+
+    vec_E<Vec3f> raycasting_cloud;
+    vec_E<Vec3i> hit_ids;
+    raycasting_cloud.reserve(input_cloud.size());
+    hit_ids.reserve(input_cloud.size());
+
+    int temperol_cnt{0};
+    for (const auto& pcl_p : input_cloud) {
+        if (cfg_.intensity_thresh > 0 && pcl_p.intensity < cfg_.intensity_thresh) {
+            continue;
+        }
+        if (temperol_cnt++ % cfg_.point_filt_num) {
+            continue;
+        }
+
+        Vec3f p(pcl_p.x, pcl_p.y, pcl_p.z);
+        Vec3i pt_id_g;
+
+        if (!cfg_.raycasting_en) {
+            if (insideLocalMap(p)) {
+                const double sqrdis = (p - cur_odom).squaredNorm();
+                if (sqrdis < cfg_.sqr_raycast_range_min) {
+                    continue;
+                }
+                posToGlobalIndex(p, pt_id_g);
+                hit_ids.push_back(pt_id_g);
+                raycast_data_.cache_box_min = raycast_data_.cache_box_min.cwiseMin(p);
+                raycast_data_.cache_box_max = raycast_data_.cache_box_max.cwiseMax(p);
+            }
+            continue;
+        }
+
+        bool update_hit{true};
+        if (p.z() > cfg_.virtual_ceil_height) {
+            update_hit = false;
+            const double dz = p.z() - cur_odom.z();
+            const double pc = cfg_.virtual_ceil_height - cur_odom.z();
+            p = cur_odom + (p - cur_odom).normalized() * pc / dz;
+        } else if (p.z() < cfg_.virtual_ground_height) {
+            update_hit = false;
+            const double dz = p.z() - cur_odom.z();
+            const double pc = cfg_.virtual_ground_height - cur_odom.z();
+            p = cur_odom + (p - cur_odom).normalized() * pc / dz;
+        }
+
+        const double sqr_dis = (p - cur_odom).squaredNorm();
+        if (sqr_dis > cfg_.sqr_raycast_range_max) {
+            const double k = cfg_.raycast_range_max / sqrt(sqr_dis);
+            p = k * (p - cur_odom) + cur_odom;
+            update_hit = false;
+        }
+        if (sqr_dis < cfg_.sqr_raycast_range_min) {
+            continue;
+        }
+
+        if (((p - raycast_box_min).minCoeff() < 0) ||
+            ((p - raycast_box_max).maxCoeff() > 0)) {
+            p = lineBoxIntersectPoint(p, cur_odom, raycast_box_min, raycast_box_max);
+            update_hit = false;
+        }
+
+        raycast_data_.cache_box_min = raycast_data_.cache_box_min.cwiseMin(p);
+        raycast_data_.cache_box_max = raycast_data_.cache_box_max.cwiseMax(p);
+        raycasting_cloud.push_back(p);
+
+        if (update_hit) {
+            posToGlobalIndex(p, pt_id_g);
+            hit_ids.push_back(pt_id_g);
+        }
+    }
+
+    const auto parallel_start = std::chrono::steady_clock::now();
+    int num_threads = 1;
+#ifdef _OPENMP
+    num_threads = std::max(1, cfg_.raycast_num_threads);
+#endif
+    std::vector<RaycastLocalBuffer> local_buffers(static_cast<size_t>(num_threads));
+
+#ifdef _OPENMP
+#pragma omp parallel num_threads(num_threads)
+    {
+        const int tid = omp_get_thread_num();
+        auto &local = local_buffers[static_cast<size_t>(tid)];
+        raycaster::RayCaster local_raycaster;
+        local_raycaster.setResolution(cfg_.resolution);
+        Vec3f ray_pt;
+
+#pragma omp for schedule(dynamic, 32)
+        for (int i = 0; i < static_cast<int>(raycasting_cloud.size()); ++i) {
+            const Vec3f &p = raycasting_cloud[static_cast<size_t>(i)];
+            const Vec3f raycast_start = (p - cur_odom).normalized() * cfg_.raycast_range_min + cur_odom;
+            if (!local_raycaster.setInput(raycast_start, p)) {
+                continue;
+            }
+            while (local_raycaster.step(ray_pt)) {
+                Vec3i cur_ray_id_g;
+                posToGlobalIndex(ray_pt, cur_ray_id_g);
+                if (!insideLocalMap(cur_ray_id_g)) {
+                    break;
+                }
+                local.miss_ids.push_back(cur_ray_id_g);
+            }
+        }
+    }
+#else
+    (void)local_buffers;
+#endif
+    runtime_stats_.raycast_parallel_time = elapsedMs(parallel_start);
+
+    const auto merge_start = std::chrono::steady_clock::now();
+    vec_E<Vec3i> miss_ids;
+    size_t miss_count = 0;
+    for (const auto &local : local_buffers) {
+        miss_count += local.miss_ids.size();
+    }
+    miss_ids.reserve(miss_count);
+    for (const auto &local : local_buffers) {
+        miss_ids.insert(miss_ids.end(), local.miss_ids.begin(), local.miss_ids.end());
+    }
+
+    uniqueVec3i(hit_ids);
+    uniqueVec3i(miss_ids);
+
+    for (const auto &id_g : hit_ids) {
+        insertUpdateCandidate(id_g, true);
+    }
+    for (const auto &id_g : miss_ids) {
+        if (!std::binary_search(hit_ids.begin(), hit_ids.end(), id_g, vec3iLess)) {
+            insertUpdateCandidate(id_g, false);
+        }
+    }
+    runtime_stats_.raycast_merge_time = elapsedMs(merge_start);
+}
+
 void ProbMap::insertUpdateCandidate(const Vec3i& id_g, bool is_hit) {
     const auto& hash_id = getHashIndexFromGlobalIndex(id_g);
     raycast_data_.operation_cnt[hash_id]++;
@@ -863,7 +1153,53 @@ void ProbMap::insertUpdateCandidate(const Vec3i& id_g, bool is_hit) {
     }
     if (is_hit) {
         raycast_data_.hit_cnt[hash_id]++;
+        runtime_stats_.hit_count += 1.0;
+    } else {
+        runtime_stats_.miss_count += 1.0;
     }
+}
+
+void ProbMap::markDirtyColumn(const Vec3i& id_g) {
+    if (dirty_column_flags_.empty()) {
+        full_layer_refresh_required_ = true;
+        return;
+    }
+    if (!insideLocalMap(id_g)) {
+        full_layer_refresh_required_ = true;
+        return;
+    }
+    const Vec3i min_id = local_map_bound_min_i_;
+    const int lx = id_g.x() - min_id.x();
+    const int ly = id_g.y() - min_id.y();
+    if (lx < 0 || ly < 0 || lx >= sc_.map_size_i.x() || ly >= sc_.map_size_i.y()) {
+        full_layer_refresh_required_ = true;
+        return;
+    }
+    const int column_id = ly * sc_.map_size_i.x() + lx;
+    if (column_id < 0 || column_id >= static_cast<int>(dirty_column_flags_.size())) {
+        full_layer_refresh_required_ = true;
+        return;
+    }
+    if (!dirty_column_flags_[column_id]) {
+        dirty_column_flags_[column_id] = 1U;
+        dirty_column_ids_.push_back(column_id);
+    }
+}
+
+void ProbMap::clearDirtyColumns() {
+    for (const int column_id : dirty_column_ids_) {
+        if (column_id >= 0 && column_id < static_cast<int>(dirty_column_flags_.size())) {
+            dirty_column_flags_[column_id] = 0U;
+        }
+    }
+    dirty_column_ids_.clear();
+    full_layer_refresh_required_ = false;
+}
+
+void ProbMap::markAllDirtyColumns() {
+    full_layer_refresh_required_ = true;
+    dirty_column_ids_.clear();
+    std::fill(dirty_column_flags_.begin(), dirty_column_flags_.end(), 0U);
 }
 
 void ProbMap::updateLocalBox(const Vec3f& cur_odom) {
@@ -906,6 +1242,7 @@ void ProbMap::resetLocalMap() {
     std::fill(last_update_time_.begin(), last_update_time_.end(), 0.0f);
     std::fill(active_flags_.begin(), active_flags_.end(), 0U);
     active_ids_.clear();
+    markAllDirtyColumns();
     while (!raycast_data_.update_cache_id_g.empty()) {
         raycast_data_.update_cache_id_g.pop();
     }

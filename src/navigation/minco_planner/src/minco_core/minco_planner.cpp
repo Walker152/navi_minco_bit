@@ -9,6 +9,7 @@
 #include "minco_core/minco_utils.hpp"
 #include "minco_core/visualizer.hpp"
 #include "rog_map/map_registry.hpp"
+#include "rog_map_ros/rog_map_ros2.hpp"
 #include <iostream>
 
 namespace minco_planner {
@@ -25,6 +26,63 @@ MincoPlanner::MincoPlanner() : tf_(nullptr)
 }
 
 MincoPlanner::~MincoPlanner() = default;
+
+bool MincoPlanner::configureRogMap(
+  const nav2_util::LifecycleNode::SharedPtr & node,
+  const std::string & plugin_prefix)
+{
+  if (!node) {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] Cannot configure ROGMap without planner_server LifecycleNode.");
+    return false;
+  }
+
+  try {
+    rog_map::Config rog_cfg;
+    rog_cfg.loadFromRosNode(node, plugin_prefix + "rog_map");
+    rog_map_ros_ = std::make_shared<rog_map::ROGMapROS>(node, rog_cfg);
+    setMap(rog_map_ros_->queryInterface());
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] Failed to configure ROGMap: %s", e.what());
+    rog_map_ros_.reset();
+    map_.reset();
+    return false;
+  }
+
+  if (!map_) {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] ROGMap queryInterface is null.");
+    rog_map_ros_.reset();
+    return false;
+  }
+
+  rog_map::MapRegistry::set(map_);
+  RCLCPP_INFO(
+    logger_,
+    "[MincoPlanner] ROGMap is created inside MincoPlanner plugin and shared by pointer.");
+  return true;
+}
+
+bool MincoPlanner::ensureMapAvailable()
+{
+  if (map_) {
+    return true;
+  }
+
+  auto map = rog_map::MapRegistry::get();
+  if (map) {
+    setMap(map);
+    return true;
+  }
+
+  auto node = node_.lock();
+  if (node) {
+    RCLCPP_ERROR_THROTTLE(
+      logger_, *node->get_clock(), 1000,
+      "[MincoPlanner] MapQueryInterface unavailable: ROGMap was not created and MapRegistry is empty.");
+  } else {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] MapQueryInterface unavailable.");
+  }
+  return false;
+}
 
 // -----------------------------------------------------------------------------
 // 2) Lifecycle management
@@ -52,7 +110,9 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     node, prefix + "global_frame", rclcpp::ParameterValue(configured_global_frame));
   node->get_parameter(prefix + "global_frame", configured_global_frame);
   global_frame_ = costmap_ros_ ? costmap_ros_->getGlobalFrameID() : configured_global_frame;
-  map_ = rog_map::MapRegistry::get();
+  if (!configureRogMap(node, prefix)) {
+    ensureMapAvailable();
+  }
 
   nav2_util::declare_parameter_if_not_declared(node, prefix + "tolerance", rclcpp::ParameterValue(0.5));
   node->get_parameter(prefix + "tolerance", tolerance_);
@@ -239,6 +299,7 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   const unsigned int init_size_x = map_ ? map_->sizeX() : 1U;
   const unsigned int init_size_y = map_ ? map_->sizeY() : 1U;
   astar_planner_ = std::make_unique<Astar>(init_size_x, init_size_y);
+  astar_planner_->setMap(map_);
 
   if (use_smac_) {
     smac_planner_ = std::make_unique<minco_planner::smac::SmacPlanner2DSimple>();
@@ -358,6 +419,9 @@ void MincoPlanner::setMap(const std::shared_ptr<rog_map::MapQueryInterface> & ma
   if (smac_planner_) {
     smac_planner_->setMap(map_);
   }
+  if (astar_planner_) {
+    astar_planner_->setMap(map_);
+  }
   if (minco_optimizer_) {
     minco_optimizer_->setMap(map_);
   }
@@ -391,11 +455,17 @@ void MincoPlanner::cleanup()
   }
 
   astar_planner_.reset();
+  smac_planner_.reset();
   minco_optimizer_.reset();
+  corridor_gen_.reset();
   backup_opt_.reset();
   yaw_opt_.reset();
   opt_path_pub_.reset();
   backup_path_pub_.reset();
+  odom_sub_.reset();
+  costmap_ros_.reset();
+  map_.reset();
+  rog_map_ros_.reset();
 }
 
 rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
@@ -644,10 +714,7 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
 bool MincoPlanner::PlanGlobalPath(
   const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal)
 {
-  if (!map_) {
-    map_ = rog_map::MapRegistry::get();
-  }
-  if (!astar_planner_ || !map_) {
+  if (!ensureMapAvailable() || !astar_planner_) {
     return false;
   }
 
@@ -667,16 +734,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   if (!minco_optimizer_) {
     return false;
   }
-  if (!map_) {
-    map_ = rog_map::MapRegistry::get();
-    if (map_) {
-      minco_optimizer_->setMap(map_);
-      if (corridor_gen_) {
-        corridor_gen_->setMap(map_);
-      }
-    }
-  }
-  if (!map_ || !minco_optimizer_) {
+  if (!ensureMapAvailable() || !minco_optimizer_) {
     return false;
   }
 
@@ -1184,21 +1242,7 @@ bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
   plan.poses.clear();
   plan.header.stamp = rclcpp::Clock().now();
   plan.header.frame_id = global_frame_;
-  if (!map_) {
-    map_ = rog_map::MapRegistry::get();
-    if (map_) {
-      if (smac_planner_) {
-        smac_planner_->setMap(map_);
-      }
-      if (minco_optimizer_) {
-        minco_optimizer_->setMap(map_);
-      }
-      if (corridor_gen_) {
-        corridor_gen_->setMap(map_);
-      }
-    }
-  }
-  if (!map_) {
+  if (!ensureMapAvailable()) {
     RCLCPP_ERROR(logger_, "MapQueryInterface is not available; planner will not query Nav2 costmap.");
     return false;
   }
@@ -1649,10 +1693,7 @@ bool MincoPlanner::validateTrajectory(
 
 bool MincoPlanner::checkCollision()
 {
-  if (!map_) {
-    map_ = rog_map::MapRegistry::get();
-  }
-  if (!map_) {
+  if (!ensureMapAvailable()) {
     return false;
   }
 
@@ -1695,10 +1736,7 @@ bool MincoPlanner::checkCollision()
 
 bool MincoPlanner::checkCollision(const traj_opt::Trajectory & traj)
 {
-  if (!map_) {
-    map_ = rog_map::MapRegistry::get();
-  }
-  if (!map_) {
+  if (!ensureMapAvailable()) {
     return false;
   }
 

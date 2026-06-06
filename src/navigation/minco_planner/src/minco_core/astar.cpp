@@ -62,6 +62,11 @@ void Astar::setCostmap(const unsigned char * costmap, bool /*isROS*/, bool allow
   this->allow_unknown = allow_unknown;
 }
 
+void Astar::setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map)
+{
+  map_ = map;
+}
+
 void Astar::setStart(int x, int y)
 {
   start[0] = x;

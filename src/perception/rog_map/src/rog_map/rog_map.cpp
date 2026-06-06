@@ -24,12 +24,29 @@
 #include "rog_map/rog_map.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 #include <rog_map/map_registry.hpp>
 
 using namespace rog_map;
 using namespace super_utils;
+
+namespace {
+
+double elapsedMs(const std::chrono::steady_clock::time_point &start) {
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+
+InterpolationMode parseInterpolationMode(const std::string &mode) {
+    if (mode == "quadratic" || mode == "QUADRATIC") {
+        return InterpolationMode::QUADRATIC;
+    }
+    return InterpolationMode::BILINEAR;
+}
+
+}  // namespace
+
 void ROGMap::init() {
 
     initProbMap();
@@ -37,11 +54,17 @@ void ROGMap::init() {
     layer_ = std::make_shared<ProjectionLayer>();
     field_ = std::make_shared<DynamicLayer>();
     query_ = std::make_shared<QueryAdapter>();
+    performance_monitor_ = std::make_unique<PerformanceMonitor>();
+    PerformanceConfig perf_cfg;
+    perf_cfg.enable = cfg_.performance_enable;
+    perf_cfg.csv_enable = cfg_.performance_csv_enable;
+    perf_cfg.csv_path = cfg_.performance_csv_path;
+    perf_cfg.map_info_csv_path = cfg_.performance_map_info_csv_path;
+    perf_cfg.publish_enable = cfg_.performance_publish_enable;
+    perf_cfg.print_enable = cfg_.performance_print_enable;
+    perf_cfg.summary_rate = cfg_.performance_summary_rate;
+    performance_monitor_->configure(perf_cfg);
     MapRegistry::set(query_);
-
-    map_info_log_file_.open(DEBUG_FILE_DIR("rm_info_log.csv"), std::ios::out | std::ios::trunc);
-    time_log_file_.open(DEBUG_FILE_DIR("rm_performance_log.csv"), std::ios::out | std::ios::trunc);
-
 
     robot_state_.p = cfg_.fix_map_origin;
 
@@ -58,15 +81,10 @@ void ROGMap::init() {
         inf_map_->mapSliding(cfg_.fix_map_origin);
     }
 
-    writeMapInfoToLog(map_info_log_file_);
-    map_info_log_file_.close();
-    for (int i = 0; i < time_consuming_name_.size(); i++) {
-        time_log_file_ << time_consuming_name_[i];
-        if (i != time_consuming_name_.size() - 1) {
-            time_log_file_ << ", ";
-        }
+    if (performance_monitor_->csvEnabled()) {
+        writeMapInfoToLog(performance_monitor_->mapInfoCsv());
+        performance_monitor_->writePerformanceCsvHeader(time_consuming_name_);
     }
-    time_log_file_ << endl;
 
 
     if (cfg_.load_pcd_en) {
@@ -270,6 +288,7 @@ void ROGMap::updateMap(const PointCloud& cloud, const Pose& pose) {
 }
 
 void ROGMap::updateMapInternal(const PointCloud& cloud, const Pose& pose) {
+    const auto total_start = std::chrono::steady_clock::now();
     updateRobotState(pose);
     const double now = getSystemWalltimeNow();
     setUpdateTime(now);
@@ -277,16 +296,26 @@ void ROGMap::updateMapInternal(const PointCloud& cloud, const Pose& pose) {
 
     bool decay_changed = false;
     if (cfg_.decay_en) {
+        const auto decay_start = std::chrono::steady_clock::now();
         decay_changed = applyDecay(now);
+        runtime_stats_.decay_time = elapsedMs(decay_start);
     }
     if (decay_changed && cfg_.esdf_en) {
         esdf_map_->updateESDF3D(robot_state_.p);
     }
 
     refreshLayers();
+    const auto query_start = std::chrono::steady_clock::now();
     refreshQuery();
+    runtime_stats_.query_refresh_time = elapsedMs(query_start);
+    runtime_stats_.total_update_time = elapsedMs(total_start);
+    if (performance_monitor_) {
+        performance_monitor_->stats() = runtime_stats_;
+    }
 
-    writeTimeConsumingToLog(time_log_file_);
+    if (performance_monitor_ && performance_monitor_->csvEnabled()) {
+        writeTimeConsumingToLog(performance_monitor_->performanceCsv());
+    }
 }
 
 void ROGMap::refreshLayers() {
@@ -301,6 +330,22 @@ void ROGMap::refreshLayers() {
     layer_cfg.min_ratio = cfg_.min_ratio;
     layer_cfg.min_observed_voxels = cfg_.min_observed_voxels;
     layer_cfg.passable_cost = static_cast<uint8_t>(std::clamp(cfg_.passable_cost, 0, 252));
+    layer_cfg.hysteresis_en = cfg_.layer_hysteresis_en;
+    layer_cfg.hysteresis_count = cfg_.layer_hysteresis_count;
+    layer_cfg.hole_fill_en = cfg_.layer_hole_fill_en;
+    layer_cfg.hole_fill_radius = cfg_.layer_hole_fill_radius;
+    layer_cfg.hole_fill_min_occupied_neighbors = cfg_.layer_hole_fill_min_occupied_neighbors;
+    layer_cfg.terrain_enable = cfg_.terrain_enable;
+    layer_cfg.robot_body_z_min = cfg_.robot_body_z_min;
+    layer_cfg.robot_body_z_max = cfg_.robot_body_z_max;
+    layer_cfg.overhead_clearance_margin = cfg_.overhead_clearance_margin;
+    layer_cfg.surface_thickness = cfg_.surface_thickness;
+    layer_cfg.max_step_height = cfg_.max_step_height;
+    layer_cfg.max_slope_deg = cfg_.max_slope_deg;
+    layer_cfg.clearance_check_enable = cfg_.clearance_check_enable;
+    layer_cfg.min_clearance_height = cfg_.min_clearance_height;
+    layer_cfg.tunnel_wall_min_height = cfg_.tunnel_wall_min_height;
+    layer_cfg.passable_as_free = cfg_.passable_as_free;
 
     const int width = mapWidth();
     const int height = mapHeight();
@@ -319,38 +364,140 @@ void ROGMap::refreshLayers() {
     z_min = std::max(z_min, localMapMinIndex().z());
     z_max = std::min(z_max, localMapMaxIndex().z());
 
-    layer_->update(width, height, res, origin, layer_cfg,
-        [this, min_id, z_min, z_max](int mx, int my) {
-            ColumnStats stats;
-            const int gx = min_id.x() + mx;
-            const int gy = min_id.y() + my;
-            for (int gz = z_min; gz <= z_max; ++gz) {
-                Vec3i id_g(gx, gy, gz);
-                GridType gt = getGridType(id_g);
-                if (gt == GridType::OCCUPIED || gt == GridType::KNOWN_FREE) {
-                    ++stats.observed;
-                    stats.last_update_time = std::max(stats.last_update_time, cellLastUpdateTime(id_g));
-                }
-                if (gt == GridType::OCCUPIED) {
-                    ++stats.occupied;
-                    Vec3f pos;
-                    globalIndexToPos(id_g, pos);
-                    stats.min_z = std::min(stats.min_z, pos.z());
-                    stats.max_z = std::max(stats.max_z, pos.z());
-                    stats.last_hit_time = std::max(stats.last_hit_time, cellLastHitTime(id_g));
+    const std::vector<uint8_t> old_mask = layer_->mask();
+    const bool geometry_changed = !layer_->matchesGeometry(width, height, res, origin);
+    const size_t cell_count = static_cast<size_t>(std::max(0, width)) * static_cast<size_t>(std::max(0, height));
+    const auto &dirty_columns = dirtyColumnIds();
+    const double dirty_ratio = std::clamp(cfg_.dirty_full_ratio, 0.0, 1.0);
+    const bool dirty_over_ratio = cell_count > 0 &&
+        dirty_columns.size() > static_cast<size_t>(dirty_ratio * static_cast<double>(cell_count));
+    const bool force_full_refresh = geometry_changed || fullLayerRefreshRequired() || !cfg_.dirty_column_en ||
+        dirty_over_ratio;
+    const bool has_dirty_update = cfg_.dirty_column_en && !dirty_columns.empty() && !force_full_refresh;
+
+    const auto projection_start = std::chrono::steady_clock::now();
+    auto scanner = [this, min_id, z_min, z_max, layer_cfg](int mx, int my) {
+        ColumnStats stats;
+        const int gx = min_id.x() + mx;
+        const int gy = min_id.y() + my;
+        const double body_z_min = std::min(layer_cfg.robot_body_z_min, layer_cfg.robot_body_z_max);
+        const double body_z_max = std::max(layer_cfg.robot_body_z_min, layer_cfg.robot_body_z_max);
+        for (int gz = z_min; gz <= z_max; ++gz) {
+            Vec3i id_g(gx, gy, gz);
+            GridType gt = getGridType(id_g);
+            if (gt == GridType::OCCUPIED || gt == GridType::KNOWN_FREE) {
+                ++stats.observed;
+                stats.last_update_time = std::max(stats.last_update_time, cellLastUpdateTime(id_g));
+            }
+            if (gt == GridType::OCCUPIED) {
+                ++stats.occupied;
+                Vec3f pos;
+                globalIndexToPos(id_g, pos);
+                stats.min_z = std::min(stats.min_z, pos.z());
+                stats.max_z = std::max(stats.max_z, pos.z());
+                stats.last_hit_time = std::max(stats.last_hit_time, cellLastHitTime(id_g));
+                if (pos.z() < body_z_min) {
+                    ++stats.occupied_below_body;
+                    if (!std::isfinite(stats.ground_z) || pos.z() > stats.ground_z) {
+                        stats.ground_z = pos.z();
+                    }
+                } else if (pos.z() <= body_z_max) {
+                    ++stats.occupied_in_body_band;
+                    stats.body_band_min_z = std::min(stats.body_band_min_z, pos.z());
+                    stats.body_band_max_z = std::max(stats.body_band_max_z, pos.z());
+                    if (!std::isfinite(stats.ground_z) || pos.z() < stats.ground_z) {
+                        stats.ground_z = pos.z();
+                    }
+                } else {
+                    ++stats.occupied_above_body;
+                    stats.ceiling_z = std::min(stats.ceiling_z, pos.z());
                 }
             }
-            return stats;
-        });
+        }
+        return stats;
+    };
 
-    if (cfg_.field_en && field_ && !layer_->empty()) {
+    if (force_full_refresh || !cfg_.dirty_column_en) {
+        layer_->updateFull(width, height, res, origin, layer_cfg, scanner);
+        runtime_stats_.full_layer_refresh_count += 1.0;
+    } else if (has_dirty_update) {
+        layer_->updateDirty(width, height, res, origin, layer_cfg, scanner, dirty_columns, false);
+        runtime_stats_.dirty_layer_update_count += 1.0;
+    }
+    runtime_stats_.projection_time = elapsedMs(projection_start);
+    runtime_stats_.dirty_column_count = static_cast<double>(dirty_columns.size());
+    if (force_full_refresh) {
+        runtime_stats_.dirty_expanded_column_count = static_cast<double>(cell_count);
+    } else if (has_dirty_update) {
+        const int dirty_radius = std::max(1, layer_cfg.hole_fill_radius + 1);
+        runtime_stats_.dirty_expanded_column_count = static_cast<double>(
+            std::min(cell_count, dirty_columns.size() *
+                static_cast<size_t>((2 * dirty_radius + 1) * (2 * dirty_radius + 1))));
+    } else {
+        runtime_stats_.dirty_expanded_column_count = 0.0;
+    }
+
+    const bool layer_updated = force_full_refresh || has_dirty_update;
+    if (layer_updated) {
+        clearDirtyColumns();
+    }
+
+    const bool mask_changed = old_mask.size() != layer_->mask().size() ||
+        !std::equal(old_mask.begin(), old_mask.end(), layer_->mask().begin());
+    if (mask_changed || force_full_refresh) {
+        field_dirty_ = true;
+    }
+
+    runtime_stats_.occupied_count = 0.0;
+    runtime_stats_.unknown_count = 0.0;
+    runtime_stats_.passable_count = 0.0;
+    runtime_stats_.free_count = 0.0;
+    for (const auto &cell : layer_->cells()) {
+        switch (cell.type) {
+            case CellType::OCCUPIED:
+                runtime_stats_.occupied_count += 1.0;
+                break;
+            case CellType::UNKNOWN:
+                runtime_stats_.unknown_count += 1.0;
+                break;
+            case CellType::PASSABLE:
+                runtime_stats_.passable_count += 1.0;
+                break;
+            case CellType::FREE:
+                runtime_stats_.free_count += 1.0;
+                break;
+        }
+    }
+
+    const double field_period = cfg_.field_update_rate > 0.0 ? (1.0 / cfg_.field_update_rate) : 0.0;
+    const bool period_ready =
+        field_period <= 0.0 || current_update_time_ - last_field_update_time_ >= field_period;
+    const bool should_update_field = field_dirty_ && period_ready;
+    if (cfg_.field_en && field_ && !layer_->empty() && should_update_field) {
+        const auto field_start = std::chrono::steady_clock::now();
         field_->updateFromMask(
             layer_->width(),
             layer_->height(),
             layer_->resolution(),
             layer_->origin(),
             layer_->mask(),
-            cfg_.field_inflation_radius);
+            cfg_.field_inflation_radius,
+            cfg_.field_max_distance,
+            cfg_.field_min_distance,
+            cfg_.field_clamp_distance_en,
+            parseInterpolationMode(cfg_.field_interpolation));
+        last_field_update_time_ = current_update_time_;
+        last_field_stamp_ = current_update_time_;
+        ++field_sequence_;
+        field_dirty_ = false;
+        field_stale_ = false;
+        runtime_stats_.field_time = elapsedMs(field_start);
+    } else {
+        runtime_stats_.field_time = 0.0;
+        if (cfg_.field_en && field_dirty_) {
+            runtime_stats_.field_skipped_count += 1.0;
+            field_stale_ = true;
+        }
     }
 }
 
@@ -360,6 +507,8 @@ void ROGMap::refreshQuery() {
     }
 
     auto snapshot = std::make_shared<MapSnapshot>();
+    snapshot->sequence = ++query_sequence_;
+    snapshot->stamp = current_update_time_;
     snapshot->width = layer_->width();
     snapshot->height = layer_->height();
     snapshot->resolution = layer_->resolution();
@@ -367,11 +516,22 @@ void ROGMap::refreshQuery() {
     snapshot->origin_y = layer_->origin().y();
     snapshot->values = layer_->values();
     snapshot->types.resize(layer_->cells().size(), 0U);
+    snapshot->heights.resize(layer_->cells().size(), 0.0f);
+    snapshot->confidence.resize(layer_->cells().size(), 0.0f);
     for (size_t i = 0; i < layer_->cells().size(); ++i) {
         snapshot->types[i] = static_cast<uint8_t>(layer_->cells()[i].type);
+        snapshot->heights[i] = layer_->cells()[i].height;
+        snapshot->confidence[i] = layer_->cells()[i].confidence;
     }
     if (field_) {
         snapshot->distances = field_->distances();
+        snapshot->field_sequence = field_sequence_;
+        snapshot->field_stamp = last_field_stamp_;
+        snapshot->field_stale = field_stale_;
+        snapshot->field_max_distance = field_->maxDistance();
+        snapshot->field_min_distance = field_->minDistance();
+        snapshot->field_clamp_distance = field_->clampDistanceEnabled();
+        snapshot->interpolation = field_->interpolationMode();
     }
     query_->update(snapshot, field_);
 }
