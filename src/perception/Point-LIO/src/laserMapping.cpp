@@ -62,6 +62,73 @@ int sleep_time = 0;
 
 auto LOGGER = rclcpp::get_logger("laserMapping");
 
+enum class RuntimeRateEvent
+{
+  CloudInput,
+  OdomPublish,
+  PoseUpdate,
+};
+
+struct RuntimeRateStats
+{
+  std::mutex mutex;
+  std::chrono::steady_clock::time_point window_start = std::chrono::steady_clock::now();
+  uint64_t cloud_input_count = 0;
+  uint64_t odom_publish_count = 0;
+  uint64_t pose_update_count = 0;
+};
+
+RuntimeRateStats runtime_rate_stats;
+
+void record_runtime_rate(RuntimeRateEvent event)
+{
+  if (!print_cloud_input_fps) {
+    return;
+  }
+
+  const auto now = std::chrono::steady_clock::now();
+  std::lock_guard<std::mutex> lock(runtime_rate_stats.mutex);
+
+  switch (event) {
+    case RuntimeRateEvent::CloudInput:
+      ++runtime_rate_stats.cloud_input_count;
+      break;
+    case RuntimeRateEvent::OdomPublish:
+      ++runtime_rate_stats.odom_publish_count;
+      break;
+    case RuntimeRateEvent::PoseUpdate:
+      ++runtime_rate_stats.pose_update_count;
+      break;
+  }
+
+  const double elapsed =
+    std::chrono::duration_cast<std::chrono::duration<double>>(now - runtime_rate_stats.window_start).count();
+  const double print_period =
+    cloud_input_fps_print_period > 0.0 ? cloud_input_fps_print_period : 1.0;
+  if (elapsed < print_period) {
+    return;
+  }
+
+  const double cloud_input_fps = static_cast<double>(runtime_rate_stats.cloud_input_count) / elapsed;
+  const double odom_publish_fps = static_cast<double>(runtime_rate_stats.odom_publish_count) / elapsed;
+  const double pose_update_fps = static_cast<double>(runtime_rate_stats.pose_update_count) / elapsed;
+  RCLCPP_INFO(LOGGER,
+    "[Point-LIO] rates: cloud_in=%.2f Hz (%llu), odom_pub=%.2f Hz (%llu), pose_update=%.2f Hz "
+    "(%llu), window=%.2f s",
+    cloud_input_fps,
+    static_cast<unsigned long long>(runtime_rate_stats.cloud_input_count),
+    odom_publish_fps,
+    static_cast<unsigned long long>(runtime_rate_stats.odom_publish_count),
+    pose_update_fps,
+    static_cast<unsigned long long>(runtime_rate_stats.pose_update_count),
+    elapsed);
+
+  runtime_rate_stats.cloud_input_count = 0;
+  runtime_rate_stats.odom_publish_count = 0;
+  runtime_rate_stats.pose_update_count = 0;
+  runtime_rate_stats.window_start = now;
+}
+
 void SigHandle(int sig)
 {
   flg_exit = true;
@@ -426,6 +493,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
   }
 
   pubOdomAftMapped->publish(odomAftMapped);
+  record_runtime_rate(RuntimeRateEvent::OdomPublish);
 
   if (tf_send_en) {
     geometry_msgs::msg::TransformStamped transform;
@@ -552,14 +620,23 @@ int main(int argc, char ** argv)
   /*** ROS subscribe initialization ***/
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_pcl_pc;
   rclcpp::Subscription<livox_ros_driver2::msg::CustomMsg>::SharedPtr sub_pcl_livox;
+  if (print_cloud_input_fps) {
+    RCLCPP_INFO(nh->get_logger(),
+      "[Point-LIO] runtime rate print enabled, period: %.2f s, lidar topic: %s",
+      cloud_input_fps_print_period > 0.0 ? cloud_input_fps_print_period : 1.0,
+      lid_topic.c_str());
+  }
+
   if (p_pre->lidar_type == AVIA) {
     sub_pcl_livox = nh->create_subscription<livox_ros_driver2::msg::CustomMsg>(
       lid_topic, rclcpp::SensorDataQoS(), [](const livox_ros_driver2::msg::CustomMsg::SharedPtr msg) {
+        record_runtime_rate(RuntimeRateEvent::CloudInput);
         livox_pcl_cbk(msg);
       });
   } else {
     sub_pcl_pc = nh->create_subscription<sensor_msgs::msg::PointCloud2>(
       lid_topic, rclcpp::SensorDataQoS(), [](const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
+        record_runtime_rate(RuntimeRateEvent::CloudInput);
         standard_pcl_cbk(msg);
       });
   }
@@ -915,6 +992,7 @@ int main(int argc, char ** argv)
               idx = idx + time_seq[k];
               continue;
             }
+            record_runtime_rate(RuntimeRateEvent::PoseUpdate);
             solve_start = omp_get_wtime();
 
             if (publish_odometry_without_downsample) {
@@ -1102,6 +1180,7 @@ int main(int argc, char ** argv)
               idx = idx + time_seq[k];
               continue;
             }
+            record_runtime_rate(RuntimeRateEvent::PoseUpdate);
 
             solve_start = omp_get_wtime();
 
