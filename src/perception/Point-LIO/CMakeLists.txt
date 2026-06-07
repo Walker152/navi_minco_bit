@@ -141,22 +141,10 @@ ament_target_dependencies(pointlio_mapping
 target_link_libraries(pointlio_mapping ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
 target_include_directories(pointlio_mapping PRIVATE ${PYTHON_INCLUDE_DIRS})
 
-add_executable(min_lidar_subscriber
-  src/min_lidar_subscriber.cpp
-)
-
-ament_target_dependencies(min_lidar_subscriber
-  rclcpp
-  sensor_msgs
-  livox_ros_driver2
-  builtin_interfaces
-)
-
 # Install the executable
 install(TARGETS
   point_lio_component
   pointlio_mapping
-  min_lidar_subscriber
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
