@@ -89,10 +89,20 @@ Added:
   - loads `point_lio::LaserMappingNode`
   - passes `use_intra_process_comms`
   - supports `driver_params_file`, `pointlio_params_file`, `use_intra_process`, `container_name`, `log_level`
+  - defaults `driver_params_file` to the dual-lidar merge parameter file below
 
 - `src/perception/Point-LIO/launch/min_lidar_subscriber.launch.py`
   - optional cross-process diagnostic subscriber launch
   - not mixed into the intra-process container
+
+Added Livox driver component parameter yaml:
+
+- `src/perception/livox_ros_driver2/config/mixed_MID360_component.yaml`
+  - copied from `livox_ros_driver2/launch_ROS2/msg_mixed_MID360.launch.py`
+  - keeps `xfer_format=1`, `multi_topic=1`, `publish_freq=10.0`
+  - enables `enable_internal_lidar_merge`
+  - keeps front/back IP, output topic, frame id, max interval, and back-to-front extrinsic
+  - uses `$(find-pkg-share livox_ros_driver2)/config/mixed_MID360_config.json` for portable JSON config lookup
 
 ### 7. Docs
 

@@ -46,28 +46,37 @@ source install/setup.bash
 - `publish.scan_publish_en`: 诊断接收频率时建议临时设为 `False`，减少大点云输出压力。
 - `pcd_save.pcd_save_en`: 诊断实时性时建议临时设为 `False`。
 
-component launch 的 `driver_params_file` 必须是 ROS2 参数 yaml。若原来只使用 `msg_MID360_launch.py` 的 Python 内联参数，可在实机新建类似：
+component launch 默认使用已经创建好的双雷达融合 driver 参数：
 
-```yaml
-/**:
-  ros__parameters:
-    xfer_format: 1
-    multi_topic: 0
-    data_src: 0
-    publish_freq: 10.0
-    output_data_type: 0
-    frame_id: livox_frame
-    lvx_file_path: /home/livox/livox_test.lvx
-    user_config_path: <workspace>/src/perception/livox_ros_driver2/config/MID360_config.json
-    cmdline_input_bd_code: 47MDLC20020096
+```text
+livox_ros_driver2/config/mixed_MID360_component.yaml
 ```
+
+该 yaml 按 `livox_ros_driver2/launch_ROS2/msg_mixed_MID360.launch.py` 原参数创建：
+
+- `xfer_format: 1`
+- `multi_topic: 1`
+- `publish_freq: 10.0`
+- `enable_internal_lidar_merge: true`
+- `merge_front_ip: 192.168.1.135`
+- `merge_back_ip: 192.168.1.122`
+- `merge_output_topic: livox/lidar`
+- `merge_extrinsic_back_to_front: [0.0, 0.4, 0.0, -0.35453, 0.0, 0.0]`
+
+默认 `user_config_path` 使用 launch substitution 指向：
+
+```text
+$(find-pkg-share livox_ros_driver2)/config/mixed_MID360_config.json
+```
+
+如果实机双雷达 IP、外参或 JSON 配置不同，优先改 `mixed_MID360_component.yaml`，不要在 component launch 里临时散改。
 
 ## 4. 测试 A：只测 driver + 最小 C++ subscriber
 
 先启动原 driver：
 
 ```bash
-ros2 launch livox_ros_driver2 msg_MID360_launch.py
+ros2 launch livox_ros_driver2 msg_mixed_MID360.launch.py
 ```
 
 如果 driver 发布 `PointCloud2`：
@@ -117,7 +126,7 @@ ros2 run point_lio min_lidar_subscriber --ros-args \
 启动原 driver：
 
 ```bash
-ros2 launch livox_ros_driver2 msg_MID360_launch.py
+ros2 launch livox_ros_driver2 msg_mixed_MID360.launch.py
 ```
 
 启动原 Point-LIO executable：
@@ -148,7 +157,15 @@ ros2 run point_lio min_lidar_subscriber --ros-args -p lid_topic:=/livox/lidar -p
 
 ```bash
 ros2 launch point_lio livox_pointlio_intra_process.launch.py \
-  driver_params_file:=<driver_yaml> \
+  pointlio_params_file:=<pointlio_yaml> \
+  use_intra_process:=true
+```
+
+如果要显式指定 driver yaml：
+
+```bash
+ros2 launch point_lio livox_pointlio_intra_process.launch.py \
+  driver_params_file:=$(ros2 pkg prefix livox_ros_driver2)/share/livox_ros_driver2/config/mixed_MID360_component.yaml \
   pointlio_params_file:=<pointlio_yaml> \
   use_intra_process:=true
 ```
