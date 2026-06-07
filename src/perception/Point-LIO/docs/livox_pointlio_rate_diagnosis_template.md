@@ -7,8 +7,8 @@
 | 日期 | 2026.6.8-00：22 |
 | 机器 | Intel NUC 13，i7，32GB |
 | ROS2 版本 | Humble |
-| RMW | 未记录；RMW 是 ROS 2 的中间件实现层，实机可用 `echo $RMW_IMPLEMENTATION` 查看；若为空，Humble 通常使用默认 Fast DDS，建议再用 `ros2 doctor --report | grep -i rmw` 确认 |
-| CPU | Intel i7（Intel NUC 13，32GB）；具体型号建议实机补充：`lscpu | grep 'Model name'`；测试时整机/线程占用仍建议用 `htop` 或 `top -H` 记录 |
+| RMW | rmw_fastrtps_cpp|
+| CPU | Intel i7（Intel NUC 13，32GB）|
 | 雷达 | MID360 × 2 |
 | xfer_format | custom |
 | 点云 topic | /livox/lidar |
