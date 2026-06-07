@@ -39,6 +39,7 @@ bool cut_frame = false;           // 是否切分单帧点云
 bool use_imu_as_input = false;    // IMU使用模式 (false: 作为观测, true: 作为输入)
 bool space_down_sample = true;    // 是否进行空间降采样
 bool publish_odometry_without_downsample = false;  // 是否发布未降采样的高频里程计
+bool print_cloud_input_fps = false;                // 是否打印运行频率
 // === 地图初始化参数 ===
 int init_map_size = 10;  // 初始化地图所需的最少特征点数量
 int con_frame_num = 1;   // 连接帧的数量
@@ -54,6 +55,7 @@ float DET_RANGE = 450;              // 激光雷达有效检测范围 (米)
 // === IMU传感器参数 ===
 double satu_acc, satu_gyro;            // IMU加速度计和陀螺仪饱和值
 double cut_frame_time_interval = 0.1;  // 帧切分时间间隔 (秒)
+double cloud_input_fps_print_period = 1.0;  // 运行频率打印周期 (秒)
 // === IMU传感器配置 ===
 bool imu_en = true;            // IMU使能标志
 double imu_time_inte = 0.005;  // IMU数据积分时间间隔 (秒)
@@ -179,6 +181,12 @@ void readParameters(std::shared_ptr<rclcpp::Node> & nh)
 
     nh->declare_parameter<double>("common.cut_frame_time_interval", 0.1);
     nh->get_parameter("common.cut_frame_time_interval", cut_frame_time_interval);
+
+    nh->declare_parameter<bool>("common.print_cloud_input_fps", false);
+    nh->get_parameter("common.print_cloud_input_fps", print_cloud_input_fps);
+
+    nh->declare_parameter<double>("common.cloud_input_fps_print_period", 1.0);
+    nh->get_parameter("common.cloud_input_fps_print_period", cloud_input_fps_print_period);
 
     nh->declare_parameter<double>("common.time_diff_lidar_to_imu", 0.0);
     nh->get_parameter("common.time_diff_lidar_to_imu", time_diff_lidar_to_imu);
