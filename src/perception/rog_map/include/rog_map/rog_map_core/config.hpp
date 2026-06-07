@@ -23,10 +23,10 @@
 
 #pragma once
 
+#include <nav2_util/node_utils.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <rog_map/rog_map_core/common_lib.hpp>
-#include <super_utils/yaml_loader.hpp>
 
 #ifndef ORIGIN_AT_CORNER
 #ifndef ORIGIN_AT_CENTER
@@ -67,337 +67,31 @@ namespace rog_map {
     public:
         Config() {};
 
-        Config(const string &cfg_path, const string &name_space = "rog_map") {
-            yaml_loader::YamlLoader loader(cfg_path);
-#ifdef ORIGIN_AT_CORNER
-#ifdef ORIGIN_AT_CENTER
-            throw std::runtime_error(" -- [SlidingMap]: ORIGIN_AT_CORNER and ORIGIN_AT_CENTER cannot be both true!");
-#endif
-#endif
-
-#ifndef ORIGIN_AT_CORNER
-#ifndef ORIGIN_AT_CENTER
-            throw std::runtime_error(" -- [SlidingMap]: ORIGIN_AT_CORNER and ORIGIN_AT_CENTER cannot be both false!");
-#endif
-#endif
-
-            loader.LoadParam(name_space + "/esdf/resolution", esdf_resolution, 0.2);
-            loader.LoadParam(name_space + "/esdf/enable", esdf_en, false);
-            vector<double> temp_esdf_update_box;
-            loader.LoadParam(name_space + "/esdf/local_update_box", temp_esdf_update_box, temp_esdf_update_box);
-
-            if (esdf_en) {
-                if (temp_esdf_update_box.size() != 3) {
-                    throw std::invalid_argument("Fix map origin size is not 3!");
-                } else {
-                    esdf_local_update_box = Vec3f(temp_esdf_update_box[0], temp_esdf_update_box[1],
-                                                  temp_esdf_update_box[2]);
-                }
-            }
-
-
-            loader.LoadParam(name_space + "/load_pcd_en", load_pcd_en, false);
-            if (load_pcd_en) {
-                loader.LoadParam(name_space + "/pcd_name", pcd_name, string("map.pcd"));
-                pcd_name = replaceCmakeRootDir(pcd_name);
-            }
-
-            loader.LoadParam(name_space + "/map_sliding/enable", map_sliding_en, true);
-            loader.LoadParam(name_space + "/map_sliding/threshold", map_sliding_thresh, -1.0);
-
-            vector<double> temp_fix_origin;
-            loader.LoadParam(name_space + "/fix_map_origin", temp_fix_origin, vector<double>{0, 0, 0});
-            if (temp_fix_origin.size() != 3) {
-                throw std::invalid_argument("Fix map origin size is not 3!");
-            } else {
-                fix_map_origin = Vec3f(temp_fix_origin[0], temp_fix_origin[1], temp_fix_origin[2]);
-            }
-
-            loader.LoadParam(name_space + "/frontier_extraction_en", frontier_extraction_en, false);
-
-            loader.LoadParam(name_space + "/ros_callback/enable", ros_callback_en, false);
-            loader.LoadParam(name_space + "/ros_callback/cloud_topic", cloud_topic, string("/cloud_registered"));
-            loader.LoadParam(name_space + "/ros_callback/odom_topic", odom_topic, string("/lidar_slam/odom"));
-            loader.LoadParam(name_space + "/ros_callback/odom_timeout", odom_timeout, 0.05);
-
-
-            loader.LoadParam(name_space + "/visualization/enable", visualization_en, false);
-            loader.LoadParam(name_space + "/visualization/use_dynamic_reconfigure", use_dynamic_reconfigure, false);
-            loader.LoadParam(name_space + "/visualization/pub_unknown_map_en", pub_unknown_map_en, false);
-            loader.LoadParam(name_space + "/visualization/frame_id", frame_id, string("world"));
-            loader.LoadParam(name_space + "/visualization/time_rate", viz_time_rate, 0.0);
-            loader.LoadParam(name_space + "/visualization/frame_rate", viz_frame_rate, 0);
-            vector<double> temp_vis_range;
-            loader.LoadParam(name_space + "/visualization/range", temp_vis_range, vector<double>{0, 0, 0});
-            if (temp_vis_range.size() != 3) {
-                throw std::invalid_argument("Visualization range size is not 3!");
-            } else {
-                visualization_range = Vec3f(temp_vis_range[0], temp_vis_range[1], temp_vis_range[2]);
-                if (visualization_range.minCoeff() <= 0) {
-                    std::cout << color_text::YELLOW <<
-                              " -- [ROG] Visualization range is not set, visualization is disabled"
-                              << color_text::RESET << std::endl;
-                    visualization_en = false;
-                }
-            }
-
-
-            loader.LoadParam(name_space + "/resolution", resolution, 0.1);
-            loader.LoadParam(name_space + "/inflation_resolution", inflation_resolution, 0.1);
-            /// Resize the map to ease indexing
-            if (resolution > inflation_resolution) {
-                throw std::invalid_argument("The inflation resolution should be equal or larger than the resolution!");
-            }
-            //    int scale = floor(inflation_resolution / resolution / 2);
-            //    inflation_resolution = resolution * (scale * 2 + 1);
-            //    ROS_ERROR("The inflation resolution is set to %f", inflation_resolution);
-
-
-            /* For unk inflation */
-            loader.LoadParam(name_space + "/unk_inflation_en", unk_inflation_en, false);
-            loader.LoadParam(name_space + "/unk_inflation_step", unk_inflation_step, 1);
-
-            loader.LoadParam(name_space + "/inflation_step", inflation_step, 1);
-            loader.LoadParam(name_space + "/intensity_thresh", intensity_thresh, -1);
-
-            vector<double> temp_map_size;
-            loader.LoadParam(name_space + "/map_size", temp_map_size, vector<double>{10, 10, 0});
-            if (temp_map_size.size() != 3) {
-                throw std::invalid_argument("Map size dimension is not 3!");
-            }
-            map_size_d = Vec3f(temp_map_size[0], temp_map_size[1], temp_map_size[2]);
-
-
-            loader.LoadParam(name_space + "/point_filt_num", point_filt_num, 2);
-            if (point_filt_num <= 0) {
-                std::cout <<  color_text::YELLOW << " -- [ROG] point_filt_num should be larger or equal than 1, it is set to 1 now."
-                          << RESET << std::endl;
-                point_filt_num = 1;
-            }
-
-
-            // raycasting
-            loader.LoadParam(name_space + "/raycasting/enable", raycasting_en, true);
-            loader.LoadParam(name_space + "/raycasting/batch_update_size", batch_update_size, 1);
-            if (batch_update_size <= 0) {
-                std::cout <<  color_text::YELLOW << " -- [ROG] batch_update_size should be larger or equal than 1, it is set to 1 now."
-                          << RESET << std::endl;
-                batch_update_size = 1;
-            }
-            loader.LoadParam(name_space + "/raycasting/unk_thresh", unk_thresh, 0.70);
-            loader.LoadParam(name_space + "/raycasting/p_hit", p_hit, 0.70f);
-            loader.LoadParam(name_space + "/raycasting/p_miss", p_miss, 0.70f);
-            loader.LoadParam(name_space + "/raycasting/p_min", p_min, 0.12f);
-            loader.LoadParam(name_space + "/raycasting/p_max", p_max, 0.97f);
-            loader.LoadParam(name_space + "/raycasting/p_occ", p_occ, 0.80f);
-            loader.LoadParam(name_space + "/raycasting/p_free", p_free, 0.30f);
-            loader.LoadParam(name_space + "/raycasting/p_free", p_free, 0.30f);
-            loader.LoadParam(name_space + "/raycasting/parallel_enable", parallel_raycast_en, true);
-            loader.LoadParam(name_space + "/performance/parallel_raycast_enable", parallel_raycast_en, parallel_raycast_en);
-            loader.LoadParam(name_space + "/raycasting/num_threads", raycast_num_threads, 4);
-            loader.LoadParam(name_space + "/performance/raycast_num_threads", raycast_num_threads, raycast_num_threads);
-            if (raycast_num_threads <= 0) {
-                std::cout << color_text::YELLOW
-                          << " -- [ROG] raycast_num_threads should be positive, reset to 1."
-                          << color_text::RESET << std::endl;
-                raycast_num_threads = 1;
-            }
-
-            loader.LoadParam(name_space + "/layer/enable", layer_en, true);
-            loader.LoadParam(name_space + "/projection/enable", layer_en, layer_en);
-            loader.LoadParam(name_space + "/layer/min_z", layer_min_z, -0.20);
-            loader.LoadParam(name_space + "/projection/min_z", layer_min_z, layer_min_z);
-            loader.LoadParam(name_space + "/layer/max_z", layer_max_z, 0.80);
-            loader.LoadParam(name_space + "/projection/max_z", layer_max_z, layer_max_z);
-            loader.LoadParam(name_space + "/layer/low_obstacle_height", low_obstacle_height, 0.07);
-            loader.LoadParam(name_space + "/projection/low_obstacle_height", low_obstacle_height, low_obstacle_height);
-            loader.LoadParam(name_space + "/layer/obstacle_height", obstacle_height, 0.14);
-            loader.LoadParam(name_space + "/projection/obstacle_height", obstacle_height, obstacle_height);
-            loader.LoadParam(name_space + "/layer/min_ratio", min_ratio, 0.35);
-            loader.LoadParam(name_space + "/projection/min_ratio", min_ratio, min_ratio);
-            loader.LoadParam(name_space + "/layer/min_observed_voxels", min_observed_voxels, 2);
-            loader.LoadParam(name_space + "/projection/min_observed_voxels", min_observed_voxels, min_observed_voxels);
-            loader.LoadParam(name_space + "/layer/unknown_as_occupied", unknown_as_occupied, true);
-            loader.LoadParam(name_space + "/projection/unknown_as_occupied", unknown_as_occupied, unknown_as_occupied);
-            loader.LoadParam(name_space + "/layer/passable_cost", passable_cost, 50);
-            loader.LoadParam(name_space + "/projection/passable_cost", passable_cost, passable_cost);
-            loader.LoadParam(name_space + "/layer/hysteresis_enable", layer_hysteresis_en, true);
-            loader.LoadParam(name_space + "/projection/hysteresis_enable", layer_hysteresis_en, layer_hysteresis_en);
-            loader.LoadParam(name_space + "/layer/hysteresis_count", layer_hysteresis_count, 2);
-            loader.LoadParam(name_space + "/projection/hysteresis_count", layer_hysteresis_count, layer_hysteresis_count);
-            loader.LoadParam(name_space + "/layer/hole_fill_enable", layer_hole_fill_en, true);
-            loader.LoadParam(name_space + "/projection/hole_fill_enable", layer_hole_fill_en, layer_hole_fill_en);
-            loader.LoadParam(name_space + "/layer/hole_fill_radius", layer_hole_fill_radius, 1);
-            loader.LoadParam(name_space + "/projection/hole_fill_radius", layer_hole_fill_radius, layer_hole_fill_radius);
-            loader.LoadParam(name_space + "/layer/hole_fill_min_occupied_neighbors", layer_hole_fill_min_occupied_neighbors, 5);
-            loader.LoadParam(name_space + "/projection/hole_fill_min_occupied_neighbors",
-                             layer_hole_fill_min_occupied_neighbors, layer_hole_fill_min_occupied_neighbors);
-            if (min_observed_voxels <= 0) {
-                std::cout << color_text::YELLOW
-                          << " -- [ROG] min_observed_voxels should be positive, reset to 1."
-                          << color_text::RESET << std::endl;
-                min_observed_voxels = 1;
-            }
-            if (layer_hysteresis_count < 0) {
-                layer_hysteresis_count = 0;
-            }
-            if (layer_hole_fill_radius < 0) {
-                layer_hole_fill_radius = 0;
-            }
-            if (layer_hole_fill_min_occupied_neighbors < 0) {
-                layer_hole_fill_min_occupied_neighbors = 0;
-            }
-            loader.LoadParam(name_space + "/projection/terrain_enable", terrain_enable, false);
-            loader.LoadParam(name_space + "/projection/robot_body_z_min", robot_body_z_min, 0.02);
-            loader.LoadParam(name_space + "/projection/robot_body_z_max", robot_body_z_max, 0.30);
-            loader.LoadParam(name_space + "/projection/overhead_clearance_margin", overhead_clearance_margin, 0.03);
-            loader.LoadParam(name_space + "/projection/surface_thickness", surface_thickness, 0.08);
-            loader.LoadParam(name_space + "/projection/max_step_height", max_step_height, 0.10);
-            loader.LoadParam(name_space + "/projection/max_slope_deg", max_slope_deg, 18.0);
-            loader.LoadParam(name_space + "/projection/clearance_check_enable", clearance_check_enable, false);
-            loader.LoadParam(name_space + "/projection/min_clearance_height", min_clearance_height, 0.30);
-            loader.LoadParam(name_space + "/projection/tunnel_wall_min_height", tunnel_wall_min_height, 0.18);
-            loader.LoadParam(name_space + "/projection/passable_as_free", passable_as_free, false);
-            loader.LoadParam(name_space + "/field/enable", field_en, true);
-            loader.LoadParam(name_space + "/field/inflation_radius", field_inflation_radius, 0.33);
-            loader.LoadParam(name_space + "/field/max_distance", field_max_distance, 3.0);
-            loader.LoadParam(name_space + "/field/min_distance", field_min_distance, -1.0);
-            loader.LoadParam(name_space + "/field/clamp_distance", field_clamp_distance_en, true);
-            loader.LoadParam(name_space + "/field/smooth_grad_enable", field_smooth_grad_en, false);
-            loader.LoadParam(name_space + "/field/interpolation", field_interpolation, string("bilinear"));
-            if (field_max_distance <= 0.0) {
-                field_max_distance = 3.0;
-            }
-            if (field_min_distance > 0.0) {
-                field_min_distance = -1.0;
-            }
-
-            loader.LoadParam(name_space + "/decay/enable", decay_en, true);
-            loader.LoadParam(name_space + "/decay/keep_time", keep_time, 0.4);
-            loader.LoadParam(name_space + "/decay/decay_time", decay_time, 1.2);
-            loader.LoadParam(name_space + "/decay/active_list_enable", decay_active_list_en, true);
-            loader.LoadParam(name_space + "/performance/dirty_column_enable", dirty_column_en, false);
-            loader.LoadParam(name_space + "/performance/field_update_rate", field_update_rate, 20.0);
-            loader.LoadParam(name_space + "/debug/layer_pub_enable", debug_layer_pub_en, true);
-            loader.LoadParam(name_space + "/debug/field_pub_enable", debug_field_pub_en, true);
-            loader.LoadParam(name_space + "/debug/pub_rate", debug_pub_rate, 5.0);
-
-            vector<double> temp_ray_range;
-            loader.LoadParam(name_space + "/raycasting/ray_range", temp_ray_range, vector<double>{0.3, 10});
-            if (temp_ray_range.size() != 2) {
-                throw std::invalid_argument("Ray range size is not 2!");
-            }
-            raycast_range_min = temp_ray_range[0];
-            raycast_range_max = temp_ray_range[1];
-            sqr_raycast_range_max = raycast_range_max * raycast_range_max;
-            sqr_raycast_range_min = raycast_range_min * raycast_range_min;
-            vector<double> update_box;
-            loader.LoadParam(name_space + "/raycasting/local_update_box", update_box, vector<double>{999, 999, 999});
-            if (update_box.size() != 3) {
-                throw std::invalid_argument("Update box size is not 3!");
-            }
-            local_update_box_d = Vec3f(update_box[0], update_box[1], update_box[2]);
-
-
-            loader.LoadParam(name_space + "/virtual_ground_height", virtual_ground_height, -0.1);
-            loader.LoadParam(name_space + "/virtual_ceil_height", virtual_ceil_height, -0.1);
-
-            resetMapSize();
-
-            /// Probabilistic Update
-            auto logit_value = [](const double x) {
-                return log(x / (1 - x));
-            };
-            l_hit = logit_value(p_hit);
-            l_miss = logit_value(p_miss);
-            l_min = logit_value(p_min);
-            l_max = logit_value(p_max);
-            l_occ = logit_value(p_occ);
-            l_free = logit_value(p_free);
-            decay_rate = (l_occ - l_free) / std::max(0.1, decay_time);
-
-            int n_free = ceil(l_free / l_miss);
-            int n_occ = ceil(l_occ / l_hit);
-
-            std::cout << BLUE << "\t[ROG] n_free: " << n_free << RESET << std::endl;
-            std::cout << BLUE << "\t[ROG] n_occ: " << n_occ << RESET << std::endl;
-
-            std::cout << BLUE << "\t[ROG] l_hit: " << l_hit << RESET << std::endl;
-            std::cout << BLUE << "\t[ROG] l_miss: " << l_miss << RESET << std::endl;
-            std::cout << BLUE << "\t[ROG] l_min: " << l_min << RESET << std::endl;
-            std::cout << BLUE << "\t[ROG] l_max: " << l_max << RESET << std::endl;
-            std::cout << BLUE << "\t[ROG] l_occ: " << l_occ << RESET << std::endl;
-            std::cout << BLUE << "\t[ROG] l_free: " << l_free << RESET << std::endl;
-
-            // init spherical neighbor
-            for (int dx = -inflation_step; dx <= inflation_step; dx++) {
-                for (int dy = -inflation_step; dy <= inflation_step; dy++) {
-                    for (int dz = -inflation_step; dz <= inflation_step; dz++) {
-                        if (inflation_step == 1 ||
-                            dx * dx + dy * dy + dz * dz <= inflation_step * inflation_step) {
-                            inf_spherical_neighbor.emplace_back(dx, dy, dz);
-                        }
-                    }
-                }
-            }
-            std::sort(inf_spherical_neighbor.begin(), inf_spherical_neighbor.end(), [](const Vec3i &a, const Vec3i &b) {
-                return a.x() * a.x() + a.y() * a.y() + a.z() * a.z() < b.x() * b.x() + b.y() * b.y() + b.z() * b.z();
-            });
-
-            if (unk_inflation_en) {
-                unk_inf_spherical_neighbor.clear();
-                // init spherical neighbor
-                for (int dx = -unk_inflation_step; dx <= unk_inflation_step; dx++) {
-                    for (int dy = -unk_inflation_step; dy <= unk_inflation_step; dy++) {
-                        for (int dz = -unk_inflation_step; dz <= unk_inflation_step; dz++) {
-                            if (unk_inflation_step == 1 ||
-                                dx * dx + dy * dy + dz * dz <= unk_inflation_step * unk_inflation_step) {
-                                unk_inf_spherical_neighbor.emplace_back(dx, dy, dz);
-                            }
-                        }
-                    }
-                }
-                std::sort(unk_inf_spherical_neighbor.begin(), unk_inf_spherical_neighbor.end(),
-                          [](const Vec3i &a, const Vec3i &b) {
-                              return a.x() * a.x() + a.y() * a.y() + a.z() * a.z() < b.x() * b.x() + b.y() * b.y() + b.
-                                      z() * b.z();
-                          });
-            }
-
-            /* init spherical neighbor for nearest neighbor search */
-            constexpr double max_search_dis = 5.0;
-            const int max_seach_step = ceil(max_search_dis / resolution);
-            for (int dx = -max_seach_step; dx <= max_seach_step; dx++) {
-                for (int dy = -max_seach_step; dy <= max_seach_step; dy++) {
-                    for (int dz = -max_seach_step; dz <= max_seach_step; dz++) {
-                        if (dx * dx + dy * dy + dz * dz <= max_seach_step * max_seach_step) {
-                            spherical_neighbor.emplace_back(dx, dy, dz);
-                        }
-                    }
-                }
-            }
-            std::sort(spherical_neighbor.begin(), spherical_neighbor.end(), [](const Vec3i &a, const Vec3i &b) {
-                return a.x() * a.x() + a.y() * a.y() + a.z() * a.z() < b.x() * b.x() + b.y() * b.y() + b.z() * b.z();
-            });
-        }
-
         template <typename NodeT>
         void loadFromRosNode(const NodeT &node, const string &prefix) {
             auto load = [&node, &prefix](const string &key, auto &value) {
                 const string param_name = prefix + "." + key;
-                if (!node->has_parameter(param_name)) {
-                    node->declare_parameter(param_name, rclcpp::ParameterValue(value));
+                nav2_util::declare_parameter_if_not_declared(
+                    node, param_name, rclcpp::ParameterValue(value));
+                if (!node->get_parameter(param_name, value)) {
+                    RCLCPP_WARN(
+                        node->get_logger(),
+                        "[ROGMap Config] parameter '%s' not found after declaration, using default.",
+                        param_name.c_str());
                 }
-                node->get_parameter(param_name, value);
             };
 
             auto loadVec3 = [&node, &prefix](const string &key, const vector<double> &default_value) {
                 vector<double> values = default_value;
                 const string param_name = prefix + "." + key;
-                if (!node->has_parameter(param_name)) {
-                    node->declare_parameter(param_name, rclcpp::ParameterValue(values));
+                nav2_util::declare_parameter_if_not_declared(
+                    node, param_name, rclcpp::ParameterValue(values));
+                if (!node->get_parameter(param_name, values)) {
+                    RCLCPP_WARN(
+                        node->get_logger(),
+                        "[ROGMap Config] parameter '%s' not found after declaration, using default vector.",
+                        param_name.c_str());
                 }
-                node->get_parameter(param_name, values);
                 if (values.size() != 3) {
                     throw std::invalid_argument(param_name + " size is not 3!");
                 }
@@ -407,10 +101,14 @@ namespace rog_map {
             auto loadVec2 = [&node, &prefix](const string &key, const vector<double> &default_value) {
                 vector<double> values = default_value;
                 const string param_name = prefix + "." + key;
-                if (!node->has_parameter(param_name)) {
-                    node->declare_parameter(param_name, rclcpp::ParameterValue(values));
+                nav2_util::declare_parameter_if_not_declared(
+                    node, param_name, rclcpp::ParameterValue(values));
+                if (!node->get_parameter(param_name, values)) {
+                    RCLCPP_WARN(
+                        node->get_logger(),
+                        "[ROGMap Config] parameter '%s' not found after declaration, using default vector.",
+                        param_name.c_str());
                 }
-                node->get_parameter(param_name, values);
                 if (values.size() != 2) {
                     throw std::invalid_argument(param_name + " size is not 2!");
                 }
@@ -684,10 +382,18 @@ namespace rog_map {
             sqr_raycast_range_min = raycast_range_min * raycast_range_min;
             local_update_box_d = loadVec3("raycasting.local_update_box", vector<double>{999.0, 999.0, 999.0});
 
-            virtual_ground_height = -0.1;
-            virtual_ceil_height = -0.1;
+            virtual_ground_height = -0.80;
+            virtual_ceil_height = 1.80;
             load("virtual_ground_height", virtual_ground_height);
             load("virtual_ceil_height", virtual_ceil_height);
+            if (virtual_ground_height >= virtual_ceil_height) {
+                RCLCPP_WARN(
+                    node->get_logger(),
+                    "[ROGMap Config] invalid virtual height range [%.3f, %.3f], reset to [-0.80, 1.80].",
+                    virtual_ground_height, virtual_ceil_height);
+                virtual_ground_height = -0.80;
+                virtual_ceil_height = 1.80;
+            }
 
             resetMapSize();
 
