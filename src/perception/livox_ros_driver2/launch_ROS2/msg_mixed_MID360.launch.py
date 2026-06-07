@@ -14,6 +14,7 @@ frame_id      = 'livox_frame'
 lvx_file_path = '/home/livox/livox_test.lvx'
 cmdline_bd_code = 'livox0000000001'
 enable_internal_lidar_merge = True
+enable_merge_debug = False
 merge_front_ip = '192.168.1.135'
 merge_back_ip = '192.168.1.122'
 merge_output_topic = 'livox/lidar'
@@ -40,6 +41,7 @@ livox_ros2_params = [
     {"user_config_path": user_config_path},
     {"cmdline_input_bd_code": cmdline_bd_code},
     {"enable_internal_lidar_merge": enable_internal_lidar_merge},
+    {"enable_merge_debug": enable_merge_debug},
     {"merge_front_ip": merge_front_ip},
     {"merge_back_ip": merge_back_ip},
     {"merge_output_topic": merge_output_topic},

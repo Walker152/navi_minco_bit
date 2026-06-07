@@ -42,6 +42,7 @@ bool IsInternalLidarMergeTransferFormatSupported(int transfer_format);
 struct InternalLidarMergeConfig
 {
   bool enabled = false;
+  bool enable_merge_debug = false;
   uint32_t front_handle = 0;
   uint32_t back_handle = 0;
   std::string output_topic = "livox/lidar";
