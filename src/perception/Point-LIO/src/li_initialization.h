@@ -183,6 +183,7 @@ extern double T1[MAXN], s_plot[MAXN], s_plot2[MAXN], s_plot3[MAXN], s_plot11[MAX
  *          支持的LiDAR类型：Velodyne、Ouster、HESAI等
  */
 void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg);
+void standard_pcl_cbk(sensor_msgs::msg::PointCloud2::UniquePtr msg);
 
 /**
  * @brief Livox点云数据回调函数  
@@ -194,6 +195,7 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg);
  *          - 与标准点云流程的统一处理
  */
 void livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::SharedPtr & msg);
+void livox_pcl_cbk(livox_ros_driver2::msg::CustomMsg::UniquePtr msg);
 
 /**
  * @brief IMU数据回调函数

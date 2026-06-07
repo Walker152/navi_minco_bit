@@ -189,7 +189,7 @@ extern ofstream fout_imu_pbp;             // IMU点对点处理日志文件流
  * @param n ROS2节点的共享指针
  * @details 该函数负责声明和读取所有ROS2参数，包括传感器配置、算法参数、噪声模型等
  */
-void readParameters(std::shared_ptr<rclcpp::Node> & n);
+void readParameters(rclcpp::Node & n);
 
 /**
  * @brief 打开日志文件用于调试和分析
