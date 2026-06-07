@@ -241,6 +241,36 @@ void Lddc::DistributeMergedPointCloudData()
         front->points_num,
         back->points_num);
     }
+
+    if (internal_lidar_merger_.GetConfig().enable_merge_debug) {
+      uint64_t merged_base_time = std::min(front->base_time, back->base_time);
+      if (last_merged_base_time_ != 0 && merged_base_time > last_merged_base_time_) {
+        uint64_t delta_ns = merged_base_time - last_merged_base_time_;
+        if (delta_ns > max_merged_delta_ns_) max_merged_delta_ns_ = delta_ns;
+        if (delta_ns < min_merged_delta_ns_) min_merged_delta_ns_ = delta_ns;
+        
+        uint64_t cur_sys_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now().time_since_epoch()).count();
+        if (merge_debug_last_print_time_us_ == 0) {
+          merge_debug_last_print_time_us_ = cur_sys_time_us;
+        }
+
+        if ((++merge_debug_print_count_ % 10) == 0) {
+          double sys_delta_s = (cur_sys_time_us - merge_debug_last_print_time_us_) / 1000000.0;
+          double avg_freq = sys_delta_s > 0 ? (10.0 / sys_delta_s) : 0.0;
+          merge_debug_last_print_time_us_ = cur_sys_time_us;
+
+          DRIVER_INFO(*cur_node_,
+            "[Debug] Merge CPU Time: %.3f ms | Timestamp Delta: %.3f ms (Max: %.3f, Min: %.3f) | Pub Freq: %.2f Hz",
+            duration_ms,
+            delta_ns / 1000000.0,
+            max_merged_delta_ns_ / 1000000.0,
+            min_merged_delta_ns_ / 1000000.0,
+            avg_freq);
+        }
+      }
+      last_merged_base_time_ = merged_base_time;
+    }
   }
 }
 

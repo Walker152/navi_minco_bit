@@ -132,6 +132,7 @@ DriverNode::DriverNode(const rclcpp::NodeOptions & node_options) : Node("livox_d
   int output_type = kOutputToRos;
   std::string frame_id;
   bool enable_internal_lidar_merge = false;
+  bool enable_merge_debug = false;
   std::string merge_front_ip = "192.168.1.135";
   std::string merge_back_ip = "192.168.1.122";
   std::string merge_output_topic = "livox/lidar";
@@ -149,6 +150,7 @@ DriverNode::DriverNode(const rclcpp::NodeOptions & node_options) : Node("livox_d
   this->declare_parameter("cmdline_input_bd_code", "000000000000001");
   this->declare_parameter("lvx_file_path", "/home/livox/livox_test.lvx");
   this->declare_parameter("enable_internal_lidar_merge", enable_internal_lidar_merge);
+  this->declare_parameter("enable_merge_debug", enable_merge_debug);
   this->declare_parameter("merge_front_ip", merge_front_ip);
   this->declare_parameter("merge_back_ip", merge_back_ip);
   this->declare_parameter("merge_output_topic", merge_output_topic);
@@ -163,6 +165,7 @@ DriverNode::DriverNode(const rclcpp::NodeOptions & node_options) : Node("livox_d
   this->get_parameter("output_data_type", output_type);
   this->get_parameter("frame_id", frame_id);
   this->get_parameter("enable_internal_lidar_merge", enable_internal_lidar_merge);
+  this->get_parameter("enable_merge_debug", enable_merge_debug);
   this->get_parameter("merge_front_ip", merge_front_ip);
   this->get_parameter("merge_back_ip", merge_back_ip);
   this->get_parameter("merge_output_topic", merge_output_topic);
@@ -201,6 +204,7 @@ DriverNode::DriverNode(const rclcpp::NodeOptions & node_options) : Node("livox_d
 
     InternalLidarMergeConfig merge_config;
     merge_config.enabled = true;
+    merge_config.enable_merge_debug = enable_merge_debug;
     merge_config.front_handle = IpStringToNum(merge_front_ip);
     merge_config.back_handle = IpStringToNum(merge_back_ip);
     merge_config.output_topic = merge_output_topic;
