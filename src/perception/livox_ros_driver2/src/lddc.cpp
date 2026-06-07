@@ -388,10 +388,10 @@ void Lddc::PublishPointcloud2(LidarDataQueue * queue, uint8_t index)
       continue;
     }
 
-    PointCloud2 cloud;
+    auto cloud = std::make_unique<PointCloud2>();
     uint64_t timestamp = 0;
-    InitPointcloud2Msg(pkg, cloud, timestamp);
-    PublishPointcloud2Data(index, timestamp, cloud);
+    InitPointcloud2Msg(pkg, *cloud, timestamp);
+    PublishPointcloud2Data(index, timestamp, std::move(cloud));
   }
 }
 
@@ -405,10 +405,10 @@ void Lddc::PublishCustomPointcloud(LidarDataQueue * queue, uint8_t index)
       continue;
     }
 
-    CustomMsg livox_msg;
-    InitCustomMsg(livox_msg, pkg, index);
-    FillPointsToCustomMsg(livox_msg, pkg);
-    PublishCustomPointData(livox_msg, index);
+    auto livox_msg = std::make_unique<CustomMsg>();
+    InitCustomMsg(*livox_msg, pkg, index);
+    FillPointsToCustomMsg(*livox_msg, pkg);
+    PublishCustomPointData(std::move(livox_msg), index);
   }
 }
 
@@ -500,7 +500,7 @@ void Lddc::InitPointcloud2Msg(const StoragePacket & pkg, PointCloud2 & cloud, ui
   cloud.header.stamp = rclcpp::Time(timestamp);
 #endif
 
-  std::vector<LivoxPointXyzrtlt> points;
+  cloud.data.resize(pkg.points_num * sizeof(LivoxPointXyzrtlt));
   for (size_t i = 0; i < pkg.points_num; ++i) {
     LivoxPointXyzrtlt point;
     point.x = pkg.points[i].x;
@@ -510,29 +510,22 @@ void Lddc::InitPointcloud2Msg(const StoragePacket & pkg, PointCloud2 & cloud, ui
     point.tag = pkg.points[i].tag;
     point.line = pkg.points[i].line;
     point.timestamp = static_cast<double>(pkg.points[i].offset_time);
-    points.push_back(std::move(point));
+    memcpy(
+      cloud.data.data() + i * sizeof(LivoxPointXyzrtlt),
+      &point,
+      sizeof(LivoxPointXyzrtlt));
   }
-  cloud.data.resize(pkg.points_num * sizeof(LivoxPointXyzrtlt));
-  memcpy(cloud.data.data(), points.data(), pkg.points_num * sizeof(LivoxPointXyzrtlt));
 }
 
-void Lddc::PublishPointcloud2Data(const uint8_t index, const uint64_t timestamp, const PointCloud2 & cloud)
+void Lddc::PublishPointcloud2Data(
+    const uint8_t index, const uint64_t timestamp, std::unique_ptr<PointCloud2> cloud)
 {
-#ifdef BUILDING_ROS1
-  PublisherPtr publisher_ptr = Lddc::GetCurrentPublisher(index);
-#elif defined BUILDING_ROS2
+  (void)timestamp;
   Publisher<PointCloud2>::SharedPtr publisher_ptr =
     std::dynamic_pointer_cast<Publisher<PointCloud2>>(GetCurrentPublisher(index));
-#endif
 
   if (kOutputToRos == output_type_) {
-    publisher_ptr->publish(cloud);
-  } else {
-#ifdef BUILDING_ROS1
-    if (bag_ && enable_lidar_bag_) {
-      bag_->write(publisher_ptr->getTopic(), ros::Time(timestamp / 1000000000.0), cloud);
-    }
-#endif
+    publisher_ptr->publish(std::move(cloud));
   }
 }
 
@@ -571,6 +564,7 @@ void Lddc::FillPointsToCustomMsg(CustomMsg & livox_msg, const StoragePacket & pk
 {
   uint32_t points_num = pkg.points_num;
   const std::vector<PointXyzlt> & points = pkg.points;
+  livox_msg.points.reserve(points_num);
   for (uint32_t i = 0; i < points_num; ++i) {
     CustomPoint point;
     point.x = points[i].x;
@@ -585,23 +579,13 @@ void Lddc::FillPointsToCustomMsg(CustomMsg & livox_msg, const StoragePacket & pk
   }
 }
 
-void Lddc::PublishCustomPointData(const CustomMsg & livox_msg, const uint8_t index)
+void Lddc::PublishCustomPointData(std::unique_ptr<CustomMsg> livox_msg, const uint8_t index)
 {
-#ifdef BUILDING_ROS1
-  PublisherPtr publisher_ptr = Lddc::GetCurrentPublisher(index);
-#elif defined BUILDING_ROS2
   Publisher<CustomMsg>::SharedPtr publisher_ptr =
     std::dynamic_pointer_cast<Publisher<CustomMsg>>(GetCurrentPublisher(index));
-#endif
 
   if (kOutputToRos == output_type_) {
-    publisher_ptr->publish(livox_msg);
-  } else {
-#ifdef BUILDING_ROS1
-    if (bag_ && enable_lidar_bag_) {
-      bag_->write(publisher_ptr->getTopic(), ros::Time(livox_msg.timebase / 1000000000.0), livox_msg);
-    }
-#endif
+    publisher_ptr->publish(std::move(livox_msg));
   }
 }
 

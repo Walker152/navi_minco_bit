@@ -131,6 +131,28 @@ std::deque<PointCloudXYZI::Ptr> lidar_buffer;
 std::deque<double> time_buffer;
 std::deque<sensor_msgs::msg::Imu::ConstSharedPtr> imu_deque;
 
+namespace
+{
+std::deque<PointCloudXYZI::Ptr> pending_lidar_buffer;
+std::deque<double> pending_time_buffer;
+std::deque<sensor_msgs::msg::Imu::ConstSharedPtr> pending_imu_deque;
+
+void flush_pending_sensor_data_locked()
+{
+  while (!pending_lidar_buffer.empty() && !pending_time_buffer.empty()) {
+    lidar_buffer.emplace_back(std::move(pending_lidar_buffer.front()));
+    pending_lidar_buffer.pop_front();
+    time_buffer.emplace_back(pending_time_buffer.front());
+    pending_time_buffer.pop_front();
+  }
+
+  while (!pending_imu_deque.empty()) {
+    imu_deque.emplace_back(std::move(pending_imu_deque.front()));
+    pending_imu_deque.pop_front();
+  }
+}
+}  // namespace
+
 /**
  * @brief 标准点云数据回调函数
  * @param msg ROS2标准点云消息（sensor_msgs::msg::PointCloud2）
@@ -148,8 +170,7 @@ std::deque<sensor_msgs::msg::Imu::ConstSharedPtr> imu_deque;
  */
 void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
 {
-  // 注意：原本的互斥锁已注释，使用无锁设计提高性能
-  // mtx_buffer.lock();
+  std::lock_guard<std::mutex> lock(mtx_buffer);
 
   // 扫描帧计数递增
   scan_count++;
@@ -187,9 +208,9 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
 
     // 将切分后的子帧逐个加入缓冲区
     while (!ptr.empty() && !timestamp_lidar.empty()) {
-      lidar_buffer.push_back(ptr.front());
+      pending_lidar_buffer.push_back(ptr.front());
       ptr.pop_front();
-      time_buffer.push_back(timestamp_lidar.front() / double(1000));  // 转换为秒单位
+      pending_time_buffer.push_back(timestamp_lidar.front() / double(1000));  // 转换为秒单位
       timestamp_lidar.pop_front();
     }
   } else {
@@ -222,9 +243,9 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
         // 达到帧数上限，输出合并后的点云
         PointCloudXYZI::Ptr ptr_con_i(new PointCloudXYZI(10000, 1));
         *ptr_con_i = *ptr_con;              // 复制合并后的点云
-        lidar_buffer.push_back(ptr_con_i);  // 加入处理队列
+        pending_lidar_buffer.push_back(ptr_con_i);  // 加入处理队列
         double time_con_i = time_con;
-        time_buffer.push_back(time_con_i);  // 使用起始时间作为时间戳
+        pending_time_buffer.push_back(time_con_i);  // 使用起始时间作为时间戳
         ptr_con->clear();                   // 清空容器，准备下一轮
         frame_ct = 0;                       // 重置帧计数
       }
@@ -233,8 +254,8 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
       // 直接处理单帧点云数据
 
       if (!ptr->points.empty()) {
-        lidar_buffer.emplace_back(ptr);                                       // 加入点云缓冲区
-        time_buffer.emplace_back(rclcpp::Time(msg->header.stamp).seconds());  // 加入时间缓冲区
+        pending_lidar_buffer.emplace_back(ptr);                               // 加入点云缓冲区
+        pending_time_buffer.emplace_back(rclcpp::Time(msg->header.stamp).seconds());  // 加入时间缓冲区
       }
     }
   }
@@ -242,9 +263,13 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
   // 记录预处理耗时，用于性能分析
   s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
 
-  // 线程同步（已注释，使用无锁设计）
-  // mtx_buffer.unlock();
-  // sig_buffer.notify_all();
+  sig_buffer.notify_all();
+}
+
+void standard_pcl_cbk(sensor_msgs::msg::PointCloud2::UniquePtr msg)
+{
+  sensor_msgs::msg::PointCloud2::SharedPtr shared_msg(std::move(msg));
+  standard_pcl_cbk(shared_msg);
 }
 
 /**
@@ -260,8 +285,7 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
  */
 void livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::SharedPtr & msg)
 {
-  // 使用无锁设计提高性能
-  // mtx_buffer.lock();
+  std::lock_guard<std::mutex> lock(mtx_buffer);
 
   // 记录预处理开始时间
   double preprocess_start_time = omp_get_wtime();
@@ -289,9 +313,9 @@ void livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::SharedPtr & msg)
     p_pre->process_cut_frame_livox(msg, ptr, timestamp_lidar, cut_frame_num, scan_count);
 
     while (!ptr.empty() && !timestamp_lidar.empty()) {
-      lidar_buffer.push_back(ptr.front());
+      pending_lidar_buffer.push_back(ptr.front());
       ptr.pop_front();
-      time_buffer.push_back(timestamp_lidar.front() / double(1000));  // unit:s
+      pending_time_buffer.push_back(timestamp_lidar.front() / double(1000));  // unit:s
       timestamp_lidar.pop_front();
     }
   } else {
@@ -312,21 +336,26 @@ void livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::SharedPtr & msg)
         // std::cout << "ptr div num:" << ptr_div->size() << '\n';
         *ptr_con_i = *ptr_con;
         double time_con_i = time_con;
-        lidar_buffer.push_back(ptr_con_i);
-        time_buffer.push_back(time_con_i);
+        pending_lidar_buffer.push_back(ptr_con_i);
+        pending_time_buffer.push_back(time_con_i);
         ptr_con->clear();
         frame_ct = 0;
       }
     } else {
       if (!ptr->points.empty()) {
-        lidar_buffer.emplace_back(ptr);
-        time_buffer.emplace_back(rclcpp::Time(msg->header.stamp).seconds());
+        pending_lidar_buffer.emplace_back(ptr);
+        pending_time_buffer.emplace_back(rclcpp::Time(msg->header.stamp).seconds());
       }
     }
   }
   s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
-  // mtx_buffer.unlock();
-  // sig_buffer.notify_all();
+  sig_buffer.notify_all();
+}
+
+void livox_pcl_cbk(livox_ros_driver2::msg::CustomMsg::UniquePtr msg)
+{
+  livox_ros_driver2::msg::CustomMsg::SharedPtr shared_msg(std::move(msg));
+  livox_pcl_cbk(shared_msg);
 }
 
 /**
@@ -345,8 +374,7 @@ void livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::SharedPtr & msg)
  */
 void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr & msg_in)
 {
-  // 使用无锁设计提高实时性能
-  // mtx_buffer.lock();
+  std::lock_guard<std::mutex> lock(mtx_buffer);
 
   // 创建IMU消息的可修改副本，用于时间戳校正
   sensor_msgs::msg::Imu::SharedPtr msg(new sensor_msgs::msg::Imu(*msg_in));
@@ -383,12 +411,10 @@ void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr & msg_in)
   }
 
   // ===== 数据入队和状态更新 =====
-  imu_deque.emplace_back(msg);     // 将校正后的IMU数据加入队列
+  pending_imu_deque.emplace_back(msg);  // 将校正后的IMU数据加入队列
   last_timestamp_imu = timestamp;  // 更新最新IMU时间戳
 
-  // 线程同步（已注释，使用无锁设计）
-  // mtx_buffer.unlock();
-  // sig_buffer.notify_all();
+  sig_buffer.notify_all();
 }
 
 /**
@@ -410,6 +436,13 @@ void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr & msg_in)
  */
 bool sync_packages(MeasureGroup & meas)
 {
+  double available_last_timestamp_imu = -1.0;
+  {
+    std::lock_guard<std::mutex> lock(mtx_buffer);
+    flush_pending_sensor_data_locked();
+    available_last_timestamp_imu = last_timestamp_imu;
+  }
+
   {
     // ===== 纯LiDAR模式（IMU禁用） =====
     if (!imu_en) {
@@ -499,12 +532,12 @@ bool sync_packages(MeasureGroup & meas)
     // ===== 步骤2：检查IMU数据充足性 =====
     // 确保有足够的IMU数据覆盖整个LiDAR扫描周期
 
-    if (!lose_lid && (last_timestamp_imu < lidar_end_time)) {
+    if (!lose_lid && (available_last_timestamp_imu < lidar_end_time)) {
       // LiDAR数据完整，但IMU数据还未覆盖到LiDAR结束时间
       return false;  // 等待更多IMU数据
     }
 
-    if (lose_lid && last_timestamp_imu < meas.lidar_beg_time + lidar_time_inte) {
+    if (lose_lid && available_last_timestamp_imu < meas.lidar_beg_time + lidar_time_inte) {
       // LiDAR数据丢失，但需要等待足够的IMU数据进行时间积分
       // lidar_time_inte: LiDAR时间积分窗口
       return false;  // 等待更多IMU数据

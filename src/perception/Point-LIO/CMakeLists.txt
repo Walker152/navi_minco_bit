@@ -50,7 +50,9 @@ endif()
 # Find packages
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 find_package(rclpy REQUIRED)
+find_package(builtin_interfaces REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
@@ -83,8 +85,7 @@ link_directories(
   ${PCL_LIBRARY_DIRS}
 )
 
-# Declare a ROS2 executable
-add_executable(pointlio_mapping
+set(POINT_LIO_MAPPING_SOURCES
   src/laserMapping.cpp
   src/li_initialization.cpp
   src/parameters.cpp
@@ -93,8 +94,38 @@ add_executable(pointlio_mapping
   src/IMU_Processing.cpp
 )
 
+add_library(point_lio_component SHARED
+  ${POINT_LIO_MAPPING_SOURCES}
+)
+
+ament_target_dependencies(point_lio_component
+  rclcpp
+  rclcpp_components
+  rclpy
+  std_srvs
+  geometry_msgs
+  nav_msgs
+  sensor_msgs
+  visualization_msgs
+  pcl_ros
+  pcl_conversions
+  tf2_ros
+  livox_ros_driver2
+)
+
+target_link_libraries(point_lio_component ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
+target_include_directories(point_lio_component PRIVATE ${PYTHON_INCLUDE_DIRS})
+rclcpp_components_register_nodes(point_lio_component "point_lio::LaserMappingNode")
+
+# Declare a ROS2 executable
+add_executable(pointlio_mapping
+  ${POINT_LIO_MAPPING_SOURCES}
+)
+target_compile_definitions(pointlio_mapping PRIVATE POINT_LIO_BUILD_MAIN)
+
 ament_target_dependencies(pointlio_mapping
   rclcpp
+  rclcpp_components
   rclpy
   std_srvs
   geometry_msgs
@@ -110,21 +141,38 @@ ament_target_dependencies(pointlio_mapping
 target_link_libraries(pointlio_mapping ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
 target_include_directories(pointlio_mapping PRIVATE ${PYTHON_INCLUDE_DIRS})
 
+add_executable(min_lidar_subscriber
+  src/min_lidar_subscriber.cpp
+)
+
+ament_target_dependencies(min_lidar_subscriber
+  rclcpp
+  sensor_msgs
+  livox_ros_driver2
+  builtin_interfaces
+)
+
 # Install the executable
 install(TARGETS
+  point_lio_component
   pointlio_mapping
-  DESTINATION lib/${PROJECT_NAME}
+  min_lidar_subscriber
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 install(
-  DIRECTORY config launch rviz_cfg
+  DIRECTORY config launch rviz_cfg docs
   DESTINATION share/${PROJECT_NAME}
 )
 
 # Export dependencies
 ament_export_dependencies(
   rclcpp
+  rclcpp_components
   rclpy
+  builtin_interfaces
   geometry_msgs
   nav_msgs
   sensor_msgs
