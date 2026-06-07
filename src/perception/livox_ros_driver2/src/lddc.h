@@ -175,6 +175,11 @@ class Lddc final {
   bool internal_lidar_merge_enabled_ = false;
   uint32_t merge_drop_warn_count_ = 0;
   uint32_t merge_duration_warn_count_ = 0;
+  uint64_t last_merged_base_time_ = 0;
+  uint64_t max_merged_delta_ns_ = 0;
+  uint64_t min_merged_delta_ns_ = 0xFFFFFFFFFFFFFFFFULL;
+  uint32_t merge_debug_print_count_ = 0;
+  uint64_t merge_debug_last_print_time_us_ = 0;
 #endif
 };
 
