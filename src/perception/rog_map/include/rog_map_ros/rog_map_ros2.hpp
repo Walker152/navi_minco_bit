@@ -587,16 +587,6 @@ namespace rog_map {
         typedef shared_ptr<ROGMapROS> Ptr;
 
         ROGMapROS(
-            const rclcpp::Node::SharedPtr nh,
-            const std::string& cfg_path,
-            const std::string& cfg_namespace = "rog_map")
-            : nh_(nh) {
-            bindNode(nh_);
-            cfg_ = rog_map::Config(cfg_path, cfg_namespace);
-            initializeRos();
-        }
-
-        ROGMapROS(
             const rclcpp_lifecycle::LifecycleNode::SharedPtr nh,
             const rog_map::Config& cfg)
             : lifecycle_nh_(nh) {
