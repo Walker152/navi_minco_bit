@@ -3,7 +3,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
-from launch_ros.parameter_descriptions import ParameterValue
+from launch_ros.parameter_descriptions import ParameterFile, ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -27,7 +27,7 @@ def generate_launch_description():
                 package="livox_ros_driver2",
                 plugin="livox_ros::DriverNode",
                 name="livox_driver_node",
-                parameters=[driver_params_file],
+                parameters=[ParameterFile(driver_params_file, allow_substs=True)],
                 extra_arguments=[{"use_intra_process_comms": intra_process_value}],
             ),
             ComposableNode(
@@ -44,6 +44,13 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "driver_params_file",
+                default_value=PathJoinSubstitution(
+                    [
+                        FindPackageShare("livox_ros_driver2"),
+                        "config",
+                        "mixed_MID360_component.yaml",
+                    ]
+                ),
                 description="ROS2 parameter yaml for livox_ros_driver2 DriverNode.",
             ),
             DeclareLaunchArgument(
