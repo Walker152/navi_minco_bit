@@ -3,6 +3,7 @@
 #include "nav2_util/node_utils.hpp"
 
 #include "geometry_msgs/msg/vector3_stamped.hpp"
+#include "tf2/time.h"
 
 // Project
 #include "minco_core/minco_fsm.hpp"
@@ -10,16 +11,300 @@
 #include "minco_core/visualizer.hpp"
 #include "rog_map/map_registry.hpp"
 #include "rog_map_ros/rog_map_ros2.hpp"
+
+#include <Eigen/Geometry>
+
+#include <cctype>
+#include <queue>
 #include <iostream>
 
 namespace minco_planner {
 
 using namespace color_text;
 
+namespace {
+
+Eigen::Vector3d transformPoint(
+  const geometry_msgs::msg::TransformStamped & tf,
+  const Eigen::Vector3d & p)
+{
+  const auto & q_msg = tf.transform.rotation;
+  const Eigen::Quaterniond q(q_msg.w, q_msg.x, q_msg.y, q_msg.z);
+  const Eigen::Vector3d t(
+    tf.transform.translation.x,
+    tf.transform.translation.y,
+    tf.transform.translation.z);
+  return q * p + t;
+}
+
+Eigen::Vector3d rotateVector(
+  const geometry_msgs::msg::TransformStamped & tf,
+  const Eigen::Vector3d & v)
+{
+  const auto & q_msg = tf.transform.rotation;
+  const Eigen::Quaterniond q(q_msg.w, q_msg.x, q_msg.y, q_msg.z);
+  return q * v;
+}
+
+bool isLethalCost(const unsigned char cost)
+{
+  return cost == nav2_costmap_2d::LETHAL_OBSTACLE ||
+         cost == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+}
+
+class Nav2CostmapQuery : public rog_map::MapQueryInterface
+{
+public:
+  explicit Nav2CostmapQuery(nav2_costmap_2d::Costmap2D * costmap)
+  : costmap_(costmap)
+  {
+  }
+
+  bool worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my) const override
+  {
+    return costmap_ && costmap_->worldToMap(wx, wy, mx, my);
+  }
+
+  void mapToWorld(unsigned int mx, unsigned int my, double & wx, double & wy) const override
+  {
+    if (!costmap_) {
+      wx = 0.0;
+      wy = 0.0;
+      return;
+    }
+    costmap_->mapToWorld(mx, my, wx, wy);
+  }
+
+  unsigned int sizeX() const override { return costmap_ ? costmap_->getSizeInCellsX() : 0U; }
+  unsigned int sizeY() const override { return costmap_ ? costmap_->getSizeInCellsY() : 0U; }
+  double resolution() const override { return costmap_ ? costmap_->getResolution() : 0.0; }
+  double originX() const override { return costmap_ ? costmap_->getOriginX() : 0.0; }
+  double originY() const override { return costmap_ ? costmap_->getOriginY() : 0.0; }
+
+  uint8_t value(unsigned int mx, unsigned int my) const override
+  {
+    if (!isValid(mx, my)) {
+      return nav2_costmap_2d::LETHAL_OBSTACLE;
+    }
+    return costmap_->getCost(mx, my);
+  }
+
+  const unsigned char * values() const override
+  {
+    return costmap_ ? costmap_->getCharMap() : nullptr;
+  }
+
+  bool copyValues(std::vector<unsigned char> & out) const override
+  {
+    const auto * data = values();
+    const size_t count = static_cast<size_t>(sizeX()) * static_cast<size_t>(sizeY());
+    if (!data || count == 0U) {
+      out.clear();
+      return false;
+    }
+    out.assign(data, data + count);
+    return true;
+  }
+
+  bool isValid(unsigned int mx, unsigned int my) const override
+  {
+    return costmap_ && mx < sizeX() && my < sizeY();
+  }
+
+  bool isFree(unsigned int mx, unsigned int my) const override
+  {
+    if (!isValid(mx, my)) {
+      return false;
+    }
+    const auto cost = costmap_->getCost(mx, my);
+    return cost != nav2_costmap_2d::NO_INFORMATION && cost < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+  }
+
+  bool evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const override
+  {
+    unsigned int mx = 0;
+    unsigned int my = 0;
+    if (!worldToMap(pos.x(), pos.y(), mx, my)) {
+      dist = -1.0;
+      grad = Eigen::Vector3d::Zero();
+      return false;
+    }
+    const auto cost = value(mx, my);
+    dist = isLethalCost(cost) ? -1.0 : resolution();
+    grad = Eigen::Vector3d::Zero();
+    return true;
+  }
+
+private:
+  nav2_costmap_2d::Costmap2D * costmap_{nullptr};
+};
+
+class FrameAwareRogQuery : public rog_map::MapQueryInterface
+{
+public:
+  FrameAwareRogQuery(
+    std::shared_ptr<rog_map::MapQueryInterface> raw,
+    std::shared_ptr<tf2_ros::Buffer> tf,
+    std::string planning_frame,
+    std::string rog_frame,
+    rclcpp::Logger logger)
+  : raw_(std::move(raw)),
+    tf_(std::move(tf)),
+    planning_frame_(std::move(planning_frame)),
+    rog_frame_(std::move(rog_frame)),
+    logger_(logger)
+  {
+  }
+
+  bool worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my) const override
+  {
+    if (!raw_) {
+      return false;
+    }
+    Eigen::Vector3d p(wx, wy, 0.0);
+    if (!transformPlanningToRog(p, p)) {
+      return false;
+    }
+    return raw_->worldToMap(p.x(), p.y(), mx, my);
+  }
+
+  void mapToWorld(unsigned int mx, unsigned int my, double & wx, double & wy) const override
+  {
+    wx = 0.0;
+    wy = 0.0;
+    if (!raw_) {
+      return;
+    }
+    double rwx = 0.0;
+    double rwy = 0.0;
+    raw_->mapToWorld(mx, my, rwx, rwy);
+    Eigen::Vector3d p(rwx, rwy, 0.0);
+    if (!transformRogToPlanning(p, p)) {
+      return;
+    }
+    wx = p.x();
+    wy = p.y();
+  }
+
+  unsigned int sizeX() const override { return raw_ ? raw_->sizeX() : 0U; }
+  unsigned int sizeY() const override { return raw_ ? raw_->sizeY() : 0U; }
+  double resolution() const override { return raw_ ? raw_->resolution() : 0.0; }
+  double originX() const override { return raw_ ? raw_->originX() : 0.0; }
+  double originY() const override { return raw_ ? raw_->originY() : 0.0; }
+  uint8_t value(unsigned int mx, unsigned int my) const override
+  {
+    return raw_ ? raw_->value(mx, my) : nav2_costmap_2d::LETHAL_OBSTACLE;
+  }
+  const unsigned char * values() const override { return raw_ ? raw_->values() : nullptr; }
+  bool copyValues(std::vector<unsigned char> & out) const override
+  {
+    return raw_ && raw_->copyValues(out);
+  }
+  bool isValid(unsigned int mx, unsigned int my) const override { return raw_ && raw_->isValid(mx, my); }
+  bool isFree(unsigned int mx, unsigned int my) const override { return raw_ && raw_->isFree(mx, my); }
+
+  bool evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const override
+  {
+    dist = 0.0;
+    grad = Eigen::Vector3d::Zero();
+    if (!raw_) {
+      return false;
+    }
+    Eigen::Vector3d rog_pos = pos;
+    if (!transformPlanningToRog(pos, rog_pos)) {
+      return false;
+    }
+    Eigen::Vector3d rog_grad = Eigen::Vector3d::Zero();
+    const bool ok = raw_->evaluate(rog_pos, dist, rog_grad);
+    if (!ok) {
+      return false;
+    }
+    if (!rotateRogToPlanning(rog_grad, grad)) {
+      grad = rog_grad;
+    }
+    return true;
+  }
+
+private:
+  bool transformPlanningToRog(const Eigen::Vector3d & in, Eigen::Vector3d & out) const
+  {
+    if (planning_frame_ == rog_frame_) {
+      out = in;
+      return true;
+    }
+    if (!tf_) {
+      return false;
+    }
+    try {
+      const auto tf = tf_->lookupTransform(rog_frame_, planning_frame_, tf2::TimePointZero);
+      out = transformPoint(tf, in);
+      return true;
+    } catch (const tf2::TransformException & ex) {
+      RCLCPP_WARN_THROTTLE(
+        logger_, *rclcpp::Clock::make_shared(), 2000,
+        "[MincoPlanner] TF %s -> %s failed for ROGMap dynamic query: %s",
+        planning_frame_.c_str(), rog_frame_.c_str(), ex.what());
+      return false;
+    }
+  }
+
+  bool transformRogToPlanning(const Eigen::Vector3d & in, Eigen::Vector3d & out) const
+  {
+    if (planning_frame_ == rog_frame_) {
+      out = in;
+      return true;
+    }
+    if (!tf_) {
+      return false;
+    }
+    try {
+      const auto tf = tf_->lookupTransform(planning_frame_, rog_frame_, tf2::TimePointZero);
+      out = transformPoint(tf, in);
+      return true;
+    } catch (const tf2::TransformException & ex) {
+      RCLCPP_WARN_THROTTLE(
+        logger_, *rclcpp::Clock::make_shared(), 2000,
+        "[MincoPlanner] TF %s -> %s failed for ROGMap dynamic query: %s",
+        rog_frame_.c_str(), planning_frame_.c_str(), ex.what());
+      return false;
+    }
+  }
+
+  bool rotateRogToPlanning(const Eigen::Vector3d & in, Eigen::Vector3d & out) const
+  {
+    if (planning_frame_ == rog_frame_) {
+      out = in;
+      return true;
+    }
+    if (!tf_) {
+      return false;
+    }
+    try {
+      const auto tf = tf_->lookupTransform(planning_frame_, rog_frame_, tf2::TimePointZero);
+      out = rotateVector(tf, in);
+      return true;
+    } catch (const tf2::TransformException &) {
+      return false;
+    }
+  }
+
+  std::shared_ptr<rog_map::MapQueryInterface> raw_;
+  std::shared_ptr<tf2_ros::Buffer> tf_;
+  std::string planning_frame_;
+  std::string rog_frame_;
+  rclcpp::Logger logger_;
+};
+
+}  // namespace
+
 static bool isLineFree(
   const std::shared_ptr<rog_map::MapQueryInterface> & map,
   const Eigen::Vector3d & p1,
   const Eigen::Vector3d & p2);
+static bool projectStartToFreeCell(
+  const std::shared_ptr<rog_map::MapQueryInterface> & map,
+  unsigned int & mx,
+  unsigned int & my);
 
 MincoPlanner::MincoPlanner() : tf_(nullptr)
 {
@@ -40,21 +325,22 @@ bool MincoPlanner::configureRogMap(
     rog_map::Config rog_cfg;
     rog_cfg.loadFromRosNode(node, plugin_prefix + "rog_map");
     rog_map_ros_ = std::make_shared<rog_map::ROGMapROS>(node, rog_cfg);
-    setMap(rog_map_ros_->queryInterface());
+    rog_query_raw_ = rog_map_ros_->queryInterface();
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger_, "[MincoPlanner] Failed to configure ROGMap: %s", e.what());
     rog_map_ros_.reset();
+    rog_query_raw_.reset();
     map_.reset();
     return false;
   }
 
-  if (!map_) {
+  if (!rog_query_raw_) {
     RCLCPP_ERROR(logger_, "[MincoPlanner] ROGMap queryInterface is null.");
     rog_map_ros_.reset();
     return false;
   }
 
-  rog_map::MapRegistry::set(map_);
+  rog_map::MapRegistry::set(rog_query_raw_);
   RCLCPP_INFO(
     logger_,
     "[MincoPlanner] ROGMap is created inside MincoPlanner plugin and shared by pointer.");
@@ -63,13 +349,16 @@ bool MincoPlanner::configureRogMap(
 
 bool MincoPlanner::ensureMapAvailable()
 {
-  if (map_) {
+  if (rog_query_raw_ || map_) {
     return true;
   }
 
   auto map = rog_map::MapRegistry::get();
   if (map) {
-    setMap(map);
+    rog_query_raw_ = map;
+    if (!map_) {
+      map_ = map;
+    }
     return true;
   }
 
@@ -82,6 +371,142 @@ bool MincoPlanner::ensureMapAvailable()
     RCLCPP_ERROR(logger_, "[MincoPlanner] MapQueryInterface unavailable.");
   }
   return false;
+}
+
+bool MincoPlanner::ensureDynamicQueryAvailable() const
+{
+  if (dynamic_query_) {
+    return true;
+  }
+
+  auto node = node_.lock();
+  if (node) {
+    RCLCPP_ERROR_THROTTLE(
+      logger_, *node->get_clock(), 1000,
+      "[MincoPlanner] ROGMap dynamic query is unavailable for current planner mode.");
+  } else {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] ROGMap dynamic query is unavailable.");
+  }
+  return false;
+}
+
+void MincoPlanner::rebuildModeDependentQueries()
+{
+  if (runtime_mode_config_.mode == PlannerMode::PRIORMAP) {
+    global_search_query_ = nullptr;
+    if (costmap_ros_ && costmap_ros_->getCostmap()) {
+      global_search_query_ = std::make_shared<Nav2CostmapQuery>(costmap_ros_->getCostmap());
+    }
+    dynamic_query_ = rog_query_raw_
+      ? std::make_shared<FrameAwareRogQuery>(rog_query_raw_, tf_, map_frame_, rog_frame_, logger_)
+      : nullptr;
+    sparsify_query_ = global_search_query_;
+  } else {
+    global_search_query_ = rog_query_raw_;
+    dynamic_query_ = rog_query_raw_;
+    sparsify_query_ = dynamic_query_;
+  }
+
+  map_ = dynamic_query_;
+
+  if (astar_planner_) {
+    astar_planner_->setMap(global_search_query_);
+  }
+  if (smac_planner_ && global_search_query_) {
+    smac_planner_->setMap(global_search_query_);
+  }
+  if (minco_optimizer_) {
+    minco_optimizer_->setMap(dynamic_query_);
+  }
+  if (corridor_gen_) {
+    corridor_gen_->setMap(dynamic_query_);
+  }
+
+  RCLCPP_INFO(logger_, "[MincoPlanner] Rebuilt mode-dependent map queries after raw ROGMap update.");
+}
+
+void MincoPlanner::initPlannerMode(
+  const std::string & planner_mode_param,
+  const std::string & map_frame,
+  const std::string & rog_frame)
+{
+  map_frame_ = map_frame.empty() ? "map" : map_frame;
+  rog_frame_ = rog_frame.empty() ? "camera_init" : rog_frame;
+
+  std::string mode_upper = planner_mode_param;
+  std::transform(mode_upper.begin(), mode_upper.end(), mode_upper.begin(), [](unsigned char c) {
+    return static_cast<char>(std::toupper(c));
+  });
+
+  runtime_mode_config_.mode = PlannerMode::PRIORMAP;
+  if (mode_upper == "EXPLORATION") {
+    runtime_mode_config_.mode = PlannerMode::EXPLORATION;
+  } else if (mode_upper != "PRIORMAP") {
+    RCLCPP_WARN(
+      logger_,
+      "[MincoPlanner] Unknown planner_mode='%s', fallback to PRIORMAP.",
+      planner_mode_param.c_str());
+  }
+
+  runtime_mode_config_.map_frame = map_frame_;
+  runtime_mode_config_.rog_frame = rog_frame_;
+
+  if (runtime_mode_config_.mode == PlannerMode::PRIORMAP) {
+    runtime_mode_config_.planning_frame = map_frame_;
+    runtime_mode_config_.output_frame = map_frame_;
+    if (!priormap_use_nav2_global_search_) {
+      RCLCPP_WARN(
+        logger_,
+        "[MincoPlanner] priormap.use_nav2_global_search=false is unsupported by planner_mode=PRIORMAP; "
+        "forcing Nav2 costmap global search to preserve map semantics.");
+    }
+    runtime_mode_config_.use_nav2_global_search = true;
+    runtime_mode_config_.use_rog_global_search = false;
+    runtime_mode_config_.use_static_esdf = true;
+    runtime_mode_config_.use_frame_aware_rog_query = true;
+    runtime_mode_config_.direct_odom_pose = false;
+
+    plan_global_fn_ = [this](
+      const geometry_msgs::msg::PoseStamped & start,
+      const geometry_msgs::msg::PoseStamped & goal) {
+        return planGlobalPathPriorMap(start, goal);
+      };
+  } else {
+    runtime_mode_config_.planning_frame = rog_frame_;
+    runtime_mode_config_.output_frame = rog_frame_;
+    runtime_mode_config_.use_nav2_global_search = false;
+    runtime_mode_config_.use_rog_global_search = true;
+    runtime_mode_config_.use_static_esdf = false;
+    runtime_mode_config_.use_frame_aware_rog_query = false;
+    runtime_mode_config_.direct_odom_pose = true;
+
+    plan_global_fn_ = [this](
+      const geometry_msgs::msg::PoseStamped & start,
+      const geometry_msgs::msg::PoseStamped & goal) {
+        return planGlobalPathExploration(start, goal);
+      };
+  }
+
+  planning_frame_ = runtime_mode_config_.planning_frame;
+  output_frame_ = runtime_mode_config_.output_frame;
+  global_frame_ = output_frame_;
+  use_static_esdf_ = runtime_mode_config_.use_static_esdf;
+  rebuildModeDependentQueries();
+
+  RCLCPP_INFO(
+    logger_,
+    "[MincoPlanner] planner_mode=%s",
+    runtime_mode_config_.mode == PlannerMode::PRIORMAP ? "PRIORMAP" : "EXPLORATION");
+  RCLCPP_INFO(
+    logger_,
+    "[MincoPlanner] planning_frame=%s output_frame=%s rog_frame=%s",
+    planning_frame_.c_str(), output_frame_.c_str(), rog_frame_.c_str());
+  RCLCPP_INFO(
+    logger_,
+    "[MincoPlanner] global_search=%s dynamic_query=%s static_esdf=%s",
+    runtime_mode_config_.mode == PlannerMode::PRIORMAP ? "Nav2Costmap" : "ROGMapBoundaryAstar",
+    runtime_mode_config_.use_frame_aware_rog_query ? "FrameAwareRogQuery" : "DirectRogQuery",
+    use_static_esdf_ ? "enabled" : "disabled");
 }
 
 // -----------------------------------------------------------------------------
@@ -105,6 +530,52 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
 
   // --- General config --------------------------------------------------------
 
+  std::string planner_mode_param = "PRIORMAP";
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "planner_mode", rclcpp::ParameterValue(planner_mode_param));
+  node->get_parameter(prefix + "planner_mode", planner_mode_param);
+
+  std::string configured_map_frame = "map";
+  std::string configured_rog_frame = "camera_init";
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "frames.map_frame", rclcpp::ParameterValue(configured_map_frame));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "frames.rog_frame", rclcpp::ParameterValue(configured_rog_frame));
+  node->get_parameter(prefix + "frames.map_frame", configured_map_frame);
+  node->get_parameter(prefix + "frames.rog_frame", configured_rog_frame);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "priormap.use_nav2_global_search", rclcpp::ParameterValue(true));
+  node->get_parameter(prefix + "priormap.use_nav2_global_search", priormap_use_nav2_global_search_);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "priormap.clip_seed_by_rog_boundary", rclcpp::ParameterValue(true));
+  node->get_parameter(prefix + "priormap.clip_seed_by_rog_boundary", priormap_clip_seed_by_rog_boundary_);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "priormap.rog_boundary_margin", rclcpp::ParameterValue(0.8));
+  node->get_parameter(prefix + "priormap.rog_boundary_margin", priormap_rog_boundary_margin_);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "priormap.rog_boundary_sample_step", rclcpp::ParameterValue(0.1));
+  node->get_parameter(prefix + "priormap.rog_boundary_sample_step", priormap_rog_boundary_sample_step_);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "exploration.boundary_margin", rclcpp::ParameterValue(0.8));
+  node->get_parameter(prefix + "exploration.boundary_margin", exploration_boundary_margin_);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "exploration.boundary_sample_step", rclcpp::ParameterValue(0.1));
+  node->get_parameter(prefix + "exploration.boundary_sample_step", exploration_boundary_sample_step_);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "exploration.unknown_as_occupied", rclcpp::ParameterValue(true));
+  node->get_parameter(prefix + "exploration.unknown_as_occupied", exploration_unknown_as_occupied_);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "exploration.prefer_goal_direction", rclcpp::ParameterValue(true));
+  node->get_parameter(prefix + "exploration.prefer_goal_direction", exploration_prefer_goal_direction_);
+
   std::string configured_global_frame = "map";
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "global_frame", rclcpp::ParameterValue(configured_global_frame));
@@ -113,6 +584,7 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   if (!configureRogMap(node, prefix)) {
     ensureMapAvailable();
   }
+  initPlannerMode(planner_mode_param, configured_map_frame, configured_rog_frame);
 
   nav2_util::declare_parameter_if_not_declared(node, prefix + "tolerance", rclcpp::ParameterValue(0.5));
   node->get_parameter(prefix + "tolerance", tolerance_);
@@ -296,17 +768,17 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
 
   // --- Components / publishers / timers -------------------------------------
 
-  const unsigned int init_size_x = map_ ? map_->sizeX() : 1U;
-  const unsigned int init_size_y = map_ ? map_->sizeY() : 1U;
+  const unsigned int init_size_x = global_search_query_ ? global_search_query_->sizeX() : 1U;
+  const unsigned int init_size_y = global_search_query_ ? global_search_query_->sizeY() : 1U;
   astar_planner_ = std::make_unique<Astar>(init_size_x, init_size_y);
-  astar_planner_->setMap(map_);
+  astar_planner_->setMap(global_search_query_);
 
   if (use_smac_) {
     smac_planner_ = std::make_unique<minco_planner::smac::SmacPlanner2DSimple>();
     smac_planner_->configure(node, costmap_ros_, prefix);
     smac_planner_->setParameters(allow_unknown_, 1000000, tolerance_);
-    if (map_) {
-      smac_planner_->setMap(map_);
+    if (global_search_query_) {
+      smac_planner_->setMap(global_search_query_);
     }
   }
 
@@ -334,7 +806,7 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
 
       try {
         if (tf_) {
-          auto map_pose = tf_->transform(odom_pose, global_frame_);
+          auto map_pose = tf_->transform(odom_pose, planning_frame_);
           const double x = map_pose.pose.position.x;
           const double y = map_pose.pose.position.y;
           if (esdf_map_) {
@@ -345,46 +817,53 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
       }
     });
 
-  // Load Static ESDF map.
-  esdf_map_ = std::make_shared<small_rog_map::HybridESDFMap>();
   (void)dynamic_esdf_size;
   (void)dynamic_dilation_radius;
+  bool esdf_loaded = false;
 
-  // Initialize ESDF window center once at startup so static validation works without odom.
-  geometry_msgs::msg::PoseStamped init_pose;
-  if (costmap_ros_ && costmap_ros_->getRobotPose(init_pose)) {
-    esdf_map_->setRobotPosition(init_pose.pose.position.x, init_pose.pose.position.y);
-  } else {
-    esdf_map_->setRobotPosition(0.0, 0.0);
-    RCLCPP_WARN(logger_,
-      "[MincoPlanner] Failed to get initial robot pose from costmap, fallback ESDF center to (0, 0).");
-  }
+  if (use_static_esdf_) {
+    // Load Static ESDF map only for PRIORMAP mode.
+    esdf_map_ = std::make_shared<small_rog_map::HybridESDFMap>();
 
-  const bool esdf_loaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
-  if (!esdf_loaded) {
-    std::cout << RED << "[MincoPlanner] "
-              << "Failed to load Static ESDF map from PCD: " << esdf_pcd_path_ << RESET << std::endl;
+    // Initialize ESDF window center once at startup so static validation works without odom.
+    geometry_msgs::msg::PoseStamped init_pose;
+    if (costmap_ros_ && costmap_ros_->getRobotPose(init_pose)) {
+      esdf_map_->setRobotPosition(init_pose.pose.position.x, init_pose.pose.position.y);
+    } else {
+      esdf_map_->setRobotPosition(0.0, 0.0);
+      RCLCPP_WARN(logger_,
+        "[MincoPlanner] Failed to get initial robot pose from costmap, fallback ESDF center to (0, 0).");
+    }
+
+    esdf_loaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
+    if (!esdf_loaded) {
+      std::cout << RED << "[MincoPlanner] "
+                << "Failed to load Static ESDF map from PCD: " << esdf_pcd_path_ << RESET << std::endl;
+    } else {
+      std::cout << MAGENTA << "[MincoPlanner] "
+                << "Successfully loaded Static ESDF map from PCD: " << esdf_pcd_path_ << RESET << std::endl;
+    }
   } else {
-    std::cout << MAGENTA << "[MincoPlanner] "
-              << "Successfully loaded Static ESDF map from PCD: " << esdf_pcd_path_ << RESET << std::endl;
+    esdf_map_.reset();
+    RCLCPP_INFO(logger_, "[MincoPlanner] Static ESDF disabled in EXPLORATION mode.");
   }
 
   if (use_smac_ && smac_planner_) {
     smac_planner_->setESDFMap(esdf_map_);
-    if (map_) {
-      smac_planner_->setMap(map_);
+    if (global_search_query_) {
+      smac_planner_->setMap(global_search_query_);
     }
   }
 
   visualizer_ = std::make_unique<Visualizer>();
-  visualizer_->configure(parent, global_frame_, esdf_map_, esdf_loaded);
+  visualizer_->configure(parent, output_frame_, esdf_map_, esdf_loaded);
 
   minco_optimizer_ = std::make_unique<MincoOptimizer>(minco_config);
   minco_optimizer_->setESDFMap(esdf_map_);
-  minco_optimizer_->setMap(map_);
+  minco_optimizer_->setMap(dynamic_query_);
 
   corridor_gen_ = std::make_shared<SimpleCorridorGenerator>(esdf_map_);
-  corridor_gen_->setMap(map_);
+  corridor_gen_->setMap(dynamic_query_);
   corridor_gen_->setSafetyMargins(corridor_robot_radius, corridor_extra_margin);
 
   backup_opt_ = std::make_unique<traj_opt::BackupTrajOpt>();
@@ -415,19 +894,8 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
 
 void MincoPlanner::setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map)
 {
-  map_ = map;
-  if (smac_planner_) {
-    smac_planner_->setMap(map_);
-  }
-  if (astar_planner_) {
-    astar_planner_->setMap(map_);
-  }
-  if (minco_optimizer_) {
-    minco_optimizer_->setMap(map_);
-  }
-  if (corridor_gen_) {
-    corridor_gen_->setMap(map_);
-  }
+  rog_query_raw_ = map;
+  rebuildModeDependentQueries();
 }
 
 void MincoPlanner::activate()
@@ -465,6 +933,10 @@ void MincoPlanner::cleanup()
   odom_sub_.reset();
   costmap_ros_.reset();
   map_.reset();
+  rog_query_raw_.reset();
+  global_search_query_.reset();
+  dynamic_query_.reset();
+  sparsify_query_.reset();
   rog_map_ros_.reset();
 }
 
@@ -478,6 +950,20 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
   const std::string esdf_resolution_param = name_ + ".static_esdf.esdf_resolution";
   const std::string dynamic_size_param = name_ + ".static_esdf.dynamic_esdf_size";
   const std::string dynamic_dilation_param = name_ + ".static_esdf.dynamic_dilation_radius";
+  const std::string planner_mode_param = name_ + ".planner_mode";
+  const auto is_configure_time_mode_param = [this, &planner_mode_param](const std::string & param_name) {
+    return param_name == planner_mode_param ||
+           param_name == name_ + ".frames.map_frame" ||
+           param_name == name_ + ".frames.rog_frame" ||
+           param_name == name_ + ".priormap.use_nav2_global_search" ||
+           param_name == name_ + ".priormap.clip_seed_by_rog_boundary" ||
+           param_name == name_ + ".priormap.rog_boundary_margin" ||
+           param_name == name_ + ".priormap.rog_boundary_sample_step" ||
+           param_name == name_ + ".exploration.boundary_margin" ||
+           param_name == name_ + ".exploration.boundary_sample_step" ||
+           param_name == name_ + ".exploration.unknown_as_occupied" ||
+           param_name == name_ + ".exploration.prefer_goal_direction";
+  };
   const std::string max_vel_param = name_ + ".minco_optimizer.max_velocity";
   const std::string max_acc_param = name_ + ".minco_optimizer.max_acceleration";
   const std::string penalty_pos_param = name_ + ".minco_optimizer.penalty_weight_pos";
@@ -530,6 +1016,14 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
       next_esdf_pcd_path = param.as_string();
       need_reload_static_esdf = true;
       continue;
+    }
+
+    if (is_configure_time_mode_param(param_name)) {
+      result.successful = false;
+      result.reason =
+        "Planner mode/frame parameters are configure-time only; restart planner_server to apply.";
+      RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
+      return result;
     }
 
     if (param_name == esdf_resolution_param) {
@@ -689,6 +1183,48 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
 // 3) Core business interface
 // -----------------------------------------------------------------------------
 
+bool MincoPlanner::normalizePoseToFrame(
+  const geometry_msgs::msg::PoseStamped & in,
+  const std::string & fallback_frame,
+  const std::string & target_frame,
+  const std::string & context,
+  geometry_msgs::msg::PoseStamped & out) const
+{
+  out = in;
+  if (out.header.frame_id.empty()) {
+    out.header.frame_id = fallback_frame;
+    RCLCPP_WARN(
+      logger_,
+      "[MincoPlanner] %s pose frame is empty, treating it as %s.",
+      context.c_str(), fallback_frame.c_str());
+  }
+
+  if (out.header.frame_id == target_frame) {
+    out.header.frame_id = target_frame;
+    return true;
+  }
+
+  if (!tf_) {
+    RCLCPP_ERROR(
+      logger_,
+      "[MincoPlanner] Cannot transform %s pose from %s to %s: TF buffer is null.",
+      context.c_str(), out.header.frame_id.c_str(), target_frame.c_str());
+    return false;
+  }
+
+  try {
+    out = tf_->transform(out, target_frame);
+    out.header.frame_id = target_frame;
+    return true;
+  } catch (const tf2::TransformException & ex) {
+    RCLCPP_ERROR(
+      logger_,
+      "[MincoPlanner] Failed to transform %s pose from %s to %s: %s",
+      context.c_str(), in.header.frame_id.c_str(), target_frame.c_str(), ex.what());
+    return false;
+  }
+}
+
 nav_msgs::msg::Path MincoPlanner::createPlan(
   const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal)
 {
@@ -696,15 +1232,33 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
   // It must NOT run A* or optimization here.
   nav_msgs::msg::Path path;
   path.header.stamp = rclcpp::Clock().now();
-  path.header.frame_id = global_frame_;
+  path.header.frame_id = output_frame_;
+
+  geometry_msgs::msg::PoseStamped normalized_start;
+  geometry_msgs::msg::PoseStamped normalized_goal;
+  const bool start_ok =
+    normalizePoseToFrame(start, planning_frame_, planning_frame_, "createPlan start", normalized_start);
+  const bool goal_ok =
+    normalizePoseToFrame(goal, planning_frame_, planning_frame_, "createPlan goal", normalized_goal);
+  if (!start_ok || !goal_ok) {
+    RCLCPP_ERROR(
+      logger_,
+      "[MincoPlanner] Failed to normalize createPlan pose(s) to planning frame %s; reject pending goal.",
+      planning_frame_.c_str());
+    std::lock_guard<std::mutex> lk(goal_mutex_);
+    has_pending_goal_ = false;
+    return path;
+  }
 
   // Keep a minimal path for Nav2 callers (e.g., visualization/debug).
-  path.poses.push_back(start);
-  path.poses.push_back(goal);
+  normalized_start.header = path.header;
+  normalized_goal.header = path.header;
+  path.poses.push_back(normalized_start);
+  path.poses.push_back(normalized_goal);
 
   {
     std::lock_guard<std::mutex> lk(goal_mutex_);
-    pending_goal_ = goal;
+    pending_goal_ = normalized_goal;
     has_pending_goal_ = true;
   }
 
@@ -714,19 +1268,265 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
 bool MincoPlanner::PlanGlobalPath(
   const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal)
 {
-  if (!ensureMapAvailable() || !astar_planner_) {
+  if (!plan_global_fn_) {
+    return false;
+  }
+  return plan_global_fn_(start, goal);
+}
+
+bool MincoPlanner::planGlobalPathPriorMap(
+  const geometry_msgs::msg::PoseStamped & start,
+  const geometry_msgs::msg::PoseStamped & goal)
+{
+  if (!astar_planner_ || !global_search_query_) {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] Nav2 costmap global search query is unavailable.");
+    return false;
+  }
+
+  geometry_msgs::msg::PoseStamped start_map;
+  geometry_msgs::msg::PoseStamped goal_map;
+  if (!normalizePoseToFrame(start, map_frame_, map_frame_, "PRIORMAP start", start_map) ||
+      !normalizePoseToFrame(goal, map_frame_, map_frame_, "PRIORMAP goal", goal_map)) {
     return false;
   }
 
   nav_msgs::msg::Path dummy;
   dummy.header.stamp = rclcpp::Clock().now();
-  dummy.header.frame_id = global_frame_;
+  dummy.header.frame_id = output_frame_;
 
-  auto cancel_checker = []() {
+  std::function<bool()> cancel_checker = []() {
     return !rclcpp::ok();
   };
 
-  return makePlan(start.pose, goal.pose, tolerance_, cancel_checker, dummy);
+  return makePlanOnQuery(
+    start_map.pose, goal_map.pose, global_search_query_, "Nav2 costmap", tolerance_, cancel_checker, dummy);
+}
+
+bool MincoPlanner::planGlobalPathExploration(
+  const geometry_msgs::msg::PoseStamped & start,
+  const geometry_msgs::msg::PoseStamped & goal)
+{
+  if (!astar_planner_ || !global_search_query_) {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] ROGMap global search query is unavailable.");
+    return false;
+  }
+
+  geometry_msgs::msg::PoseStamped start_rog;
+  geometry_msgs::msg::PoseStamped goal_rog;
+  if (!normalizePoseToFrame(start, rog_frame_, rog_frame_, "EXPLORATION start", start_rog) ||
+      !normalizePoseToFrame(goal, rog_frame_, rog_frame_, "EXPLORATION goal", goal_rog)) {
+    return false;
+  }
+
+  std::function<bool()> cancel_checker = []() {
+    return !rclcpp::ok();
+  };
+
+  unsigned int sx = 0;
+  unsigned int sy = 0;
+  if (!global_search_query_->worldToMap(start_rog.pose.position.x, start_rog.pose.position.y, sx, sy)) {
+    RCLCPP_ERROR(
+      logger_,
+      "[MincoPlanner] ROGMap boundary check failed: EXPLORATION start (%.2f, %.2f) is outside ROGMap.",
+      start_rog.pose.position.x, start_rog.pose.position.y);
+    return false;
+  }
+
+  unsigned int gx = 0;
+  unsigned int gy = 0;
+  const bool goal_inside =
+    global_search_query_->worldToMap(goal_rog.pose.position.x, goal_rog.pose.position.y, gx, gy);
+  bool goal_traversable = false;
+  if (goal_inside) {
+    const unsigned char goal_cost = global_search_query_->value(gx, gy);
+    goal_traversable = goal_cost == nav2_costmap_2d::NO_INFORMATION
+      ? !exploration_unknown_as_occupied_
+      : goal_cost < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+  }
+  if (goal_traversable) {
+    nav_msgs::msg::Path direct_plan;
+    direct_plan.header.stamp = rclcpp::Clock().now();
+    direct_plan.header.frame_id = output_frame_;
+    if (makePlanOnQuery(
+        start_rog.pose, goal_rog.pose, global_search_query_, "ROGMap", tolerance_, cancel_checker, direct_plan)) {
+      return true;
+    }
+    RCLCPP_WARN(
+      logger_,
+      "[MincoPlanner] Exploration goal is inside ROGMap and traversable but unreachable; "
+      "fallback to reachable boundary search.");
+  }
+
+  const unsigned int nx = global_search_query_->sizeX();
+  const unsigned int ny = global_search_query_->sizeY();
+  if (nx == 0U || ny == 0U) {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] ROGMap boundary search failed: empty ROGMap.");
+    return false;
+  }
+
+  std::vector<unsigned char> costs;
+  const size_t map_size = static_cast<size_t>(nx) * static_cast<size_t>(ny);
+  if (!global_search_query_->copyValues(costs) || costs.size() != map_size) {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] ROGMap boundary search failed: cannot copy ROGMap values.");
+    return false;
+  }
+
+  const auto index_of = [nx](unsigned int x, unsigned int y) {
+    return static_cast<size_t>(y) * static_cast<size_t>(nx) + static_cast<size_t>(x);
+  };
+
+  const bool allow_unknown = !exploration_unknown_as_occupied_;
+  const auto traversable = [&costs, allow_unknown](size_t idx) {
+    const unsigned char cost = costs[idx];
+    if (cost == nav2_costmap_2d::NO_INFORMATION) {
+      return allow_unknown;
+    }
+    return cost < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+  };
+
+  const size_t start_idx = index_of(sx, sy);
+  if (!traversable(start_idx)) {
+    projectStartToFreeCell(global_search_query_, sx, sy);
+  }
+
+  const double resolution = std::max(1e-6, global_search_query_->resolution());
+  const int margin_cells =
+    std::max(1, static_cast<int>(std::ceil(exploration_boundary_margin_ / resolution)));
+
+  struct QueueNode
+  {
+    size_t idx{0};
+    double cost{0.0};
+    bool operator>(const QueueNode & other) const { return cost > other.cost; }
+  };
+
+  std::vector<double> dist(map_size, std::numeric_limits<double>::infinity());
+  std::vector<int> parent(map_size, -1);
+  std::vector<uint8_t> closed(map_size, 0U);
+  std::priority_queue<QueueNode, std::vector<QueueNode>, std::greater<QueueNode>> open;
+
+  const size_t updated_start_idx = index_of(sx, sy);
+  if (!traversable(updated_start_idx)) {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] EXPLORATION start cell is not traversable in ROGMap.");
+    return false;
+  }
+  dist[updated_start_idx] = 0.0;
+  open.push(QueueNode{updated_start_idx, 0.0});
+
+  const Eigen::Vector2d start_xy(start_rog.pose.position.x, start_rog.pose.position.y);
+  const Eigen::Vector2d goal_dir =
+    (Eigen::Vector2d(goal_rog.pose.position.x, goal_rog.pose.position.y) - start_xy);
+  Eigen::Vector2d goal_dir_norm = Eigen::Vector2d::Zero();
+  if (goal_dir.norm() > 1e-6) {
+    goal_dir_norm = goal_dir.normalized();
+  }
+
+  size_t best_idx = map_size;
+  double best_score = std::numeric_limits<double>::infinity();
+  const int offsets[8][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
+
+  while (!open.empty()) {
+    if (cancel_checker && cancel_checker()) {
+      return false;
+    }
+    const QueueNode current = open.top();
+    open.pop();
+    if (closed[current.idx]) {
+      continue;
+    }
+    closed[current.idx] = 1U;
+
+    const unsigned int cx = static_cast<unsigned int>(current.idx % nx);
+    const unsigned int cy = static_cast<unsigned int>(current.idx / nx);
+    const int min_edge_dist = std::min({
+      static_cast<int>(cx),
+      static_cast<int>(cy),
+      static_cast<int>(nx - 1U - cx),
+      static_cast<int>(ny - 1U - cy)});
+    if (min_edge_dist <= margin_cells) {
+      double wx = 0.0;
+      double wy = 0.0;
+      global_search_query_->mapToWorld(cx, cy, wx, wy);
+      double score = current.cost;
+      if (exploration_prefer_goal_direction_ && goal_dir_norm.norm() > 1e-6) {
+        Eigen::Vector2d candidate_dir(wx - start_xy.x(), wy - start_xy.y());
+        if (candidate_dir.norm() > 1e-6) {
+          const double align = candidate_dir.normalized().dot(goal_dir_norm);
+          score += (1.0 - align) * std::max(1.0, exploration_boundary_margin_);
+        }
+      }
+      if (score < best_score) {
+        best_score = score;
+        best_idx = current.idx;
+      }
+    }
+
+    for (const auto & offset : offsets) {
+      const int nx_i = static_cast<int>(cx) + offset[0];
+      const int ny_i = static_cast<int>(cy) + offset[1];
+      if (nx_i < 0 || ny_i < 0 || nx_i >= static_cast<int>(nx) || ny_i >= static_cast<int>(ny)) {
+        continue;
+      }
+      const unsigned int nbx = static_cast<unsigned int>(nx_i);
+      const unsigned int nby = static_cast<unsigned int>(ny_i);
+      const size_t nb_idx = index_of(nbx, nby);
+      if (closed[nb_idx] || !traversable(nb_idx)) {
+        continue;
+      }
+      const bool diagonal = std::abs(offset[0]) + std::abs(offset[1]) == 2;
+      const double step = (diagonal ? 1.41421356237 : 1.0) * resolution;
+      const double next_dist = current.cost + step;
+      if (next_dist < dist[nb_idx]) {
+        dist[nb_idx] = next_dist;
+        parent[nb_idx] = static_cast<int>(current.idx);
+        open.push(QueueNode{nb_idx, next_dist});
+      }
+    }
+  }
+
+  if (best_idx >= map_size) {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] EXPLORATION cannot find a reachable ROGMap boundary candidate.");
+    return false;
+  }
+
+  nav_msgs::msg::Path plan;
+  plan.header.stamp = rclcpp::Clock().now();
+  plan.header.frame_id = output_frame_;
+
+  std::vector<size_t> reversed;
+  for (size_t idx = best_idx;;) {
+    reversed.push_back(idx);
+    if (idx == updated_start_idx) {
+      break;
+    }
+    const int p = parent[idx];
+    if (p < 0) {
+      RCLCPP_ERROR(logger_, "[MincoPlanner] EXPLORATION boundary path reconstruction failed.");
+      return false;
+    }
+    idx = static_cast<size_t>(p);
+  }
+
+  std::lock_guard<std::mutex> path_lock(path_mutex_);
+  latest_global_path_.clear();
+  latest_global_path_.reserve(reversed.size());
+  plan.poses.reserve(reversed.size());
+  for (auto it = reversed.rbegin(); it != reversed.rend(); ++it) {
+    const unsigned int x = static_cast<unsigned int>(*it % nx);
+    const unsigned int y = static_cast<unsigned int>(*it / nx);
+    double wx = 0.0;
+    double wy = 0.0;
+    global_search_query_->mapToWorld(x, y, wx, wy);
+    geometry_msgs::msg::PoseStamped pose;
+    pose.header = plan.header;
+    pose.pose.position.x = wx;
+    pose.pose.position.y = wy;
+    pose.pose.position.z = 0.0;
+    pose.pose.orientation.w = 1.0;
+    latest_global_path_.push_back(pose);
+    plan.poses.push_back(pose);
+  }
+  return latest_global_path_.size() >= 2U;
 }
 
 bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose)
@@ -734,7 +1534,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   if (!minco_optimizer_) {
     return false;
   }
-  if (!ensureMapAvailable() || !minco_optimizer_) {
+  if (!ensureDynamicQueryAvailable() || !minco_optimizer_) {
     return false;
   }
 
@@ -756,6 +1556,15 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   // 2. Extract local dense path.
   std::vector<Eigen::Vector3d> dense_local_path = extractLocalPath(cur_pos);
+  const bool clip_required =
+    runtime_mode_config_.mode == PlannerMode::EXPLORATION || priormap_clip_seed_by_rog_boundary_;
+  const bool clip_ok = clipLocalPathByRogBoundary(dense_local_path);
+  if (clip_required && (!clip_ok || dense_local_path.size() < 2U)) {
+    RCLCPP_WARN_THROTTLE(
+      logger_, *rclcpp::Clock::make_shared(), 2000,
+      "[MincoPlanner] Local seed path is outside ROGMap boundary or too short after clipping.");
+    return false;
+  }
   if (dense_local_path.size() < 2) {
     return false;
   }
@@ -767,11 +1576,11 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     minco_config.max_acc,
     local_end_is_goal,
     [this](const Eigen::Vector3d & a, const Eigen::Vector3d & b) {
-      return isLineFree(this->map_, a, b);
+      return isLineFree(this->sparsify_query_, a, b);
     });
 
   std_msgs::msg::Header header_msg;
-  header_msg.frame_id = global_frame_;
+  header_msg.frame_id = output_frame_;
   header_msg.stamp = rclcpp::Clock().now();
 
   // 4. Determine state (HOT/COLD).
@@ -832,10 +1641,10 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   //           << RESET << std::endl;
   // P1b: If the robot is inside an obstacle (ESDF dist < 0), project the
   // start position to the nearest free space along the ESDF gradient.
-  if (map_) {
+  if (dynamic_query_) {
     double start_esdf_dist = 0.0;
     Eigen::Vector3d start_esdf_grad = Eigen::Vector3d::Zero();
-    map_->evaluate(start_state.col(0), start_esdf_dist, start_esdf_grad);
+    dynamic_query_->evaluate(start_state.col(0), start_esdf_dist, start_esdf_grad);
     if (start_esdf_dist < 0.0 && start_esdf_grad.norm() > 1e-6) {
       constexpr double kMargin = 0.05;
       start_state.col(0) += (kMargin - start_esdf_dist) * start_esdf_grad.normalized();
@@ -1032,7 +1841,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     {
       std::lock_guard<std::mutex> path_lock(path_mutex_);
       astar_path_msg.header.stamp = rclcpp::Clock().now();
-      astar_path_msg.header.frame_id = global_frame_;
+      astar_path_msg.header.frame_id = output_frame_;
       astar_path_msg.poses = latest_global_path_;
     }
     visualizer_->update(sparse_path, backup_traj, opt_traj, opt_duration, astar_path_msg);
@@ -1236,14 +2045,32 @@ bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
   std::function<bool()> cancel_checker,
   nav_msgs::msg::Path & plan)
 {
+  return makePlanOnQuery(
+    start,
+    goal,
+    global_search_query_,
+    runtime_mode_config_.mode == PlannerMode::PRIORMAP ? "Nav2 costmap" : "ROGMap",
+    tolerance,
+    cancel_checker,
+    plan);
+}
+
+bool MincoPlanner::makePlanOnQuery(const geometry_msgs::msg::Pose & start,
+  const geometry_msgs::msg::Pose & goal,
+  const std::shared_ptr<rog_map::MapQueryInterface> & query,
+  const std::string & failure_source,
+  double tolerance,
+  std::function<bool()> cancel_checker,
+  nav_msgs::msg::Path & plan)
+{
   (void)tolerance;
 
   // 1. Reset plan output and header.
   plan.poses.clear();
   plan.header.stamp = rclcpp::Clock().now();
-  plan.header.frame_id = global_frame_;
-  if (!ensureMapAvailable()) {
-    RCLCPP_ERROR(logger_, "MapQueryInterface is not available; planner will not query Nav2 costmap.");
+  plan.header.frame_id = output_frame_;
+  if (!query) {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] %s query is not available for global planning.", failure_source.c_str());
     return false;
   }
 
@@ -1251,30 +2078,35 @@ bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
   double wx = start.position.x;
   double wy = start.position.y;
   unsigned int mx_start, my_start;
-  if (!map_->worldToMap(wx, wy, mx_start, my_start)) {
+  if (!query->worldToMap(wx, wy, mx_start, my_start)) {
     RCLCPP_ERROR(
-      logger_, "Failed to convert start world coordinates (%.2f, %.2f) to map coordinates", wx, wy);
+      logger_,
+      "%s worldToMap failed for start world coordinates (%.2f, %.2f)",
+      failure_source.c_str(), wx, wy);
     return false;
   }
 
   // P1a: If start cell is surrounded by inflated obstacles, spiral-search
   // outward to find the nearest free cell so A* can expand from the start.
-  projectStartToFreeCell(map_, mx_start, my_start);
+  projectStartToFreeCell(query, mx_start, my_start);
 
   wx = goal.position.x;
   wy = goal.position.y;
   unsigned int mx_goal, my_goal;
-  if (!map_->worldToMap(wx, wy, mx_goal, my_goal)) {
+  if (!query->worldToMap(wx, wy, mx_goal, my_goal)) {
     RCLCPP_ERROR(
-      logger_, "Failed to convert goal world coordinates (%.2f, %.2f) to map coordinates", wx, wy);
+      logger_,
+      "%s worldToMap failed for goal world coordinates (%.2f, %.2f)",
+      failure_source.c_str(), wx, wy);
     return false;
   }
-  unsigned int nx = map_->sizeX();
-  unsigned int ny = map_->sizeY();
+  unsigned int nx = query->sizeX();
+  unsigned int ny = query->sizeY();
 
   if (use_smac_ && smac_planner_) {
     // auto time = rclcpp::Clock().now().seconds();
 
+    smac_planner_->setMap(query);
     minco_planner::smac::SmacPlanner2DSimple::CoordinateVector smac_path;
     bool smac_success =
       smac_planner_->createPath(mx_start, my_start, mx_goal, my_goal, smac_path, cancel_checker);
@@ -1301,7 +2133,7 @@ bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
       pose.header = plan.header;
 
       double wx, wy;
-      map_->mapToWorld(static_cast<unsigned int>(it->x), static_cast<unsigned int>(it->y), wx, wy);
+      query->mapToWorld(static_cast<unsigned int>(it->x), static_cast<unsigned int>(it->y), wx, wy);
 
       pose.pose.position.x = wx;
       pose.pose.position.y = wy;
@@ -1323,12 +2155,13 @@ bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
   } else {
     // Use original A* algorithm.
     astar_planner_->setSize(nx, ny);
+    astar_planner_->setMap(query);
     astar_planner_->setStart(static_cast<int>(mx_start), static_cast<int>(my_start));
     astar_planner_->setGoal(static_cast<int>(mx_goal), static_cast<int>(my_goal));
     astar_planner_->setupNavFn(true);
     std::vector<unsigned char> query_costmap_copy;
     const size_t map_size = static_cast<size_t>(nx) * static_cast<size_t>(ny);
-    if (!map_->copyValues(query_costmap_copy) || query_costmap_copy.size() != map_size) {
+    if (!query->copyValues(query_costmap_copy) || query_costmap_copy.size() != map_size) {
       return false;
     }
     astar_planner_->setCostmap(query_costmap_copy.data(), true, allow_unknown_);
@@ -1367,7 +2200,7 @@ bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
       pose.header = plan.header;
 
       double wx, wy;
-      map_->mapToWorld(static_cast<unsigned int>(path_x[i]), static_cast<unsigned int>(path_y[i]), wx, wy);
+      query->mapToWorld(static_cast<unsigned int>(path_x[i]), static_cast<unsigned int>(path_y[i]), wx, wy);
 
       pose.pose.position.x = wx;
       pose.pose.position.y = wy;
@@ -1435,6 +2268,80 @@ std::vector<Eigen::Vector3d> MincoPlanner::extractLocalPath(const Eigen::Vector3
   }
 
   return local_segment;
+}
+
+bool MincoPlanner::clipLocalPathByRogBoundary(std::vector<Eigen::Vector3d> & path) const
+{
+  if (path.empty()) {
+    return false;
+  }
+
+  const bool enable_clip =
+    runtime_mode_config_.mode == PlannerMode::EXPLORATION || priormap_clip_seed_by_rog_boundary_;
+  if (!enable_clip) {
+    return path.size() >= 2U;
+  }
+
+  if (!dynamic_query_) {
+    return false;
+  }
+
+  const double margin =
+    runtime_mode_config_.mode == PlannerMode::PRIORMAP ? priormap_rog_boundary_margin_ : exploration_boundary_margin_;
+  const int margin_cells =
+    std::max(0, static_cast<int>(std::ceil(margin / std::max(1e-6, dynamic_query_->resolution()))));
+  const int max_x = static_cast<int>(dynamic_query_->sizeX());
+  const int max_y = static_cast<int>(dynamic_query_->sizeY());
+  if (max_x <= 0 || max_y <= 0) {
+    return false;
+  }
+
+  const double sample_step = runtime_mode_config_.mode == PlannerMode::PRIORMAP
+    ? priormap_rog_boundary_sample_step_
+    : exploration_boundary_sample_step_;
+  const double step = std::max(dynamic_query_->resolution(), std::max(1e-3, sample_step));
+
+  auto inside_boundary = [this, margin_cells, max_x, max_y](const Eigen::Vector3d & p) {
+    unsigned int mx = 0;
+    unsigned int my = 0;
+    if (!dynamic_query_->worldToMap(p.x(), p.y(), mx, my)) {
+      return false;
+    }
+    const int ix = static_cast<int>(mx);
+    const int iy = static_cast<int>(my);
+    return ix >= margin_cells && iy >= margin_cells &&
+           ix < max_x - margin_cells && iy < max_y - margin_cells;
+  };
+
+  std::vector<Eigen::Vector3d> clipped;
+  clipped.reserve(path.size());
+  for (size_t i = 0; i < path.size(); ++i) {
+    if (!inside_boundary(path[i])) {
+      if (i == 0U) {
+        path.clear();
+        RCLCPP_WARN_THROTTLE(
+          logger_, *rclcpp::Clock::make_shared(), 2000,
+          "[MincoPlanner] Local seed path starts outside ROGMap boundary; reject local replan seed.");
+        return false;
+      }
+      break;
+    }
+    if (i > 0U) {
+      const Eigen::Vector3d delta = path[i] - path[i - 1U];
+      const int samples = std::max(1, static_cast<int>(std::ceil(delta.norm() / step)));
+      for (int s = 1; s <= samples; ++s) {
+        const double ratio = static_cast<double>(s) / static_cast<double>(samples);
+        if (!inside_boundary(path[i - 1U] + ratio * delta)) {
+          path.swap(clipped);
+          return path.size() >= 2U;
+        }
+      }
+    }
+    clipped.push_back(path[i]);
+  }
+
+  path.swap(clipped);
+  return path.size() >= 2U;
 }
 
 MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
@@ -1693,7 +2600,7 @@ bool MincoPlanner::validateTrajectory(
 
 bool MincoPlanner::checkCollision()
 {
-  if (!ensureMapAvailable()) {
+  if (!ensureDynamicQueryAvailable()) {
     return false;
   }
 
@@ -1717,16 +2624,16 @@ bool MincoPlanner::checkCollision()
   for (double t = 0.0; t <= dur; t += dt) {
     const Eigen::Vector3d pos = traj_snapshot.getPos(t);
     unsigned int mx, my;
-    if (!map_->worldToMap(pos.x(), pos.y(), mx, my)) {
+    if (!dynamic_query_->worldToMap(pos.x(), pos.y(), mx, my)) {
       return false;
     }
-    const unsigned char cost = map_->value(mx, my);
+    const unsigned char cost = dynamic_query_->value(mx, my);
     if (cost == nav2_costmap_2d::LETHAL_OBSTACLE || cost == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
       return false;
     }
     double esdf_dist = 0.0;
     Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
-    map_->evaluate(pos, esdf_dist, esdf_grad);
+    dynamic_query_->evaluate(pos, esdf_dist, esdf_grad);
     if (esdf_dist <= 0.0)
       return false;
   }
@@ -1736,7 +2643,7 @@ bool MincoPlanner::checkCollision()
 
 bool MincoPlanner::checkCollision(const traj_opt::Trajectory & traj)
 {
-  if (!ensureMapAvailable()) {
+  if (!ensureDynamicQueryAvailable()) {
     return false;
   }
 
@@ -1751,16 +2658,16 @@ bool MincoPlanner::checkCollision(const traj_opt::Trajectory & traj)
   for (double t = 0.0; t <= dur; t += dt) {
     const Eigen::Vector3d pos = traj.getPos(t);
     unsigned int mx, my;
-    if (!map_->worldToMap(pos.x(), pos.y(), mx, my)) {
+    if (!dynamic_query_->worldToMap(pos.x(), pos.y(), mx, my)) {
       return false;
     }
-    const unsigned char cost = map_->value(mx, my);
+    const unsigned char cost = dynamic_query_->value(mx, my);
     if (cost == nav2_costmap_2d::LETHAL_OBSTACLE || cost == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
       return false;
     }
     double esdf_dist = 0.0;
     Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
-    map_->evaluate(pos, esdf_dist, esdf_grad);
+    dynamic_query_->evaluate(pos, esdf_dist, esdf_grad);
     if (esdf_dist <= 0.0)
       return false;
   }
@@ -1786,7 +2693,7 @@ void MincoPlanner::safetyTimerCallback()
 void MincoPlanner::publishEmergencyStop(const geometry_msgs::msg::PoseStamped & current_pose)
 {
   std_msgs::msg::Header header_msg;
-  header_msg.frame_id = global_frame_;
+  header_msg.frame_id = output_frame_;
   header_msg.stamp = rclcpp::Clock().now();
 
   Eigen::Matrix3d start_state;
@@ -1887,8 +2794,11 @@ double MincoPlanner::getTrajectoryRemainTime() const
 
 bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
 {
-  if (costmap_ros_) {
-    return costmap_ros_->getRobotPose(pose);
+  if (!runtime_mode_config_.direct_odom_pose && costmap_ros_) {
+    if (costmap_ros_->getRobotPose(pose)) {
+      pose.header.frame_id = planning_frame_;
+      return true;
+    }
   }
 
   nav_msgs::msg::Odometry odom;
@@ -1903,20 +2813,50 @@ bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
   geometry_msgs::msg::PoseStamped odom_pose;
   odom_pose.header = odom.header;
   odom_pose.pose = odom.pose.pose;
-  if (odom_pose.header.frame_id.empty() || odom_pose.header.frame_id == global_frame_ || !tf_) {
-    odom_pose.header.frame_id = odom_pose.header.frame_id.empty() ? global_frame_ : odom_pose.header.frame_id;
+
+  if (runtime_mode_config_.direct_odom_pose) {
+    if (odom_pose.header.frame_id.empty()) {
+      RCLCPP_WARN_THROTTLE(
+        logger_, *rclcpp::Clock::make_shared(), 2000,
+        "[MincoPlanner] EXPLORATION odom frame is empty, treating it as %s.",
+        planning_frame_.c_str());
+    }
+    odom_pose.header.frame_id = planning_frame_;
     pose = odom_pose;
     return true;
   }
 
+  if (odom_pose.header.frame_id.empty()) {
+    RCLCPP_WARN_THROTTLE(
+      logger_, *rclcpp::Clock::make_shared(), 2000,
+      "[MincoPlanner] PRIORMAP odom frame is empty, treating it as %s before transforming to %s.",
+      rog_frame_.c_str(), planning_frame_.c_str());
+    odom_pose.header.frame_id = rog_frame_;
+  }
+
+  if (odom_pose.header.frame_id == planning_frame_ || odom_pose.header.frame_id == map_frame_) {
+    odom_pose.header.frame_id = planning_frame_;
+    pose = odom_pose;
+    return true;
+  }
+
+  if (!tf_) {
+    RCLCPP_WARN_THROTTLE(
+      logger_, *rclcpp::Clock::make_shared(), 2000,
+      "[MincoPlanner] Cannot transform PRIORMAP odom pose from %s to %s: TF buffer is null.",
+      odom_pose.header.frame_id.c_str(), planning_frame_.c_str());
+    return false;
+  }
+
   try {
-    pose = tf_->transform(odom_pose, global_frame_);
+    pose = tf_->transform(odom_pose, planning_frame_);
+    pose.header.frame_id = planning_frame_;
     return true;
   } catch (const tf2::TransformException & ex) {
     RCLCPP_WARN_THROTTLE(
       logger_, *rclcpp::Clock::make_shared(), 2000,
       "[MincoPlanner] Failed to transform odom pose from %s to %s: %s",
-      odom_pose.header.frame_id.c_str(), global_frame_.c_str(), ex.what());
+      odom_pose.header.frame_id.c_str(), planning_frame_.c_str(), ex.what());
     return false;
   }
 }
@@ -1978,12 +2918,12 @@ bool MincoPlanner::isTrajectoryTimeExpired(double now_s) const
 
 double MincoPlanner::getEsdfDistance(const Eigen::Vector3d & pos) const
 {
-  if (!map_) {
+  if (!dynamic_query_) {
     return 0.0;
   }
   double dist = 0.0;
   Eigen::Vector3d grad = Eigen::Vector3d::Zero();
-  map_->evaluate(pos, dist, grad);
+  dynamic_query_->evaluate(pos, dist, grad);
   return dist;
 }
 
@@ -1995,7 +2935,7 @@ void MincoPlanner::publishEscapeCommand(
   }
 
   std_msgs::msg::Header header_msg;
-  header_msg.frame_id = global_frame_;
+  header_msg.frame_id = output_frame_;
   header_msg.stamp = rclcpp::Clock().now();
   const double current_yaw = getCurrentYawFromOdom();
   utils::publishEscapeCommand(
