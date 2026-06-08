@@ -28,7 +28,7 @@ sleep 5
 # sleep 3
 
 # Communication
-# gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
 
 # Rosbag record
 ROSBAG_TOPICS=(
