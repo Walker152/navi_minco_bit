@@ -1,4 +1,4 @@
-#include "minco_core/recovery_behaivor.hpp"
+#include "minco_core/components/recovery_behaivor.hpp"
 
 #include <cmath>
 #include <iostream>
