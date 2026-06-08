@@ -1,13 +1,7 @@
 #ifndef MINCO_PLANNER__RECOVERY_BEHAIVOR_HPP_
 #define MINCO_PLANNER__RECOVERY_BEHAIVOR_HPP_
 
-#include <cstdint>
-#include <functional>
-#include <memory>
-
-#include <Eigen/Core>
-
-#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "minco_core/header.hpp"
 
 namespace minco_planner {
 

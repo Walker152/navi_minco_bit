@@ -38,7 +38,20 @@ set(library_name minco_planner)
 file(GLOB UTILS_SOURCES "src/utils/*.cpp")
 file(GLOB SMALL_ROG_MAP_SOURCES "src/small_rog_map/*.cpp")
 file(GLOB SMAC_SEARCH_SOURCES "src/smac_search/*.cpp")
-file(GLOB MINCO_CORE_SOURCES "src/minco_core/*.cpp")
+set(MINCO_CORE_SOURCES
+  src/minco_core/astar.cpp
+  src/minco_core/corridor_generator.cpp
+  src/minco_core/components/global_path_searcher.cpp
+  src/minco_core/components/local_path_processor.cpp
+  src/minco_core/components/map_query_adapters.cpp
+  src/minco_core/components/planner_mode_context.cpp
+  src/minco_core/components/recovery_behaivor.cpp
+  src/minco_core/components/trajectory_safety_checker.cpp
+  src/minco_core/minco_fsm.cpp
+  src/minco_core/minco_planner.cpp
+  src/minco_core/minco_utils.cpp
+  src/minco_core/visualizer.cpp
+)
 file(GLOB TRAJ_OPT_SOURCES "src/traj_opt/*.cpp")
 
 add_library(${library_name} SHARED

@@ -1,22 +1,7 @@
 #ifndef MINCO_PLANNER__MINCO_PLANNER_VISUALIZER_HPP_
 #define MINCO_PLANNER__MINCO_PLANNER_VISUALIZER_HPP_
 
-#include <memory>
-#include <mutex>
-#include <string>
-#include <vector>
-
-#include <Eigen/Core>
-
-#include "nav2_util/lifecycle_node.hpp"
-#include "nav_msgs/msg/path.hpp"
-#include "rclcpp/rclcpp.hpp"
-#include "sensor_msgs/msg/point_cloud2.hpp"
-#include "std_msgs/msg/header.hpp"
-#include "visualization_msgs/msg/marker.hpp"
-
-#include "small_rog_map/hybrid_esdf_map.hpp"
-#include "traj_opt/minco_optimizer.hpp"
+#include "minco_core/header.hpp"
 
 namespace minco_planner {
 
