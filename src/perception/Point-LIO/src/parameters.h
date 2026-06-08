@@ -88,6 +88,7 @@ extern bool space_down_sample;            // 是否进行空间降采样 (减少
 extern bool extrinsic_est_en;             // 是否启用外参在线估计 (自动标定激光雷达-IMU外参)
 extern bool publish_odometry_without_downsample; // 是否发布未降采样的高频里程计
 extern bool print_cloud_input_fps;        // 是否打印点云接收、里程计发布和位姿更新频率
+extern bool debug_pose_update_detail;     // 是否打印位姿更新细粒度诊断
 // === 地图初始化参数 ===
 extern int init_map_size;                 // 初始化地图所需的最少特征点数量
 extern int con_frame_num;                 // 连接帧的数量 (当con_frame=true时)
@@ -105,6 +106,7 @@ extern double satu_acc;                   // 加速度计饱和值 (g)
 extern double satu_gyro;                  // 陀螺仪饱和值 (rad/s)
 extern double cut_frame_time_interval;    // 帧切分时间间隔 (秒)
 extern double cloud_input_fps_print_period; // 运行频率打印周期 (秒)
+extern double debug_pose_update_detail_period; // 位姿更新细粒度诊断打印周期 (秒)
 // === IMU传感器配置 ===
 extern bool imu_en;                       // IMU使能标志 (false时仅使用激光雷达)
 extern double imu_time_inte;              // IMU数据积分时间间隔 (秒，通常为1/IMU频率)
