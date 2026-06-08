@@ -27,7 +27,7 @@ bool projectStartToFreeCell(
     if (map->isFree(static_cast<unsigned int>(sx), static_cast<unsigned int>(sy))) {
       mx = static_cast<unsigned int>(sx);
       my = static_cast<unsigned int>(sy);
-      return false;
+      return true;
     }
   }
   constexpr int kMaxRadius = 50;
@@ -482,9 +482,7 @@ bool GlobalPathSearcher::makePlanOnQuery(
   }
   unsigned int nx = query->sizeX();
   unsigned int ny = query->sizeY();
-
   if (use_smac_ && smac_) {
-    smac_->setMap(query);
     smac::SmacPlanner2DSimple::CoordinateVector smac_path;
     bool smac_success = smac_->createPath(mx_start, my_start, mx_goal, my_goal, smac_path, cancel_checker);
 
@@ -517,7 +515,6 @@ bool GlobalPathSearcher::makePlanOnQuery(
       return false;
     }
     astar_->setSize(nx, ny);
-    astar_->setMap(query);
     astar_->setStart(static_cast<int>(mx_start), static_cast<int>(my_start));
     astar_->setGoal(static_cast<int>(mx_goal), static_cast<int>(my_goal));
     astar_->setupNavFn(true);
