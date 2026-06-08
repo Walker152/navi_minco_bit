@@ -13,6 +13,8 @@
 
 #include "visualization_msgs/msg/marker.hpp"
 
+#include <functional>
+
 #include "ros_interfaces/msg/position_command.hpp"
 #include "rog_map/map_query_interface.hpp"
 
@@ -111,6 +113,31 @@ private:
     EMERGENCY_STOP  // Immediate backup braking with safety priority.
   };
 
+  enum class PlannerMode
+  {
+    PRIORMAP,
+    EXPLORATION
+  };
+
+  struct PlannerRuntimeModeConfig
+  {
+    PlannerMode mode{PlannerMode::PRIORMAP};
+    std::string planning_frame{"map"};
+    std::string output_frame{"map"};
+    std::string map_frame{"map"};
+    std::string rog_frame{"camera_init"};
+
+    bool use_nav2_global_search{true};
+    bool use_rog_global_search{false};
+    bool use_static_esdf{true};
+    bool use_frame_aware_rog_query{true};
+    bool direct_odom_pose{false};
+  };
+
+  using PlanGlobalFn = std::function<bool(
+    const geometry_msgs::msg::PoseStamped & start,
+    const geometry_msgs::msg::PoseStamped & goal)>;
+
   // === Utility & Helper Functions ===
   PlanningState determinePlanningState(
     const geometry_msgs::msg::Pose & start_pose, const std::vector<Eigen::Vector3d> & new_path);
@@ -150,6 +177,34 @@ private:
     const std::string & plugin_prefix);
 
   bool ensureMapAvailable();
+  bool ensureDynamicQueryAvailable() const;
+  void rebuildModeDependentQueries();
+
+  void initPlannerMode(
+    const std::string & planner_mode_param,
+    const std::string & map_frame,
+    const std::string & rog_frame);
+  bool normalizePoseToFrame(
+    const geometry_msgs::msg::PoseStamped & in,
+    const std::string & fallback_frame,
+    const std::string & target_frame,
+    const std::string & context,
+    geometry_msgs::msg::PoseStamped & out) const;
+  bool planGlobalPathPriorMap(
+    const geometry_msgs::msg::PoseStamped & start,
+    const geometry_msgs::msg::PoseStamped & goal);
+  bool planGlobalPathExploration(
+    const geometry_msgs::msg::PoseStamped & start,
+    const geometry_msgs::msg::PoseStamped & goal);
+  bool makePlanOnQuery(
+    const geometry_msgs::msg::Pose & start,
+    const geometry_msgs::msg::Pose & goal,
+    const std::shared_ptr<rog_map::MapQueryInterface> & query,
+    const std::string & failure_source,
+    double tolerance,
+    std::function<bool()> cancel_checker,
+    nav_msgs::msg::Path & plan);
+  bool clipLocalPathByRogBoundary(std::vector<Eigen::Vector3d> & path) const;
 
   // === ROS 2 Interfaces (Publishers, Subscribers, Timers) ===
   rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_pub_;
@@ -164,14 +219,29 @@ private:
   nav2_util::LifecycleNode::WeakPtr node_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   std::shared_ptr<rog_map::MapQueryInterface> map_;
+  std::shared_ptr<rog_map::MapQueryInterface> rog_query_raw_;
+  std::shared_ptr<rog_map::MapQueryInterface> global_search_query_;
+  std::shared_ptr<rog_map::MapQueryInterface> dynamic_query_;
+  std::shared_ptr<rog_map::MapQueryInterface> sparsify_query_;
   std::shared_ptr<rog_map::ROGMapROS> rog_map_ros_;
-  std::string global_frame_, name_;
+  std::string global_frame_, planning_frame_, output_frame_, map_frame_, rog_frame_, name_;
+  PlannerRuntimeModeConfig runtime_mode_config_;
+  PlanGlobalFn plan_global_fn_;
 
   // === Configurations & Parameters ===
   double tolerance_;
   bool allow_unknown_;
   bool use_smac_;
   bool use_yaw_opt_{true};
+  bool use_static_esdf_{true};
+  bool priormap_use_nav2_global_search_{true};
+  bool priormap_clip_seed_by_rog_boundary_{true};
+  bool exploration_unknown_as_occupied_{true};
+  bool exploration_prefer_goal_direction_{true};
+  double priormap_rog_boundary_margin_{0.8};
+  double priormap_rog_boundary_sample_step_{0.1};
+  double exploration_boundary_margin_{0.8};
+  double exploration_boundary_sample_step_{0.1};
   double opt_freq_;
   double lookahead_dist_;
   double traj_goal_tolerance_{0.5};

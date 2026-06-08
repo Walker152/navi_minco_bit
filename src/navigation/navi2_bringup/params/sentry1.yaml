@@ -288,6 +288,20 @@ planner_server:
 
     MincoPlanner:
       plugin: "minco_planner/MincoPlanner"
+      planner_mode: PRIORMAP
+      frames:
+        map_frame: map
+        rog_frame: camera_init
+      priormap:
+        use_nav2_global_search: true
+        clip_seed_by_rog_boundary: true
+        rog_boundary_margin: 0.8
+        rog_boundary_sample_step: 0.1
+      exploration:
+        boundary_margin: 0.8
+        boundary_sample_step: 0.1
+        unknown_as_occupied: true
+        prefer_goal_direction: true
       tolerance: 0.3  
       use_smac: true
       allow_unknown: false
@@ -434,7 +448,7 @@ planner_server:
         extra_margin: 0.05
 
       smac_2d:
-        use_esdf_cost: true
+        use_esdf_cost: false
         esdf_weight: 0.2
         esdf_decay: 0.5
         esdf_max_cost: 0.5
