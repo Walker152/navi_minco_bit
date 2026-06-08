@@ -84,7 +84,7 @@ def generate_launch_description():
                 'map': map_yaml_path,
                 'use_sim_time': use_sim_time,
                 'params_file': nav2_param_path,
-                'log_level': 'error'}.items(),
+                'log_level': 'info'}.items(),
         ),       
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
