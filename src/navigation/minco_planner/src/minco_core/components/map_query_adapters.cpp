@@ -8,22 +8,16 @@ namespace minco_planner {
 
 namespace {
 
-Eigen::Vector3d transformPoint(
-  const geometry_msgs::msg::TransformStamped & tf,
-  const Eigen::Vector3d & p)
+Eigen::Vector3d transformPoint(const geometry_msgs::msg::TransformStamped & tf, const Eigen::Vector3d & p)
 {
   const auto & q_msg = tf.transform.rotation;
   const Eigen::Quaterniond q(q_msg.w, q_msg.x, q_msg.y, q_msg.z);
   const Eigen::Vector3d t(
-    tf.transform.translation.x,
-    tf.transform.translation.y,
-    tf.transform.translation.z);
+    tf.transform.translation.x, tf.transform.translation.y, tf.transform.translation.z);
   return q * p + t;
 }
 
-Eigen::Vector3d rotateVector(
-  const geometry_msgs::msg::TransformStamped & tf,
-  const Eigen::Vector3d & v)
+Eigen::Vector3d rotateVector(const geometry_msgs::msg::TransformStamped & tf, const Eigen::Vector3d & v)
 {
   const auto & q_msg = tf.transform.rotation;
   const Eigen::Quaterniond q(q_msg.w, q_msg.x, q_msg.y, q_msg.z);
@@ -32,14 +26,12 @@ Eigen::Vector3d rotateVector(
 
 bool isLethalCost(const unsigned char cost)
 {
-  return cost == nav2_costmap_2d::LETHAL_OBSTACLE ||
-         cost == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+  return cost == nav2_costmap_2d::LETHAL_OBSTACLE || cost == nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
 }
 
 }  // namespace
 
-Nav2CostmapQuery::Nav2CostmapQuery(nav2_costmap_2d::Costmap2D * costmap)
-: costmap_(costmap)
+Nav2CostmapQuery::Nav2CostmapQuery(nav2_costmap_2d::Costmap2D * costmap) : costmap_(costmap)
 {
 }
 
@@ -58,11 +50,26 @@ void Nav2CostmapQuery::mapToWorld(unsigned int mx, unsigned int my, double & wx,
   costmap_->mapToWorld(mx, my, wx, wy);
 }
 
-unsigned int Nav2CostmapQuery::sizeX() const { return costmap_ ? costmap_->getSizeInCellsX() : 0U; }
-unsigned int Nav2CostmapQuery::sizeY() const { return costmap_ ? costmap_->getSizeInCellsY() : 0U; }
-double Nav2CostmapQuery::resolution() const { return costmap_ ? costmap_->getResolution() : 0.0; }
-double Nav2CostmapQuery::originX() const { return costmap_ ? costmap_->getOriginX() : 0.0; }
-double Nav2CostmapQuery::originY() const { return costmap_ ? costmap_->getOriginY() : 0.0; }
+unsigned int Nav2CostmapQuery::sizeX() const
+{
+  return costmap_ ? costmap_->getSizeInCellsX() : 0U;
+}
+unsigned int Nav2CostmapQuery::sizeY() const
+{
+  return costmap_ ? costmap_->getSizeInCellsY() : 0U;
+}
+double Nav2CostmapQuery::resolution() const
+{
+  return costmap_ ? costmap_->getResolution() : 0.0;
+}
+double Nav2CostmapQuery::originX() const
+{
+  return costmap_ ? costmap_->getOriginX() : 0.0;
+}
+double Nav2CostmapQuery::originY() const
+{
+  return costmap_ ? costmap_->getOriginY() : 0.0;
+}
 
 uint8_t Nav2CostmapQuery::value(unsigned int mx, unsigned int my) const
 {
@@ -118,17 +125,13 @@ bool Nav2CostmapQuery::evaluate(const Eigen::Vector3d & pos, double & dist, Eige
   return true;
 }
 
-FrameAwareRogQuery::FrameAwareRogQuery(
-  std::shared_ptr<rog_map::MapQueryInterface> raw,
+FrameAwareRogQuery::FrameAwareRogQuery(std::shared_ptr<rog_map::MapQueryInterface> raw,
   std::shared_ptr<tf2_ros::Buffer> tf,
   std::string planning_frame,
   std::string rog_frame,
   rclcpp::Logger logger)
-: raw_(std::move(raw)),
-  tf_(std::move(tf)),
-  planning_frame_(std::move(planning_frame)),
-  rog_frame_(std::move(rog_frame)),
-  logger_(logger)
+: raw_(std::move(raw)), tf_(std::move(tf)), planning_frame_(std::move(planning_frame)),
+  rog_frame_(std::move(rog_frame)), logger_(logger)
 {
 }
 
@@ -162,11 +165,26 @@ void FrameAwareRogQuery::mapToWorld(unsigned int mx, unsigned int my, double & w
   wy = p.y();
 }
 
-unsigned int FrameAwareRogQuery::sizeX() const { return raw_ ? raw_->sizeX() : 0U; }
-unsigned int FrameAwareRogQuery::sizeY() const { return raw_ ? raw_->sizeY() : 0U; }
-double FrameAwareRogQuery::resolution() const { return raw_ ? raw_->resolution() : 0.0; }
-double FrameAwareRogQuery::originX() const { return raw_ ? raw_->originX() : 0.0; }
-double FrameAwareRogQuery::originY() const { return raw_ ? raw_->originY() : 0.0; }
+unsigned int FrameAwareRogQuery::sizeX() const
+{
+  return raw_ ? raw_->sizeX() : 0U;
+}
+unsigned int FrameAwareRogQuery::sizeY() const
+{
+  return raw_ ? raw_->sizeY() : 0U;
+}
+double FrameAwareRogQuery::resolution() const
+{
+  return raw_ ? raw_->resolution() : 0.0;
+}
+double FrameAwareRogQuery::originX() const
+{
+  return raw_ ? raw_->originX() : 0.0;
+}
+double FrameAwareRogQuery::originY() const
+{
+  return raw_ ? raw_->originY() : 0.0;
+}
 
 uint8_t FrameAwareRogQuery::value(unsigned int mx, unsigned int my) const
 {
@@ -229,10 +247,13 @@ bool FrameAwareRogQuery::transformPlanningToRog(const Eigen::Vector3d & in, Eige
     out = transformPoint(tf, in);
     return true;
   } catch (const tf2::TransformException & ex) {
-    RCLCPP_WARN_THROTTLE(
-      logger_, *rclcpp::Clock::make_shared(), 2000,
+    RCLCPP_WARN_THROTTLE(logger_,
+      *rclcpp::Clock::make_shared(),
+      2000,
       "[MincoPlanner] TF %s -> %s failed for ROGMap dynamic query: %s",
-      planning_frame_.c_str(), rog_frame_.c_str(), ex.what());
+      planning_frame_.c_str(),
+      rog_frame_.c_str(),
+      ex.what());
     return false;
   }
 }
@@ -251,10 +272,13 @@ bool FrameAwareRogQuery::transformRogToPlanning(const Eigen::Vector3d & in, Eige
     out = transformPoint(tf, in);
     return true;
   } catch (const tf2::TransformException & ex) {
-    RCLCPP_WARN_THROTTLE(
-      logger_, *rclcpp::Clock::make_shared(), 2000,
+    RCLCPP_WARN_THROTTLE(logger_,
+      *rclcpp::Clock::make_shared(),
+      2000,
       "[MincoPlanner] TF %s -> %s failed for ROGMap dynamic query: %s",
-      rog_frame_.c_str(), planning_frame_.c_str(), ex.what());
+      rog_frame_.c_str(),
+      planning_frame_.c_str(),
+      ex.what());
     return false;
   }
 }

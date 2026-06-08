@@ -121,19 +121,14 @@ private:
   rcl_interfaces::msg::SetParametersResult onSetParameters(
     const std::vector<rclcpp::Parameter> & parameters);
 
-  bool configureRogMap(
-    const nav2_util::LifecycleNode::SharedPtr & node,
-    const std::string & plugin_prefix);
+  bool configureRogMap(const nav2_util::LifecycleNode::SharedPtr & node, const std::string & plugin_prefix);
 
   bool ensureMapAvailable();
   void rebuildModeDependentQueries();
 
   void initPlannerMode(
-    const std::string & planner_mode_param,
-    const std::string & map_frame,
-    const std::string & rog_frame);
-  bool normalizePoseToFrame(
-    const geometry_msgs::msg::PoseStamped & in,
+    const std::string & planner_mode_param, const std::string & map_frame, const std::string & rog_frame);
+  bool normalizePoseToFrame(const geometry_msgs::msg::PoseStamped & in,
     const std::string & fallback_frame,
     const std::string & target_frame,
     const std::string & context,

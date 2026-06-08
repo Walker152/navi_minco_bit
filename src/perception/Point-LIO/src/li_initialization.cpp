@@ -131,8 +131,7 @@ std::deque<PointCloudXYZI::Ptr> lidar_buffer;
 std::deque<double> time_buffer;
 std::deque<sensor_msgs::msg::Imu::ConstSharedPtr> imu_deque;
 
-namespace
-{
+namespace {
 std::deque<PointCloudXYZI::Ptr> pending_lidar_buffer;
 std::deque<double> pending_time_buffer;
 std::deque<sensor_msgs::msg::Imu::ConstSharedPtr> pending_imu_deque;
@@ -242,19 +241,19 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
       } else {
         // 达到帧数上限，输出合并后的点云
         PointCloudXYZI::Ptr ptr_con_i(new PointCloudXYZI(10000, 1));
-        *ptr_con_i = *ptr_con;              // 复制合并后的点云
+        *ptr_con_i = *ptr_con;                      // 复制合并后的点云
         pending_lidar_buffer.push_back(ptr_con_i);  // 加入处理队列
         double time_con_i = time_con;
         pending_time_buffer.push_back(time_con_i);  // 使用起始时间作为时间戳
-        ptr_con->clear();                   // 清空容器，准备下一轮
-        frame_ct = 0;                       // 重置帧计数
+        ptr_con->clear();                           // 清空容器，准备下一轮
+        frame_ct = 0;                               // 重置帧计数
       }
     } else {
       // ===== 单帧处理模式 =====
       // 直接处理单帧点云数据
 
       if (!ptr->points.empty()) {
-        pending_lidar_buffer.emplace_back(ptr);                               // 加入点云缓冲区
+        pending_lidar_buffer.emplace_back(ptr);  // 加入点云缓冲区
         pending_time_buffer.emplace_back(rclcpp::Time(msg->header.stamp).seconds());  // 加入时间缓冲区
       }
     }
@@ -412,7 +411,7 @@ void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr & msg_in)
 
   // ===== 数据入队和状态更新 =====
   pending_imu_deque.emplace_back(msg);  // 将校正后的IMU数据加入队列
-  last_timestamp_imu = timestamp;  // 更新最新IMU时间戳
+  last_timestamp_imu = timestamp;       // 更新最新IMU时间戳
 
   sig_buffer.notify_all();
 }

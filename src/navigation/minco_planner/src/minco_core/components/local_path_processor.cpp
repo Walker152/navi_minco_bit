@@ -4,8 +4,7 @@ namespace minco_planner {
 
 namespace {
 
-bool isLineFree(
-  const std::shared_ptr<rog_map::MapQueryInterface> & map,
+bool isLineFree(const std::shared_ptr<rog_map::MapQueryInterface> & map,
   const Eigen::Vector3d & p1,
   const Eigen::Vector3d & p2)
 {
@@ -32,11 +31,7 @@ bool isLineFree(
 }  // namespace
 
 void LocalPathProcessor::configure(
-  double lookahead_dist,
-  double max_vel,
-  double max_acc,
-  double traj_goal_tolerance,
-  rclcpp::Logger logger)
+  double lookahead_dist, double max_vel, double max_acc, double traj_goal_tolerance, rclcpp::Logger logger)
 {
   lookahead_dist_ = lookahead_dist;
   max_vel_ = max_vel;
@@ -62,10 +57,7 @@ LocalPathSeed LocalPathProcessor::buildSeed(
     return seed;
   }
 
-  Eigen::Vector3d global_goal(
-    global_path.back().pose.position.x,
-    global_path.back().pose.position.y,
-    0.0);
+  Eigen::Vector3d global_goal(global_path.back().pose.position.x, global_path.back().pose.position.y, 0.0);
   Eigen::Vector3d cur_pos(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
 
   seed.dense_path = extractLocalPath(global_path, cur_pos);
@@ -73,8 +65,9 @@ LocalPathSeed LocalPathProcessor::buildSeed(
     mode_context.mode() == PlannerMode::EXPLORATION || mode_context.clipSeedByRogBoundary();
   const bool clip_ok = clipLocalPathByRogBoundary(seed.dense_path, mode_context);
   if (clip_required && (!clip_ok || seed.dense_path.size() < 2U)) {
-    RCLCPP_WARN_THROTTLE(
-      logger_, *rclcpp::Clock::make_shared(), 2000,
+    RCLCPP_WARN_THROTTLE(logger_,
+      *rclcpp::Clock::make_shared(),
+      2000,
       "[MincoPlanner] Local seed path is outside ROGMap boundary or too short after clipping.");
     return seed;
   }
@@ -82,10 +75,8 @@ LocalPathSeed LocalPathProcessor::buildSeed(
     return seed;
   }
 
-  seed.local_end_is_goal =
-    (global_goal - seed.dense_path.back()).head<2>().norm() <= traj_goal_tolerance_;
-  seed.sparse_waypoints = utils::getSparseWaypoints(
-    seed.dense_path,
+  seed.local_end_is_goal = (global_goal - seed.dense_path.back()).head<2>().norm() <= traj_goal_tolerance_;
+  seed.sparse_waypoints = utils::getSparseWaypoints(seed.dense_path,
     max_vel_,
     max_acc_,
     seed.local_end_is_goal,
@@ -97,8 +88,7 @@ LocalPathSeed LocalPathProcessor::buildSeed(
 }
 
 std::vector<Eigen::Vector3d> LocalPathProcessor::extractLocalPath(
-  const std::vector<geometry_msgs::msg::PoseStamped> & global_path,
-  const Eigen::Vector3d & cur_pos) const
+  const std::vector<geometry_msgs::msg::PoseStamped> & global_path, const Eigen::Vector3d & cur_pos) const
 {
   std::vector<Eigen::Vector3d> local_segment;
   if (global_path.empty()) {
@@ -118,8 +108,8 @@ std::vector<Eigen::Vector3d> LocalPathProcessor::extractLocalPath(
   }
 
   double accum_dist = 0.0;
-  local_segment.push_back(Eigen::Vector3d(
-    global_path[start_idx].pose.position.x, global_path[start_idx].pose.position.y, 0.0));
+  local_segment.push_back(
+    Eigen::Vector3d(global_path[start_idx].pose.position.x, global_path[start_idx].pose.position.y, 0.0));
 
   for (size_t i = start_idx + 1; i < global_path.size(); ++i) {
     const auto & p1 = global_path[i - 1].pose.position;
@@ -138,14 +128,14 @@ std::vector<Eigen::Vector3d> LocalPathProcessor::extractLocalPath(
 }
 
 bool LocalPathProcessor::clipLocalPathByRogBoundary(
-  std::vector<Eigen::Vector3d> & path,
-  const PlannerModeContext & mode_context) const
+  std::vector<Eigen::Vector3d> & path, const PlannerModeContext & mode_context) const
 {
   if (path.empty()) {
     return false;
   }
 
-  const bool enable_clip = mode_context.mode() == PlannerMode::EXPLORATION || mode_context.clipSeedByRogBoundary();
+  const bool enable_clip =
+    mode_context.mode() == PlannerMode::EXPLORATION || mode_context.clipSeedByRogBoundary();
   if (!enable_clip) {
     return path.size() >= 2U;
   }
@@ -156,8 +146,8 @@ bool LocalPathProcessor::clipLocalPathByRogBoundary(
   }
 
   const double margin = mode_context.mode() == PlannerMode::PRIORMAP
-    ? mode_context.rogBoundaryMargin()
-    : mode_context.explorationBoundaryMargin();
+                          ? mode_context.rogBoundaryMargin()
+                          : mode_context.explorationBoundaryMargin();
   const int margin_cells =
     std::max(0, static_cast<int>(std::ceil(margin / std::max(1e-6, query->resolution()))));
   const int max_x = static_cast<int>(query->sizeX());
@@ -167,8 +157,8 @@ bool LocalPathProcessor::clipLocalPathByRogBoundary(
   }
 
   const double sample_step = mode_context.mode() == PlannerMode::PRIORMAP
-    ? mode_context.rogBoundarySampleStep()
-    : mode_context.explorationBoundarySampleStep();
+                               ? mode_context.rogBoundarySampleStep()
+                               : mode_context.explorationBoundarySampleStep();
   const double step = std::max(query->resolution(), std::max(1e-3, sample_step));
 
   auto inside_boundary = [&query, margin_cells, max_x, max_y](const Eigen::Vector3d & p) {
@@ -179,8 +169,8 @@ bool LocalPathProcessor::clipLocalPathByRogBoundary(
     }
     const int ix = static_cast<int>(mx);
     const int iy = static_cast<int>(my);
-    return ix >= margin_cells && iy >= margin_cells &&
-           ix < max_x - margin_cells && iy < max_y - margin_cells;
+    return ix >= margin_cells && iy >= margin_cells && ix < max_x - margin_cells &&
+           iy < max_y - margin_cells;
   };
 
   std::vector<Eigen::Vector3d> clipped;
@@ -189,8 +179,9 @@ bool LocalPathProcessor::clipLocalPathByRogBoundary(
     if (!inside_boundary(path[i])) {
       if (i == 0U) {
         path.clear();
-        RCLCPP_WARN_THROTTLE(
-          logger_, *rclcpp::Clock::make_shared(), 2000,
+        RCLCPP_WARN_THROTTLE(logger_,
+          *rclcpp::Clock::make_shared(),
+          2000,
           "[MincoPlanner] Local seed path starts outside ROGMap boundary; reject local replan seed.");
         return false;
       }

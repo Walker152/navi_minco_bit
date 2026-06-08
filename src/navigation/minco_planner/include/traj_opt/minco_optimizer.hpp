@@ -14,8 +14,8 @@
 #include "utils/optimization/lbfgs.h"
 #include "utils/optimization/optimization_utils.h"
 
-#include "small_rog_map/hybrid_esdf_map.hpp"
 #include "rog_map/map_query_interface.hpp"
+#include "small_rog_map/hybrid_esdf_map.hpp"
 
 namespace minco_planner {
 
@@ -85,10 +85,7 @@ public:
     opt_vars_.hybrid_esdf_map = esdf_map;
   }
 
-  void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map)
-  {
-    opt_vars_.map = map;
-  }
+  void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map) { opt_vars_.map = map; }
 
   // --- Trajectory Optimization ---
   double optimize(const std::vector<Eigen::Vector3d> & waypoints,

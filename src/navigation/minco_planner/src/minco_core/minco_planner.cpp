@@ -19,8 +19,7 @@ MincoPlanner::MincoPlanner() : tf_(nullptr)
 MincoPlanner::~MincoPlanner() = default;
 
 bool MincoPlanner::configureRogMap(
-  const nav2_util::LifecycleNode::SharedPtr & node,
-  const std::string & plugin_prefix)
+  const nav2_util::LifecycleNode::SharedPtr & node, const std::string & plugin_prefix)
 {
   if (!node) {
     RCLCPP_ERROR(logger_, "[MincoPlanner] Cannot configure ROGMap without planner_server LifecycleNode.");
@@ -48,8 +47,7 @@ bool MincoPlanner::configureRogMap(
 
   rog_map::MapRegistry::set(rog_query_raw_);
   RCLCPP_INFO(
-    logger_,
-    "[MincoPlanner] ROGMap is created inside MincoPlanner plugin and shared by pointer.");
+    logger_, "[MincoPlanner] ROGMap is created inside MincoPlanner plugin and shared by pointer.");
   return true;
 }
 
@@ -70,8 +68,9 @@ bool MincoPlanner::ensureMapAvailable()
 
   auto node = node_.lock();
   if (node) {
-    RCLCPP_ERROR_THROTTLE(
-      logger_, *node->get_clock(), 1000,
+    RCLCPP_ERROR_THROTTLE(logger_,
+      *node->get_clock(),
+      1000,
       "[MincoPlanner] MapQueryInterface unavailable: ROGMap was not created and MapRegistry is empty.");
   } else {
     RCLCPP_ERROR(logger_, "[MincoPlanner] MapQueryInterface unavailable.");
@@ -107,9 +106,7 @@ void MincoPlanner::rebuildModeDependentQueries()
 }
 
 void MincoPlanner::initPlannerMode(
-  const std::string & planner_mode_param,
-  const std::string & map_frame,
-  const std::string & rog_frame)
+  const std::string & planner_mode_param, const std::string & map_frame, const std::string & rog_frame)
 {
   mode_params_.planner_mode = planner_mode_param;
   mode_params_.map_frame = map_frame.empty() ? "map" : map_frame;
@@ -134,16 +131,15 @@ void MincoPlanner::initPlannerMode(
   use_static_esdf_ = mode_context_->useStaticEsdf();
   map_ = mode_context_->dynamicQuery();
 
-  RCLCPP_INFO(
-    logger_,
+  RCLCPP_INFO(logger_,
     "[MincoPlanner] planner_mode=%s",
     mode_context_->mode() == PlannerMode::PRIORMAP ? "PRIORMAP" : "EXPLORATION");
-  RCLCPP_INFO(
-    logger_,
+  RCLCPP_INFO(logger_,
     "[MincoPlanner] planning_frame=%s output_frame=%s rog_frame=%s",
-    planning_frame_.c_str(), output_frame_.c_str(), rog_frame_.c_str());
-  RCLCPP_INFO(
-    logger_,
+    planning_frame_.c_str(),
+    output_frame_.c_str(),
+    rog_frame_.c_str());
+  RCLCPP_INFO(logger_,
     "[MincoPlanner] global_search=%s dynamic_query=%s static_esdf=%s",
     mode_context_->mode() == PlannerMode::PRIORMAP ? "Nav2Costmap" : "ROGMapBoundaryAstar",
     mode_context_->mode() == PlannerMode::PRIORMAP ? "FrameAwareRogQuery" : "DirectRogQuery",
@@ -609,8 +605,7 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
   const std::string dynamic_dilation_param = name_ + ".static_esdf.dynamic_dilation_radius";
   const std::string planner_mode_param = name_ + ".planner_mode";
   const auto is_configure_time_mode_param = [this, &planner_mode_param](const std::string & param_name) {
-    return param_name == planner_mode_param ||
-           param_name == name_ + ".frames.map_frame" ||
+    return param_name == planner_mode_param || param_name == name_ + ".frames.map_frame" ||
            param_name == name_ + ".frames.rog_frame" ||
            param_name == name_ + ".priormap.use_nav2_global_search" ||
            param_name == name_ + ".priormap.clip_seed_by_rog_boundary" ||
@@ -843,8 +838,7 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
 // 3) Core business interface
 // -----------------------------------------------------------------------------
 
-bool MincoPlanner::normalizePoseToFrame(
-  const geometry_msgs::msg::PoseStamped & in,
+bool MincoPlanner::normalizePoseToFrame(const geometry_msgs::msg::PoseStamped & in,
   const std::string & fallback_frame,
   const std::string & target_frame,
   const std::string & context,
@@ -853,10 +847,10 @@ bool MincoPlanner::normalizePoseToFrame(
   out = in;
   if (out.header.frame_id.empty()) {
     out.header.frame_id = fallback_frame;
-    RCLCPP_WARN(
-      logger_,
+    RCLCPP_WARN(logger_,
       "[MincoPlanner] %s pose frame is empty, treating it as %s.",
-      context.c_str(), fallback_frame.c_str());
+      context.c_str(),
+      fallback_frame.c_str());
   }
 
   if (out.header.frame_id == target_frame) {
@@ -865,10 +859,11 @@ bool MincoPlanner::normalizePoseToFrame(
   }
 
   if (!tf_) {
-    RCLCPP_ERROR(
-      logger_,
+    RCLCPP_ERROR(logger_,
       "[MincoPlanner] Cannot transform %s pose from %s to %s: TF buffer is null.",
-      context.c_str(), out.header.frame_id.c_str(), target_frame.c_str());
+      context.c_str(),
+      out.header.frame_id.c_str(),
+      target_frame.c_str());
     return false;
   }
 
@@ -877,10 +872,12 @@ bool MincoPlanner::normalizePoseToFrame(
     out.header.frame_id = target_frame;
     return true;
   } catch (const tf2::TransformException & ex) {
-    RCLCPP_ERROR(
-      logger_,
+    RCLCPP_ERROR(logger_,
       "[MincoPlanner] Failed to transform %s pose from %s to %s: %s",
-      context.c_str(), in.header.frame_id.c_str(), target_frame.c_str(), ex.what());
+      context.c_str(),
+      in.header.frame_id.c_str(),
+      target_frame.c_str(),
+      ex.what());
     return false;
   }
 }
@@ -901,8 +898,7 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
   const bool goal_ok =
     normalizePoseToFrame(goal, planning_frame_, planning_frame_, "createPlan goal", normalized_goal);
   if (!start_ok || !goal_ok) {
-    RCLCPP_ERROR(
-      logger_,
+    RCLCPP_ERROR(logger_,
       "[MincoPlanner] Failed to normalize createPlan pose(s) to planning frame %s; reject pending goal.",
       planning_frame_.c_str());
     std::lock_guard<std::mutex> lk(goal_mutex_);
@@ -1829,8 +1825,9 @@ bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
 
   if (direct_odom_pose) {
     if (odom_pose.header.frame_id.empty()) {
-      RCLCPP_WARN_THROTTLE(
-        logger_, *rclcpp::Clock::make_shared(), 2000,
+      RCLCPP_WARN_THROTTLE(logger_,
+        *rclcpp::Clock::make_shared(),
+        2000,
         "[MincoPlanner] EXPLORATION odom frame is empty, treating it as %s.",
         planning_frame_.c_str());
     }
@@ -1840,10 +1837,12 @@ bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
   }
 
   if (odom_pose.header.frame_id.empty()) {
-    RCLCPP_WARN_THROTTLE(
-      logger_, *rclcpp::Clock::make_shared(), 2000,
+    RCLCPP_WARN_THROTTLE(logger_,
+      *rclcpp::Clock::make_shared(),
+      2000,
       "[MincoPlanner] PRIORMAP odom frame is empty, treating it as %s before transforming to %s.",
-      rog_frame_.c_str(), planning_frame_.c_str());
+      rog_frame_.c_str(),
+      planning_frame_.c_str());
     odom_pose.header.frame_id = rog_frame_;
   }
 
@@ -1854,10 +1853,12 @@ bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
   }
 
   if (!tf_) {
-    RCLCPP_WARN_THROTTLE(
-      logger_, *rclcpp::Clock::make_shared(), 2000,
+    RCLCPP_WARN_THROTTLE(logger_,
+      *rclcpp::Clock::make_shared(),
+      2000,
       "[MincoPlanner] Cannot transform PRIORMAP odom pose from %s to %s: TF buffer is null.",
-      odom_pose.header.frame_id.c_str(), planning_frame_.c_str());
+      odom_pose.header.frame_id.c_str(),
+      planning_frame_.c_str());
     return false;
   }
 
@@ -1866,10 +1867,13 @@ bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
     pose.header.frame_id = planning_frame_;
     return true;
   } catch (const tf2::TransformException & ex) {
-    RCLCPP_WARN_THROTTLE(
-      logger_, *rclcpp::Clock::make_shared(), 2000,
+    RCLCPP_WARN_THROTTLE(logger_,
+      *rclcpp::Clock::make_shared(),
+      2000,
       "[MincoPlanner] Failed to transform odom pose from %s to %s: %s",
-      odom_pose.header.frame_id.c_str(), planning_frame_.c_str(), ex.what());
+      odom_pose.header.frame_id.c_str(),
+      planning_frame_.c_str(),
+      ex.what());
     return false;
   }
 }
