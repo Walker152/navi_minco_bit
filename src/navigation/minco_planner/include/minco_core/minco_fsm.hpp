@@ -1,15 +1,12 @@
 #ifndef MINCO_PLANNER__MINCO_FSM_HPP_
 #define MINCO_PLANNER__MINCO_FSM_HPP_
 
-#include <memory>
-#include <string>
-
-#include "geometry_msgs/msg/pose_stamped.hpp"
-#include "minco_core/recovery_behaivor.hpp"
+#include "minco_core/header.hpp"
 
 namespace minco_planner {
 
 class MincoPlanner;
+class RecoverServer;
 
 class MincoFsm
 {
@@ -22,8 +19,6 @@ public:
     GENERATE_TRAJ,
     FOLLOW_TRAJ,
     RECOVERING,
-    // Disabled to prevent zero-velocity deadlock
-    // EMER_STOP
   };
 
   using PlannerPtr = std::shared_ptr<MincoPlanner>;

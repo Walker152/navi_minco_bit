@@ -1,526 +1,791 @@
-# Codex 任务：修复 MincoPlanner 双模式架构剩余逻辑漏洞，不修改速度/yaw 处理
+# Codex 任务：重构 MincoPlanner 代码组织，抽离 Query / Mode / Search / Safety 职责，但不要编译
 
-## 0. 背景
+## 0. 重要限制
 
-当前 `MincoPlanner` 已经完成 `PRIORMAP / EXPLORATION` 双模式架构改造，整体方向正确：
+本任务只做代码结构重构，不做算法重写。
 
-```text
-PRIORMAP:
-  planning_frame = map
-  output_frame   = map
-  global search  = Nav2 costmap / prior map
-  ROGMap         = dynamic gradient + safety grid only
+严禁执行：
 
-EXPLORATION:
-  planning_frame = camera_init
-  output_frame   = camera_init
-  global search  = ROGMap reachable boundary search
-  ROGMap         = search map + optimization query + safety grid
+```bash
+colcon build
+colcon test
+ros2 launch
+ros2 run
 ```
 
-本轮任务不是重写架构，不要修改算法内部原理，只修复当前实现中仍然存在的接口、坐标、模式语义漏洞。
+不要编译，不要运行实机相关命令。
+只允许做静态代码修改、静态自查、grep 检查、生成说明文档。
 
-特别说明：**不要处理速度 / yaw 到 planning_frame 的转换问题。**
-上一轮检查中的第 5 点本轮不做，保持当前速度和 yaw 逻辑不动。
+如果需要验证，只输出“建议编译命令”，不要实际执行。
 
 ---
 
-## 1. 禁止事项
+## 1. 当前问题
 
-本轮禁止做以下事情：
+当前 `minco_planner.cpp` 过于臃肿，承担了大量不属于 `MincoPlanner` 本体的职责，包括但不限于：
 
-1. 不要修改 Minco 优化器核心数学。
-2. 不要修改 A*/Smac 搜索算法原理。
-3. 不要修改 FSM 主流程。
-4. 不要改变 recovery / safety timer 状态机逻辑。
-5. 不要重构成复杂框架。
-6. 不要修改当前速度和 yaw 获取逻辑。
-7. 不要改变 `PRIORMAP` 下 `/opt_path` 输出为 `map` 的语义。
-8. 不要让 `PRIORMAP` 下 ROGMap 参与全局搜索。
-9. 不要让 `PRIORMAP` 下 ROGMap 参与路径稀疏 / 控制点选择。
-10. 不要让 `EXPLORATION` 依赖 map / PGM / static ESDF。
+```text
+1. Nav2CostmapQuery / FrameAwareRogQuery 等 query adapter 定义；
+2. TF 点变换、向量旋转、cost 判断等工具函数；
+3. PRIORMAP / EXPLORATION 模式下 query 创建与绑定；
+4. 全局搜索实现；
+5. EXPLORATION reachable boundary search；
+6. 局部路径截取、ROGMap 边界裁剪、路径稀疏；
+7. 轨迹安全检测、ESDF 距离查询；
+8. 将各类 query 注入 Smac / Astar / Optimizer / Corridor。
+```
+
+重构目标是让 `MincoPlanner` 回到高层调度器职责：
+
+```text
+MincoPlanner 只负责：
+1. Nav2 planner plugin 生命周期；
+2. 参数加载；
+3. PRIORMAP / EXPLORATION 模式适配；
+4. 调度全局搜索、局部路径处理、Minco 优化、安全检测；
+5. 发布 /opt_path / backup / recovery command；
+6. 与 FSM、Nav2、ROGMapROS 的连接。
+```
+
+不要让 `MincoPlanner` 继续直接实现 query adapter、搜索细节、边界搜索细节、安全检测细节。
 
 ---
 
-## 2. 修复目标总览
+## 2. 核心原则
 
-需要修复以下 7 类问题：
+必须保持现有行为不变。
 
-```text
-1. PRIORMAP 下路径稀疏仍然使用 ROGMap。
-2. clipLocalPathByRogBoundary() 返回值被忽略，首点越界时没有正确裁剪。
-3. createPlan() 中 TF 失败时不能伪装 frame。
-4. PRIORMAP 下 odom fallback 对空 frame 的处理不安全。
-5. EXPLORATION 下 goal 在窗口内但不可达时，应 fallback 到 reachable boundary search。
-6. setMap() 不能绕过 mode wrapper。
-7. mode / frame / 双模式核心参数不允许 hot reload。
-```
-
-注意：上一轮检查中的“速度/yaw 转 planning_frame”问题本轮不处理。
-
----
-
-## 3. 修复 1：新增 sparsify_query_，PRIORMAP 稀疏不能用 ROGMap
-
-### 当前问题
-
-`ReplanLocal()` 中 `getSparseWaypoints()` 的 line-free 判断仍然使用：
-
-```cpp
-isLineFree(this->dynamic_query_, a, b)
-```
-
-而 `PRIORMAP` 下 `dynamic_query_` 是 ROGMap frame-aware wrapper。
-这会导致 ROGMap 参与路径稀疏 / 控制点选择，违反设计要求。
-
-### 要求
-
-新增成员变量：
-
-```cpp
-std::shared_ptr<rog_map::MapQueryInterface> sparsify_query_;
-```
-
-在 mode init 中设置：
-
-```cpp
-PRIORMAP:
-  sparsify_query_ = global_search_query_;   // Nav2 costmap / prior map query
-
-EXPLORATION:
-  sparsify_query_ = dynamic_query_;         // ROGMap query
-```
-
-然后将 `ReplanLocal()` 中路径稀疏使用的查询对象改为：
-
-```cpp
-isLineFree(this->sparsify_query_, a, b)
-```
-
-而不是 `dynamic_query_`。
-
-### 语义要求
-
-`PRIORMAP` 下：
-
-```text
-Nav2/map:
-  global search
-  path sparsify
-  control point selection
-
-ROGMap:
-  optimization gradient
-  safety grid check
-  optional seed boundary clipping only
-```
-
-`EXPLORATION` 下：
-
-```text
-ROGMap:
-  global search
-  path sparsify
-  optimization query
-  safety grid check
-```
-
----
-
-## 4. 修复 2：clipLocalPathByRogBoundary() 必须正确返回并被调用方检查
-
-### 当前问题
-
-`ReplanLocal()` 中调用：
-
-```cpp
-clipLocalPathByRogBoundary(dense_local_path);
-```
-
-但没有检查返回值。
-
-同时，如果 path 第一个点就不在 ROGMap 边界内，函数可能直接 break，但没有清空 path，导致后续仍拿越界 path 继续优化。
-
-### 要求
-
-修改 `clipLocalPathByRogBoundary()`：
-
-1. 返回 `bool` 表示裁剪后路径是否仍有效。
-2. 如果输入 path 为空，返回 false。
-3. 如果首点不在 ROGMap 有效边界内：
-
-   * `path.clear();`
-   * 打 WARN_THROTTLE；
-   * 返回 false。
-4. 如果裁剪后 path size < 2：
-
-   * 返回 false。
-5. 如果裁剪成功且至少保留 2 个点：
-
-   * 返回 true。
-
-示意逻辑：
-
-```cpp
-bool MincoPlanner::clipLocalPathByRogBoundary(std::vector<Eigen::Vector3d> & path)
-{
-  if (path.empty()) {
-    return false;
-  }
-
-  std::vector<Eigen::Vector3d> clipped;
-  clipped.reserve(path.size());
-
-  for (size_t i = 0; i < path.size(); ++i) {
-    if (!isInsideRogBoundaryWithMargin(path[i])) {
-      if (i == 0) {
-        path.clear();
-        return false;
-      }
-      break;
-    }
-    clipped.push_back(path[i]);
-  }
-
-  path.swap(clipped);
-  return path.size() >= 2;
-}
-```
-
-### ReplanLocal 调用要求
-
-`ReplanLocal()` 必须检查：
-
-```cpp
-const bool clip_ok = clipLocalPathByRogBoundary(dense_local_path);
-if (clip_required && (!clip_ok || dense_local_path.size() < 2)) {
-  RCLCPP_WARN_THROTTLE(...);
-  return false;
-}
-```
-
-其中：
-
-```text
-PRIORMAP:
-  clip_required = priormap_clip_seed_by_rog_boundary_
-
-EXPLORATION:
-  clip_required = true
-```
-
----
-
-## 5. 修复 3：createPlan() 中 transform 失败不能伪装 frame
-
-### 当前问题
-
-当前逻辑可能出现：
-
-```cpp
-normalized_goal = goal;
-normalized_goal.header.frame_id = output_frame_;
-```
-
-这会导致坐标值没有经过 TF 变换，但 header 被强行改成 output frame，属于严重坐标语义错误。
-
-### 要求
-
-在 `createPlan()` 中：
-
-1. goal 需要归一到 `output_frame_` 或 `planning_frame_`。
-2. 如果 transform 失败：
-
-   * 不允许修改 header 后继续使用；
-   * 不允许设置 `pending_goal_`；
-   * 返回空 path 或 minimal failure path；
-   * 打 ERROR 日志，明确说明 transform 失败。
-3. 如果 goal header 为空：
-
-   * `PRIORMAP` 下默认按 `map_frame_` 解释；
-   * `EXPLORATION` 下默认按 `rog_frame_ / camera_init` 解释；
-   * 打 WARN。
-
-建议逻辑：
-
-```cpp
-geometry_msgs::msg::PoseStamped normalized_goal;
-if (!normalizePoseToPlanningFrame(goal, normalized_goal)) {
-  RCLCPP_ERROR(logger_, "[MincoPlanner] Failed to normalize goal pose to planning frame; reject pending goal.");
-  std::lock_guard<std::mutex> lk(goal_mutex_);
-  has_pending_goal_ = false;
-  return nav_msgs::msg::Path{};
-}
-```
-
-不要出现“TF 失败后强行改 header”的代码。
-
----
-
-## 6. 修复 4：PRIORMAP odom fallback 空 frame 不能当成 map
-
-### 当前问题
-
-`getRobotPose()` 在 `PRIORMAP` fallback 中，如果 odom frame 为空，可能把 odom 直接当成 `planning_frame_ = map`。
-
-但当前 odom 实际语义是 `camera_init`。
-所以 PRIORMAP 下空 odom frame 应默认按 `rog_frame_ / camera_init` 处理，然后 TF 到 map。
-
-### 要求
-
-修改 `getRobotPose()` 的 PRIORMAP fallback：
-
-```text
-PRIORMAP:
-  1. 优先 costmap_ros_->getRobotPose(pose)，保持原 Nav2 语义。
-  2. 若失败，读取 latest_odom_。
-  3. 若 latest_odom_.header.frame_id 为空，则按 rog_frame_ 处理，并 WARN。
-  4. 如果 odom frame 已经是 map_frame_，可直接返回。
-  5. 如果 odom frame 是 rog_frame_ / camera_init，则必须 TF 到 map_frame_。
-  6. 如果 TF 不可用或失败，返回 false。
-```
-
-禁止逻辑：
-
-```cpp
-if (odom_pose.header.frame_id.empty()) {
-  odom_pose.header.frame_id = planning_frame_;  // 禁止在 PRIORMAP 这样做
-}
-```
-
-EXPLORATION 下可以保留：
-
-```text
-odom frame 为空时按 camera_init 处理。
-```
-
----
-
-## 7. 修复 5：EXPLORATION goal 在窗口内但不可达时 fallback 到边界搜索
-
-### 当前问题
-
-`planGlobalPathExploration()` 中，如果 goal 在 ROGMap 内且 cell 可通行，会直接尝试搜索到 goal。
-如果搜索失败，当前可能直接返回 false。
-
-但 goal cell 可通行不代表从当前位置可达，可能被障碍物隔开。
-
-### 要求
-
-修改逻辑：
-
-```cpp
-if (goal_traversable) {
-  if (makePlanOnQuery(... goal ...)) {
-    return true;
-  }
-
-  RCLCPP_WARN(
-    logger_,
-    "[MincoPlanner] Exploration goal is inside ROGMap and traversable but unreachable; fallback to reachable boundary search.");
-}
-
-// 继续执行 reachable boundary search
-return planExplorationToReachableBoundary(start, goal);
-```
-
-边界搜索仍必须满足：
-
-```text
-从 start 出发搜索；
-边界候选必须来自 start 可达连通域；
-不能直接投影 goal 到边界后假设可达；
-goal 方向只能作为候选评分或启发项。
-```
-
----
-
-## 8. 修复 6：setMap() 不能绕过 mode wrapper
-
-### 当前问题
-
-如果 `setMap(raw_rog_map)` 直接执行：
-
-```cpp
-dynamic_query_ = map;
-minco_optimizer_->setMap(dynamic_query_);
-corridor_gen_->setMap(dynamic_query_);
-```
-
-那么 PRIORMAP 下会绕过 `FrameAwareRogQuery`，导致 map 系轨迹点再次直接查 camera_init ROGMap。
-
-### 要求
-
-修改 `setMap()`，使其不会破坏 mode wrapper。
-
-推荐方式：
-
-```cpp
-void MincoPlanner::setMap(const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_map)
-{
-  rog_query_raw_ = raw_rog_map;
-  rebuildModeDependentQueries();
-}
-```
-
-其中 `rebuildModeDependentQueries()` 根据当前 mode 重新设置：
-
-```text
-PRIORMAP:
-  dynamic_query_ = FrameAwareRogQuery(raw_rog_map, map_frame_, rog_frame_, tf_)
-  minco_optimizer_->setMap(dynamic_query_)
-  corridor_gen_->setMap(dynamic_query_)
-  safety check uses dynamic_query_
-
-EXPLORATION:
-  dynamic_query_ = raw_rog_map
-  global_search_query_ = raw_rog_map
-  sparsify_query_ = raw_rog_map
-  minco_optimizer_->setMap(dynamic_query_)
-  corridor_gen_->setMap(dynamic_query_)
-```
-
-如果当前初始化顺序不方便，也至少保证：
-
-```text
-PRIORMAP 下 setMap() 不会把 dynamic_query_ 覆盖成 raw ROGMap。
-```
-
-并加日志：
-
-```cpp
-RCLCPP_INFO(logger_, "[MincoPlanner] Rebuilt mode-dependent map queries after raw ROGMap update.");
-```
-
----
-
-## 9. 修复 7：禁止 mode / frame / 双模式核心参数 hot reload
-
-### 当前问题
-
-当前可能只禁止了 `planner_mode` 热更新，但没有禁止：
-
-```text
-frames.map_frame
-frames.rog_frame
-priormap.*
-exploration.*
-```
-
-这些参数都是 configure-time 决定的。如果运行时变化，内部变量不会自动一致，容易造成调试混乱。
-
-### 要求
-
-在 `onSetParameters()` 中拒绝以下参数运行时修改：
-
-```text
-MincoPlanner.planner_mode
-MincoPlanner.frames.map_frame
-MincoPlanner.frames.rog_frame
-
-MincoPlanner.priormap.use_nav2_global_search
-MincoPlanner.priormap.clip_seed_by_rog_boundary
-MincoPlanner.priormap.rog_boundary_margin
-MincoPlanner.priormap.rog_boundary_sample_step
-
-MincoPlanner.exploration.boundary_margin
-MincoPlanner.exploration.boundary_sample_step
-MincoPlanner.exploration.unknown_as_occupied
-MincoPlanner.exploration.prefer_goal_direction
-```
-
-也可以用后缀匹配，只要不要误伤普通优化器参数。
-
-返回：
-
-```cpp
-rcl_interfaces::msg::SetParametersResult result;
-result.successful = false;
-result.reason = "Planner mode/frame parameters are configure-time only; restart planner_server to apply.";
-return result;
-```
-
-注意不要禁止已有可动态调整的优化器权重、速度、加速度等参数，除非当前代码本来就是这样设计的。
-
----
-
-## 10. 需要检查的旧错误是否消失
-
-修复后检查以下问题：
+尤其保持双模式语义：
 
 ### PRIORMAP
 
-必须满足：
+```text
+planning_frame = map
+output_frame   = map
+global search  = Nav2 costmap / prior map
+sparsify       = Nav2 costmap / prior map
+dynamic query  = FrameAwareRogQuery(raw ROGMap, map -> camera_init)
+static ESDF    = enabled
+/opt_path      = map
+```
+
+ROGMap 在 PRIORMAP 下只允许用于：
 
 ```text
-1. start/goal 全局搜索不进入 raw ROGMap。
-2. 路径稀疏不使用 ROGMap。
-3. 控制点选择不因 ROGMap 改变。
-4. ROGMap 只用于：
-   - dynamic_query_ 优化梯度；
-   - safety check 栅格/ESDF；
-   - 可选 seed boundary clipping。
-5. /opt_path.header.frame_id = map。
-6. TF 失败时不会把 camera_init 坐标伪装成 map。
+1. Minco 优化动态梯度；
+2. 轨迹安全检测；
+3. 可选 seed path 边界裁剪。
 ```
+
+禁止让 ROGMap 参与 PRIORMAP 的全局搜索、路径稀疏、控制点选择。
 
 ### EXPLORATION
 
-必须满足：
+```text
+planning_frame = camera_init
+output_frame   = camera_init
+global search  = ROGMap reachable boundary search
+sparsify       = ROGMap
+dynamic query  = raw ROGMap
+static ESDF    = disabled
+/opt_path      = camera_init
+```
+
+EXPLORATION 下搜索边界点必须是从当前位置出发搜索到的 reachable boundary candidate，不允许直接把目标投影到边界后假定可达。
+
+---
+
+## 3. 禁止修改算法内部原理
+
+不要修改以下内容的算法原理：
 
 ```text
-1. getRobotPose 直接使用 camera_init odom。
-2. global path 在 ROGMap / camera_init 中生成。
-3. goal 在窗口内但不可达时，会 fallback 到 reachable boundary search。
-4. reachable boundary 是从当前位置搜索得到，不是直接投影。
-5. 不加载 static ESDF。
-6. /opt_path.header.frame_id = camera_init。
+1. MincoOptimizer 代价函数、时间分配、约束公式；
+2. A* / Smac 的搜索启发、代价累计、邻接扩展；
+3. FSM 状态机主流程；
+4. recovery 决策逻辑；
+5. yaw optimizer / backup optimizer；
+6. controller 输出消息结构。
+```
+
+允许的修改仅限于：
+
+```text
+1. 类和文件拆分；
+2. query adapter 抽离；
+3. 模式上下文抽离；
+4. 将已有逻辑搬到更合适的类中；
+5. 统一接口命名；
+6. 减少 MincoPlanner 主文件职责；
+7. 改善内存管理，但不改变算法行为。
 ```
 
 ---
 
-## 11. 编译与静态验证
+## 4. 推荐新增文件
 
-完成后执行：
-
-```bash
-colcon build --symlink-install
-```
-
-并输出一个 `planner_mode_fix_validation.md`，包含：
+根据当前包结构，优先新增以下文件：
 
 ```text
-1. 修改文件列表。
-2. 每个修复点对应的代码位置。
-3. PRIORMAP 下：
-   - global_search_query_ 是 Nav2 costmap；
-   - sparsify_query_ 是 Nav2 costmap；
-   - dynamic_query_ 是 FrameAwareRogQuery；
-   - /opt_path frame 是 map。
-4. EXPLORATION 下：
-   - global_search_query_ 是 ROGMap；
-   - sparsify_query_ 是 ROGMap；
-   - dynamic_query_ 是 ROGMap；
-   - /opt_path frame 是 camera_init。
-5. 编译结果。
-6. 仍需实机验证的项目。
+minco_core/map_query_adapters.hpp
+minco_core/map_query_adapters.cpp
+
+minco_core/planner_mode_context.hpp
+minco_core/planner_mode_context.cpp
+
+minco_core/global_path_searcher.hpp
+minco_core/global_path_searcher.cpp
+
+minco_core/local_path_processor.hpp
+minco_core/local_path_processor.cpp
+
+minco_core/trajectory_safety_checker.hpp
+minco_core/trajectory_safety_checker.cpp
+```
+
+如果项目已有更合适的 include/source 目录，请按现有风格放置。
+
+同时更新：
+
+```text
+CMakeLists.txt
+minco_core/minco_planner.hpp
+minco_core/minco_planner.cpp
+minco_core/minco_utils.hpp
+minco_core/minco_utils.cpp
 ```
 
 ---
 
-## 12. 最终验收标准
+## 5. 第一阶段：抽离 map_query_adapters
 
-本轮修复后，必须能明确保证：
+从 `minco_planner.cpp` 中移走：
+
+```cpp
+transformPoint(...)
+rotateVector(...)
+isLethalCost(...)
+class Nav2CostmapQuery
+class FrameAwareRogQuery
+```
+
+放入：
+
+```text
+minco_core/map_query_adapters.hpp
+minco_core/map_query_adapters.cpp
+```
+
+要求：
+
+```cpp
+namespace minco_planner {
+
+class Nav2CostmapQuery : public rog_map::MapQueryInterface { ... };
+
+class FrameAwareRogQuery : public rog_map::MapQueryInterface { ... };
+
+}
+```
+
+`Nav2CostmapQuery` 职责：
+
+```text
+1. 适配 nav2_costmap_2d::Costmap2D；
+2. 实现 rog_map::MapQueryInterface；
+3. worldToMap / mapToWorld / size / origin / resolution / values / copyValues / isFree / evaluate；
+4. 不持有 costmap 所有权，只保存裸指针或弱引用；
+5. 不在高频函数中分配大对象。
+```
+
+`FrameAwareRogQuery` 职责：
+
+```text
+1. 输入 planning_frame 坐标；
+2. 内部 TF 到 rog_frame；
+3. 查询 raw ROGMap；
+4. evaluate() 后将梯度从 rog_frame 旋转回 planning_frame；
+5. PRIORMAP 下用于 dynamic query；
+6. EXPLORATION 下不需要使用。
+```
+
+注意：
+
+```text
+1. 不要把 Nav2CostmapQuery 放进 rog_map 包，避免 ROGMap 反向依赖 Nav2。
+2. FrameAwareRogQuery 可以保留现有每次 lookupTransform 的行为，本轮不强制做 TF cache。
+3. 如果做 TF cache，必须保证行为等价，并说明刷新时机；否则不要做。
+```
+
+---
+
+## 6. 第二阶段：抽离 PlannerModeContext
+
+新增：
+
+```text
+minco_core/planner_mode_context.hpp
+minco_core/planner_mode_context.cpp
+```
+
+建议定义：
+
+```cpp
+enum class PlannerMode {
+  PRIORMAP,
+  EXPLORATION
+};
+
+struct PlannerModeParams {
+  std::string planner_mode{"PRIORMAP"};
+  std::string map_frame{"map"};
+  std::string rog_frame{"camera_init"};
+
+  bool priormap_use_nav2_global_search{true};
+  bool priormap_clip_seed_by_rog_boundary{true};
+  double priormap_rog_boundary_margin{0.8};
+  double priormap_rog_boundary_sample_step{0.1};
+
+  double exploration_boundary_margin{0.8};
+  double exploration_boundary_sample_step{0.1};
+  bool exploration_unknown_as_occupied{true};
+  bool exploration_prefer_goal_direction{true};
+};
+
+class PlannerModeContext {
+public:
+  void configure(
+    const PlannerModeParams & params,
+    const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
+    nav2_costmap_2d::Costmap2DROS * costmap_ros,
+    const std::shared_ptr<tf2_ros::Buffer> & tf,
+    const rclcpp::Logger & logger);
+
+  void rebuildQueries(
+    const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
+    nav2_costmap_2d::Costmap2DROS * costmap_ros,
+    const std::shared_ptr<tf2_ros::Buffer> & tf,
+    const rclcpp::Logger & logger);
+
+  PlannerMode mode() const;
+  const std::string & planningFrame() const;
+  const std::string & outputFrame() const;
+  const std::string & mapFrame() const;
+  const std::string & rogFrame() const;
+
+  bool useStaticEsdf() const;
+  bool directOdomPose() const;
+
+  bool clipSeedByRogBoundary() const;
+  double rogBoundaryMargin() const;
+  double rogBoundarySampleStep() const;
+
+  double explorationBoundaryMargin() const;
+  double explorationBoundarySampleStep() const;
+  bool explorationUnknownAsOccupied() const;
+  bool explorationPreferGoalDirection() const;
+
+  std::shared_ptr<rog_map::MapQueryInterface> globalQuery() const;
+  std::shared_ptr<rog_map::MapQueryInterface> dynamicQuery() const;
+  std::shared_ptr<rog_map::MapQueryInterface> sparsifyQuery() const;
+};
+```
+
+内部逻辑必须等价于当前 `initPlannerMode()` + `rebuildModeDependentQueries()`。
+
+模式绑定要求：
 
 ```text
 PRIORMAP:
-  旧 Nav2 + map + BT + controller 语义保持不变。
-  ROGMap 不再影响全局搜索、路径稀疏、控制点选择。
-  ROGMap 仅提供优化梯度、安全检测栅格，以及可选边界裁剪。
+  planningFrame = map_frame
+  outputFrame   = map_frame
+  useStaticEsdf = true
+  directOdomPose = false
+  globalQuery   = Nav2CostmapQuery
+  dynamicQuery  = FrameAwareRogQuery(raw_rog_query)
+  sparsifyQuery = globalQuery
 
 EXPLORATION:
-  全流程在 camera_init 下运行。
-  ROGMap 搜索到可达边界，而不是直接投影不可达边界点。
+  planningFrame = rog_frame
+  outputFrame   = rog_frame
+  useStaticEsdf = false
+  directOdomPose = true
+  globalQuery   = raw_rog_query
+  dynamicQuery  = raw_rog_query
+  sparsifyQuery = raw_rog_query
 ```
 
-再次强调：**不要修改速度/yaw 当前处理逻辑。**
+`MincoPlanner` 中不再直接维护这些 query 的创建细节，只调用：
+
+```cpp
+mode_context_->globalQuery()
+mode_context_->dynamicQuery()
+mode_context_->sparsifyQuery()
+```
+
+---
+
+## 7. 第三阶段：抽离 GlobalPathSearcher
+
+新增：
+
+```text
+minco_core/global_path_searcher.hpp
+minco_core/global_path_searcher.cpp
+```
+
+迁移当前 `MincoPlanner` 中的全局搜索相关逻辑，包括：
+
+```text
+1. makePlanOnQuery()
+2. planGlobalPathPriorMap()
+3. planGlobalPathExploration()
+4. reachable boundary search
+5. projectStartToFreeCell()
+6. start/goal worldToMap 检查
+7. SMAC / Astar 选择
+8. path reconstruction / mapToWorld 输出
+```
+
+建议接口：
+
+```cpp
+class GlobalPathSearcher {
+public:
+  void configure(
+    rclcpp_lifecycle::LifecycleNode::SharedPtr node,
+    std::shared_ptr<tf2_ros::Buffer> tf,
+    std::unique_ptr<Astar> astar,
+    std::unique_ptr<smac::SmacPlanner2DSimple> smac,
+    bool use_smac,
+    bool allow_unknown,
+    double tolerance);
+
+  void setQueries(
+    const std::shared_ptr<rog_map::MapQueryInterface> & global_query);
+
+  bool plan(
+    const geometry_msgs::msg::PoseStamped & start,
+    const geometry_msgs::msg::PoseStamped & goal,
+    const PlannerModeContext & mode_context,
+    nav_msgs::msg::Path & out_path);
+};
+```
+
+或者如果移动 `astar_ / smac_` 所有权太大，也可以先不移动所有权，只让 `GlobalPathSearcher` 持有非 owning 指针。优先保证重构安全。
+
+要求：
+
+```text
+1. PRIORMAP 下使用 mode_context.globalQuery()，即 Nav2CostmapQuery；
+2. EXPLORATION 下使用 mode_context.globalQuery()，即 raw ROGMap；
+3. EXPLORATION 下 goal 在窗口内但不可达时，fallback 到 reachable boundary search；
+4. 不改变搜索算法内部原理；
+5. 不改变 allow_unknown / use_smac / tolerance 等原参数语义。
+```
+
+`MincoPlanner::PlanGlobalPath()` 最终应简化为：
+
+```cpp
+bool MincoPlanner::PlanGlobalPath(
+  const geometry_msgs::msg::PoseStamped & start,
+  const geometry_msgs::msg::PoseStamped & goal)
+{
+  if (!global_path_searcher_) {
+    return false;
+  }
+  return global_path_searcher_->plan(start, goal, *mode_context_, latest_global_path_);
+}
+```
+
+---
+
+## 8. 第四阶段：抽离 LocalPathProcessor
+
+新增：
+
+```text
+minco_core/local_path_processor.hpp
+minco_core/local_path_processor.cpp
+```
+
+迁移当前 `MincoPlanner` 中的局部路径处理逻辑，包括：
+
+```text
+1. extractLocalPath()
+2. clipLocalPathByRogBoundary()
+3. ROGMap boundary margin 检查
+4. path length / nearest index / lookahead 截取
+5. getSparseWaypoints 调用
+6. local waypoint/control point 生成前的路径预处理
+```
+
+建议接口：
+
+```cpp
+struct LocalPathSeed {
+  bool valid{false};
+  bool local_end_is_goal{false};
+  std::vector<Eigen::Vector3d> dense_path;
+  std::vector<Eigen::Vector3d> sparse_waypoints;
+  std::vector<double> local_magnitudes;
+};
+
+class LocalPathProcessor {
+public:
+  void configure(
+    double lookahead_dist,
+    double max_vel,
+    double max_acc,
+    rclcpp::Logger logger);
+
+  LocalPathSeed buildSeed(
+    const nav_msgs::msg::Path & global_path,
+    const geometry_msgs::msg::PoseStamped & current_pose,
+    const PlannerModeContext & mode_context);
+};
+```
+
+要求：
+
+```text
+PRIORMAP:
+  1. 截取 map frame global path；
+  2. 稀疏使用 mode_context.sparsifyQuery()，也就是 Nav2CostmapQuery；
+  3. 可选 ROGMap 边界裁剪使用 mode_context.dynamicQuery()；
+  4. 不让 ROGMap 参与稀疏和控制点选择。
+
+EXPLORATION:
+  1. 截取 camera_init frame global path；
+  2. 稀疏使用 ROGMap；
+  3. 边界裁剪使用 ROGMap。
+```
+
+`MincoPlanner::ReplanLocal()` 中只保留高层逻辑：
+
+```text
+1. 调用 local_path_processor_->buildSeed(...)
+2. 准备 start/end state
+3. 调用 MincoOptimizer
+4. 发布结果
+```
+
+不要在 `ReplanLocal()` 内继续堆积路径截取和裁剪细节。
+
+---
+
+## 9. 第五阶段：抽离 TrajectorySafetyChecker
+
+新增：
+
+```text
+minco_core/trajectory_safety_checker.hpp
+minco_core/trajectory_safety_checker.cpp
+```
+
+迁移当前 `MincoPlanner` 中的安全查询逻辑：
+
+```text
+1. checkCollision(pos)
+2. checkCollision(traj)
+3. getEsdfDistance(pos)
+4. isTrajSafe() 中与地图 query 相关的部分
+```
+
+建议接口：
+
+```cpp
+class TrajectorySafetyChecker {
+public:
+  void configure(
+    double safe_dist,
+    double sample_dt,
+    rclcpp::Logger logger);
+
+  void setQuery(std::shared_ptr<rog_map::MapQueryInterface> dynamic_query);
+
+  bool checkPoint(const Eigen::Vector3d & pos) const;
+  bool checkTrajectory(const traj_opt::Trajectory & traj) const;
+  double getDistance(const Eigen::Vector3d & pos) const;
+};
+```
+
+要求：
+
+```text
+1. 只使用 mode_context.dynamicQuery()；
+2. PRIORMAP 下 dynamicQuery 是 FrameAwareRogQuery；
+3. EXPLORATION 下 dynamicQuery 是 raw ROGMap；
+4. 不改变原安全检测判定阈值和采样逻辑；
+5. dynamicQuery 不可用时返回 unsafe，并输出限频日志。
+```
+
+`MincoPlanner` 对外保留兼容接口：
+
+```cpp
+double MincoPlanner::getEsdfDistance(const Eigen::Vector3d & p)
+{
+  return safety_checker_->getDistance(p);
+}
+
+bool MincoPlanner::isTrajSafe()
+{
+  return safety_checker_->checkTrajectory(current_traj_);
+}
+```
+
+---
+
+## 10. minco_utils 通用化要求
+
+检查 `minco_utils.hpp/cpp`，避免重复实现工具函数。
+
+适合放入或复用 `minco_utils` 的内容：
+
+```text
+1. quaternionToYaw()
+2. transformPoint()
+3. rotateVector()
+4. interpolateByArcLength()
+5. pathLength()
+6. findNearestPathIndex()
+7. clampValue()
+8. getDistFromTrapezoid()
+```
+
+不适合放入 `minco_utils` 的内容：
+
+```text
+1. Nav2CostmapQuery
+2. FrameAwareRogQuery
+3. PlannerModeContext
+4. GlobalPathSearcher
+5. LocalPathProcessor
+6. TrajectorySafetyChecker
+```
+
+原因：
+
+```text
+minco_utils 只放无状态数学/几何工具；
+query adapter 和 searcher 是有状态模块，不能塞进 utils。
+```
+
+---
+
+## 11. 内存和指针要求
+
+本轮重构要顺带检查，但不要过度优化。
+
+### 11.1 所有权建议
+
+使用：
+
+```text
+unique_ptr:
+  PlannerModeContext
+  GlobalPathSearcher
+  LocalPathProcessor
+  TrajectorySafetyChecker
+  MincoOptimizer
+  BackupTrajOpt
+  YawTrajOpt
+  Visualizer
+  MincoFsm
+
+shared_ptr:
+  rog_map::MapQueryInterface
+  ROGMapROS query interface
+  Nav2CostmapQuery
+  FrameAwareRogQuery
+  objects shared by searcher / optimizer / safety checker / corridor
+```
+
+不要用裸 `new/delete` 创建新增模块。
+
+### 11.2 不要高频创建 query adapter
+
+以下对象只允许低频创建或重建：
+
+```text
+Nav2CostmapQuery
+FrameAwareRogQuery
+PlannerModeContext query binding
+```
+
+只在：
+
+```text
+configure()
+setMap(raw_rog_map)
+costmap/raw map 更新
+mode context rebuild
+```
+
+中创建，不要在 `PlanGlobalPath()` / `ReplanLocal()` 高频路径中创建。
+
+### 11.3 Astar 内存管理
+
+如果本轮改动触及 `astar.cpp/hpp`，可以做 RAII 化，但不是必须。
+
+允许将裸数组：
+
+```cpp
+new[] / delete[]
+```
+
+改成：
+
+```cpp
+std::vector
+```
+
+要求：
+
+```text
+1. 不改变 A* 搜索算法；
+2. 不改变 cost 计算；
+3. buffer 在 setSize 或 configure 时分配；
+4. plan 高频路径中不要反复大分配；
+5. 如果风险较高，先不做 Astar RAII，只在说明文档中列为后续优化。
+```
+
+---
+
+## 12. MincoPlanner 最终目标形态
+
+重构后 `MincoPlanner` 应该主要保留：
+
+```text
+1. configure()
+2. activate/deactivate/cleanup
+3. createPlan()
+4. consumePendingGoal()
+5. getRobotPose()
+6. PlanGlobalPath()
+7. ReplanLocal()
+8. publishOptimizedTrajectory / backup / emergency / escape 调度
+9. 参数回调
+10. FSM 和 timer 初始化
+```
+
+不应该再直接包含：
+
+```text
+1. Nav2CostmapQuery 类定义；
+2. FrameAwareRogQuery 类定义；
+3. EXPLORATION boundary search 大段实现；
+4. ROGMap boundary clipping 细节；
+5. line-free sampling 细节；
+6. trajectory safety map query 细节。
+```
+
+---
+
+## 13. CMake 更新
+
+新增 `.cpp` 文件后更新 `CMakeLists.txt`。
+
+必须保证这些文件被加入对应 target：
+
+```text
+map_query_adapters.cpp
+planner_mode_context.cpp
+global_path_searcher.cpp
+local_path_processor.cpp
+trajectory_safety_checker.cpp
+```
+
+不要执行编译，只更新配置。
+
+---
+
+## 14. 静态检查要求，不要编译
+
+完成后只做静态检查，不要编译。
+
+允许执行或人工检查：
+
+```bash
+grep -R "class Nav2CostmapQuery" -n .
+grep -R "class FrameAwareRogQuery" -n .
+grep -R "planGlobalPathExploration" -n .
+grep -R "clipLocalPathByRogBoundary" -n .
+grep -R "checkCollision" -n .
+grep -R "colcon build" -n .
+```
+
+不要执行：
+
+```bash
+colcon build
+colcon test
+```
+
+输出一个文档：
+
+```text
+minco_refactor_static_report.md
+```
+
+内容包括：
+
+```text
+1. 新增文件列表；
+2. 修改文件列表；
+3. 从 minco_planner.cpp 搬出了哪些类/函数；
+4. MincoPlanner 当前剩余职责；
+5. PRIORMAP 模式语义是否保持；
+6. EXPLORATION 模式语义是否保持；
+7. 哪些地方只做了静态检查，未编译；
+8. 后续需要用户手动执行的编译命令；
+9. 可能的风险点。
+```
+
+文档中明确写：
+
+```text
+本次任务按用户要求未执行 colcon build，编译需要用户后续手动验证。
+```
+
+---
+
+## 15. 验收标准
+
+静态结构上必须满足：
+
+```text
+1. minco_planner.cpp 中不再定义 Nav2CostmapQuery；
+2. minco_planner.cpp 中不再定义 FrameAwareRogQuery；
+3. minco_planner.cpp 中不再包含大段 EXPLORATION boundary search 实现；
+4. minco_planner.cpp 中不再直接实现轨迹安全地图查询细节；
+5. PRIORMAP:
+   - global query = Nav2CostmapQuery
+   - sparsify query = Nav2CostmapQuery
+   - dynamic query = FrameAwareRogQuery
+   - output frame = map
+6. EXPLORATION:
+   - global query = raw ROGMap
+   - sparsify query = raw ROGMap
+   - dynamic query = raw ROGMap
+   - output frame = camera_init
+7. 不改变 MincoOptimizer / Smac / Astar 的算法内部行为。
+8. 不执行任何编译或运行命令。
+```
+
+---
+
+## 16. 最终输出
+
+完成后回复：
+
+```text
+1. 已完成的重构阶段；
+2. 新增文件；
+3. 修改文件；
+4. 未执行编译的确认；
+5. 用户下一步应执行的手动验证命令；
+6. minco_refactor_static_report.md 的内容摘要。
+```
+
+再次强调：**不要编译，不要运行 colcon build。**

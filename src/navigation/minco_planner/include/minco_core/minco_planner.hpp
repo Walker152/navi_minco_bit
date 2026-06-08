@@ -3,32 +3,6 @@
 
 #include "minco_core/header.hpp"
 
-#include "nav2_core/global_planner.hpp"
-#include "nav2_costmap_2d/costmap_2d_ros.hpp"
-#include "nav2_util/lifecycle_node.hpp"
-#include "nav_msgs/msg/path.hpp"
-#include "rcl_interfaces/msg/set_parameters_result.hpp"
-
-#include "sensor_msgs/msg/point_cloud2.hpp"
-
-#include "visualization_msgs/msg/marker.hpp"
-
-#include <functional>
-
-#include "ros_interfaces/msg/position_command.hpp"
-#include "rog_map/map_query_interface.hpp"
-
-#include "minco_core/astar.hpp"
-#include "minco_core/corridor_generator.hpp"
-#include "minco_core/recovery_behaivor.hpp"
-#include "smac_search/smac_planner_2d_simple.hpp"
-#include "small_rog_map/hybrid_esdf_map.hpp"
-#include "traj_opt/backup_traj_optimizer_s4.h"
-#include "traj_opt/minco_optimizer.hpp"
-#include "traj_opt/yaw_traj_opt.h"
-
-#include "utils/header/color_text.hpp"
-
 namespace rog_map {
 class ROGMapROS;
 }  // namespace rog_map
@@ -113,31 +87,6 @@ private:
     EMERGENCY_STOP  // Immediate backup braking with safety priority.
   };
 
-  enum class PlannerMode
-  {
-    PRIORMAP,
-    EXPLORATION
-  };
-
-  struct PlannerRuntimeModeConfig
-  {
-    PlannerMode mode{PlannerMode::PRIORMAP};
-    std::string planning_frame{"map"};
-    std::string output_frame{"map"};
-    std::string map_frame{"map"};
-    std::string rog_frame{"camera_init"};
-
-    bool use_nav2_global_search{true};
-    bool use_rog_global_search{false};
-    bool use_static_esdf{true};
-    bool use_frame_aware_rog_query{true};
-    bool direct_odom_pose{false};
-  };
-
-  using PlanGlobalFn = std::function<bool(
-    const geometry_msgs::msg::PoseStamped & start,
-    const geometry_msgs::msg::PoseStamped & goal)>;
-
   // === Utility & Helper Functions ===
   PlanningState determinePlanningState(
     const geometry_msgs::msg::Pose & start_pose, const std::vector<Eigen::Vector3d> & new_path);
@@ -177,7 +126,6 @@ private:
     const std::string & plugin_prefix);
 
   bool ensureMapAvailable();
-  bool ensureDynamicQueryAvailable() const;
   void rebuildModeDependentQueries();
 
   void initPlannerMode(
@@ -190,21 +138,6 @@ private:
     const std::string & target_frame,
     const std::string & context,
     geometry_msgs::msg::PoseStamped & out) const;
-  bool planGlobalPathPriorMap(
-    const geometry_msgs::msg::PoseStamped & start,
-    const geometry_msgs::msg::PoseStamped & goal);
-  bool planGlobalPathExploration(
-    const geometry_msgs::msg::PoseStamped & start,
-    const geometry_msgs::msg::PoseStamped & goal);
-  bool makePlanOnQuery(
-    const geometry_msgs::msg::Pose & start,
-    const geometry_msgs::msg::Pose & goal,
-    const std::shared_ptr<rog_map::MapQueryInterface> & query,
-    const std::string & failure_source,
-    double tolerance,
-    std::function<bool()> cancel_checker,
-    nav_msgs::msg::Path & plan);
-  bool clipLocalPathByRogBoundary(std::vector<Eigen::Vector3d> & path) const;
 
   // === ROS 2 Interfaces (Publishers, Subscribers, Timers) ===
   rclcpp::Publisher<ros_interfaces::msg::MpcPositionCommand>::SharedPtr opt_path_pub_;
@@ -220,13 +153,9 @@ private:
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   std::shared_ptr<rog_map::MapQueryInterface> map_;
   std::shared_ptr<rog_map::MapQueryInterface> rog_query_raw_;
-  std::shared_ptr<rog_map::MapQueryInterface> global_search_query_;
-  std::shared_ptr<rog_map::MapQueryInterface> dynamic_query_;
-  std::shared_ptr<rog_map::MapQueryInterface> sparsify_query_;
   std::shared_ptr<rog_map::ROGMapROS> rog_map_ros_;
   std::string global_frame_, planning_frame_, output_frame_, map_frame_, rog_frame_, name_;
-  PlannerRuntimeModeConfig runtime_mode_config_;
-  PlanGlobalFn plan_global_fn_;
+  PlannerModeParams mode_params_;
 
   // === Configurations & Parameters ===
   double tolerance_;
@@ -256,6 +185,10 @@ private:
   std::unique_ptr<MincoOptimizer> minco_optimizer_;
   std::unique_ptr<traj_opt::BackupTrajOpt> backup_opt_;
   std::unique_ptr<traj_opt::YawTrajOpt> yaw_opt_;
+  std::unique_ptr<PlannerModeContext> mode_context_;
+  std::unique_ptr<GlobalPathSearcher> global_path_searcher_;
+  std::unique_ptr<LocalPathProcessor> local_path_processor_;
+  std::unique_ptr<TrajectorySafetyChecker> safety_checker_;
   std::unique_ptr<MincoFsm> fsm_;
   small_rog_map::HybridESDFMap::Ptr esdf_map_;
   SimpleCorridorGenerator::Ptr corridor_gen_;
