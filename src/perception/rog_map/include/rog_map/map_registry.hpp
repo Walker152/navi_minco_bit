@@ -6,10 +6,11 @@
 
 namespace rog_map {
 
-class MapRegistry {
+class MapRegistry
+{
 public:
-    static void set(const std::shared_ptr<MapQueryInterface> &map);
-    static std::shared_ptr<MapQueryInterface> get();
+  static void set(const std::shared_ptr<MapQueryInterface> & map);
+  static std::shared_ptr<MapQueryInterface> get();
 };
 
 }  // namespace rog_map

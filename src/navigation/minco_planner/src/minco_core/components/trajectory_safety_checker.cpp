@@ -21,8 +21,9 @@ bool TrajectorySafetyChecker::ensureQueryAvailable() const
   if (dynamic_query_) {
     return true;
   }
-  RCLCPP_ERROR_THROTTLE(
-    logger_, *rclcpp::Clock::make_shared(), 1000,
+  RCLCPP_ERROR_THROTTLE(logger_,
+    *rclcpp::Clock::make_shared(),
+    1000,
     "[MincoPlanner] ROGMap dynamic query is unavailable for trajectory safety check.");
   return false;
 }

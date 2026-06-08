@@ -4,8 +4,7 @@
 
 namespace minco_planner {
 
-void PlannerModeContext::configure(
-  const PlannerModeParams & params,
+void PlannerModeContext::configure(const PlannerModeParams & params,
   const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
   nav2_costmap_2d::Costmap2DROS * costmap_ros,
   const std::shared_ptr<tf2_ros::Buffer> & tf,
@@ -24,8 +23,7 @@ void PlannerModeContext::configure(
   if (mode_upper == "EXPLORATION") {
     mode_ = PlannerMode::EXPLORATION;
   } else if (mode_upper != "PRIORMAP") {
-    RCLCPP_WARN(
-      logger,
+    RCLCPP_WARN(logger,
       "[MincoPlanner] Unknown planner_mode='%s', fallback to PRIORMAP.",
       params_.planner_mode.c_str());
   }
@@ -36,8 +34,7 @@ void PlannerModeContext::configure(
     use_static_esdf_ = true;
     direct_odom_pose_ = false;
     if (!params_.priormap_use_nav2_global_search) {
-      RCLCPP_WARN(
-        logger,
+      RCLCPP_WARN(logger,
         "[MincoPlanner] priormap.use_nav2_global_search=false is unsupported by planner_mode=PRIORMAP; "
         "forcing Nav2 costmap global search to preserve map semantics.");
     }
@@ -51,8 +48,7 @@ void PlannerModeContext::configure(
   rebuildQueries(raw_rog_query, costmap_ros, tf, logger);
 }
 
-void PlannerModeContext::rebuildQueries(
-  const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
+void PlannerModeContext::rebuildQueries(const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
   nav2_costmap_2d::Costmap2DROS * costmap_ros,
   const std::shared_ptr<tf2_ros::Buffer> & tf,
   const rclcpp::Logger & logger)
@@ -62,9 +58,9 @@ void PlannerModeContext::rebuildQueries(
     if (costmap_ros && costmap_ros->getCostmap()) {
       global_query_ = std::make_shared<Nav2CostmapQuery>(costmap_ros->getCostmap());
     }
-    dynamic_query_ = raw_rog_query
-      ? std::make_shared<FrameAwareRogQuery>(raw_rog_query, tf, map_frame_, rog_frame_, logger)
-      : nullptr;
+    dynamic_query_ = raw_rog_query ? std::make_shared<FrameAwareRogQuery>(
+                                       raw_rog_query, tf, map_frame_, rog_frame_, logger)
+                                   : nullptr;
     sparsify_query_ = global_query_;
   } else {
     global_query_ = raw_rog_query;
