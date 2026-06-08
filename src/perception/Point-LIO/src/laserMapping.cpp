@@ -88,6 +88,300 @@ struct RuntimeRateStats
 
 RuntimeRateStats runtime_rate_stats;
 
+struct PoseUpdateDebugStats
+{
+  std::mutex mutex;
+  std::chrono::steady_clock::time_point window_start = std::chrono::steady_clock::now();
+
+  uint64_t sync_count = 0;
+  uint64_t pose_update_count = 0;
+  uint64_t odom_pub_count = 0;
+
+  uint64_t input_points_sum = 0;
+  uint64_t downsample_points_sum = 0;
+  uint64_t update_points_sum = 0;
+
+  uint64_t min_points_per_update = std::numeric_limits<uint64_t>::max();
+  uint64_t max_points_per_update = 0;
+
+  uint64_t single_point_update_count = 0;
+  uint64_t small_update_count = 0;
+  uint64_t medium_update_count = 0;
+  uint64_t large_update_count = 0;
+
+  double sensor_update_dt_sum_ms = 0.0;
+  double sensor_update_dt_min_ms = std::numeric_limits<double>::infinity();
+  double sensor_update_dt_max_ms = 0.0;
+  uint64_t sensor_update_dt_count = 0;
+
+  double odom_stamp_dt_sum_ms = 0.0;
+  double odom_stamp_dt_min_ms = std::numeric_limits<double>::infinity();
+  double odom_stamp_dt_max_ms = 0.0;
+  uint64_t odom_stamp_dt_count = 0;
+
+  double odom_wall_dt_sum_ms = 0.0;
+  double odom_wall_dt_min_ms = std::numeric_limits<double>::infinity();
+  double odom_wall_dt_max_ms = 0.0;
+  uint64_t odom_wall_dt_count = 0;
+
+  double last_sensor_update_time = -1.0;
+  double last_odom_stamp_time = -1.0;
+  std::chrono::steady_clock::time_point last_odom_wall_time;
+  bool has_last_odom_wall_time = false;
+};
+
+PoseUpdateDebugStats pose_update_debug_stats;
+
+double average_or_zero(double sum, uint64_t count)
+{
+  return count > 0 ? sum / static_cast<double>(count) : 0.0;
+}
+
+double min_or_zero(double value, uint64_t count)
+{
+  return count > 0 ? value : 0.0;
+}
+
+void reset_pose_update_debug_window_locked(std::chrono::steady_clock::time_point now)
+{
+  pose_update_debug_stats.window_start = now;
+  pose_update_debug_stats.sync_count = 0;
+  pose_update_debug_stats.pose_update_count = 0;
+  pose_update_debug_stats.odom_pub_count = 0;
+  pose_update_debug_stats.input_points_sum = 0;
+  pose_update_debug_stats.downsample_points_sum = 0;
+  pose_update_debug_stats.update_points_sum = 0;
+  pose_update_debug_stats.min_points_per_update = std::numeric_limits<uint64_t>::max();
+  pose_update_debug_stats.max_points_per_update = 0;
+  pose_update_debug_stats.single_point_update_count = 0;
+  pose_update_debug_stats.small_update_count = 0;
+  pose_update_debug_stats.medium_update_count = 0;
+  pose_update_debug_stats.large_update_count = 0;
+  pose_update_debug_stats.sensor_update_dt_sum_ms = 0.0;
+  pose_update_debug_stats.sensor_update_dt_min_ms = std::numeric_limits<double>::infinity();
+  pose_update_debug_stats.sensor_update_dt_max_ms = 0.0;
+  pose_update_debug_stats.sensor_update_dt_count = 0;
+  pose_update_debug_stats.odom_stamp_dt_sum_ms = 0.0;
+  pose_update_debug_stats.odom_stamp_dt_min_ms = std::numeric_limits<double>::infinity();
+  pose_update_debug_stats.odom_stamp_dt_max_ms = 0.0;
+  pose_update_debug_stats.odom_stamp_dt_count = 0;
+  pose_update_debug_stats.odom_wall_dt_sum_ms = 0.0;
+  pose_update_debug_stats.odom_wall_dt_min_ms = std::numeric_limits<double>::infinity();
+  pose_update_debug_stats.odom_wall_dt_max_ms = 0.0;
+  pose_update_debug_stats.odom_wall_dt_count = 0;
+}
+
+void maybe_print_pose_update_debug_locked(std::chrono::steady_clock::time_point now)
+{
+  const double period =
+    debug_pose_update_detail_period > 0.05 ? debug_pose_update_detail_period : 1.0;
+  const double elapsed =
+    std::chrono::duration_cast<std::chrono::duration<double>>(now - pose_update_debug_stats.window_start)
+      .count();
+
+  if (elapsed < period) {
+    return;
+  }
+
+  const double sync_hz = static_cast<double>(pose_update_debug_stats.sync_count) / elapsed;
+  const double pose_update_hz =
+    static_cast<double>(pose_update_debug_stats.pose_update_count) / elapsed;
+  const double odom_pub_hz = static_cast<double>(pose_update_debug_stats.odom_pub_count) / elapsed;
+  const double updates_per_sync =
+    pose_update_debug_stats.sync_count > 0 ?
+      static_cast<double>(pose_update_debug_stats.pose_update_count) /
+        static_cast<double>(pose_update_debug_stats.sync_count) :
+      0.0;
+  const double odom_per_sync =
+    pose_update_debug_stats.sync_count > 0 ?
+      static_cast<double>(pose_update_debug_stats.odom_pub_count) /
+        static_cast<double>(pose_update_debug_stats.sync_count) :
+      0.0;
+  const double full_pts_per_sync =
+    pose_update_debug_stats.sync_count > 0 ?
+      static_cast<double>(pose_update_debug_stats.input_points_sum) /
+        static_cast<double>(pose_update_debug_stats.sync_count) :
+      0.0;
+  const double down_pts_per_sync =
+    pose_update_debug_stats.sync_count > 0 ?
+      static_cast<double>(pose_update_debug_stats.downsample_points_sum) /
+        static_cast<double>(pose_update_debug_stats.sync_count) :
+      0.0;
+  const double avg_points_per_update =
+    pose_update_debug_stats.pose_update_count > 0 ?
+      static_cast<double>(pose_update_debug_stats.update_points_sum) /
+        static_cast<double>(pose_update_debug_stats.pose_update_count) :
+      0.0;
+  const uint64_t min_points_per_update =
+    pose_update_debug_stats.pose_update_count > 0 ? pose_update_debug_stats.min_points_per_update : 0;
+
+  RCLCPP_INFO(LOGGER,
+    "[Point-LIO][PoseDebug] window=%.2fs\n"
+    "  sync=%.1fHz, pose_update=%.1fHz, odom_pub=%.1fHz\n"
+    "  updates_per_sync=%.1f, odom_per_sync=%.1f\n"
+    "  full_pts/sync_avg=%.1f, down_pts/sync_avg=%.1f\n"
+    "  pts/update avg=%.2f min=%llu max=%llu\n"
+    "  update_bins single=%llu small=%llu medium=%llu large=%llu\n"
+    "  sensor_update_dt_ms avg=%.2f min=%.2f max=%.2f\n"
+    "  odom_stamp_dt_ms avg=%.2f min=%.2f max=%.2f\n"
+    "  odom_wall_dt_ms avg=%.2f min=%.2f max=%.2f",
+    elapsed,
+    sync_hz,
+    pose_update_hz,
+    odom_pub_hz,
+    updates_per_sync,
+    odom_per_sync,
+    full_pts_per_sync,
+    down_pts_per_sync,
+    avg_points_per_update,
+    static_cast<unsigned long long>(min_points_per_update),
+    static_cast<unsigned long long>(pose_update_debug_stats.max_points_per_update),
+    static_cast<unsigned long long>(pose_update_debug_stats.single_point_update_count),
+    static_cast<unsigned long long>(pose_update_debug_stats.small_update_count),
+    static_cast<unsigned long long>(pose_update_debug_stats.medium_update_count),
+    static_cast<unsigned long long>(pose_update_debug_stats.large_update_count),
+    average_or_zero(pose_update_debug_stats.sensor_update_dt_sum_ms,
+      pose_update_debug_stats.sensor_update_dt_count),
+    min_or_zero(pose_update_debug_stats.sensor_update_dt_min_ms,
+      pose_update_debug_stats.sensor_update_dt_count),
+    pose_update_debug_stats.sensor_update_dt_max_ms,
+    average_or_zero(pose_update_debug_stats.odom_stamp_dt_sum_ms,
+      pose_update_debug_stats.odom_stamp_dt_count),
+    min_or_zero(pose_update_debug_stats.odom_stamp_dt_min_ms,
+      pose_update_debug_stats.odom_stamp_dt_count),
+    pose_update_debug_stats.odom_stamp_dt_max_ms,
+    average_or_zero(pose_update_debug_stats.odom_wall_dt_sum_ms,
+      pose_update_debug_stats.odom_wall_dt_count),
+    min_or_zero(pose_update_debug_stats.odom_wall_dt_min_ms,
+      pose_update_debug_stats.odom_wall_dt_count),
+    pose_update_debug_stats.odom_wall_dt_max_ms);
+
+  if (pose_update_debug_stats.pose_update_count > 0) {
+    const double single_ratio =
+      static_cast<double>(pose_update_debug_stats.single_point_update_count) /
+      static_cast<double>(pose_update_debug_stats.pose_update_count);
+    if (avg_points_per_update <= 2.0 || single_ratio > 0.5) {
+      RCLCPP_WARN(LOGGER,
+        "[Point-LIO][PoseDebug] Pose update is close to point-wise update; consider batching "
+        "time_seq.");
+    }
+    if (updates_per_sync > 100.0) {
+      RCLCPP_WARN(LOGGER,
+        "[Point-LIO][PoseDebug] Many EKF updates per sync package; updates may be burst processed "
+        "after each cloud frame.");
+    }
+    if (pose_update_debug_stats.odom_pub_count < pose_update_debug_stats.pose_update_count) {
+      RCLCPP_INFO(LOGGER,
+        "[Point-LIO][PoseDebug] Odom publish is rate-limited or decoupled from EKF update. Use "
+        "odom_pub as external output rate.");
+    }
+  }
+
+  reset_pose_update_debug_window_locked(now);
+}
+
+void record_pose_update_debug_sync(uint64_t input_points)
+{
+  if (!debug_pose_update_detail) {
+    return;
+  }
+
+  const auto now = std::chrono::steady_clock::now();
+  std::lock_guard<std::mutex> lock(pose_update_debug_stats.mutex);
+  ++pose_update_debug_stats.sync_count;
+  pose_update_debug_stats.input_points_sum += input_points;
+  maybe_print_pose_update_debug_locked(now);
+}
+
+void record_pose_update_debug_downsample(uint64_t downsample_points)
+{
+  if (!debug_pose_update_detail) {
+    return;
+  }
+
+  const auto now = std::chrono::steady_clock::now();
+  std::lock_guard<std::mutex> lock(pose_update_debug_stats.mutex);
+  pose_update_debug_stats.downsample_points_sum += downsample_points;
+  maybe_print_pose_update_debug_locked(now);
+}
+
+void record_pose_update_debug_update(uint64_t points_per_update, double sensor_time)
+{
+  if (!debug_pose_update_detail) {
+    return;
+  }
+
+  const auto now = std::chrono::steady_clock::now();
+  std::lock_guard<std::mutex> lock(pose_update_debug_stats.mutex);
+  ++pose_update_debug_stats.pose_update_count;
+  pose_update_debug_stats.update_points_sum += points_per_update;
+  pose_update_debug_stats.min_points_per_update =
+    std::min(pose_update_debug_stats.min_points_per_update, points_per_update);
+  pose_update_debug_stats.max_points_per_update =
+    std::max(pose_update_debug_stats.max_points_per_update, points_per_update);
+
+  if (points_per_update <= 1) {
+    ++pose_update_debug_stats.single_point_update_count;
+  }
+  if (points_per_update <= 5) {
+    ++pose_update_debug_stats.small_update_count;
+  } else if (points_per_update <= 30) {
+    ++pose_update_debug_stats.medium_update_count;
+  } else {
+    ++pose_update_debug_stats.large_update_count;
+  }
+
+  if (pose_update_debug_stats.last_sensor_update_time >= 0.0) {
+    const double dt_ms = (sensor_time - pose_update_debug_stats.last_sensor_update_time) * 1000.0;
+    pose_update_debug_stats.sensor_update_dt_sum_ms += dt_ms;
+    pose_update_debug_stats.sensor_update_dt_min_ms =
+      std::min(pose_update_debug_stats.sensor_update_dt_min_ms, dt_ms);
+    pose_update_debug_stats.sensor_update_dt_max_ms =
+      std::max(pose_update_debug_stats.sensor_update_dt_max_ms, dt_ms);
+    ++pose_update_debug_stats.sensor_update_dt_count;
+  }
+  pose_update_debug_stats.last_sensor_update_time = sensor_time;
+  maybe_print_pose_update_debug_locked(now);
+}
+
+void record_pose_update_debug_odom(const builtin_interfaces::msg::Time & stamp)
+{
+  if (!debug_pose_update_detail) {
+    return;
+  }
+
+  const auto now = std::chrono::steady_clock::now();
+  const double stamp_time = rclcpp::Time(stamp).seconds();
+  std::lock_guard<std::mutex> lock(pose_update_debug_stats.mutex);
+  ++pose_update_debug_stats.odom_pub_count;
+
+  if (pose_update_debug_stats.last_odom_stamp_time >= 0.0) {
+    const double dt_ms = (stamp_time - pose_update_debug_stats.last_odom_stamp_time) * 1000.0;
+    pose_update_debug_stats.odom_stamp_dt_sum_ms += dt_ms;
+    pose_update_debug_stats.odom_stamp_dt_min_ms =
+      std::min(pose_update_debug_stats.odom_stamp_dt_min_ms, dt_ms);
+    pose_update_debug_stats.odom_stamp_dt_max_ms =
+      std::max(pose_update_debug_stats.odom_stamp_dt_max_ms, dt_ms);
+    ++pose_update_debug_stats.odom_stamp_dt_count;
+  }
+  pose_update_debug_stats.last_odom_stamp_time = stamp_time;
+
+  if (pose_update_debug_stats.has_last_odom_wall_time) {
+    const double dt_ms =
+      std::chrono::duration<double, std::milli>(now - pose_update_debug_stats.last_odom_wall_time)
+        .count();
+    pose_update_debug_stats.odom_wall_dt_sum_ms += dt_ms;
+    pose_update_debug_stats.odom_wall_dt_min_ms =
+      std::min(pose_update_debug_stats.odom_wall_dt_min_ms, dt_ms);
+    pose_update_debug_stats.odom_wall_dt_max_ms =
+      std::max(pose_update_debug_stats.odom_wall_dt_max_ms, dt_ms);
+    ++pose_update_debug_stats.odom_wall_dt_count;
+  }
+  pose_update_debug_stats.last_odom_wall_time = now;
+  pose_update_debug_stats.has_last_odom_wall_time = true;
+  maybe_print_pose_update_debug_locked(now);
+}
+
 void record_runtime_rate(RuntimeRateEvent event)
 {
   if (!print_cloud_input_fps) {
@@ -530,6 +824,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
 
   pubOdomAftMapped->publish(odomAftMapped);
   record_runtime_rate(RuntimeRateEvent::OdomPublish);
+  record_pose_update_debug_odom(odomAftMapped.header.stamp);
 
   if (tf_send_en) {
     geometry_msgs::msg::TransformStamped transform;
@@ -760,6 +1055,7 @@ void LaserMappingNode::processingLoop()
     if (sync_packages(Measures)) {
       const auto process_wall_start = std::chrono::steady_clock::now();
       record_runtime_rate(RuntimeRateEvent::SyncInput);
+      record_pose_update_debug_sync(Measures.lidar ? Measures.lidar->size() : 0);
       startup_frame_cnt_++;
 
       bool trigger_exit = false;
@@ -882,6 +1178,7 @@ void LaserMappingNode::processingLoop()
         time_seq = time_compressing<int>(feats_down_body);
         feats_down_size = feats_down_body->points.size();
       }
+      record_pose_update_debug_downsample(feats_down_size);
 
       if (!p_imu->after_imu_init_)  // !p_imu->UseLIInit &&
       {
@@ -1090,6 +1387,7 @@ void LaserMappingNode::processingLoop()
               continue;
             }
             record_runtime_rate(RuntimeRateEvent::PoseUpdate);
+            record_pose_update_debug_update(static_cast<uint64_t>(time_seq[k]), time_current);
             solve_start = omp_get_wtime();
 
             if (publish_odometry_without_downsample) {
@@ -1278,6 +1576,7 @@ void LaserMappingNode::processingLoop()
               continue;
             }
             record_runtime_rate(RuntimeRateEvent::PoseUpdate);
+            record_pose_update_debug_update(static_cast<uint64_t>(time_seq[k]), time_current);
 
             solve_start = omp_get_wtime();
 

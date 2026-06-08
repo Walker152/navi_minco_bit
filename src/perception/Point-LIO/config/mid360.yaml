@@ -21,6 +21,8 @@
             cut_frame_time_interval: 0.1                    # should be integral fraction of 1 / LiDAR frequency
             print_cloud_input_fps: True                    # True: print cloud input, odom publish and pose update rates
             cloud_input_fps_print_period: 1.0               # seconds between runtime rate logs
+            debug_pose_update_detail: False                 # True: print aggregated pose update detail diagnostics
+            debug_pose_update_detail_period: 1.0            # seconds between pose update detail logs
             time_diff_lidar_to_imu: 0.0                     # Time offset between LiDAR and IMU calibrated by other algorithms, e.g., LI-Init (find in Readme)
 
         prior_pcd:
