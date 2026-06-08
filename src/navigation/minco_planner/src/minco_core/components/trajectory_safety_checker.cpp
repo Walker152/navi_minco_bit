@@ -29,7 +29,6 @@ bool TrajectorySafetyChecker::ensureQueryAvailable() const
 
 bool TrajectorySafetyChecker::checkPoint(const Eigen::Vector3d & pos) const
 {
-  (void)safe_dist_;
   if (!ensureQueryAvailable()) {
     return false;
   }
@@ -46,7 +45,7 @@ bool TrajectorySafetyChecker::checkPoint(const Eigen::Vector3d & pos) const
   double esdf_dist = 0.0;
   Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
   dynamic_query_->evaluate(pos, esdf_dist, esdf_grad);
-  return esdf_dist > 0.0;
+  return esdf_dist > safe_dist_;
 }
 
 bool TrajectorySafetyChecker::checkTrajectory(const traj_opt::Trajectory & traj) const

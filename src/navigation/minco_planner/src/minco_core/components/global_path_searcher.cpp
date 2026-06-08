@@ -25,6 +25,8 @@ bool projectStartToFreeCell(
       continue;
     }
     if (map->isFree(static_cast<unsigned int>(sx), static_cast<unsigned int>(sy))) {
+      mx = static_cast<unsigned int>(sx);
+      my = static_cast<unsigned int>(sy);
       return false;
     }
   }
@@ -459,7 +461,13 @@ bool GlobalPathSearcher::makePlanOnQuery(
     return false;
   }
 
-  projectStartToFreeCell(query, mx_start, my_start);
+  if (!projectStartToFreeCell(query, mx_start, my_start)) {
+    RCLCPP_ERROR(
+      logger_,
+      "%s failed to project start cell to a traversable free cell near world coordinates (%.2f, %.2f)",
+      failure_source.c_str(), wx, wy);
+    return false;
+  }
 
   wx = goal.position.x;
   wy = goal.position.y;
