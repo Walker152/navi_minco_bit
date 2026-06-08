@@ -258,8 +258,7 @@ void DynamicLayer::updateFromPointCloud(const sensor_msgs::msg::PointCloud2 & cl
   rebuild(width, height, resolution, origin, occ01, dilation_radius_m);
 }
 
-void DynamicLayer::updateFromMask(
-  int width,
+void DynamicLayer::updateFromMask(int width,
   int height,
   double resolution,
   const Eigen::Vector2d & origin,
@@ -269,8 +268,7 @@ void DynamicLayer::updateFromMask(
   rebuild(width, height, resolution, origin, mask, inflation_radius);
 }
 
-void DynamicLayer::rebuild(
-  int width,
+void DynamicLayer::rebuild(int width,
   int height,
   double resolution,
   const Eigen::Vector2d & origin,

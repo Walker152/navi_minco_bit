@@ -7,8 +7,8 @@
 #include <Eigen/Core>
 
 // Project
-#include "small_rog_map/hybrid_esdf_map.hpp"
 #include "rog_map/map_query_interface.hpp"
+#include "small_rog_map/hybrid_esdf_map.hpp"
 
 namespace minco_planner {
 

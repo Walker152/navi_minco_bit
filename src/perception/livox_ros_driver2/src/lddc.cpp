@@ -26,8 +26,8 @@
 #include "comm/comm.h"
 #include "comm/ldq.h"
 
-#include <inttypes.h>
 #include <chrono>
+#include <inttypes.h>
 #include <iomanip>
 #include <iostream>
 #include <math.h>
@@ -191,8 +191,7 @@ void Lddc::DistributeMergedPointCloudData()
   LidarDataQueue * front_queue = nullptr;
   LidarDataQueue * back_queue = nullptr;
   if (!GetMergeQueue(internal_lidar_merger_.GetConfig().front_handle, &front_queue) ||
-    !GetMergeQueue(internal_lidar_merger_.GetConfig().back_handle, &back_queue))
-  {
+      !GetMergeQueue(internal_lidar_merger_.GetConfig().back_handle, &back_queue)) {
     return;
   }
 
@@ -233,7 +232,8 @@ void Lddc::DistributeMergedPointCloudData()
 
     const auto end = std::chrono::steady_clock::now();
     const double duration_ms =
-      static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) / 1000.0;
+      static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) /
+      1000.0;
     if (duration_ms > 20.0 && (merge_duration_warn_count_++ % 30) == 0) {
       DRIVER_WARN(*cur_node_,
         "Internal lidar merge took %.3f ms for %" PRIu32 " + %" PRIu32 " points",
@@ -246,11 +246,14 @@ void Lddc::DistributeMergedPointCloudData()
       uint64_t merged_base_time = std::min(front->base_time, back->base_time);
       if (last_merged_base_time_ != 0 && merged_base_time > last_merged_base_time_) {
         uint64_t delta_ns = merged_base_time - last_merged_base_time_;
-        if (delta_ns > max_merged_delta_ns_) max_merged_delta_ns_ = delta_ns;
-        if (delta_ns < min_merged_delta_ns_) min_merged_delta_ns_ = delta_ns;
-        
+        if (delta_ns > max_merged_delta_ns_)
+          max_merged_delta_ns_ = delta_ns;
+        if (delta_ns < min_merged_delta_ns_)
+          min_merged_delta_ns_ = delta_ns;
+
         uint64_t cur_sys_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
-          std::chrono::steady_clock::now().time_since_epoch()).count();
+          std::chrono::steady_clock::now().time_since_epoch())
+                                     .count();
         if (merge_debug_last_print_time_us_ == 0) {
           merge_debug_last_print_time_us_ = cur_sys_time_us;
         }
@@ -261,7 +264,8 @@ void Lddc::DistributeMergedPointCloudData()
           merge_debug_last_print_time_us_ = cur_sys_time_us;
 
           DRIVER_INFO(*cur_node_,
-            "[Debug] Merge CPU Time: %.3f ms | Timestamp Delta: %.3f ms (Max: %.3f, Min: %.3f) | Pub Freq: %.2f Hz",
+            "[Debug] Merge CPU Time: %.3f ms | Timestamp Delta: %.3f ms (Max: %.3f, Min: %.3f) | Pub Freq: "
+            "%.2f Hz",
             duration_ms,
             delta_ns / 1000000.0,
             max_merged_delta_ns_ / 1000000.0,
@@ -510,15 +514,12 @@ void Lddc::InitPointcloud2Msg(const StoragePacket & pkg, PointCloud2 & cloud, ui
     point.tag = pkg.points[i].tag;
     point.line = pkg.points[i].line;
     point.timestamp = static_cast<double>(pkg.points[i].offset_time);
-    memcpy(
-      cloud.data.data() + i * sizeof(LivoxPointXyzrtlt),
-      &point,
-      sizeof(LivoxPointXyzrtlt));
+    memcpy(cloud.data.data() + i * sizeof(LivoxPointXyzrtlt), &point, sizeof(LivoxPointXyzrtlt));
   }
 }
 
 void Lddc::PublishPointcloud2Data(
-    const uint8_t index, const uint64_t timestamp, std::unique_ptr<PointCloud2> cloud)
+  const uint8_t index, const uint64_t timestamp, std::unique_ptr<PointCloud2> cloud)
 {
   (void)timestamp;
   Publisher<PointCloud2>::SharedPtr publisher_ptr =
