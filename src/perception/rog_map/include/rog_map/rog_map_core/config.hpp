@@ -155,15 +155,15 @@ public:
     frame_id = "world";
     load("frame_id", frame_id);
     visualization_frame_id = "";
-    viz_time_rate = 5.0;
+    visualization_rate = 5.0;
     load("visualization.enable", visualization_en);
     load("visualization.frame_id", visualization_frame_id);
-    load("visualization.rate", viz_time_rate);
+    load("visualization.rate", visualization_rate);
     if (visualization_frame_id.empty()) {
       visualization_frame_id = frame_id;
     }
-    if (viz_time_rate <= 0.0) {
-      viz_time_rate = 5.0;
+    if (visualization_rate <= 0.0) {
+      visualization_rate = 5.0;
     }
     visualization_range = loadVec3("visualization.range", vector<double>{10.0, 10.0, 2.0});
     if (visualization_range.minCoeff() <= 0) {
@@ -570,7 +570,7 @@ public:
   double odom_timeout{};
   Vec3f visualization_range{};
   string visualization_frame_id{};
-  double viz_time_rate{};
+  double visualization_rate{};
 
   double unk_thresh{};
   double map_sliding_thresh{};
