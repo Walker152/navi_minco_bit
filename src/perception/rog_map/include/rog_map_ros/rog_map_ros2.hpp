@@ -46,7 +46,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
-#include <std_msgs/msg/string.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <visualization_msgs/msg/marker_array.hpp>
 
@@ -57,7 +56,6 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
-#include <sstream>
 #include <utility>
 
 namespace rog_map {
@@ -134,12 +132,16 @@ class ROGMapROS : public ROGMap
     int unfinished_frame_cnt{0};
     Pose pc_pose;
     PointCloud pc;
+    double pc_odom_age_ms{0.0};
     rclcpp::TimerBase::SharedPtr update_timer;
     mutex updete_lock;
   } rc_;
 
   void odomCallback(const nav_msgs::msg::Odometry::SharedPtr odom_msg)
   {
+    if (performance_monitor_) {
+      performance_monitor_->recordOdom(now().seconds());
+    }
     updateRobotState(std::make_pair(
       Vec3f(odom_msg->pose.pose.position.x, odom_msg->pose.pose.position.y, odom_msg->pose.pose.position.z),
       Quatf(odom_msg->pose.pose.orientation.w,
@@ -163,20 +165,51 @@ class ROGMapROS : public ROGMap
 
   void cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg)
   {
+    const double cbk_t = now().seconds();
+    const double msg_stamp = rclcpp::Time(cloud_msg->header.stamp).seconds();
+    const double queue_delay_ms = msg_stamp > 0.0 ? std::max(0.0, cbk_t - msg_stamp) * 1000.0 : 0.0;
+    const double msg_points = static_cast<double>(cloud_msg->width) * static_cast<double>(cloud_msg->height);
+    if (performance_monitor_) {
+      performance_monitor_->recordCloudCallback(cbk_t, msg_points, queue_delay_ms, 0.0);
+    }
+    if (msg_points <= 0.0) {
+      if (performance_monitor_) {
+        performance_monitor_->recordCloudDropEmpty();
+      }
+      return;
+    }
     if (!robot_state_.rcv) {
+      if (performance_monitor_) {
+        performance_monitor_->recordCloudDropNoOdom();
+      }
       std::cout << YELLOW << " -- [ROS] No odom received, skip cloud callback." << RESET << std::endl;
       return;
     }
-    double cbk_t = now().seconds();
     if (cbk_t - robot_state_.rcv_time > cfg_.odom_timeout) {
+      if (performance_monitor_) {
+        performance_monitor_->recordCloudDropOdomTimeout();
+      }
       std::cout << YELLOW << " -- [ROS] Odom timeout, skip cloud callback." << RESET << std::endl;
       return;
     }
     PointCloud temp_pc;
+    const auto convert_start = std::chrono::steady_clock::now();
     pcl::fromROSMsg(*cloud_msg, temp_pc);
+    const double convert_time_ms =
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - convert_start).count();
+    if (performance_monitor_) {
+      performance_monitor_->recordCloudConvertTime(convert_time_ms);
+    }
+    if (temp_pc.empty()) {
+      if (performance_monitor_) {
+        performance_monitor_->recordCloudDropEmpty();
+      }
+      return;
+    }
     rc_.updete_lock.lock();
     rc_.pc = temp_pc;
     rc_.pc_pose = std::make_pair(robot_state_.p, robot_state_.q);
+    rc_.pc_odom_age_ms = std::max(0.0, cbk_t - robot_state_.rcv_time) * 1000.0;
     rc_.unfinished_frame_cnt++;
     map_empty_ = false;
     rc_.updete_lock.unlock();
@@ -204,13 +237,18 @@ class ROGMapROS : public ROGMap
     }
     static PointCloud temp_pc;
     static Pose temp_pose;
+    static double temp_odom_age_ms{0.0};
 
     rc_.updete_lock.lock();
     temp_pc = rc_.pc;
     temp_pose = rc_.pc_pose;
+    temp_odom_age_ms = rc_.pc_odom_age_ms;
     rc_.unfinished_frame_cnt = 0;
     rc_.updete_lock.unlock();
 
+    if (performance_monitor_) {
+      performance_monitor_->recordValidCloud(temp_odom_age_ms);
+    }
     updateMapInternal(temp_pc, temp_pose);
   }
 
@@ -220,6 +258,9 @@ class ROGMapROS : public ROGMap
       return;
     }
     if (map_empty_) {
+      return;
+    }
+    if (!hasVisualizationSubscriber()) {
       return;
     }
 
@@ -232,20 +273,19 @@ class ROGMapROS : public ROGMap
       return;
     }
 
-    if (cfg_.viz_unknown_enable && vm_.unknown_pub && vm_.unknown_pub->get_subscription_count() >= 1) {
-      vec_E<Vec3f> unknown_map, inf_unknown_map;
+    if (vm_.unknown_pub && vm_.unknown_pub->get_subscription_count() >= 1) {
+      vec_E<Vec3f> unknown_map;
       boxSearch(box_min, box_max, UNKNOWN, unknown_map);
       sensor_msgs::msg::PointCloud2 cloud_msg;
       vecEVec3fToPC2(unknown_map, cloud_msg);
-      cloud_msg.header.stamp = now();
       vm_.unknown_pub->publish(cloud_msg);
-      if (cfg_.viz_inflated_unknown_enable && cfg_.unk_inflation_en && vm_.unknown_inf_pub &&
-          vm_.unknown_inf_pub->get_subscription_count() >= 1) {
-        boxSearchInflate(box_min, box_max, UNKNOWN, inf_unknown_map);
-        vecEVec3fToPC2(inf_unknown_map, cloud_msg);
-        cloud_msg.header.stamp = now();
-        vm_.unknown_inf_pub->publish(cloud_msg);
-      }
+    }
+    if (cfg_.unk_inflation_en && vm_.unknown_inf_pub && vm_.unknown_inf_pub->get_subscription_count() >= 1) {
+      vec_E<Vec3f> inf_unknown_map;
+      boxSearchInflate(box_min, box_max, UNKNOWN, inf_unknown_map);
+      sensor_msgs::msg::PointCloud2 cloud_msg;
+      vecEVec3fToPC2(inf_unknown_map, cloud_msg);
+      vm_.unknown_inf_pub->publish(cloud_msg);
     }
 
     if (layer_ && !layer_->empty()) {
@@ -280,27 +320,18 @@ class ROGMapROS : public ROGMap
       }
     }
 
-    if (cfg_.viz_field_enable && field_ && field_->isValid() && vm_.field_pub &&
-        vm_.field_pub->get_subscription_count() >= 1) {
+    if (field_ && field_->isValid() && vm_.field_pub && vm_.field_pub->get_subscription_count() >= 1) {
       sensor_msgs::msg::PointCloud2 field_cloud;
       fillFieldCloud(field_cloud);
       vm_.field_pub->publish(field_cloud);
     }
-    if (cfg_.viz_decay_cells_enable && vm_.decay_cells_pub &&
-        vm_.decay_cells_pub->get_subscription_count() >= 1) {
+    if (vm_.decay_cells_pub && vm_.decay_cells_pub->get_subscription_count() >= 1) {
       sensor_msgs::msg::PointCloud2 decay_cloud;
       fillDecayCellsCloud(decay_cloud);
       vm_.decay_cells_pub->publish(decay_cloud);
     }
-    if (cfg_.performance_enable && cfg_.performance_publish_enable && vm_.performance_pub &&
-        vm_.performance_pub->get_subscription_count() >= 1) {
-      std_msgs::msg::String msg;
-      fillPerformanceMsg(msg);
-      vm_.performance_pub->publish(msg);
-    }
 
-    if (cfg_.viz_frontier_enable && cfg_.frontier_extraction_en && vm_.frontier_pub &&
-        vm_.frontier_pub->get_subscription_count() >= 1) {
+    if (cfg_.frontier_extraction_en && vm_.frontier_pub && vm_.frontier_pub->get_subscription_count() >= 1) {
       vec_E<Vec3f> frontier_map;
       boxSearch(box_min, box_max, FRONTIER, frontier_map);
       sensor_msgs::msg::PointCloud2 cloud_msg;
@@ -312,17 +343,15 @@ class ROGMapROS : public ROGMap
     vec_E<Vec3f> occ_map, inf_occ_map;
     sensor_msgs::msg::PointCloud2 cloud_msg;
 
-    if (cfg_.viz_occupied_enable && vm_.occ_pub && vm_.occ_pub->get_subscription_count() >= 1) {
+    if (vm_.occ_pub && vm_.occ_pub->get_subscription_count() >= 1) {
       boxSearch(box_min, box_max, OCCUPIED, occ_map);
       vecEVec3fToPC2(occ_map, cloud_msg);
       vm_.occ_pub->publish(cloud_msg);
     }
 
-    if (cfg_.viz_inflated_occupied_enable && vm_.occ_inf_pub &&
-        vm_.occ_inf_pub->get_subscription_count() >= 1) {
+    if (vm_.occ_inf_pub && vm_.occ_inf_pub->get_subscription_count() >= 1) {
       boxSearchInflate(box_min, box_max, OCCUPIED, inf_occ_map);
       vecEVec3fToPC2(inf_occ_map, cloud_msg);
-      cloud_msg.header.stamp = now();
       vm_.occ_inf_pub->publish(cloud_msg);
     }
 
@@ -332,7 +361,7 @@ class ROGMapROS : public ROGMap
         PointCloud pc;
         esdf_map_->getPositiveESDFPointCloud(box_min, box_max, robot_state_.p.z() - 0.5, pc);
         pcl::toROSMsg(pc, cloud_msg);
-        cloud_msg.header.frame_id = cfg_.frame_id;
+        cloud_msg.header.frame_id = cfg_.visualization_frame_id;
         cloud_msg.header.stamp = now();
         vm_.esdf_pub->publish(cloud_msg);
       }
@@ -353,8 +382,7 @@ class ROGMapROS : public ROGMap
 #endif
     }
 
-    if (vm_.mkr_arr_pub &&
-        (!cfg_.visualization_lazy_publish || vm_.mkr_arr_pub->get_subscription_count() >= 1)) {
+    if (vm_.mkr_arr_pub && vm_.mkr_arr_pub->get_subscription_count() >= 1) {
       visualization_msgs::msg::MarkerArray mkr_arr;
       visualizeBoundingBox(
         mkr_arr, now().seconds(), box_min, box_max, "Visualization Range", Color::Purple());
@@ -414,10 +442,27 @@ class ROGMapROS : public ROGMap
       }
 
       for (auto & marker : mkr_arr.markers) {
-        marker.header.frame_id = cfg_.frame_id;
+        marker.header.frame_id = cfg_.visualization_frame_id;
       }
       vm_.mkr_arr_pub->publish(mkr_arr);
     }
+  }
+
+  bool hasVisualizationSubscriber()
+  {
+    return (vm_.unknown_pub && vm_.unknown_pub->get_subscription_count() >= 1) ||
+           (vm_.unknown_inf_pub && vm_.unknown_inf_pub->get_subscription_count() >= 1) ||
+           (vm_.layer_value_pub && vm_.layer_value_pub->get_subscription_count() >= 1) ||
+           (vm_.layer_type_pub && vm_.layer_type_pub->get_subscription_count() >= 1) ||
+           (vm_.layer_confidence_pub && vm_.layer_confidence_pub->get_subscription_count() >= 1) ||
+           (vm_.layer_height_pub && vm_.layer_height_pub->get_subscription_count() >= 1) ||
+           (vm_.field_pub && vm_.field_pub->get_subscription_count() >= 1) ||
+           (vm_.decay_cells_pub && vm_.decay_cells_pub->get_subscription_count() >= 1) ||
+           (vm_.frontier_pub && vm_.frontier_pub->get_subscription_count() >= 1) ||
+           (vm_.occ_pub && vm_.occ_pub->get_subscription_count() >= 1) ||
+           (vm_.occ_inf_pub && vm_.occ_inf_pub->get_subscription_count() >= 1) ||
+           (vm_.esdf_pub && vm_.esdf_pub->get_subscription_count() >= 1) ||
+           (vm_.mkr_arr_pub && vm_.mkr_arr_pub->get_subscription_count() >= 1);
   }
 
   void vecEVec3fToPC2(const vec_E<Vec3f> & points, sensor_msgs::msg::PointCloud2 & cloud)
@@ -432,13 +477,13 @@ class ROGMapROS : public ROGMap
     }
     pcl::toROSMsg(pcl_cloud, cloud);
     cloud.header.stamp = now();
-    cloud.header.frame_id = cfg_.frame_id;
+    cloud.header.frame_id = cfg_.visualization_frame_id;
   }
 
   void fillLayerGrid(const std::vector<uint8_t> & data, nav_msgs::msg::OccupancyGrid & grid)
   {
     grid.header.stamp = now();
-    grid.header.frame_id = cfg_.frame_id;
+    grid.header.frame_id = cfg_.visualization_frame_id;
     grid.info.resolution = static_cast<float>(layer_->resolution());
     grid.info.width = static_cast<uint32_t>(layer_->width());
     grid.info.height = static_cast<uint32_t>(layer_->height());
@@ -479,7 +524,7 @@ class ROGMapROS : public ROGMap
     }
     pcl::toROSMsg(pcl_cloud, cloud);
     cloud.header.stamp = now();
-    cloud.header.frame_id = cfg_.frame_id;
+    cloud.header.frame_id = cfg_.visualization_frame_id;
   }
 
   void fillFieldCloud(sensor_msgs::msg::PointCloud2 & cloud)
@@ -511,7 +556,7 @@ class ROGMapROS : public ROGMap
     }
     pcl::toROSMsg(pcl_cloud, cloud);
     cloud.header.stamp = now();
-    cloud.header.frame_id = cfg_.frame_id;
+    cloud.header.frame_id = cfg_.visualization_frame_id;
   }
 
   void fillDecayCellsCloud(sensor_msgs::msg::PointCloud2 & cloud)
@@ -535,26 +580,7 @@ class ROGMapROS : public ROGMap
     }
     pcl::toROSMsg(pcl_cloud, cloud);
     cloud.header.stamp = now();
-    cloud.header.frame_id = cfg_.frame_id;
-  }
-
-  void fillPerformanceMsg(std_msgs::msg::String & msg)
-  {
-    const auto stats = runtimeStats();
-    std::ostringstream ss;
-    ss << "total_ms=" << stats.total_update_time << ", raycast_ms=" << stats.raycast_time
-       << ", parallel_ms=" << stats.raycast_parallel_time << ", merge_ms=" << stats.raycast_merge_time
-       << ", decay_ms=" << stats.decay_time << ", projection_ms=" << stats.projection_time
-       << ", field_ms=" << stats.field_time << ", query_ms=" << stats.query_refresh_time
-       << ", input=" << stats.input_point_count << ", hit=" << stats.hit_count
-       << ", miss=" << stats.miss_count << ", occ=" << stats.occupied_count
-       << ", unk=" << stats.unknown_count << ", passable=" << stats.passable_count
-       << ", free=" << stats.free_count << ", decayed=" << stats.decayed_count
-       << ", dirty=" << stats.dirty_column_count << ", dirty_expanded=" << stats.dirty_expanded_column_count
-       << ", full_layer=" << stats.full_layer_refresh_count
-       << ", dirty_layer=" << stats.dirty_layer_update_count
-       << ", field_skipped=" << stats.field_skipped_count;
-    msg.data = ss.str();
+    cloud.header.frame_id = cfg_.visualization_frame_id;
   }
 
   void initializeRos()
@@ -587,7 +613,6 @@ class ROGMapROS : public ROGMap
       vm_.layer_value_pub = pubs.layer_value_pub;
       vm_.layer_type_pub = pubs.layer_type_pub;
       vm_.layer_confidence_pub = pubs.layer_confidence_pub;
-      vm_.performance_pub = pubs.performance_pub;
       vm_.mkr_arr_pub = pubs.mkr_arr_pub;
     }
 

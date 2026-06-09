@@ -85,6 +85,15 @@ struct ColumnStats
   double last_update_time{0.0};
 };
 
+struct ProjectionUpdateStats
+{
+  double update_full_time_ms{0.0};
+  double update_dirty_time_ms{0.0};
+  double terrain_time_ms{0.0};
+  double hole_fill_time_ms{0.0};
+  double value_mask_time_ms{0.0};
+};
+
 class ProjectionLayer
 {
 public:
@@ -95,14 +104,16 @@ public:
     double resolution,
     const Eigen::Vector2d & origin,
     const ProjectionLayerConfig & config,
-    const ColumnScanner & scanner);
+    const ColumnScanner & scanner,
+    ProjectionUpdateStats * stats = nullptr);
 
   void updateFull(int width,
     int height,
     double resolution,
     const Eigen::Vector2d & origin,
     const ProjectionLayerConfig & config,
-    const ColumnScanner & scanner);
+    const ColumnScanner & scanner,
+    ProjectionUpdateStats * stats = nullptr);
 
   void updateDirty(int width,
     int height,
@@ -111,7 +122,8 @@ public:
     const ProjectionLayerConfig & config,
     const ColumnScanner & scanner,
     const std::vector<int> & dirty_columns,
-    bool force_full_refresh);
+    bool force_full_refresh,
+    ProjectionUpdateStats * stats = nullptr);
 
   bool matchesGeometry(int width, int height, double resolution, const Eigen::Vector2d & origin) const;
 

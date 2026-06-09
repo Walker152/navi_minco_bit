@@ -307,142 +307,192 @@ planner_server:
       allow_unknown: false
       odom_topic: /aft_mapped_to_init
       rog_map:
+        # [基础地图][无单位] ROGMap 工作坐标系；点云、里程计、projection 高度参数都按该 frame 解释，配置错误会影响二维 layer、ESDF 和规划安全。
         frame_id: camera_init
 
+        # [基础地图][m/cell] 三维概率地图分辨率；调小更精细但 raycasting/projection/ESDF 计算量增大，调大会降低小障碍表达能力。
         resolution: 0.05
+        # [基础地图][m/cell] 三维膨胀地图分辨率；通常与 resolution 保持一致，过细增加膨胀查询计算量，过粗会让碰撞边界变粗糙。
         inflation_resolution: 0.05
+        # [基础地图][m,m,m] 局部滑动地图窗口大小，不是全局地图大小；调大覆盖更远但内存、raycasting、projection 和 ESDF 开销上升。
         map_size: [10.0, 10.0, 1.5]
+        # [基础地图][m,m,m] 固定原点模式下的地图中心/原点参考；滑动地图开启时主要作为初始化参考，误配可能影响初始边界。
         fix_map_origin: [0.0, 0.0, 0.0]
 
         map_sliding:
+          # [map_sliding][bool] 是否让局部地图随机器人位置滑动；开启可避免机器人靠近窗口边界，影响 layer/ESDF 的有效范围。
           enable: true
-          threshold: 2.0
+          # [map_sliding][m] 触发地图滑动的位移阈值；过小会频繁滑动并带来计算抖动，过大可能让机器人靠近局部地图边缘。
+          threshold: 0.5
 
         ros_callback:
+          # [ros_callback][bool] 是否由 ROGMap 自己订阅点云和里程计并定时更新；关闭时需外部调用更新接口。
           enable: true
+          # [ros_callback][topic] 普通点云输入；点云密度直接影响三维占据、二维 layer 置信度和 ESDF 障碍距离。
           cloud_topic: /cloud_registered
+          # [ros_callback][topic] 稠密点云输入；配合 use_dense_cloud 使用，能补全地图但会明显增加 CPU 占用。
           dense_cloud_topic: /cloud_registered_dense
+          # [ros_callback][topic] 里程计输入；时间戳/坐标系异常会导致点云被丢弃或地图错位。
           odom_topic: /aft_mapped_to_init
+          # [ros_callback][s] 点云匹配里程计的最大时间差；过小易丢点云，过大可能用滞后位姿更新地图。
           odom_timeout: 0.08
-          update_period_ms: 1
+          # [ros_callback][ms] ROGMap updateCallback 定时器周期；调小响应更快但 CPU 更高，代码中会把 <=0 修正为 1ms。
+          update_period_ms: 50
+          # [ros_callback][bool] 是否订阅 dense_cloud_topic；开启会提高地图完整性，也会增加 raycasting/projection 计算量。
           use_dense_cloud: false
 
         raycasting:
+          # [raycasting][bool] 是否启用三维概率占据 raycasting；关闭会使动态地图、projection 和 ESDF 缺少在线点云更新。
           enable: true
+          # [raycasting][帧] 每批处理点云帧数；调大可攒批减少调度开销，但会增加地图更新延迟。
           batch_update_size: 1
+          # [raycasting][m,m] 射线有效距离 [min,max]；min 过大会忽略近处点，max 过大会增加计算量并可能引入远处噪声。
           ray_range: [0.30, 10.0]
+          # [raycasting][m,m,m] 每次局部更新盒尺寸；调大覆盖更多点但 raycasting 和 dirty column 数量上升。
           local_update_box: [10.0, 10.0, 1.5]
+          # [raycasting][概率] unknown 判断阈值相关参数；影响 UNKNOWN/FREE/OCCUPIED 判定，进而影响 projection layer。
           unk_thresh: 0.70
+          # [raycasting][概率] 命中点增加占据概率的强度；调大障碍更快变 OCCUPIED，但噪声也更容易固化。
           p_hit: 0.70
+          # [raycasting][概率] 射线穿过区域增加自由概率的强度；调大清空更快，过大可能把稀疏障碍清掉。
           p_miss: 0.70
+          # [raycasting][概率] 占据概率下限；限制自由证据累计，影响动态清除后的最小 log-odds。
           p_min: 0.12
+          # [raycasting][概率] 占据概率上限；限制障碍证据累计，过高会让障碍更难通过 decay 清除。
           p_max: 0.97
+          # [raycasting][概率] 判定 OCCUPIED 的阈值；调高减少误障碍但可能漏检，调低更保守并影响 ESDF 障碍源。
           p_occ: 0.80
+          # [raycasting][概率] 判定 KNOWN_FREE 的阈值；调高更难成为自由，调低更容易清空 UNKNOWN。
           p_free: 0.30
+          # [raycasting/performance][bool] raycast 并行开关；会被 performance.parallel_raycast_enable 后加载覆盖，影响 CPU 占用和更新延迟。
           parallel_enable: true
+          # [raycasting/performance][线程] raycast 线程数；不宜超过可用 CPU 核数，过大可能因竞争导致抖动。
           num_threads: 4
 
         decay:
+          # [decay][bool] 是否启用动态障碍遗忘；关闭会让旧障碍长期残留，影响 layer、ESDF 和规划安全。
           enable: true
+          # [decay][s] 观测后保持时间；过短障碍闪烁，过长动态障碍残留。
           keep_time: 0.35
+          # [decay][s] 从 occupied 衰减到 free 的时间尺度；过短清除激进，过长 ESDF 障碍源残留。
           decay_time: 1.0
+          # [decay][bool] 只维护活跃 cell 衰减列表；开启通常降低计算量，若列表维护异常会影响动态清除完整性。
           active_list_enable: true
 
         projection:
+          # [projection][bool] 是否生成二维投影 layer；关闭会导致 QueryAdapter/ESDF 缺少二维语义输入。
           enable: true
-          min_z: -0.15
+          # [projection][m] 参与二维投影统计的 z 下界，基于 frame_id 而非默认地面；过高可能漏掉地面和低矮障碍。
+          min_z: -0.25
+          # [projection][m] 参与二维投影统计的 z 上界；过低会漏掉车体高度内障碍，过高会引入上方无关结构。
           max_z: 0.80
+          # [projection][bool] UNKNOWN 是否写成障碍 mask；true 会阻挡 ESDF/规划，false 更开放但未知区域风险更高。
           unknown_as_occupied: false
+          # [projection][voxel] 每个 xy 列至少观测 voxel 数；过大产生大量 UNKNOWN，过小易受噪声误判。
           min_observed_voxels: 2
+          # [projection][m] 低矮障碍高度阈值；低于该值可能判为 PASSABLE，调大更容易放行低矮物体。
           low_obstacle_height: 0.08
-          obstacle_height: 0.16
+          # [projection][m] 柱状/墙体障碍高度阈值；调低更保守，调高可能漏判较矮障碍。
+          obstacle_height: 0.20
+          # [projection][比例] 占据点高度密度阈值；调大可过滤稀疏噪声，调小更容易把稀疏点判成实体障碍。
           min_ratio: 0.35
+          # [projection][cost] PASSABLE 在 layer_value 中的代价值；不等于 ESDF，passable_as_free=true 时实际写 0。
           passable_cost: 50
+          # [projection][bool] 是否启用语义迟滞；降低 OCCUPIED 到 FREE/PASSABLE 的闪烁，略增加状态记忆。
           hysteresis_enable: true
+          # [projection][次] 类型切换确认次数；调大更稳但障碍清除更慢。
           hysteresis_count: 2
+          # [projection][bool] 是否填补被障碍围住的小洞；开启会让 ESDF 更保守，减少穿过窄缝。
           hole_fill_enable: true
+          # [projection][cell] hole fill 邻域半径；调大会填更多洞并增加 projection 计算量。
           hole_fill_radius: 1
+          # [projection][cell数] 判定洞周围障碍邻居数量；调低更保守，调高减少误填。
           hole_fill_min_occupied_neighbors: 5
+          # [projection][bool] 是否启用地形可通行分析；开启后综合车体碰撞带、坡度、台阶、净空等判断 PASSABLE。
           terrain_enable: true
-          robot_body_z_min: 0.02
-          robot_body_z_max: 0.30
+          # [projection][m] 车体碰撞带 z 下界，基于 ROGMap frame；若 camera_init 在雷达高度附近，不能直接写地面系高度。
+          robot_body_z_min: -0.2
+          # [projection][m] 车体碰撞带 z 上界，基于 ROGMap frame；误配会导致地面/上方结构被错误纳入碰撞带。
+          robot_body_z_max: 0.1
+          # [projection][m] 车体顶部净空余量；调大更保守，可能把低顶结构判为障碍。
           overhead_clearance_margin: 0.03
-          surface_thickness: 0.08
-          max_step_height: 0.10
-          max_slope_deg: 18.0
+          # [projection][m] 可通过表面厚度阈值；过小会把粗糙地面判障碍，过大可能放行厚障碍。
+          surface_thickness: 0.06
+          # [projection][m] 最大可跨越台阶高度；调大能通过更高的台阶，但可能把较高的障碍误判为可通行。
+          max_step_height: 0.1
+          # [projection][degree] 最大可通行坡度；对 23 度通过角底盘可先 20~22 度，过大风险高，过小会拒绝坡道。
+          max_slope_deg: 20.0
+          # [projection][bool] 是否检查车体上方净空；开启会影响 PASSABLE/FREE/OCCUPIED 分类和 ESDF mask。
           clearance_check_enable: true
-          min_clearance_height: 0.30
-          tunnel_wall_min_height: 0.18
+          # [projection][m] 车体顶部额外净空要求，不是机器人总高度；过大容易误判低顶空间不可通行。
+          min_clearance_height: 0.05
+          # [projection][m] 隧道墙/竖直墙高度阈值；调低更容易把竖直结构判为 OCCUPIED。
+          tunnel_wall_min_height: 0.20
+          # [projection][bool] PASSABLE 是否在 layer_value 中写成 FREE；无论 true/false，PASSABLE 的 mask 都为 1，会作为 ESDF 可通行区。
           passable_as_free: true
         field:
+          # [field][bool] 是否生成二维 dynamic field/ESDF；关闭会让规划器缺少距离和梯度查询。
           enable: true
-          inflation_radius: 0.10
-          max_distance: 4.0
-          min_distance: -2.0
+          # [field][m] ESDF 膨胀半径；代码执行 final_distance=raw_distance-inflation_radius，调大会让距离整体变小、更保守。
+          inflation_radius: 0.0
+          # [field][m] ESDF 正向最大截断距离；调大提供更远梯度但代价有限，过小会让远离障碍区域梯度变少。
+          max_distance: 5.0
+          # [field][m] ESDF 负向最小截断距离；控制障碍内部负距离下限，影响优化代价范围。
+          min_distance: -3.0
+          # [field][bool] 是否将 ESDF 结果限制在 [min_distance,max_distance]；开启可避免异常大距离影响优化。
           clamp_distance: true
-          smooth_grad_enable: true
+          # [field][枚举] 插值方式 bilinear/quadratic；quadratic 梯度更平滑，边界邻域不足时会回退到 bilinear。
           interpolation: quadratic
+          # [field][Hz] field 刷新上限频率；调高 ESDF 更及时但 CPU 上升，调低可能出现 field_stale。
           update_rate: 20.0
 
         performance:
+          # [performance][bool] 是否启用性能统计；影响统计、发布和 CSV，不直接改变地图逻辑。
           enable: true
+          # [performance][bool] 是否输出性能 CSV；开启会写文件并增加少量 IO 开销。
           csv_enable: false
+          # [performance][path] 性能 CSV 路径；需保证进程有写权限，路径错误会导致日志文件不可用。
           csv_path: /tmp/rog_map_performance.csv
+          # [performance][path] 地图信息 CSV 路径；用于记录地图配置和尺寸，调参审计时有用。
           map_info_csv_path: /tmp/rog_map_info.csv
+          # [performance][bool] 是否启用详细逐帧统计；关闭后不写 detailed CSV，降低诊断开销。
+          detailed_enable: true
+          # [performance][bool] 是否写逐帧 detailed CSV；每次有效 updateMapInternal 写一行。
+          detailed_csv_enable: true
+          # [performance][path] 逐帧 detailed CSV 路径，用于定位单帧 raycast/projection/field/query 瓶颈。
+          detailed_csv_path: /tmp/rog_map_perf_detailed.csv
+          # [performance][bool] 是否写窗口 summary CSV；按 summary_rate 聚合输入、更新、field 和可视化频率。
+          summary_csv_enable: true
+          # [performance][path] 窗口 summary CSV 路径，用于 tail -f 快速观察瓶颈。
+          summary_csv_path: /tmp/rog_map_perf_summary.csv
+          # [performance][行] CSV flush 间隔；避免每行强制 flush 变成新瓶颈，节点退出时仍会关闭文件。
+          csv_flush_every_n: 30
+          # [performance][bool] 是否发布性能 topic；开启便于在线观察，增加极小发布开销。
           publish_enable: true
+          # [performance][topic] 性能统计发布 topic；仅影响监控订阅路径。
           topic: /rog_map/performance
-          print_enable: false
+          # [performance][bool] 是否打印性能摘要；开启便于调试但会增加终端输出噪声。
+          print_enable: true
+          # [performance][Hz] 性能摘要频率；过高会刷屏，过低不利于观察瞬时抖动。
           summary_rate: 1.0
+          # [performance][bool] 是否启用 dirty column 增量刷新；开启可减少 projection/field 全量刷新计算量。
           dirty_column_enable: true
+          # [performance][比例] dirty column 超过地图总列数比例时转全量刷新；调低更常全量，调高更依赖增量更新。
           dirty_full_ratio: 0.30
+          # [performance/raycasting][bool] 并行 raycast 开关；代码后加载该值，会覆盖 raycasting.parallel_enable。
           parallel_raycast_enable: true
+          # [performance/raycasting][线程] raycast 线程数；代码后加载该值，会覆盖 raycasting.num_threads。
           raycast_num_threads: 4
 
         visualization:
+          # [visualization][bool] 总开关；false 时不创建可视化 timer，不发布任何可视化 topic。
           enable: true
+          # [visualization][frame] 可视化消息 frame_id；为空时使用 ROGMap frame_id。
           frame_id: camera_init
-          rate: 5.0
+          # [visualization][Hz] 可视化发布上限频率；实际每个 topic 仅在存在订阅者时构造并发布。
+          rate: 10.0
+          # [visualization][m,m,m] 三维可视化范围，仅影响调试消息大小，不影响地图计算。
           range: [10.0, 10.0, 1.2]
-          lazy_publish: true
-
-          occupied:
-            enable: true
-            topic: /rog_map/occupied
-          unknown:
-            enable: false
-            topic: /rog_map/unknown
-          inflated_occupied:
-            enable: false
-            topic: /rog_map/occupied_inflate
-          inflated_unknown:
-            enable: false
-            topic: /rog_map/unknown_inflate
-          frontier:
-            enable: false
-            topic: /rog_map/frontier
-
-          layer_value:
-            enable: true
-            topic: /rog_map/layer_value
-          layer_type:
-            enable: true
-            topic: /rog_map/layer_type
-          layer_confidence:
-            enable: false
-            topic: /rog_map/layer_confidence
-          layer_height:
-            enable: true
-            topic: /rog_map/layer_height
-
-          field:
-            enable: true
-            topic: /rog_map/field
-          decay_cells:
-            enable: false
-            topic: /rog_map/decay_cells
-          map_bound:
-            enable: true
-            topic: /rog_map/map_bound
       corridor:
         robot_radius: 0.25
         extra_margin: 0.05
@@ -454,7 +504,7 @@ planner_server:
         esdf_max_cost: 0.5
 
       minco_optimizer:
-        opt_freq: 10.0
+        opt_freq: 20.0
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
         safe_dist: 0.20
