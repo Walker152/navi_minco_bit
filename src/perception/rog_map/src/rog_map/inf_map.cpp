@@ -101,8 +101,6 @@ InfMap::InfMap(rog_map::Config & cfg)
     cfg.fix_map_origin,
     cfg.unk_thresh);
 
-  posToGlobalIndex(cfg.visualization_range, sc_.visualization_range_i);
-
   imd_.occ_inflate_cnt.resize(sc_.map_vox_num);
   imd_.occ_neighbor_num = cfg.inf_spherical_neighbor.size();
   if (cfg.unk_inflation_en) {
@@ -111,8 +109,6 @@ InfMap::InfMap(rog_map::Config & cfg)
     // the unk inf cnt should be the size of inflation queue
     imd_.unk_inflate_cnt.resize(sc_.map_vox_num);
   }
-  posToGlobalIndex(cfg.visualization_range, sc_.visualization_range_i);
-
   resetLocalMap();
   cfg_ = cfg;
   std::cout << GREEN << " -- [InfMap] Init successfully -- ." << RESET << std::endl;

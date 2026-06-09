@@ -152,49 +152,23 @@ public:
     }
 
     visualization_en = false;
-    use_dynamic_reconfigure = false;
-    pub_unknown_map_en = false;
     frame_id = "world";
     load("frame_id", frame_id);
-    viz_time_rate = 0.0;
-    viz_frame_rate = 0;
-    visualization_lazy_publish = true;
+    visualization_frame_id = "";
+    visualization_rate = 5.0;
     load("visualization.enable", visualization_en);
-    load("visualization.use_dynamic_reconfigure", use_dynamic_reconfigure);
-    load("visualization.pub_unknown_map_en", pub_unknown_map_en);
-    load("visualization.frame_id", frame_id);
-    load("visualization.time_rate", viz_time_rate);
-    load("visualization.rate", viz_time_rate);
-    load("visualization.frame_rate", viz_frame_rate);
-    load("visualization.lazy_publish", visualization_lazy_publish);
+    load("visualization.frame_id", visualization_frame_id);
+    load("visualization.rate", visualization_rate);
+    if (visualization_frame_id.empty()) {
+      visualization_frame_id = frame_id;
+    }
+    if (visualization_rate <= 0.0) {
+      visualization_rate = 5.0;
+    }
     visualization_range = loadVec3("visualization.range", vector<double>{10.0, 10.0, 2.0});
     if (visualization_range.minCoeff() <= 0) {
       visualization_en = false;
     }
-    load("visualization.occupied.enable", viz_occupied_enable);
-    load("visualization.occupied.topic", viz_occupied_topic);
-    load("visualization.unknown.enable", viz_unknown_enable);
-    load("visualization.unknown.topic", viz_unknown_topic);
-    load("visualization.inflated_occupied.enable", viz_inflated_occupied_enable);
-    load("visualization.inflated_occupied.topic", viz_inflated_occupied_topic);
-    load("visualization.inflated_unknown.enable", viz_inflated_unknown_enable);
-    load("visualization.inflated_unknown.topic", viz_inflated_unknown_topic);
-    load("visualization.frontier.enable", viz_frontier_enable);
-    load("visualization.frontier.topic", viz_frontier_topic);
-    load("visualization.layer_value.enable", viz_layer_value_enable);
-    load("visualization.layer_value.topic", viz_layer_value_topic);
-    load("visualization.layer_type.enable", viz_layer_type_enable);
-    load("visualization.layer_type.topic", viz_layer_type_topic);
-    load("visualization.layer_confidence.enable", viz_layer_confidence_enable);
-    load("visualization.layer_confidence.topic", viz_layer_confidence_topic);
-    load("visualization.layer_height.enable", viz_layer_height_enable);
-    load("visualization.layer_height.topic", viz_layer_height_topic);
-    load("visualization.field.enable", viz_field_enable);
-    load("visualization.field.topic", viz_field_topic);
-    load("visualization.decay_cells.enable", viz_decay_cells_enable);
-    load("visualization.decay_cells.topic", viz_decay_cells_topic);
-    load("visualization.map_bound.enable", viz_map_bound_enable);
-    load("visualization.map_bound.topic", viz_map_bound_topic);
 
     resolution = 0.1;
     inflation_resolution = 0.1;
@@ -317,7 +291,6 @@ public:
     field_max_distance = 3.0;
     field_min_distance = -1.0;
     field_clamp_distance_en = true;
-    field_smooth_grad_en = false;
     field_interpolation = "bilinear";
     field_update_rate = 20.0;
     load("field.enable", field_en);
@@ -325,7 +298,6 @@ public:
     load("field.max_distance", field_max_distance);
     load("field.min_distance", field_min_distance);
     load("field.clamp_distance", field_clamp_distance_en);
-    load("field.smooth_grad_enable", field_smooth_grad_en);
     load("field.interpolation", field_interpolation);
     load("field.update_rate", field_update_rate);
     load("performance.field_update_rate", field_update_rate);
@@ -346,6 +318,12 @@ public:
     performance_csv_enable = false;
     performance_csv_path = "/tmp/rog_map_performance.csv";
     performance_map_info_csv_path = "/tmp/rog_map_info.csv";
+    performance_detailed_enable = true;
+    performance_detailed_csv_enable = false;
+    performance_detailed_csv_path = "/tmp/rog_map_perf_detailed.csv";
+    performance_summary_csv_enable = false;
+    performance_summary_csv_path = "/tmp/rog_map_perf_summary.csv";
+    performance_csv_flush_every_n = 30;
     performance_publish_enable = true;
     performance_topic = "/rog_map/performance";
     performance_print_enable = false;
@@ -363,6 +341,12 @@ public:
     load("performance.csv_enable", performance_csv_enable);
     load("performance.csv_path", performance_csv_path);
     load("performance.map_info_csv_path", performance_map_info_csv_path);
+    load("performance.detailed_enable", performance_detailed_enable);
+    load("performance.detailed_csv_enable", performance_detailed_csv_enable);
+    load("performance.detailed_csv_path", performance_detailed_csv_path);
+    load("performance.summary_csv_enable", performance_summary_csv_enable);
+    load("performance.summary_csv_path", performance_summary_csv_path);
+    load("performance.csv_flush_every_n", performance_csv_flush_every_n);
     load("performance.publish_enable", performance_publish_enable);
     load("performance.topic", performance_topic);
     load("performance.print_enable", performance_print_enable);
@@ -507,7 +491,6 @@ public:
   double field_max_distance{3.0};
   double field_min_distance{-1.0};
   bool field_clamp_distance_en{true};
-  bool field_smooth_grad_en{false};
   string field_interpolation{"bilinear"};
 
   bool decay_en{true};
@@ -525,6 +508,12 @@ public:
   bool performance_csv_enable{false};
   string performance_csv_path{"/tmp/rog_map_performance.csv"};
   string performance_map_info_csv_path{"/tmp/rog_map_info.csv"};
+  bool performance_detailed_enable{true};
+  bool performance_detailed_csv_enable{false};
+  string performance_detailed_csv_path{"/tmp/rog_map_perf_detailed.csv"};
+  bool performance_summary_csv_enable{false};
+  string performance_summary_csv_path{"/tmp/rog_map_perf_summary.csv"};
+  int performance_csv_flush_every_n{30};
   bool performance_publish_enable{true};
   string performance_topic{"/rog_map/performance"};
   bool performance_print_enable{false};
@@ -534,7 +523,6 @@ public:
   double debug_pub_rate{5.0};
 
   bool load_pcd_en{false};
-  bool use_dynamic_reconfigure{false};
   string pcd_name{"map.pcd"};
 
   double resolution{}, inflation_resolution{};
@@ -551,8 +539,7 @@ public:
   double virtual_ceil_height{}, virtual_ground_height{};
   int inf_virtual_ceil_height_id_g{}, inf_virtual_ground_height_id_g{};
 
-  bool visualization_en{false}, frontier_extraction_en{false}, raycasting_en{true}, ros_callback_en{false},
-    pub_unknown_map_en{false};
+  bool visualization_en{false}, frontier_extraction_en{false}, raycasting_en{true}, ros_callback_en{false};
 
   /* Spherical neighbor for inflation*/
   std::vector<Vec3i> inf_spherical_neighbor{};
@@ -582,33 +569,8 @@ public:
 
   double odom_timeout{};
   Vec3f visualization_range{};
-  double viz_time_rate{};
-  int viz_frame_rate{};
-  bool visualization_lazy_publish{true};
-  bool viz_occupied_enable{true};
-  string viz_occupied_topic{"/rog_map/occupied"};
-  bool viz_unknown_enable{false};
-  string viz_unknown_topic{"/rog_map/unknown"};
-  bool viz_inflated_occupied_enable{false};
-  string viz_inflated_occupied_topic{"/rog_map/occupied_inflate"};
-  bool viz_inflated_unknown_enable{false};
-  string viz_inflated_unknown_topic{"/rog_map/unknown_inflate"};
-  bool viz_frontier_enable{false};
-  string viz_frontier_topic{"/rog_map/frontier"};
-  bool viz_layer_value_enable{true};
-  string viz_layer_value_topic{"/rog_map/layer_value"};
-  bool viz_layer_type_enable{true};
-  string viz_layer_type_topic{"/rog_map/layer_type"};
-  bool viz_layer_confidence_enable{false};
-  string viz_layer_confidence_topic{"/rog_map/layer_confidence"};
-  bool viz_layer_height_enable{true};
-  string viz_layer_height_topic{"/rog_map/layer_height"};
-  bool viz_field_enable{true};
-  string viz_field_topic{"/rog_map/field"};
-  bool viz_decay_cells_enable{false};
-  string viz_decay_cells_topic{"/rog_map/decay_cells"};
-  bool viz_map_bound_enable{true};
-  string viz_map_bound_topic{"/rog_map/map_bound"};
+  string visualization_frame_id{};
+  double visualization_rate{};
 
   double unk_thresh{};
   double map_sliding_thresh{};
