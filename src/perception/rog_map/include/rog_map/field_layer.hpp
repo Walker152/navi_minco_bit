@@ -14,6 +14,16 @@ enum class InterpolationMode
   QUADRATIC = 1
 };
 
+struct FieldBuildStats
+{
+  double total_time_ms{0.0};
+  double edt_positive_time_ms{0.0};
+  double inverse_mask_time_ms{0.0};
+  double edt_negative_time_ms{0.0};
+  double distance_fill_time_ms{0.0};
+  double commit_time_ms{0.0};
+};
+
 class DynamicLayer
 {
 public:
@@ -28,7 +38,8 @@ public:
     double max_distance = 3.0,
     double min_distance = -1.0,
     bool clamp_distance = true,
-    InterpolationMode interpolation = InterpolationMode::BILINEAR);
+    InterpolationMode interpolation = InterpolationMode::BILINEAR,
+    FieldBuildStats * stats = nullptr);
 
   void rebuild(int width,
     int height,
@@ -39,7 +50,8 @@ public:
     double max_distance = 3.0,
     double min_distance = -1.0,
     bool clamp_distance = true,
-    InterpolationMode interpolation = InterpolationMode::BILINEAR);
+    InterpolationMode interpolation = InterpolationMode::BILINEAR,
+    FieldBuildStats * stats = nullptr);
 
   void evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const;
 

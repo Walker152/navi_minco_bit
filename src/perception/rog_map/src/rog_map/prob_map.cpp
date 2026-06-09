@@ -97,7 +97,6 @@ void ProbMap::initProbMap()
       cfg_.unk_thresh);
   }
 
-  posToGlobalIndex(cfg_.visualization_range, sc_.visualization_range_i);
   posToGlobalIndex(cfg_.virtual_ceil_height, sc_.virtual_ceil_height_id_g);
   posToGlobalIndex(cfg_.virtual_ground_height, sc_.virtual_ground_height_id_g);
 
@@ -327,7 +326,6 @@ void ProbMap::writeTimeConsumingToLog(std::ofstream & log_file)
   time_consuming_[22] = runtime_stats_.full_layer_refresh_count;
   time_consuming_[23] = runtime_stats_.dirty_layer_update_count;
   time_consuming_[24] = runtime_stats_.field_skipped_count;
-  time_consuming_[25] = runtime_stats_.visualization_time;
   for (long unsigned int i = 0; i < time_consuming_.size(); i++) {
     log_file << time_consuming_[i];
     if (i != time_consuming_.size() - 1)
@@ -475,6 +473,8 @@ void ProbMap::updateProbMap(const PointCloud & cloud, const Pose & pose)
     runtime_stats_.prob_update_time = time_consuming_[2];
     map_empty_ = false;
   }
+  runtime_stats_.dirty_column_count_from_probmap = static_cast<double>(dirtyColumnIds().size());
+  runtime_stats_.active_cell_count = static_cast<double>(active_ids_.size());
   inf_map_->getInflationNumAndTime(time_consuming_[6], time_consuming_[3]);
   runtime_stats_.inflation_count = time_consuming_[6];
   runtime_stats_.inflation_time = time_consuming_[3];
@@ -906,6 +906,7 @@ void ProbMap::raycastProcess(const PointCloud & input_cloud, const Vec3f & cur_o
 
 void ProbMap::raycastProcessSerial(const PointCloud & input_cloud, const Vec3f & cur_odom)
 {
+  runtime_stats_.raycast_input_point_count = static_cast<double>(input_cloud.size());
   // bounding box of updated region
   raycast_data_.cache_box_min = cur_odom;
   raycast_data_.cache_box_max = cur_odom;
@@ -944,10 +945,12 @@ void ProbMap::raycastProcessSerial(const PointCloud & input_cloud, const Vec3f &
       if (insideLocalMap(p)) {
         double sqrdis = (p - cur_odom).squaredNorm();
         if (sqrdis < cfg_.sqr_raycast_range_min) {
+          runtime_stats_.raycast_skipped_near_count += 1.0;
           continue;
         }
         posToGlobalIndex(p, pt_id_g);
         insertUpdateCandidate(pt_id_g, true);
+        runtime_stats_.raycast_used_point_count += 1.0;
         // record cache box size;
         raycast_data_.cache_box_min = raycast_data_.cache_box_min.cwiseMin(p);
         raycast_data_.cache_box_max = raycast_data_.cache_box_max.cwiseMax(p);
@@ -978,9 +981,11 @@ void ProbMap::raycastProcessSerial(const PointCloud & input_cloud, const Vec3f &
       double k = cfg_.raycast_range_max / sqrt(sqr_dis);
       p = k * (p - cur_odom) + cur_odom;
       update_hit = false;
+      runtime_stats_.raycast_skipped_far_count += 1.0;
     }
 
     if (sqr_dis < cfg_.sqr_raycast_range_min) {
+      runtime_stats_.raycast_skipped_near_count += 1.0;
       continue;
     }
 
@@ -988,6 +993,7 @@ void ProbMap::raycastProcessSerial(const PointCloud & input_cloud, const Vec3f &
     if (((p - raycast_box_min).minCoeff() < 0) || ((p - raycast_box_max).maxCoeff() > 0)) {
       p = lineBoxIntersectPoint(p, cur_odom, raycast_box_min, raycast_box_max);
       update_hit = false;
+      runtime_stats_.raycast_skipped_outside_count += 1.0;
     }
 
     // record cache box size;
@@ -996,6 +1002,7 @@ void ProbMap::raycastProcessSerial(const PointCloud & input_cloud, const Vec3f &
 
     // 1.4) for all validate hit points, update probability
     raycasting_cloud.push_back(p);
+    runtime_stats_.raycast_used_point_count += 1.0;
 
     if (update_hit) {
       posToGlobalIndex(p, pt_id_g);
@@ -1023,6 +1030,7 @@ void ProbMap::raycastProcessSerial(const PointCloud & input_cloud, const Vec3f &
 
 void ProbMap::raycastProcessParallel(const PointCloud & input_cloud, const Vec3f & cur_odom)
 {
+  runtime_stats_.raycast_input_point_count = static_cast<double>(input_cloud.size());
   raycast_data_.cache_box_min = cur_odom;
   raycast_data_.cache_box_max = cur_odom;
   Vec3f raycast_box_min, raycast_box_max;
@@ -1054,10 +1062,12 @@ void ProbMap::raycastProcessParallel(const PointCloud & input_cloud, const Vec3f
       if (insideLocalMap(p)) {
         const double sqrdis = (p - cur_odom).squaredNorm();
         if (sqrdis < cfg_.sqr_raycast_range_min) {
+          runtime_stats_.raycast_skipped_near_count += 1.0;
           continue;
         }
         posToGlobalIndex(p, pt_id_g);
         hit_ids.push_back(pt_id_g);
+        runtime_stats_.raycast_used_point_count += 1.0;
         raycast_data_.cache_box_min = raycast_data_.cache_box_min.cwiseMin(p);
         raycast_data_.cache_box_max = raycast_data_.cache_box_max.cwiseMax(p);
       }
@@ -1082,19 +1092,23 @@ void ProbMap::raycastProcessParallel(const PointCloud & input_cloud, const Vec3f
       const double k = cfg_.raycast_range_max / sqrt(sqr_dis);
       p = k * (p - cur_odom) + cur_odom;
       update_hit = false;
+      runtime_stats_.raycast_skipped_far_count += 1.0;
     }
     if (sqr_dis < cfg_.sqr_raycast_range_min) {
+      runtime_stats_.raycast_skipped_near_count += 1.0;
       continue;
     }
 
     if (((p - raycast_box_min).minCoeff() < 0) || ((p - raycast_box_max).maxCoeff() > 0)) {
       p = lineBoxIntersectPoint(p, cur_odom, raycast_box_min, raycast_box_max);
       update_hit = false;
+      runtime_stats_.raycast_skipped_outside_count += 1.0;
     }
 
     raycast_data_.cache_box_min = raycast_data_.cache_box_min.cwiseMin(p);
     raycast_data_.cache_box_max = raycast_data_.cache_box_max.cwiseMax(p);
     raycasting_cloud.push_back(p);
+    runtime_stats_.raycast_used_point_count += 1.0;
 
     if (update_hit) {
       posToGlobalIndex(p, pt_id_g);
