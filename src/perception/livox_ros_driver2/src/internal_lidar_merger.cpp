@@ -31,8 +31,7 @@
 
 #include "sensor_msgs/msg/point_field.hpp"
 
-namespace livox_ros
-{
+namespace livox_ros {
 
 bool IsInternalLidarMergeTransferFormatSupported(int transfer_format)
 {
@@ -75,8 +74,7 @@ PointXyzlt InternalLidarMerger::TransformBackPoint(const PointXyzlt & point) con
 }
 
 std::unique_ptr<livox_ros_driver2::msg::CustomMsg> InternalLidarMerger::BuildMergedCustomMsg(
-  const StoragePacket & front,
-  const StoragePacket & back) const
+  const StoragePacket & front, const StoragePacket & back) const
 {
   const uint64_t timebase = std::min(front.base_time, back.base_time);
   auto msg = std::make_unique<livox_ros_driver2::msg::CustomMsg>();
@@ -117,8 +115,7 @@ std::unique_ptr<livox_ros_driver2::msg::CustomMsg> InternalLidarMerger::BuildMer
 }
 
 std::unique_ptr<sensor_msgs::msg::PointCloud2> InternalLidarMerger::BuildMergedPointCloud2(
-  const StoragePacket & front,
-  const StoragePacket & back) const
+  const StoragePacket & front, const StoragePacket & back) const
 {
   const uint64_t timebase = std::min(front.base_time, back.base_time);
   const uint32_t point_num = front.points_num + back.points_num;

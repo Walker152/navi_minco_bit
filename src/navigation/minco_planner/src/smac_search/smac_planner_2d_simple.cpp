@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <limits>
 #include <queue>
+#include <string>
 
 #include "nav2_costmap_2d/cost_values.hpp"
 
@@ -30,8 +31,8 @@ namespace minco_planner {
 namespace smac {
 
 SmacPlanner2DSimple::SmacPlanner2DSimple()
-: allow_unknown_(true), max_iterations_(5000000), tolerance_(0.125), size_x_(0),
-  size_y_(0), motion_model_(MotionModel::TWOD)
+: allow_unknown_(true), max_iterations_(5000000), tolerance_(0.125), size_x_(0), size_y_(0),
+  motion_model_(MotionModel::TWOD)
 {
   search_info_.cost_penalty = 2.0;
 }
@@ -132,6 +133,33 @@ void SmacPlanner2DSimple::ensureSearchBuffers()
   }
 }
 
+void SmacPlanner2DSimple::logFailure(const std::string & reason,
+  unsigned int start_x,
+  unsigned int start_y,
+  unsigned int goal_x,
+  unsigned int goal_y,
+  int iterations) const
+{
+  const auto logger = node_ ? node_->get_logger() : rclcpp::get_logger("SmacPlanner2DSimple");
+  RCLCPP_WARN(logger,
+    "[SMAC 2D] %s | start=(%u,%u) goal=(%u,%u) size=%ux%u origin=(%.3f,%.3f) res=%.3f "
+    "allow_unknown=%s tolerance=%.3f max_iterations=%d iterations=%d",
+    reason.c_str(),
+    start_x,
+    start_y,
+    goal_x,
+    goal_y,
+    size_x_,
+    size_y_,
+    costmap_origin_x_,
+    costmap_origin_y_,
+    costmap_resolution_,
+    allow_unknown_ ? "true" : "false",
+    tolerance_,
+    max_iterations_,
+    iterations);
+}
+
 float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my)
 {
   if (!use_esdf_cost_ || !map_) {
@@ -204,6 +232,7 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
   path.clear();
 
   if (!map_) {
+    logFailure("map query is null", start_x, start_y, goal_x, goal_y);
     return false;
   }
 
@@ -215,7 +244,13 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
   size_y_ = map_->sizeY();
   ensureSearchBuffers();
 
+  if (size_x_ == 0u || size_y_ == 0u) {
+    logFailure("map query has zero size", start_x, start_y, goal_x, goal_y);
+    return false;
+  }
+
   if (start_x >= size_x_ || start_y >= size_y_ || goal_x >= size_x_ || goal_y >= size_y_) {
+    logFailure("start or goal is outside map bounds", start_x, start_y, goal_x, goal_y);
     return false;
   }
 
@@ -235,10 +270,16 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
   const size_t map_size = static_cast<size_t>(size_x_) * static_cast<size_t>(size_y_);
   std::vector<unsigned char> map_charmap;
   if (!map_->copyValues(map_charmap) || map_charmap.size() != map_size) {
+    logFailure("failed to copy map values or copied map size mismatched",
+      start_x,
+      start_y,
+      goal_x,
+      goal_y);
     return false;
   }
   const auto * charmap = map_charmap.data();
   if (!charmap) {
+    logFailure("copied map data is null", start_x, start_y, goal_x, goal_y);
     return false;
   }
 
@@ -251,6 +292,12 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
   };
 
   if (!is_traversable(goal_index)) {
+    const unsigned char goal_cost = charmap[static_cast<size_t>(goal_index)];
+    logFailure("goal cell is not traversable, cost=" + std::to_string(static_cast<unsigned int>(goal_cost)),
+      start_x,
+      start_y,
+      goal_x,
+      goal_y);
     return false;
   }
 
@@ -285,6 +332,7 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
 
   while (!open.empty() && iterations < max_iterations_) {
     if (cancel_checker && cancel_checker()) {
+      logFailure("planning canceled", start_x, start_y, goal_x, goal_y, iterations);
       return false;
     }
 
@@ -364,6 +412,12 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
   }
 
   if (!goal_reached && closed_[static_cast<size_t>(goal_index)] != planning_id_) {
+    logFailure(iterations >= max_iterations_ ? "max iterations reached before goal" : "open set exhausted before goal",
+      start_x,
+      start_y,
+      goal_x,
+      goal_y,
+      iterations);
     return false;
   }
 
@@ -380,12 +434,18 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
 
     const int p = parent_[static_cast<size_t>(index)];
     if (p < 0) {
+      logFailure("path backtrace failed: missing parent", start_x, start_y, goal_x, goal_y, iterations);
       return false;
     }
     index = static_cast<uint64_t>(p);
   }
 
-  return path.size() >= 2u;
+  if (path.size() < 2u) {
+    logFailure("path has fewer than 2 poses", start_x, start_y, goal_x, goal_y, iterations);
+    return false;
+  }
+
+  return true;
 }
 
 }  // namespace smac

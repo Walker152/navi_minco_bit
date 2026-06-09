@@ -11,8 +11,7 @@ class PlannerModeContext;
 class GlobalPathSearcher
 {
 public:
-  void configure(
-    std::shared_ptr<tf2_ros::Buffer> tf,
+  void configure(std::shared_ptr<tf2_ros::Buffer> tf,
     Astar * astar,
     smac::SmacPlanner2DSimple * smac,
     bool use_smac,
@@ -22,14 +21,12 @@ public:
 
   void setQuery(const std::shared_ptr<rog_map::MapQueryInterface> & global_query);
 
-  bool plan(
-    const geometry_msgs::msg::PoseStamped & start,
+  bool plan(const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
     const PlannerModeContext & mode_context,
     std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path);
 
-  bool makePlan(
-    const geometry_msgs::msg::Pose & start,
+  bool makePlan(const geometry_msgs::msg::Pose & start,
     const geometry_msgs::msg::Pose & goal,
     const PlannerModeContext & mode_context,
     double tolerance,
@@ -37,27 +34,23 @@ public:
     nav_msgs::msg::Path & plan);
 
 private:
-  bool normalizePoseToFrame(
-    const geometry_msgs::msg::PoseStamped & in,
+  bool normalizePoseToFrame(const geometry_msgs::msg::PoseStamped & in,
     const std::string & fallback_frame,
     const std::string & target_frame,
     const std::string & context,
     geometry_msgs::msg::PoseStamped & out) const;
 
-  bool planPriorMap(
-    const geometry_msgs::msg::PoseStamped & start,
+  bool planPriorMap(const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
     const PlannerModeContext & mode_context,
     std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path);
 
-  bool planExploration(
-    const geometry_msgs::msg::PoseStamped & start,
+  bool planExploration(const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
     const PlannerModeContext & mode_context,
     std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path);
 
-  bool makePlanOnQuery(
-    const geometry_msgs::msg::Pose & start,
+  bool makePlanOnQuery(const geometry_msgs::msg::Pose & start,
     const geometry_msgs::msg::Pose & goal,
     const std::shared_ptr<rog_map::MapQueryInterface> & query,
     const std::string & output_frame,

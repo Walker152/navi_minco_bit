@@ -19,8 +19,7 @@ struct LocalPathSeed
 class LocalPathProcessor
 {
 public:
-  void configure(
-    double lookahead_dist,
+  void configure(double lookahead_dist,
     double max_vel,
     double max_acc,
     double traj_goal_tolerance,
@@ -28,8 +27,7 @@ public:
 
   void updateLimits(double max_vel, double max_acc, double traj_goal_tolerance);
 
-  LocalPathSeed buildSeed(
-    const std::vector<geometry_msgs::msg::PoseStamped> & global_path,
+  LocalPathSeed buildSeed(const std::vector<geometry_msgs::msg::PoseStamped> & global_path,
     const geometry_msgs::msg::PoseStamped & current_pose,
     const PlannerModeContext & mode_context) const;
 
@@ -39,8 +37,7 @@ private:
     const Eigen::Vector3d & cur_pos) const;
 
   bool clipLocalPathByRogBoundary(
-    std::vector<Eigen::Vector3d> & path,
-    const PlannerModeContext & mode_context) const;
+    std::vector<Eigen::Vector3d> & path, const PlannerModeContext & mode_context) const;
 
   double lookahead_dist_{5.0};
   double max_vel_{2.0};
