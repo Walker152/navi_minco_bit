@@ -42,10 +42,10 @@ void ROGMapVisualizer::configure(const rclcpp::node_interfaces::NodeBaseInterfac
   pubs_.mkr_arr_pub =
     createPublisher<visualization_msgs::msg::MarkerArray>(parameters, topics, "/rog_map/map_bound", qos);
 
-  if (cfg.viz_time_rate > 0.0 && callback) {
+  if (cfg.visualization_rate > 0.0 && callback) {
     callback_group_ = base->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     const auto period =
-      std::chrono::milliseconds(std::max(1, static_cast<int>(1000.0 / cfg.viz_time_rate)));
+      std::chrono::milliseconds(std::max(1, static_cast<int>(1000.0 / cfg.visualization_rate)));
     timer_ =
       rclcpp::create_wall_timer(period, std::move(callback), callback_group_, base.get(), timers.get());
   }

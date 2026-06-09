@@ -73,7 +73,6 @@ namespace rog_map {
             double sliding_thresh{0};
             bool map_sliding_en{false};
             Vec3f fix_map_origin{};
-            Vec3i visualization_range_i{};
             Vec3i map_size_i{};
             Vec3i half_map_size_i{};
             int virtual_ceil_height_id_g{0};
