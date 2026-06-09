@@ -995,9 +995,6 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   vec_Vec3f shifted_waypoints;
   VecDf shifted_durations;
   bool has_shifted_seed = false;
-  // std::cout << CYAN << "[MincoPlanner] Planning state: " << ((state == PlanningState::HOT_START) ?
-  // "HOT_START" : "COLD_START")
-  //           << RESET << std::endl;
   if (state == PlanningState::HOT_START) {
     const double now = rclcpp::Clock().now().seconds() + 0.005;  // small buffer
     const double t_dur = now - last_traj_start_WT;
@@ -1022,11 +1019,6 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     // Avoid reusing stale warm-start guesses.
     minco_optimizer_->setInitPsAndTs(vec_Vec3f{}, VecDf{});
   }
-  // std::cout << CYAN << "[MincoPlanner] Start state: pos=(" << start_state.col(0).x() << ", " <<
-  // start_state.col(0).y()
-  //           << "), vel=(" << start_state.col(1).x() << ", " << start_state.col(1).y()
-  //           << "), acc=(" << start_state.col(2).x() << ", " << start_state.col(2).y() << ")"
-  //           << RESET << std::endl;
   // P1b: If the robot is inside an obstacle (ESDF dist < 0), project the
   // start position to the nearest free space along the ESDF gradient.
   if (safety_checker_) {
