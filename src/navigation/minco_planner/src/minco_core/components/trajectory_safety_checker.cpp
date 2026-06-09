@@ -30,6 +30,8 @@ bool TrajectorySafetyChecker::ensureQueryAvailable() const
 
 bool TrajectorySafetyChecker::checkPoint(const Eigen::Vector3d & pos) const
 {
+  // 安全检查先拒绝二维 layer 中的致命/膨胀代价值，再用 ESDF 距离与 safe_dist_ 比较。
+  // 因为 ESDF 已扣除 ROGMap field.inflation_radius，safe_dist_ 会继续增加规划安全余量。
   if (!ensureQueryAvailable()) {
     return false;
   }

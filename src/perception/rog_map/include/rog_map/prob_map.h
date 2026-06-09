@@ -158,7 +158,7 @@ namespace rog_map {
                                             "QueryRefresh", "OccupiedCount", "UnknownCount", "PassableCount",
                                             "FreeCount", "DecayedCount", "DirtyColumnCount",
                                             "DirtyExpandedColumnCount", "FullLayerRefreshCount",
-                                            "DirtyLayerUpdateCount", "FieldSkippedCount", "Visualization"};
+                                            "DirtyLayerUpdateCount", "FieldSkippedCount"};
 
         // standardization query
         // Known free < l_free
