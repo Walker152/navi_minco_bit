@@ -1,6 +1,7 @@
 #include <rog_map/projection_layer.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 namespace rog_map {
@@ -12,9 +13,16 @@ bool finiteOrNan(double value)
   return std::isfinite(value) || std::isnan(value);
 }
 
+double elapsedMs(const std::chrono::steady_clock::time_point & start)
+{
+  return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+
 CellType classifyCell(
   const ColumnStats & stats, CellData & cell, const ProjectionLayerConfig & config, double resolution)
 {
+  // 将一个 xy 栅格列内的三维占据统计压缩为二维语义。
+  // 高度参数均按 ROGMap frame 解释，不一定以地面 z=0 为基准。
   const int min_observed = std::max(1, config.min_observed_voxels);
   cell.confidence = static_cast<float>(
     std::clamp(static_cast<double>(stats.observed) / static_cast<double>(min_observed), 0.0, 1.0));
@@ -99,9 +107,10 @@ void ProjectionLayer::update(int width,
   double resolution,
   const Eigen::Vector2d & origin,
   const ProjectionLayerConfig & config,
-  const ColumnScanner & scanner)
+  const ColumnScanner & scanner,
+  ProjectionUpdateStats * stats)
 {
-  updateFull(width, height, resolution, origin, config, scanner);
+  updateFull(width, height, resolution, origin, config, scanner, stats);
 }
 
 void ProjectionLayer::updateFull(int width,
@@ -109,8 +118,10 @@ void ProjectionLayer::updateFull(int width,
   double resolution,
   const Eigen::Vector2d & origin,
   const ProjectionLayerConfig & config,
-  const ColumnScanner & scanner)
+  const ColumnScanner & scanner,
+  ProjectionUpdateStats * stats)
 {
+  const auto full_start = std::chrono::steady_clock::now();
   if (width <= 0 || height <= 0 || resolution <= 0.0 || !scanner) {
     width_ = 0;
     height_ = 0;
@@ -118,6 +129,9 @@ void ProjectionLayer::updateFull(int width,
     cells_.clear();
     values_.clear();
     mask_.clear();
+    if (stats) {
+      stats->update_full_time_ms = elapsedMs(full_start);
+    }
     return;
   }
 
@@ -147,12 +161,25 @@ void ProjectionLayer::updateFull(int width,
     }
   }
 
+  const auto terrain_start = std::chrono::steady_clock::now();
   updateTerrainNeighborhood(config, nullptr);
+  if (stats) {
+    stats->terrain_time_ms += elapsedMs(terrain_start);
+  }
+  const auto hole_start = std::chrono::steady_clock::now();
   applyHoleFill(config, nullptr);
+  if (stats) {
+    stats->hole_fill_time_ms += elapsedMs(hole_start);
+  }
+  const auto value_start = std::chrono::steady_clock::now();
   for (size_t idx = 0; idx < cells_.size(); ++idx) {
     applyValueAndMask(cells_[idx], config);
     values_[idx] = cells_[idx].value;
     mask_[idx] = cells_[idx].mask;
+  }
+  if (stats) {
+    stats->value_mask_time_ms += elapsedMs(value_start);
+    stats->update_full_time_ms += elapsedMs(full_start);
   }
 }
 
@@ -163,14 +190,19 @@ void ProjectionLayer::updateDirty(int width,
   const ProjectionLayerConfig & config,
   const ColumnScanner & scanner,
   const std::vector<int> & dirty_columns,
-  bool force_full_refresh)
+  bool force_full_refresh,
+  ProjectionUpdateStats * stats)
 {
+  const auto dirty_start = std::chrono::steady_clock::now();
   const bool geometry_changed = !matchesGeometry(width, height, resolution, origin);
   if (force_full_refresh || geometry_changed || cells_.empty()) {
-    updateFull(width, height, resolution, origin, config, scanner);
+    updateFull(width, height, resolution, origin, config, scanner, stats);
     return;
   }
   if (dirty_columns.empty()) {
+    if (stats) {
+      stats->update_dirty_time_ms += elapsedMs(dirty_start);
+    }
     return;
   }
 
@@ -207,13 +239,26 @@ void ProjectionLayer::updateDirty(int width,
     const size_t idx = static_cast<size_t>(idx_int);
     updateOneCell(idx, idx_int % width_, idx_int / width_, config, scanner, previous);
   }
+  const auto terrain_start = std::chrono::steady_clock::now();
   updateTerrainNeighborhood(config, &update_mask);
+  if (stats) {
+    stats->terrain_time_ms += elapsedMs(terrain_start);
+  }
+  const auto hole_start = std::chrono::steady_clock::now();
   applyHoleFill(config, &update_mask);
+  if (stats) {
+    stats->hole_fill_time_ms += elapsedMs(hole_start);
+  }
+  const auto value_start = std::chrono::steady_clock::now();
   for (const int idx_int : expanded) {
     const size_t idx = static_cast<size_t>(idx_int);
     applyValueAndMask(cells_[idx], config);
     values_[idx] = cells_[idx].value;
     mask_[idx] = cells_[idx].mask;
+  }
+  if (stats) {
+    stats->value_mask_time_ms += elapsedMs(value_start);
+    stats->update_dirty_time_ms += elapsedMs(dirty_start);
   }
 }
 
@@ -227,6 +272,8 @@ bool ProjectionLayer::matchesGeometry(
 
 void ProjectionLayer::applyValueAndMask(CellData & cell, const ProjectionLayerConfig & config)
 {
+  // value 供 planner/可视化读取代价值；mask 才是生成二维 ESDF 的输入。
+  // mask=1 表示 FREE/PASSABLE 可通行，mask=0 表示障碍；UNKNOWN 是否阻挡由 unknown_as_occupied 决定。
   switch (cell.type) {
   case CellType::UNKNOWN:
     cell.value = config.unknown_as_occupied ? 254U : 255U;
@@ -282,6 +329,7 @@ void ProjectionLayer::updateOneCell(size_t idx,
 CellType ProjectionLayer::applyHysteresis(
   size_t idx, CellType raw_type, const ProjectionLayerConfig & config)
 {
+  // 对 OCCUPIED -> 非 OCCUPIED 的变化做迟滞，降低点云闪烁导致的 layer 抖动。
   CellData & cell = cells_[idx];
   if (!config.hysteresis_en || config.hysteresis_count <= 0 || cell.type == CellType::UNKNOWN ||
       raw_type == CellType::OCCUPIED) {
@@ -325,6 +373,7 @@ CellType ProjectionLayer::applyHysteresis(
 void ProjectionLayer::updateTerrainNeighborhood(
   const ProjectionLayerConfig & config, const std::vector<uint8_t> * update_mask)
 {
+  // 基于相邻列 ground_z 估计台阶和坡度；这些高度仍在 ROGMap frame 下解释。
   if (!config.terrain_enable || width_ <= 0 || height_ <= 0 || cells_.empty()) {
     return;
   }
@@ -382,6 +431,7 @@ void ProjectionLayer::updateTerrainNeighborhood(
 void ProjectionLayer::applyHoleFill(
   const ProjectionLayerConfig & config, const std::vector<uint8_t> * update_mask)
 {
+  // 将被障碍包围的小块 UNKNOWN/FREE 洞填成 OCCUPIED，使 mask 和 ESDF 不穿过窄缝。
   if (!config.hole_fill_en || config.hole_fill_radius <= 0 ||
       config.hole_fill_min_occupied_neighbors <= 0 || width_ <= 0 || height_ <= 0 || cells_.empty()) {
     return;
