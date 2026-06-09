@@ -403,17 +403,17 @@ planner_server:
           # [projection][次] 类型切换确认次数；调大更稳但障碍清除更慢。
           hysteresis_count: 2
           # [projection][bool] 是否填补被障碍围住的小洞；开启会让 ESDF 更保守，减少穿过窄缝。
-          hole_fill_enable: true
+          hole_fill_enable: false
           # [projection][cell] hole fill 邻域半径；调大会填更多洞并增加 projection 计算量。
           hole_fill_radius: 1
           # [projection][cell数] 判定洞周围障碍邻居数量；调低更保守，调高减少误填。
-          hole_fill_min_occupied_neighbors: 5
+          hole_fill_min_occupied_neighbors: 7
           # [projection][bool] 是否启用地形可通行分析；开启后综合车体碰撞带、坡度、台阶、净空等判断 PASSABLE。
           terrain_enable: true
           # [projection][m] 车体碰撞带 z 下界，基于 ROGMap frame；若 camera_init 在雷达高度附近，不能直接写地面系高度。
-          robot_body_z_min: -0.2
+          robot_body_z_min: -0.15
           # [projection][m] 车体碰撞带 z 上界，基于 ROGMap frame；误配会导致地面/上方结构被错误纳入碰撞带。
-          robot_body_z_max: 0.1
+          robot_body_z_max: 0.2
           # [projection][m] 车体顶部净空余量；调大更保守，可能把低顶结构判为障碍。
           overhead_clearance_margin: 0.03
           # [projection][m] 可通过表面厚度阈值；过小会把粗糙地面判障碍，过大可能放行厚障碍。
@@ -427,7 +427,7 @@ planner_server:
           # [projection][m] 车体顶部额外净空要求，不是机器人总高度；过大容易误判低顶空间不可通行。
           min_clearance_height: 0.05
           # [projection][m] 隧道墙/竖直墙高度阈值；调低更容易把竖直结构判为 OCCUPIED。
-          tunnel_wall_min_height: 0.20
+          tunnel_wall_min_height: 0.50
           # [projection][bool] PASSABLE 是否在 layer_value 中写成 FREE；无论 true/false，PASSABLE 的 mask 都为 1，会作为 ESDF 可通行区。
           passable_as_free: true
         field:
