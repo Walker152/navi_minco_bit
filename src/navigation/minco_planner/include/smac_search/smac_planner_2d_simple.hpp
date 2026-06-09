@@ -124,6 +124,12 @@ public:
 
 private:
   void ensureSearchBuffers();
+  void logFailure(const std::string & reason,
+    unsigned int start_x,
+    unsigned int start_y,
+    unsigned int goal_x,
+    unsigned int goal_y,
+    int iterations = -1) const;
 
   /**
    * @brief Compute ESDF-based potential cost for a grid cell index
