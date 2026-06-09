@@ -36,8 +36,7 @@ public:
     const Eigen::Vector2d & origin,
     double dilation_radius_m);
 
-  void updateFromMask(
-    int width,
+  void updateFromMask(int width,
     int height,
     double resolution,
     const Eigen::Vector2d & origin,
@@ -63,8 +62,7 @@ private:
 
   void buildDilationOffsets(int radius_cells, std::vector<Eigen::Vector2i> & offsets) const;
 
-  void rebuild(
-    int width,
+  void rebuild(int width,
     int height,
     double resolution,
     const Eigen::Vector2d & origin,
