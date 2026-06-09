@@ -220,7 +220,8 @@ BT::NodeStatus TunnelGyroAlignAction::tick()
   const double current_yaw = yawFromQuaternion(current_pose.orientation);
   const double yaw_error = wrapAngle(base_target_yaw - current_yaw);
   // std::cout << CYAN << "[STANCE_TREE]" << GREEN << "TunnelGyroAlignAction: tunnel_idx=" <<
-  // active_tunnel_idx << ", current_yaw=" << current_yaw << ", target_yaw=" << base_target_yaw << ", yaw_error=" <<
+  // active_tunnel_idx << ", current_yaw=" << current_yaw << ", target_yaw=" << base_target_yaw << ",
+  // yaw_error=" <<
   //         yaw_error << RESET << std::endl;
   // const double base_target_yaw = static_cast<double>(
   // tunnel_recovery_configs[static_cast<std::size_t>(active_tunnel_idx)].tunnel_pass_yaw_target_rad);

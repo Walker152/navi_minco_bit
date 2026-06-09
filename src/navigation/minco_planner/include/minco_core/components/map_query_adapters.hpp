@@ -31,8 +31,7 @@ private:
 class FrameAwareRogQuery : public rog_map::MapQueryInterface
 {
 public:
-  FrameAwareRogQuery(
-    std::shared_ptr<rog_map::MapQueryInterface> raw,
+  FrameAwareRogQuery(std::shared_ptr<rog_map::MapQueryInterface> raw,
     std::shared_ptr<tf2_ros::Buffer> tf,
     std::string planning_frame,
     std::string rog_frame,

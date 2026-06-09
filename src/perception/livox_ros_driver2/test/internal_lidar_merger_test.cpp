@@ -32,14 +32,13 @@
 #include "internal_lidar_merger.h"
 #include "lddc.h"
 
-namespace livox_ros
-{
-namespace
-{
+namespace livox_ros {
+namespace {
 
 constexpr uint64_t kMs = 1000000ULL;
 
-PointXyzlt MakePoint(float x, float y, float z, float intensity, uint8_t tag, uint8_t line, uint64_t offset_time)
+PointXyzlt MakePoint(
+  float x, float y, float z, float intensity, uint8_t tag, uint8_t line, uint64_t offset_time)
 {
   PointXyzlt point{};
   point.x = x;
@@ -112,12 +111,16 @@ TEST(InternalLidarMergerTest, BuildsMergedCustomMsgWithSharedTimebaseAndRelative
 {
   const auto config = MakeConfig();
   InternalLidarMerger merger(config);
-  const auto front = MakePacket(config.front_handle, 1000, {
-    MakePoint(1.0F, 2.0F, 3.0F, 5.0F, 0x10, 1, 1010),
-  });
-  const auto back = MakePacket(config.back_handle, 1200, {
-    MakePoint(2.0F, 3.0F, 4.0F, 7.0F, 0x20, 3, 1250),
-  });
+  const auto front = MakePacket(config.front_handle,
+    1000,
+    {
+      MakePoint(1.0F, 2.0F, 3.0F, 5.0F, 0x10, 1, 1010),
+    });
+  const auto back = MakePacket(config.back_handle,
+    1200,
+    {
+      MakePoint(2.0F, 3.0F, 4.0F, 7.0F, 0x20, 3, 1250),
+    });
 
   auto msg = merger.BuildMergedCustomMsg(front, back);
 
@@ -151,12 +154,16 @@ TEST(InternalLidarMergerTest, BuildsMergedPointCloud2WithDriverFields)
 {
   const auto config = MakeConfig();
   InternalLidarMerger merger(config);
-  const auto front = MakePacket(config.front_handle, 10 * kMs, {
-    MakePoint(1.0F, 2.0F, 3.0F, 5.0F, 0x10, 1, 10 * kMs + 100),
-  });
-  const auto back = MakePacket(config.back_handle, 10 * kMs + 1000, {
-    MakePoint(2.0F, 3.0F, 4.0F, 7.0F, 0x20, 3, 10 * kMs + 1300),
-  });
+  const auto front = MakePacket(config.front_handle,
+    10 * kMs,
+    {
+      MakePoint(1.0F, 2.0F, 3.0F, 5.0F, 0x10, 1, 10 * kMs + 100),
+    });
+  const auto back = MakePacket(config.back_handle,
+    10 * kMs + 1000,
+    {
+      MakePoint(2.0F, 3.0F, 4.0F, 7.0F, 0x20, 3, 10 * kMs + 1300),
+    });
 
   auto cloud = merger.BuildMergedPointCloud2(front, back);
 

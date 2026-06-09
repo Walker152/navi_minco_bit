@@ -31,15 +31,13 @@ struct PlannerModeParams
 class PlannerModeContext
 {
 public:
-  void configure(
-    const PlannerModeParams & params,
+  void configure(const PlannerModeParams & params,
     const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
     nav2_costmap_2d::Costmap2DROS * costmap_ros,
     const std::shared_ptr<tf2_ros::Buffer> & tf,
     const rclcpp::Logger & logger);
 
-  void rebuildQueries(
-    const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
+  void rebuildQueries(const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
     nav2_costmap_2d::Costmap2DROS * costmap_ros,
     const std::shared_ptr<tf2_ros::Buffer> & tf,
     const rclcpp::Logger & logger);

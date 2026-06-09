@@ -1,15 +1,17 @@
 #include "minco_core/components/global_path_searcher.hpp"
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include <queue>
+#include <string>
 
 namespace minco_planner {
 
 namespace {
 
 bool projectStartToFreeCell(
-  const std::shared_ptr<rog_map::MapQueryInterface> & map,
-  unsigned int & mx,
-  unsigned int & my)
+  const std::shared_ptr<rog_map::MapQueryInterface> & map, unsigned int & mx, unsigned int & my)
 {
   if (!map || map->isFree(mx, my)) {
     return true;
@@ -53,10 +55,112 @@ bool projectStartToFreeCell(
   return false;
 }
 
+const char * cellCostLabel(const unsigned char cost)
+{
+  if (cost == nav2_costmap_2d::NO_INFORMATION) {
+    return "unknown";
+  }
+  if (cost >= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+    return "blocked/inflated";
+  }
+  if (cost > 128u) {
+    return "high-cost";
+  }
+  return "free";
+}
+
+bool smacTraversableCost(const unsigned char cost, const bool allow_unknown)
+{
+  if (cost == nav2_costmap_2d::NO_INFORMATION) {
+    return allow_unknown;
+  }
+  return cost < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+}
+
+void logCellDiagnostics(const rclcpp::Logger & logger,
+  const std::shared_ptr<rog_map::MapQueryInterface> & query,
+  const std::string & source,
+  const std::string & label,
+  unsigned int mx,
+  unsigned int my,
+  bool allow_unknown)
+{
+  if (!query || !query->isValid(mx, my)) {
+    RCLCPP_WARN(logger,
+      "[MincoPlanner] %s %s cell=(%u,%u) is invalid for map size=%ux%u",
+      source.c_str(),
+      label.c_str(),
+      mx,
+      my,
+      query ? query->sizeX() : 0U,
+      query ? query->sizeY() : 0U);
+    return;
+  }
+
+  double wx = 0.0;
+  double wy = 0.0;
+  query->mapToWorld(mx, my, wx, wy);
+  const unsigned char cost = query->value(mx, my);
+
+  int valid = 0;
+  int unknown = 0;
+  int free = 0;
+  int blocked = 0;
+  int smac_traversable = 0;
+  int invalid = 0;
+  constexpr int kRadius = 2;
+  for (int dy = -kRadius; dy <= kRadius; ++dy) {
+    for (int dx = -kRadius; dx <= kRadius; ++dx) {
+      const int cx = static_cast<int>(mx) + dx;
+      const int cy = static_cast<int>(my) + dy;
+      if (cx < 0 || cy < 0 || cx >= static_cast<int>(query->sizeX()) ||
+          cy >= static_cast<int>(query->sizeY())) {
+        ++invalid;
+        continue;
+      }
+      const unsigned int ux = static_cast<unsigned int>(cx);
+      const unsigned int uy = static_cast<unsigned int>(cy);
+      const unsigned char nb_cost = query->value(ux, uy);
+      ++valid;
+      if (nb_cost == nav2_costmap_2d::NO_INFORMATION) {
+        ++unknown;
+      } else if (nb_cost >= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+        ++blocked;
+      } else {
+        ++free;
+      }
+      if (smacTraversableCost(nb_cost, allow_unknown)) {
+        ++smac_traversable;
+      }
+    }
+  }
+
+  RCLCPP_WARN(logger,
+    "[MincoPlanner] %s %s diag: cell=(%u,%u) world=(%.3f,%.3f) cost=%u(%s) query_free=%s "
+    "smac_traversable=%s allow_unknown=%s 5x5(valid=%d invalid=%d free=%d unknown=%d blocked=%d "
+    "smac_traversable=%d)",
+    source.c_str(),
+    label.c_str(),
+    mx,
+    my,
+    wx,
+    wy,
+    static_cast<unsigned int>(cost),
+    cellCostLabel(cost),
+    query->isFree(mx, my) ? "true" : "false",
+    smacTraversableCost(cost, allow_unknown) ? "true" : "false",
+    allow_unknown ? "true" : "false",
+    valid,
+    invalid,
+    free,
+    unknown,
+    blocked,
+    smac_traversable);
+}
+
 }  // namespace
 
-void GlobalPathSearcher::configure(
-  std::shared_ptr<tf2_ros::Buffer> tf,
+void GlobalPathSearcher::configure(std::shared_ptr<tf2_ros::Buffer> tf,
   Astar * astar,
   smac::SmacPlanner2DSimple * smac,
   bool use_smac,
@@ -84,8 +188,7 @@ void GlobalPathSearcher::setQuery(const std::shared_ptr<rog_map::MapQueryInterfa
   }
 }
 
-bool GlobalPathSearcher::normalizePoseToFrame(
-  const geometry_msgs::msg::PoseStamped & in,
+bool GlobalPathSearcher::normalizePoseToFrame(const geometry_msgs::msg::PoseStamped & in,
   const std::string & fallback_frame,
   const std::string & target_frame,
   const std::string & context,
@@ -94,10 +197,10 @@ bool GlobalPathSearcher::normalizePoseToFrame(
   out = in;
   if (out.header.frame_id.empty()) {
     out.header.frame_id = fallback_frame;
-    RCLCPP_WARN(
-      logger_,
+    RCLCPP_WARN(logger_,
       "[MincoPlanner] %s pose frame is empty, treating it as %s.",
-      context.c_str(), fallback_frame.c_str());
+      context.c_str(),
+      fallback_frame.c_str());
   }
 
   if (out.header.frame_id == target_frame) {
@@ -106,10 +209,11 @@ bool GlobalPathSearcher::normalizePoseToFrame(
   }
 
   if (!tf_) {
-    RCLCPP_ERROR(
-      logger_,
+    RCLCPP_ERROR(logger_,
       "[MincoPlanner] Cannot transform %s pose from %s to %s: TF buffer is null.",
-      context.c_str(), out.header.frame_id.c_str(), target_frame.c_str());
+      context.c_str(),
+      out.header.frame_id.c_str(),
+      target_frame.c_str());
     return false;
   }
 
@@ -118,16 +222,17 @@ bool GlobalPathSearcher::normalizePoseToFrame(
     out.header.frame_id = target_frame;
     return true;
   } catch (const tf2::TransformException & ex) {
-    RCLCPP_ERROR(
-      logger_,
+    RCLCPP_ERROR(logger_,
       "[MincoPlanner] Failed to transform %s pose from %s to %s: %s",
-      context.c_str(), in.header.frame_id.c_str(), target_frame.c_str(), ex.what());
+      context.c_str(),
+      in.header.frame_id.c_str(),
+      target_frame.c_str(),
+      ex.what());
     return false;
   }
 }
 
-bool GlobalPathSearcher::plan(
-  const geometry_msgs::msg::PoseStamped & start,
+bool GlobalPathSearcher::plan(const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal,
   const PlannerModeContext & mode_context,
   std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path)
@@ -138,8 +243,7 @@ bool GlobalPathSearcher::plan(
   return planExploration(start, goal, mode_context, latest_global_path);
 }
 
-bool GlobalPathSearcher::planPriorMap(
-  const geometry_msgs::msg::PoseStamped & start,
+bool GlobalPathSearcher::planPriorMap(const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal,
   const PlannerModeContext & mode_context,
   std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path)
@@ -151,8 +255,10 @@ bool GlobalPathSearcher::planPriorMap(
 
   geometry_msgs::msg::PoseStamped start_map;
   geometry_msgs::msg::PoseStamped goal_map;
-  if (!normalizePoseToFrame(start, mode_context.mapFrame(), mode_context.mapFrame(), "PRIORMAP start", start_map) ||
-      !normalizePoseToFrame(goal, mode_context.mapFrame(), mode_context.mapFrame(), "PRIORMAP goal", goal_map)) {
+  if (!normalizePoseToFrame(
+        start, mode_context.mapFrame(), mode_context.mapFrame(), "PRIORMAP start", start_map) ||
+      !normalizePoseToFrame(
+        goal, mode_context.mapFrame(), mode_context.mapFrame(), "PRIORMAP goal", goal_map)) {
     return false;
   }
 
@@ -164,8 +270,7 @@ bool GlobalPathSearcher::planPriorMap(
     return !rclcpp::ok();
   };
 
-  return makePlanOnQuery(
-    start_map.pose,
+  return makePlanOnQuery(start_map.pose,
     goal_map.pose,
     mode_context.globalQuery(),
     mode_context.outputFrame(),
@@ -176,8 +281,7 @@ bool GlobalPathSearcher::planPriorMap(
     latest_global_path);
 }
 
-bool GlobalPathSearcher::planExploration(
-  const geometry_msgs::msg::PoseStamped & start,
+bool GlobalPathSearcher::planExploration(const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal,
   const PlannerModeContext & mode_context,
   std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path)
@@ -190,8 +294,10 @@ bool GlobalPathSearcher::planExploration(
 
   geometry_msgs::msg::PoseStamped start_rog;
   geometry_msgs::msg::PoseStamped goal_rog;
-  if (!normalizePoseToFrame(start, mode_context.rogFrame(), mode_context.rogFrame(), "EXPLORATION start", start_rog) ||
-      !normalizePoseToFrame(goal, mode_context.rogFrame(), mode_context.rogFrame(), "EXPLORATION goal", goal_rog)) {
+  if (!normalizePoseToFrame(
+        start, mode_context.rogFrame(), mode_context.rogFrame(), "EXPLORATION start", start_rog) ||
+      !normalizePoseToFrame(
+        goal, mode_context.rogFrame(), mode_context.rogFrame(), "EXPLORATION goal", goal_rog)) {
     return false;
   }
 
@@ -202,10 +308,10 @@ bool GlobalPathSearcher::planExploration(
   unsigned int sx = 0;
   unsigned int sy = 0;
   if (!query->worldToMap(start_rog.pose.position.x, start_rog.pose.position.y, sx, sy)) {
-    RCLCPP_ERROR(
-      logger_,
+    RCLCPP_ERROR(logger_,
       "[MincoPlanner] ROGMap boundary check failed: EXPLORATION start (%.2f, %.2f) is outside ROGMap.",
-      start_rog.pose.position.x, start_rog.pose.position.y);
+      start_rog.pose.position.x,
+      start_rog.pose.position.y);
     return false;
   }
 
@@ -216,27 +322,25 @@ bool GlobalPathSearcher::planExploration(
   if (goal_inside) {
     const unsigned char goal_cost = query->value(gx, gy);
     goal_traversable = goal_cost == nav2_costmap_2d::NO_INFORMATION
-      ? !mode_context.explorationUnknownAsOccupied()
-      : goal_cost < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+                         ? !mode_context.explorationUnknownAsOccupied()
+                         : goal_cost < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
   }
   if (goal_traversable) {
     nav_msgs::msg::Path direct_plan;
     direct_plan.header.stamp = rclcpp::Clock().now();
     direct_plan.header.frame_id = mode_context.outputFrame();
-    if (makePlanOnQuery(
-        start_rog.pose,
-        goal_rog.pose,
-        query,
-        mode_context.outputFrame(),
-        "ROGMap",
-        tolerance_,
-        cancel_checker,
-        direct_plan,
-        latest_global_path)) {
+    if (makePlanOnQuery(start_rog.pose,
+          goal_rog.pose,
+          query,
+          mode_context.outputFrame(),
+          "ROGMap",
+          tolerance_,
+          cancel_checker,
+          direct_plan,
+          latest_global_path)) {
       return true;
     }
-    RCLCPP_WARN(
-      logger_,
+    RCLCPP_WARN(logger_,
       "[MincoPlanner] Exploration goal is inside ROGMap and traversable but unreachable; "
       "fallback to reachable boundary search.");
   }
@@ -322,8 +426,7 @@ bool GlobalPathSearcher::planExploration(
 
     const unsigned int cx = static_cast<unsigned int>(current.idx % nx);
     const unsigned int cy = static_cast<unsigned int>(current.idx / nx);
-    const int min_edge_dist = std::min({
-      static_cast<int>(cx),
+    const int min_edge_dist = std::min({static_cast<int>(cx),
       static_cast<int>(cy),
       static_cast<int>(nx - 1U - cx),
       static_cast<int>(ny - 1U - cy)});
@@ -407,8 +510,7 @@ bool GlobalPathSearcher::planExploration(
   return latest_global_path.size() >= 2U;
 }
 
-bool GlobalPathSearcher::makePlan(
-  const geometry_msgs::msg::Pose & start,
+bool GlobalPathSearcher::makePlan(const geometry_msgs::msg::Pose & start,
   const geometry_msgs::msg::Pose & goal,
   const PlannerModeContext & mode_context,
   double tolerance,
@@ -416,8 +518,7 @@ bool GlobalPathSearcher::makePlan(
   nav_msgs::msg::Path & plan)
 {
   std::vector<geometry_msgs::msg::PoseStamped> ignored_path;
-  return makePlanOnQuery(
-    start,
+  return makePlanOnQuery(start,
     goal,
     mode_context.globalQuery(),
     mode_context.outputFrame(),
@@ -428,8 +529,7 @@ bool GlobalPathSearcher::makePlan(
     ignored_path);
 }
 
-bool GlobalPathSearcher::makePlanOnQuery(
-  const geometry_msgs::msg::Pose & start,
+bool GlobalPathSearcher::makePlanOnQuery(const geometry_msgs::msg::Pose & start,
   const geometry_msgs::msg::Pose & goal,
   const std::shared_ptr<rog_map::MapQueryInterface> & query,
   const std::string & output_frame,
@@ -439,13 +539,12 @@ bool GlobalPathSearcher::makePlanOnQuery(
   nav_msgs::msg::Path & plan,
   std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path)
 {
-  (void)tolerance;
-
   plan.poses.clear();
   plan.header.stamp = rclcpp::Clock().now();
   plan.header.frame_id = output_frame;
   if (!query) {
-    RCLCPP_ERROR(logger_, "[MincoPlanner] %s query is not available for global planning.", failure_source.c_str());
+    RCLCPP_ERROR(
+      logger_, "[MincoPlanner] %s query is not available for global planning.", failure_source.c_str());
     return false;
   }
 
@@ -454,18 +553,30 @@ bool GlobalPathSearcher::makePlanOnQuery(
   unsigned int mx_start = 0;
   unsigned int my_start = 0;
   if (!query->worldToMap(wx, wy, mx_start, my_start)) {
-    RCLCPP_ERROR(
-      logger_,
-      "%s worldToMap failed for start world coordinates (%.2f, %.2f)",
-      failure_source.c_str(), wx, wy);
+    RCLCPP_ERROR(logger_,
+      "%s worldToMap failed for start world coordinates (%.2f, %.2f). "
+      "map size=%ux%u origin=(%.3f, %.3f) resolution=%.3f frame=%s",
+      failure_source.c_str(),
+      wx,
+      wy,
+      query->sizeX(),
+      query->sizeY(),
+      query->originX(),
+      query->originY(),
+      query->resolution(),
+      output_frame.c_str());
     return false;
   }
 
+  const unsigned int raw_mx_start = mx_start;
+  const unsigned int raw_my_start = my_start;
   if (!projectStartToFreeCell(query, mx_start, my_start)) {
-    RCLCPP_ERROR(
-      logger_,
+    RCLCPP_ERROR(logger_,
       "%s failed to project start cell to a traversable free cell near world coordinates (%.2f, %.2f)",
-      failure_source.c_str(), wx, wy);
+      failure_source.c_str(),
+      wx,
+      wy);
+    logCellDiagnostics(logger_, query, failure_source, "start(raw)", raw_mx_start, raw_my_start, allow_unknown_);
     return false;
   }
 
@@ -474,20 +585,68 @@ bool GlobalPathSearcher::makePlanOnQuery(
   unsigned int mx_goal = 0;
   unsigned int my_goal = 0;
   if (!query->worldToMap(wx, wy, mx_goal, my_goal)) {
-    RCLCPP_ERROR(
-      logger_,
-      "%s worldToMap failed for goal world coordinates (%.2f, %.2f)",
-      failure_source.c_str(), wx, wy);
+    RCLCPP_ERROR(logger_,
+      "%s worldToMap failed for goal world coordinates (%.2f, %.2f). "
+      "map size=%ux%u origin=(%.3f, %.3f) resolution=%.3f frame=%s",
+      failure_source.c_str(),
+      wx,
+      wy,
+      query->sizeX(),
+      query->sizeY(),
+      query->originX(),
+      query->originY(),
+      query->resolution(),
+      output_frame.c_str());
     return false;
   }
   unsigned int nx = query->sizeX();
   unsigned int ny = query->sizeY();
+  const unsigned char start_cost = query->value(mx_start, my_start);
+  const unsigned char goal_cost = query->value(mx_goal, my_goal);
+  RCLCPP_INFO(logger_,
+    "[MincoPlanner] %s global search input: planner=%s frame=%s map=%ux%u origin=(%.3f,%.3f) "
+    "res=%.3f tolerance=%.3f allow_unknown=%s start_world=(%.3f,%.3f) start_cell=(%u,%u)->(%u,%u) "
+    "start_cost=%u(%s) goal_world=(%.3f,%.3f) goal_cell=(%u,%u) goal_cost=%u(%s)",
+    failure_source.c_str(),
+    (use_smac_ && smac_) ? "SMAC2D" : "Astar",
+    output_frame.c_str(),
+    nx,
+    ny,
+    query->originX(),
+    query->originY(),
+    query->resolution(),
+    tolerance,
+    allow_unknown_ ? "true" : "false",
+    start.position.x,
+    start.position.y,
+    raw_mx_start,
+    raw_my_start,
+    mx_start,
+    my_start,
+    static_cast<unsigned int>(start_cost),
+    cellCostLabel(start_cost),
+    goal.position.x,
+    goal.position.y,
+    mx_goal,
+    my_goal,
+    static_cast<unsigned int>(goal_cost),
+    cellCostLabel(goal_cost));
+
   if (use_smac_ && smac_) {
     smac::SmacPlanner2DSimple::CoordinateVector smac_path;
     bool smac_success = smac_->createPath(mx_start, my_start, mx_goal, my_goal, smac_path, cancel_checker);
 
     if (!smac_success || smac_path.size() < 2) {
-      RCLCPP_ERROR(logger_, "SMAC 2D: Failed to find path");
+      RCLCPP_ERROR(logger_,
+        "SMAC 2D: Failed to find path (success=%s, path_size=%zu). See endpoint diagnostics below.",
+        smac_success ? "true" : "false",
+        smac_path.size());
+      if (raw_mx_start != mx_start || raw_my_start != my_start) {
+        logCellDiagnostics(
+          logger_, query, failure_source, "start(raw-before-projection)", raw_mx_start, raw_my_start, allow_unknown_);
+      }
+      logCellDiagnostics(logger_, query, failure_source, "start(used)", mx_start, my_start, allow_unknown_);
+      logCellDiagnostics(logger_, query, failure_source, "goal", mx_goal, my_goal, allow_unknown_);
       return false;
     }
 
@@ -501,7 +660,8 @@ bool GlobalPathSearcher::makePlanOnQuery(
 
       double path_wx = 0.0;
       double path_wy = 0.0;
-      query->mapToWorld(static_cast<unsigned int>(it->x), static_cast<unsigned int>(it->y), path_wx, path_wy);
+      query->mapToWorld(
+        static_cast<unsigned int>(it->x), static_cast<unsigned int>(it->y), path_wx, path_wy);
 
       pose.pose.position.x = path_wx;
       pose.pose.position.y = path_wy;
@@ -521,6 +681,11 @@ bool GlobalPathSearcher::makePlanOnQuery(
     std::vector<unsigned char> query_costmap_copy;
     const size_t map_size = static_cast<size_t>(nx) * static_cast<size_t>(ny);
     if (!query->copyValues(query_costmap_copy) || query_costmap_copy.size() != map_size) {
+      RCLCPP_ERROR(logger_,
+        "%s Astar failed to copy map values: copied=%zu expected=%zu",
+        failure_source.c_str(),
+        query_costmap_copy.size(),
+        map_size);
       return false;
     }
     astar_->setCostmap(query_costmap_copy.data(), true, allow_unknown_);
@@ -538,6 +703,13 @@ bool GlobalPathSearcher::makePlanOnQuery(
     }
 
     if (!astar_->calcPath(nx * ny / 2) || astar_->getPathLen() < 2) {
+      RCLCPP_ERROR(logger_, "%s Astar failed to find path. See endpoint diagnostics below.", failure_source.c_str());
+      if (raw_mx_start != mx_start || raw_my_start != my_start) {
+        logCellDiagnostics(
+          logger_, query, failure_source, "start(raw-before-projection)", raw_mx_start, raw_my_start, allow_unknown_);
+      }
+      logCellDiagnostics(logger_, query, failure_source, "start(used)", mx_start, my_start, allow_unknown_);
+      logCellDiagnostics(logger_, query, failure_source, "goal", mx_goal, my_goal, allow_unknown_);
       return false;
     }
 
@@ -555,7 +727,8 @@ bool GlobalPathSearcher::makePlanOnQuery(
 
       double path_wx = 0.0;
       double path_wy = 0.0;
-      query->mapToWorld(static_cast<unsigned int>(path_x[i]), static_cast<unsigned int>(path_y[i]), path_wx, path_wy);
+      query->mapToWorld(
+        static_cast<unsigned int>(path_x[i]), static_cast<unsigned int>(path_y[i]), path_wx, path_wy);
 
       pose.pose.position.x = path_wx;
       pose.pose.position.y = path_wy;
