@@ -3,10 +3,20 @@
 #include <rog_map/esdf_utils.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <stdexcept>
 
 namespace rog_map {
+
+namespace {
+
+double elapsedMs(const std::chrono::steady_clock::time_point & start)
+{
+  return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+
+}  // namespace
 
 void DynamicLayer::updateFromMask(int width,
   int height,
@@ -17,7 +27,8 @@ void DynamicLayer::updateFromMask(int width,
   double max_distance,
   double min_distance,
   bool clamp_distance,
-  InterpolationMode interpolation)
+  InterpolationMode interpolation,
+  FieldBuildStats * stats)
 {
   rebuild(width,
     height,
@@ -28,7 +39,8 @@ void DynamicLayer::updateFromMask(int width,
     max_distance,
     min_distance,
     clamp_distance,
-    interpolation);
+    interpolation,
+    stats);
 }
 
 void DynamicLayer::rebuild(int width,
@@ -40,8 +52,13 @@ void DynamicLayer::rebuild(int width,
   double max_distance,
   double min_distance,
   bool clamp_distance,
-  InterpolationMode interpolation)
+  InterpolationMode interpolation,
+  FieldBuildStats * stats)
 {
+  FieldBuildStats local_stats;
+  const auto total_start = std::chrono::steady_clock::now();
+  // Dynamic field/二维 ESDF 只由 ProjectionLayer 的 mask 生成。
+  // mask=0 作为障碍源，最终距离会执行 raw_distance - inflation_radius。
   if (width <= 0 || height <= 0 || resolution <= 0.0) {
     throw std::invalid_argument("DynamicLayer::rebuild: invalid grid metadata");
   }
@@ -52,16 +69,23 @@ void DynamicLayer::rebuild(int width,
   }
 
   std::vector<double> dist_sq_pos;
+  const auto edt_pos_start = std::chrono::steady_clock::now();
   ESDFUtils::computeEDT2D(width, height, mask, dist_sq_pos);
+  local_stats.edt_positive_time_ms = elapsedMs(edt_pos_start);
 
+  const auto inv_start = std::chrono::steady_clock::now();
   std::vector<uint8_t> inv_mask(expected, 0U);
   for (size_t i = 0; i < expected; ++i) {
     inv_mask[i] = (mask[i] == 0U) ? 1U : 0U;
   }
+  local_stats.inverse_mask_time_ms = elapsedMs(inv_start);
 
   std::vector<double> dist_sq_neg;
+  const auto edt_neg_start = std::chrono::steady_clock::now();
   ESDFUtils::computeEDT2D(width, height, inv_mask, dist_sq_neg);
+  local_stats.edt_negative_time_ms = elapsedMs(edt_neg_start);
 
+  const auto fill_start = std::chrono::steady_clock::now();
   const double max_dist = std::max(0.1, max_distance);
   const double min_dist = std::min(0.0, min_distance);
   std::vector<double> dist_m(expected, max_dist);
@@ -78,7 +102,9 @@ void DynamicLayer::rebuild(int width,
       dist_m[i] = std::clamp(dist_m[i], min_dist, max_dist);
     }
   }
+  local_stats.distance_fill_time_ms = elapsedMs(fill_start);
 
+  const auto commit_start = std::chrono::steady_clock::now();
   std::lock_guard<std::mutex> lock(mutex_);
   width_ = width;
   height_ = height;
@@ -89,6 +115,11 @@ void DynamicLayer::rebuild(int width,
   clamp_distance_ = clamp_distance;
   interpolation_ = interpolation;
   dist_m_.swap(dist_m);
+  local_stats.commit_time_ms = elapsedMs(commit_start);
+  local_stats.total_time_ms = elapsedMs(total_start);
+  if (stats) {
+    *stats = local_stats;
+  }
 }
 
 bool DynamicLayer::isValid() const

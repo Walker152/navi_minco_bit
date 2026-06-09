@@ -8,7 +8,6 @@
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <rog_map/rog_map_core/config.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
-#include <std_msgs/msg/string.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
 namespace rog_map {
@@ -25,7 +24,6 @@ public:
       decay_cells_pub;
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr layer_value_pub, layer_type_pub,
       layer_confidence_pub;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr performance_pub;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr mkr_arr_pub;
   };
 

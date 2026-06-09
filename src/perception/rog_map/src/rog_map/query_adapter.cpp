@@ -229,6 +229,8 @@ bool QueryAdapter::isFree(unsigned int mx, unsigned int my) const
 
 bool QueryAdapter::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const
 {
+  // 向规划器暴露二维 ESDF 查询；距离来自 field mask，不直接来自 layer_value。
+  // quadratic 在边界或邻域不足时回退到 bilinear，失败时返回 max_distance 和零梯度。
   const auto snap = snapshot();
   if (!snap || snap->width <= 1 || snap->height <= 1 || snap->resolution <= 0.0 ||
       snap->distances.size() != static_cast<size_t>(snap->width) * static_cast<size_t>(snap->height)) {

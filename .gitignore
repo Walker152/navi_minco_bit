@@ -19,3 +19,5 @@ build-*/
 .bash
 .cursor/
 .codegraph/
+AGENTS.md
+CLAUDE.md
