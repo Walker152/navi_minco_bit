@@ -46,6 +46,8 @@ ROSBAG_TOPICS=(
   /cmd_force_mpc
   /sentry/behaivor_send
   /sentry/area_markers
+  # /livox/lidar
+  # /livox/imu_192_168_1_135
 )
 # gnome-terminal -- bash -c "mkdir -p ~/rosbag && ros2 bag record -o ~/rosbag/$(date +%Y%m%d_%H%M%S) ${ROSBAG_TOPICS[*]}; exec bash"
 
