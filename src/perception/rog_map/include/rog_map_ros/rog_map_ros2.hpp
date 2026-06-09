@@ -21,6 +21,23 @@
  * along with ROG-Map. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+#ifndef USE_ROS1
+#ifndef USE_ROS2
+#error "Please define either USE_ROS1 or USE_ROS2, but not both."
+#endif
+#endif
+
+#ifdef USE_ROS1
+#ifdef USE_ROS2
+#error "Cannot use both USE_ROS1 and USE_ROS2 at the same time. Please define only one."
+#endif
+#endif
+
+#ifdef USE_ROS2
+
 #ifndef ROG_MAP_ROS_HPP
 #define ROG_MAP_ROS_HPP
 
@@ -276,8 +293,12 @@ class ROGMapROS : public ROGMap
 
     if (layer_ && !layer_->empty()) {
       if (vm_.layer_value_pub && vm_.layer_value_pub->get_subscription_count() >= 1) {
+        std::vector<uint8_t> mask_values(layer_->cells().size(), 0U);
+        for (size_t i = 0; i < layer_->cells().size(); ++i) {
+          mask_values[i] = layer_->cells()[i].mask == 1U ? 0U : 100U;
+        }
         nav_msgs::msg::OccupancyGrid grid;
-        fillLayerGrid(layer_->values(), grid);
+        fillLayerGrid(mask_values, grid);
         vm_.layer_value_pub->publish(grid);
       }
       if (vm_.layer_type_pub && vm_.layer_type_pub->get_subscription_count() >= 1) {
