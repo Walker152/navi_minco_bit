@@ -58,7 +58,6 @@ struct ProjectionLayerConfig
   bool terrain_enable{false};
   double robot_body_z_min{0.02};
   double robot_body_z_max{0.30};
-  double overhead_clearance_margin{0.03};
   double surface_thickness{0.08};
   double max_step_height{0.10};
   double max_slope_deg{18.0};

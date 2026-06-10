@@ -383,7 +383,6 @@ void ROGMap::refreshLayers()
   layer_cfg.terrain_enable = cfg_.terrain_enable;
   layer_cfg.robot_body_z_min = cfg_.robot_body_z_min;
   layer_cfg.robot_body_z_max = cfg_.robot_body_z_max;
-  layer_cfg.overhead_clearance_margin = cfg_.overhead_clearance_margin;
   layer_cfg.surface_thickness = cfg_.surface_thickness;
   layer_cfg.max_step_height = cfg_.max_step_height;
   layer_cfg.max_slope_deg = cfg_.max_slope_deg;
@@ -434,7 +433,25 @@ void ROGMap::refreshLayers()
     cell_count > 0 ? static_cast<double>(dirty_columns.size()) / static_cast<double>(cell_count) : 0.0;
 
   const auto projection_start = std::chrono::steady_clock::now();
-  auto scanner = [this, min_id, z_min, z_max, layer_cfg](int mx, int my) {
+  auto rawGridType = [this](const Vec3i & id_g) -> GridType {
+    if (!insideLocalMap(id_g)) {
+      return GridType::OUT_OF_MAP;
+    }
+    const int hash_id = getHashIndexFromGlobalIndex(id_g);
+    if (hash_id < 0 || hash_id >= static_cast<int>(occupancy_buffer_.size())) {
+      return GridType::OUT_OF_MAP;
+    }
+    const double ret = occupancy_buffer_[hash_id];
+    if (isKnownFree(ret)) {
+      return GridType::KNOWN_FREE;
+    }
+    if (isOccupied(ret)) {
+      return GridType::OCCUPIED;
+    }
+    return GridType::UNKNOWN;
+  };
+
+  auto scanner = [this, min_id, z_min, z_max, layer_cfg, rawGridType](int mx, int my) {
     ColumnStats stats;
     const int gx = min_id.x() + mx;
     const int gy = min_id.y() + my;
@@ -442,7 +459,7 @@ void ROGMap::refreshLayers()
     const double body_z_max = std::max(layer_cfg.robot_body_z_min, layer_cfg.robot_body_z_max);
     for (int gz = z_min; gz <= z_max; ++gz) {
       Vec3i id_g(gx, gy, gz);
-      GridType gt = getGridType(id_g);
+      GridType gt = rawGridType(id_g);
       if (gt == GridType::OCCUPIED || gt == GridType::KNOWN_FREE) {
         ++stats.observed;
         stats.last_update_time = std::max(stats.last_update_time, cellLastUpdateTime(id_g));
@@ -547,6 +564,8 @@ void ROGMap::refreshLayers()
   runtime_stats_.layer_mask_diff_count = static_cast<double>(mask_diff_count);
   runtime_stats_.layer_mask_diff_ratio =
     new_mask.empty() ? 0.0 : static_cast<double>(mask_diff_count) / static_cast<double>(new_mask.size());
+  runtime_stats_.layer_mask_occupied_count = 0.0;
+  runtime_stats_.layer_mask_free_count = 0.0;
   for (const auto mask : new_mask) {
     if (mask == 0U) {
       runtime_stats_.layer_mask_occupied_count += 1.0;
@@ -563,6 +582,10 @@ void ROGMap::refreshLayers()
   runtime_stats_.unknown_count = 0.0;
   runtime_stats_.passable_count = 0.0;
   runtime_stats_.free_count = 0.0;
+  runtime_stats_.layer_value_free_count = 0.0;
+  runtime_stats_.layer_value_occupied_count = 0.0;
+  runtime_stats_.layer_value_unknown_count = 0.0;
+  runtime_stats_.layer_value_passable_count = 0.0;
   for (const auto & cell : layer_->cells()) {
     switch (cell.type) {
     case CellType::OCCUPIED:
@@ -591,6 +614,19 @@ void ROGMap::refreshLayers()
     }
   }
   runtime_stats_.projection_count_cells_time = elapsedMs(count_start);
+
+  static auto last_projection_log = std::chrono::steady_clock::time_point{};
+  const auto projection_log_now = std::chrono::steady_clock::now();
+  if (last_projection_log.time_since_epoch().count() == 0 ||
+      std::chrono::duration<double>(projection_log_now - last_projection_log).count() >= 1.0) {
+    std::cout << "[ROGMapProjection] projection occupied_count=" << runtime_stats_.occupied_count
+              << ", projection free_count=" << runtime_stats_.free_count
+              << ", projection passable_count=" << runtime_stats_.passable_count
+              << ", projection unknown_count=" << runtime_stats_.unknown_count
+              << ", mask0_count=" << runtime_stats_.layer_mask_occupied_count
+              << ", mask1_count=" << runtime_stats_.layer_mask_free_count << std::endl;
+    last_projection_log = projection_log_now;
+  }
 
   const double field_period = cfg_.field_update_rate > 0.0 ? (1.0 / cfg_.field_update_rate) : 0.0;
   const bool period_ready =

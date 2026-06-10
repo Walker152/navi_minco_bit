@@ -24,19 +24,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
-#ifndef USE_ROS1
-#ifndef USE_ROS2
-#error "Please define either USE_ROS1 or USE_ROS2, but not both."
-#endif
-#endif
-
-#ifdef USE_ROS1
-#ifdef USE_ROS2
-#error "Cannot use both USE_ROS1 and USE_ROS2 at the same time. Please define only one."
-#endif
-#endif
-
-#ifdef USE_ROS2
 
 #ifndef ROG_MAP_ROS_HPP
 #define ROG_MAP_ROS_HPP
@@ -57,6 +44,7 @@
 #include <super_utils/color_msg_utils.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <memory>
 #include <utility>
@@ -349,11 +337,33 @@ class ROGMapROS : public ROGMap
 
     vec_E<Vec3f> occ_map, inf_occ_map;
     sensor_msgs::msg::PointCloud2 cloud_msg;
+    bool original_occ_available = false;
 
     if (vm_.occ_pub && vm_.occ_pub->get_subscription_count() >= 1) {
       boxSearch(box_min, box_max, OCCUPIED, occ_map);
       vecEVec3fToPC2(occ_map, cloud_msg);
       vm_.occ_pub->publish(cloud_msg);
+      original_occ_available = true;
+    }
+
+    if (vm_.raw_occ_pub && vm_.raw_occ_pub->get_subscription_count() >= 1) {
+      vec_E<Vec3f> raw_occ_map;
+      rawOccupiedBoxSearch(box_min, box_max, raw_occ_map);
+      sensor_msgs::msg::PointCloud2 raw_cloud_msg;
+      vecEVec3fToPC2(raw_occ_map, raw_cloud_msg);
+      vm_.raw_occ_pub->publish(raw_cloud_msg);
+
+      static auto last_raw_occ_log = std::chrono::steady_clock::time_point{};
+      const auto log_now = std::chrono::steady_clock::now();
+      if (last_raw_occ_log.time_since_epoch().count() == 0 ||
+          std::chrono::duration<double>(log_now - last_raw_occ_log).count() >= 1.0) {
+        if (!original_occ_available) {
+          boxSearch(box_min, box_max, OCCUPIED, occ_map);
+        }
+        std::cout << "[ROGMapViz] raw_occupied_points=" << raw_occ_map.size()
+                  << ", original_occupied_points=" << occ_map.size() << std::endl;
+        last_raw_occ_log = log_now;
+      }
     }
 
     if (vm_.occ_inf_pub && vm_.occ_inf_pub->get_subscription_count() >= 1) {
@@ -467,6 +477,7 @@ class ROGMapROS : public ROGMap
            (vm_.decay_cells_pub && vm_.decay_cells_pub->get_subscription_count() >= 1) ||
            (vm_.frontier_pub && vm_.frontier_pub->get_subscription_count() >= 1) ||
            (vm_.occ_pub && vm_.occ_pub->get_subscription_count() >= 1) ||
+           (vm_.raw_occ_pub && vm_.raw_occ_pub->get_subscription_count() >= 1) ||
            (vm_.occ_inf_pub && vm_.occ_inf_pub->get_subscription_count() >= 1) ||
            (vm_.esdf_pub && vm_.esdf_pub->get_subscription_count() >= 1) ||
            (vm_.mkr_arr_pub && vm_.mkr_arr_pub->get_subscription_count() >= 1);
@@ -607,6 +618,7 @@ class ROGMapROS : public ROGMap
         std::bind(&ROGMapROS::vizCallback, this));
       const auto & pubs = visualizer_driver_->publishers();
       vm_.occ_pub = pubs.occ_pub;
+      vm_.raw_occ_pub = pubs.raw_occ_pub;
       vm_.unknown_pub = pubs.unknown_pub;
       vm_.esdf_neg_pub = pubs.esdf_neg_pub;
       vm_.esdf_occ_pub = pubs.esdf_occ_pub;
@@ -834,4 +846,3 @@ private:
 };
 }  // namespace rog_map
 #endif  // ROG_MAP_ROS_HPP
-#endif  // USE_ROS2
