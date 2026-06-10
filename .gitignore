@@ -19,5 +19,9 @@ build-*/
 .bash
 .cursor/
 .codegraph/
+.docs/
+.agents/
+.codex/
+.claude/
 AGENTS.md
 CLAUDE.md

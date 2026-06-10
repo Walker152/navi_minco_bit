@@ -266,7 +266,6 @@ public:
     terrain_enable = false;
     robot_body_z_min = 0.02;
     robot_body_z_max = 0.30;
-    overhead_clearance_margin = 0.03;
     surface_thickness = 0.08;
     max_step_height = 0.10;
     max_slope_deg = 18.0;
@@ -277,7 +276,6 @@ public:
     load("projection.terrain_enable", terrain_enable);
     load("projection.robot_body_z_min", robot_body_z_min);
     load("projection.robot_body_z_max", robot_body_z_max);
-    load("projection.overhead_clearance_margin", overhead_clearance_margin);
     load("projection.surface_thickness", surface_thickness);
     load("projection.max_step_height", max_step_height);
     load("projection.max_slope_deg", max_slope_deg);
@@ -477,7 +475,6 @@ public:
   bool terrain_enable{false};
   double robot_body_z_min{0.02};
   double robot_body_z_max{0.30};
-  double overhead_clearance_margin{0.03};
   double surface_thickness{0.08};
   double max_step_height{0.10};
   double max_slope_deg{18.0};
