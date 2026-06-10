@@ -27,9 +27,9 @@ public:
     geometry_msgs::msg::Pose & output_pose,
     const std::string & child_frame);
 
-  // 手动坐标转换函数（从gimbal系转换到map系，跳过tf2查询）
-  bool transformGimbalToMap(const geometry_msgs::msg::Pose & input_pose,
-    geometry_msgs::msg::Pose & output_pose);
+  // 视觉世界系转换函数：原点跟随底盘平移，yaw 在 map/world 下保持恒定。
+  bool transformGimbalToMap(
+    const geometry_msgs::msg::Pose & input_pose, geometry_msgs::msg::Pose & output_pose);
 
   // 坐标转换函数（从map系转换到target系）
   bool transformMapPose(const geometry_msgs::msg::Pose & input_pose,
