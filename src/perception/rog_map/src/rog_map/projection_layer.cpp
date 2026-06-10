@@ -47,7 +47,7 @@ CellType classifyCell(
   if (config.terrain_enable) {
     const double body_z_min = std::min(config.robot_body_z_min, config.robot_body_z_max);
     const double body_z_max = std::max(config.robot_body_z_min, config.robot_body_z_max);
-    const double body_clearance_top = body_z_max + config.overhead_clearance_margin;
+    const double body_clearance_top = body_z_max + config.min_clearance_height;
     const bool body_band_blocked = stats.occupied_in_body_band > 0;
     const bool has_ground = std::isfinite(stats.ground_z);
     const bool ceiling_blocks = config.clearance_check_enable && std::isfinite(stats.ceiling_z) &&
