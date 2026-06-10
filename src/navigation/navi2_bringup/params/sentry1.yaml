@@ -353,19 +353,19 @@ planner_server:
           # [raycasting][概率] unknown 判断阈值相关参数；影响 UNKNOWN/FREE/OCCUPIED 判定，进而影响 projection layer。
           unk_thresh: 0.70
           # [raycasting][概率] 命中点增加占据概率的强度；调大障碍更快变 OCCUPIED，但噪声也更容易固化。
-          p_hit: 0.70
+          p_hit: 0.9
           # [raycasting][概率] 射线穿过区域增加自由概率的强度；调大清空更快，过大可能把稀疏障碍清掉。
-          p_miss: 0.70
+          p_miss: 0.49
           # [raycasting][概率] 占据概率下限；限制自由证据累计，影响动态清除后的最小 log-odds。
           p_min: 0.12
           # [raycasting][概率] 占据概率上限；限制障碍证据累计，过高会让障碍更难通过 decay 清除。
           p_max: 0.97
           # [raycasting][概率] 判定 OCCUPIED 的阈值；调高减少误障碍但可能漏检，调低更保守并影响 ESDF 障碍源。
-          p_occ: 0.80
+          p_occ: 0.85
           # [raycasting][概率] 判定 KNOWN_FREE 的阈值；调高更难成为自由，调低更容易清空 UNKNOWN。
-          p_free: 0.30
+          p_free: 0.499
           # [raycasting/performance][bool] raycast 并行开关；会被 performance.parallel_raycast_enable 后加载覆盖，影响 CPU 占用和更新延迟。
-          parallel_enable: true
+          parallel_enable: false
           # [raycasting/performance][线程] raycast 线程数；不宜超过可用 CPU 核数，过大可能因竞争导致抖动。
           num_threads: 4
 
@@ -385,7 +385,7 @@ planner_server:
           # [projection][m] 参与二维投影统计的 z 下界，基于 frame_id 而非默认地面；过高可能漏掉地面和低矮障碍。
           min_z: -0.25
           # [projection][m] 参与二维投影统计的 z 上界；过低会漏掉车体高度内障碍，过高会引入上方无关结构。
-          max_z: 0.80
+          max_z: 1.5
           # [projection][bool] UNKNOWN 是否写成障碍 mask；true 会阻挡 ESDF/规划，false 更开放但未知区域风险更高。
           unknown_as_occupied: false
           # [projection][voxel] 每个 xy 列至少观测 voxel 数；过大产生大量 UNKNOWN，过小易受噪声误判。
@@ -403,7 +403,7 @@ planner_server:
           # [projection][次] 类型切换确认次数；调大更稳但障碍清除更慢。
           hysteresis_count: 2
           # [projection][bool] 是否填补被障碍围住的小洞；开启会让 ESDF 更保守，减少穿过窄缝。
-          hole_fill_enable: false
+          hole_fill_enable: true
           # [projection][cell] hole fill 邻域半径；调大会填更多洞并增加 projection 计算量。
           hole_fill_radius: 1
           # [projection][cell数] 判定洞周围障碍邻居数量；调低更保守，调高减少误填。
@@ -411,21 +411,19 @@ planner_server:
           # [projection][bool] 是否启用地形可通行分析；开启后综合车体碰撞带、坡度、台阶、净空等判断 PASSABLE。
           terrain_enable: true
           # [projection][m] 车体碰撞带 z 下界，基于 ROGMap frame；若 camera_init 在雷达高度附近，不能直接写地面系高度。
-          robot_body_z_min: -0.15
+          robot_body_z_min: -0.23
           # [projection][m] 车体碰撞带 z 上界，基于 ROGMap frame；误配会导致地面/上方结构被错误纳入碰撞带。
-          robot_body_z_max: 0.2
-          # [projection][m] 车体顶部净空余量；调大更保守，可能把低顶结构判为障碍。
-          overhead_clearance_margin: 0.03
+          robot_body_z_max: 0.05
           # [projection][m] 可通过表面厚度阈值；过小会把粗糙地面判障碍，过大可能放行厚障碍。
-          surface_thickness: 0.06
+          surface_thickness: 0.08
           # [projection][m] 最大可跨越台阶高度；调大能通过更高的台阶，但可能把较高的障碍误判为可通行。
-          max_step_height: 0.1
+          max_step_height: 0.06
           # [projection][degree] 最大可通行坡度；对 23 度通过角底盘可先 20~22 度，过大风险高，过小会拒绝坡道。
           max_slope_deg: 20.0
           # [projection][bool] 是否检查车体上方净空；开启会影响 PASSABLE/FREE/OCCUPIED 分类和 ESDF mask。
           clearance_check_enable: true
-          # [projection][m] 车体顶部额外净空要求，不是机器人总高度；过大容易误判低顶空间不可通行。
-          min_clearance_height: 0.05
+          # [projection][m] 车体顶部净空要求（合并原 overhead_clearance_margin）；检查 ceiling_z 是否低于 body_z_max+此值，低于则阻挡。
+          min_clearance_height: 0.02
           # [projection][m] 隧道墙/竖直墙高度阈值；调低更容易把竖直结构判为 OCCUPIED。
           tunnel_wall_min_height: 0.50
           # [projection][bool] PASSABLE 是否在 layer_value 中写成 FREE；无论 true/false，PASSABLE 的 mask 都为 1，会作为 ESDF 可通行区。

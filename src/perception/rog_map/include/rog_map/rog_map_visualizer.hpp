@@ -19,9 +19,9 @@ public:
 
   struct Publishers
   {
-    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr occ_pub, unknown_pub, esdf_neg_pub,
-      esdf_occ_pub, occ_inf_pub, unknown_inf_pub, frontier_pub, esdf_pub, layer_height_pub, field_pub,
-      decay_cells_pub;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr occ_pub, raw_occ_pub, unknown_pub,
+      esdf_neg_pub, esdf_occ_pub, occ_inf_pub, unknown_inf_pub, frontier_pub, esdf_pub,
+      layer_height_pub, field_pub, decay_cells_pub;
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr layer_value_pub, layer_type_pub,
       layer_confidence_pub;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr mkr_arr_pub;

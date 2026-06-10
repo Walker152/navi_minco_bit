@@ -1,387 +1,311 @@
-# ROGMap Visualization 简化改造任务
+你现在需要在当前 ROS2 ROGMap 工程中做一次“最小侵入式修复和验证”。背景如下：
 
-## 目标
+当前 `/rog_map/layer_value` 已经改成按 projection mask 显示：
 
-简化 ROGMap 可视化配置，去掉过多的 topic name、per-topic enable 和 lazy_publish 参数，改为：
+* `mask=1` 显示白色，表示 FREE / PASSABLE / UNKNOWN-as-free
+* `mask=0` 显示黑色，表示 OCCUPIED / UNKNOWN-as-occupied
 
-```text
-固定话题名 + 全局 visualization.enable + 按订阅者自动发布
-```
+现在现象是：
 
-本任务只改可视化参数和发布逻辑，不新增可视化性能统计。
+* unknown 区域已经正常变白；
+* 但实际走廊可通行区域仍然是黑色；
+* 打开 `/rog_map/occupied` 发现黑色 layer 上方几乎全是占据点；
+* 占据点呈现从最低到最高的一整列，没有中间空心区域。
 
----
+经过对照原始 ROGMap，结论是：
 
-## 保留的 visualization 参数
+1. 不要修改原始 `ProbMap::isOccupied()`、`ProbMap::isUnknown()`、`ProbMap::isKnownFree()`、`ProbMap::getGridType()` 的语义。
+2. 不要修改原始 raycast / hit / miss 概率更新逻辑。
+3. 原始 `/rog_map/occ` 发布本来就是通过 `boxSearch(..., OCCUPIED, ...)`，其内部使用 `isOccupied(id_g)`，因此它包含 virtual ground / virtual ceil / safe_margin 的安全查询语义，并不等价于 raw `occupancy_buffer_`。
+4. 当前 projection scanner 如果直接使用 `getGridType(id_g)`，会把原始 ROGMap 的“安全查询占据语义”当成“真实三维占据统计”，可能导致二维 layer 被虚拟边界或安全占据语义污染。
+5. 当前需要保留原始 occupied 发布，同时新增 raw occupied debug 发布，并让 projection 使用 raw occupancy buffer 统计真实三维占据，而不是使用 `getGridType()`。
 
-最终 YAML 只保留：
-
-```yaml
-visualization:
-  # [visualization][bool] 总开关。false 时不创建可视化 timer，不发布任何可视化 topic。
-  enable: true
-
-  # [visualization][frame] 可视化消息 frame_id。为空时使用 ROGMap frame_id。
-  frame_id: camera_init
-
-  # [visualization][Hz] 可视化发布上限频率。实际每个 topic 仅在存在订阅者时构造并发布。
-  rate: 10.0
-
-  # [visualization][m,m,m] 三维可视化范围，仅影响调试消息大小，不影响地图计算。
-  range: [10.0, 10.0, 1.2]
-```
+请完成以下修改。
 
 ---
 
-## 废弃的 visualization 参数
+## 一、保持原始占据逻辑不变
 
-删除或停止使用以下参数：
+请检查并确保以下函数的原始语义不被修改：
+
+* `ProbMap::isOccupied(const Vec3f & pos) const`
+* `ProbMap::isOccupied(const Vec3i & id_g) const`
+* `ProbMap::isUnknown(...)`
+* `ProbMap::isKnownFree(...)`
+* `ProbMap::getGridType(...)`
+* `ProbMap::raycastProcess(...)`
+* `ProbMap::insertUpdateCandidate(...)`
+* `ProbMap::updateProbMap(...)`
+* `ROGMap::boxSearch(...)`
+
+这些函数中关于 virtual ground / virtual ceil / safe_margin 的逻辑应保留，因为它们是 ROGMap 原始安全查询语义的一部分。
+
+不要为了修复 projection 问题去全局修改这些函数。
+
+---
+
+## 二、给 ROGMap 增加 raw occupied 查询/收集函数
+
+在合适位置新增一个只基于 `occupancy_buffer_` 的 raw occupied 搜索函数，例如：
+
+```cpp
+void ROGMap::rawOccupiedBoxSearch(
+  const Vec3f & box_min,
+  const Vec3f & box_max,
+  vec_E<Vec3f> & out_points) const;
+```
+
+或根据当前工程命名风格选择等价命名。
+
+这个函数必须满足：
+
+1. 遍历方式可以参考原有 `boxSearch(box_min, box_max, OCCUPIED, out_points)`。
+2. 但判断 occupied 时禁止调用：
+
+```cpp
+isOccupied(id_g)
+getGridType(id_g)
+```
+
+3. 必须只判断 raw `occupancy_buffer_`：
+
+```cpp
+if (!insideLocalMap(id_g)) {
+  continue;
+}
+
+const int hash_id = getHashIndexFromGlobalIndex(id_g);
+if (hash_id < 0 || hash_id >= static_cast<int>(occupancy_buffer_.size())) {
+  continue;
+}
+
+const double ret = occupancy_buffer_[hash_id];
+if (isOccupied(ret)) {
+  Vec3f pos;
+  globalIndexToPos(id_g, pos);
+  out_points.push_back(pos);
+}
+```
+
+如果当前工程里 `getHashIndexFromGlobalIndex()` 返回值不是 int，而是 size_t 或其他类型，请按实际类型安全处理。
+
+注意：
+
+* 这里允许调用 `isOccupied(double occupancy_value)` 这种 raw buffer 判断函数；
+* 不允许调用 `isOccupied(Vec3i)` 或 `isOccupied(Vec3f)`，因为它们包含 virtual ground / ceil 语义。
+
+---
+
+## 三、新增 `/rog_map/raw_occupied` debug topic
+
+在 `rog_map_ros2.hpp` 中新增 raw occupied publisher。
+
+目标 topic 名：
 
 ```text
-visualization.lazy_publish
+/rog_map/raw_occupied
+```
 
-visualization.occupied.enable
-visualization.unknown.enable
-visualization.inflated_occupied.enable
-visualization.inflated_unknown.enable
-visualization.frontier.enable
-visualization.layer_value.enable
-visualization.layer_type.enable
-visualization.layer_confidence.enable
-visualization.layer_height.enable
-visualization.field.enable
-visualization.decay_cells.enable
-visualization.map_bound.enable
+或保持当前命名空间风格：
 
-visualization.occupied.topic
-visualization.unknown.topic
-visualization.inflated_occupied.topic
-visualization.inflated_unknown.topic
-visualization.frontier.topic
-visualization.layer_value.topic
-visualization.layer_type.topic
-visualization.layer_confidence.topic
-visualization.layer_height.topic
-visualization.field.topic
-visualization.decay_cells.topic
-visualization.map_bound.topic
+```text
+rog_map/raw_occupied
 ```
 
 要求：
 
-1. 旧 YAML 中如果仍存在这些参数，不要导致节点启动失败。
-2. 可以不再 declare 这些旧参数。
-3. 如果当前参数加载框架要求必须 declare，可以保留 declare，但不再使用。
-4. 不要因为旧参数存在就改变发布行为。
+1. 保留原有 `/rog_map/occupied` 或 `/rog_map/occ` 发布逻辑不变。
+2. 新增 raw occupied 发布逻辑。
+3. raw occupied 发布使用上一步新增的 `rawOccupiedBoxSearch()`，不要使用 `boxSearch(..., OCCUPIED, ...)`。
+4. 发布消息类型和原 occupied 一样，使用 `sensor_msgs::msg::PointCloud2`。
+5. frame、stamp、转换函数尽量复用原 occupied 发布逻辑，例如 `vecEVec3fToPC2()`。
+
+伪代码参考：
+
+```cpp
+if (vm_.raw_occ_pub && vm_.raw_occ_pub->get_subscription_count() >= 1) {
+  vec_E<Vec3f> raw_occ_map;
+  rawOccupiedBoxSearch(box_min, box_max, raw_occ_map);
+
+  sensor_msgs::msg::PointCloud2 cloud_msg;
+  vecEVec3fToPC2(raw_occ_map, cloud_msg);
+  cloud_msg.header.stamp = now();
+  cloud_msg.header.frame_id = cfg_.frame_id;
+  vm_.raw_occ_pub->publish(cloud_msg);
+}
+```
+
+请根据当前工程真实成员变量命名适配。
 
 ---
 
-## 固定话题名
+## 四、修改 projection scanner：使用 raw occupancy buffer，不用 getGridType()
 
-保持当前已有 topic 名称不变。优先沿用当前代码已经使用的名字，例如：
+在 `ROGMap::refreshLayers()` 中查找 projection scanner。
+
+当前逻辑大概率类似：
+
+```cpp
+GridType gt = getGridType(id_g);
+
+if (gt == GridType::OCCUPIED || gt == GridType::KNOWN_FREE) {
+  ++stats.observed;
+}
+
+if (gt == GridType::OCCUPIED) {
+  ++stats.occupied;
+  ...
+}
+```
+
+请改成只基于 raw occupancy buffer 的局部查询。
+
+建议在 scanner lambda 内部新增局部 lambda：
+
+```cpp
+auto rawGridType = [this](const Vec3i & id_g) -> GridType {
+  if (!insideLocalMap(id_g)) {
+    return GridType::OUT_OF_MAP;
+  }
+
+  const int hash_id = getHashIndexFromGlobalIndex(id_g);
+  if (hash_id < 0 || hash_id >= static_cast<int>(occupancy_buffer_.size())) {
+    return GridType::OUT_OF_MAP;
+  }
+
+  const double ret = occupancy_buffer_[hash_id];
+
+  if (isKnownFree(ret)) {
+    return GridType::KNOWN_FREE;
+  }
+  if (isOccupied(ret)) {
+    return GridType::OCCUPIED;
+  }
+  return GridType::UNKNOWN;
+};
+```
+
+然后把 scanner 中的：
+
+```cpp
+GridType gt = getGridType(id_g);
+```
+
+替换为：
+
+```cpp
+GridType gt = rawGridType(id_g);
+```
+
+要求：
+
+1. projection 的三维列统计只能使用 raw occupancy buffer。
+2. 不要在 projection scanner 中使用 `getGridType(id_g)`。
+3. 不要在 projection scanner 中使用 `isOccupied(id_g)`。
+4. 继续保留 `cellLastHitTime(id_g)`、`cellLastUpdateTime(id_g)` 等统计逻辑。
+5. 保留原有 `min_z / max_z / occupied_below_body / occupied_in_body_band / occupied_above_body / ground_z / ceiling_z` 的统计逻辑。
+6. 不要删除 terrain 分析、hole fill、mask 生成逻辑；本次只修复其输入统计来源。
+
+---
+
+## 五、增加必要日志，便于实机判断
+
+在 raw occupied 发布和 projection 更新处增加低频 throttle 日志，至少输出以下统计：
+
+```text
+raw_occupied_points
+original_occupied_points
+projection occupied_count
+projection free_count
+projection passable_count
+projection unknown_count
+projection mask0_count
+projection mask1_count
+```
+
+如果已有 PerformanceMonitor 或 RuntimeStats 中已经统计了类似字段，就复用，不要重复引入复杂结构。
+
+日志频率建议 1 Hz 或更低，避免刷屏。
+
+---
+
+## 六、验证标准
+
+修改完成后，请在输出说明中告诉我以下判断方法。
+
+### 情况 A
+
+如果：
+
+```text
+/rog_map/occupied 仍然是一整列
+/rog_map/raw_occupied 不是一整列
+/rog_map/layer_value 走廊变白
+```
+
+说明问题来自原始 `isOccupied(id_g)` / `getGridType(id_g)` 的 virtual ground / virtual ceil 安全查询语义被 projection 错用。修复成功。
+
+### 情况 B
+
+如果：
+
+```text
+/rog_map/raw_occupied 也是一整列
+/rog_map/layer_value 仍然黑
+```
+
+说明真实 `occupancy_buffer_` 已经被写成一整列。此时问题不在 projection，而在上游点云输入、frame 变换、raycast clearing、map sliding 或概率更新流程，需要继续排查。
+
+### 情况 C
+
+如果：
+
+```text
+/rog_map/raw_occupied 正常
+/rog_map/layer_value 仍然黑
+```
+
+说明 projection 分类逻辑仍有问题，需要继续检查：
+
+* `min_observed_voxels`
+* `robot_body_z_min / robot_body_z_max`
+* `occupied_in_body_band`
+* `vertical_wall`
+* `ceiling_blocks`
+* `hole_fill`
+* `terrain_enable`
+
+---
+
+## 七、输出要求
+
+请完成代码修改后输出：
+
+1. 修改了哪些文件；
+2. 每个文件做了什么；
+3. 是否保持原始 ROGMap 占据更新逻辑不变；
+4. 新增 topic 名称；
+5. projection 是否已经改为 raw occupancy buffer；
+6. 编译命令；
+7. 实机验证命令，例如：
+
+```bash
+colcon build --packages-select <相关包名> --cmake-args -DCMAKE_BUILD_TYPE=Release
+source install/setup.bash
+
+ros2 topic list | grep rog_map
+ros2 topic echo /rog_map/raw_occupied --once
+ros2 topic hz /rog_map/raw_occupied
+```
+
+8. RViz 中需要同时观察：
 
 ```text
 /rog_map/occupied
-/rog_map/unknown
-/rog_map/inflated_occupied
-/rog_map/inflated_unknown
-/rog_map/frontier
+/rog_map/raw_occupied
 /rog_map/layer_value
-/rog_map/layer_type
-/rog_map/layer_confidence
-/rog_map/layer_height
 /rog_map/field
-/rog_map/decay_cells
-/rog_map/map_bound
+/cloud_registered 或 /cloud_registered_filtered
 ```
 
-不要再从 YAML 读取每个 topic 的自定义名称。
-
----
-
-## 发布逻辑
-
-每个可视化 topic 都必须在构造消息之前判断订阅者数量。
-
-正确写法：
-
-```cpp
-if (!pub || pub->get_subscription_count() == 0) {
-  return;
-}
-
-auto msg = buildMessage();
-pub->publish(msg);
-```
-
-禁止写成：
-
-```cpp
-auto msg = buildMessage();
-
-if (!pub || pub->get_subscription_count() == 0) {
-  return;
-}
-
-pub->publish(msg);
-```
-
-原因：无订阅者时不能构造大消息，否则仍然会产生可视化开销。
-
----
-
-## 全局 enable 行为
-
-`visualization.enable=false` 时：
-
-1. 不创建 visualization timer。
-2. 可以不创建 visualization publishers。
-3. 不执行任何 visualization publish 逻辑。
-4. 不影响 ROGMap 内部建图。
-5. 不影响 raycasting。
-6. 不影响 decay。
-7. 不影响 projection。
-8. 不影响 field / ESDF。
-9. 不影响 query adapter。
-10. 不影响 MincoPlanner 通过指针查询 ROGMap。
-
----
-
-## rate 行为
-
-`visualization.rate` 只控制可视化 timer 的发布上限。
-
-要求：
-
-1. `rate <= 0` 时使用默认值，例如 5.0Hz。
-2. 有订阅者时，最多按该频率发布。
-3. 无订阅者时，timer 可以触发，但每个 topic 都必须立即 skip，不构造消息。
-4. 该频率不代表 ROGMap 内部 field 更新频率。
-5. 该频率不代表 projection 更新频率。
-
----
-
-## range 行为
-
-`visualization.range` 只限制三维可视化消息范围。
-
-要求：
-
-1. 主要影响 occupied、unknown、inflated_occupied、inflated_unknown、frontier、decay_cells 等大点云或 marker 消息。
-2. 不影响 ROGMap 内部地图大小。
-3. 不影响 projection 计算范围。
-4. 不影响 field / ESDF 计算范围。
-5. 不影响 planner 查询范围。
-
----
-
-## frame_id 行为
-
-`visualization.frame_id` 只用于可视化消息 header。
-
-要求：
-
-1. visualization 消息 header.frame_id 使用该参数。
-2. 如果为空，则默认使用 ROGMap 的 `frame_id`。
-3. 不改变 ROGMap 内部坐标系。
-4. 不改变点云输入坐标系。
-5. 不改变 planner 查询坐标系。
-
----
-
-## 需要修改的文件
-
-优先检查并修改：
-
-```text
-rog_map_ros2.cpp
-rog_map_ros.hpp
-rog_map.cpp
-prob_map.cpp
-sentry1.yaml
-```
-
-如果 visualization 参数结构定义在其他文件，也同步修改：
-
-```text
-config.hpp
-config.h
-rog_map_config.hpp
-rog_map_param.hpp
-```
-
----
-
-## 不需要新增可视化性能统计
-
-本任务不要新增以下内容：
-
-```text
-vis_skip_no_subscriber_*
-vis_publish_*
-visualization_*_build_time_ms
-visualization_*_publish_time_ms
-visualization_*_subscriber_count
-visualization_*_publish_hz
-```
-
-也不要把这些字段加入 CSV。
-
-之前提到的 ROGMap 性能 CSV 只关注核心建图链路，例如：
-
-```text
-input cloud
-odom sync
-updateMapInternal
-raycast
-prob update
-decay
-projection
-mask changed
-field / ESDF rebuild
-query refresh
-dirty column
-full refresh
-```
-
-不要加入 visualization 相关性能字段。
-
----
-
-## Publisher 创建
-
-改造为固定创建这些 publishers：
-
-```text
-occupied_pub_
-unknown_pub_
-inflated_occupied_pub_
-inflated_unknown_pub_
-frontier_pub_
-layer_value_pub_
-layer_type_pub_
-layer_confidence_pub_
-layer_height_pub_
-field_pub_
-decay_cells_pub_
-map_bound_pub_
-```
-
-可以只在 `visualization.enable=true` 时创建。
-
-QoS 沿用当前代码，不要随意改变 QoS。
-
----
-
-## 每个 topic 的发布函数要求
-
-为每个可视化发布函数加前置订阅者判断。
-
-示例：
-
-```cpp
-void ROGMapROS::publishField()
-{
-  if (!field_pub_ || field_pub_->get_subscription_count() == 0) {
-    return;
-  }
-
-  // 只有这里之后才允许读取 snapshot / 构造 grid / publish
-}
-```
-
-所有 topic 都按这个模式改造：
-
-```text
-publishOccupied
-publishUnknown
-publishInflatedOccupied
-publishInflatedUnknown
-publishFrontier
-publishLayerValue
-publishLayerType
-publishLayerConfidence
-publishLayerHeight
-publishField
-publishDecayCells
-publishMapBound
-```
-
-如果代码当前不是按这些函数命名，就在对应逻辑位置改造。
-
----
-
-## sentry1.yaml 修改
-
-把 `sentry1.yaml` 中 ROGMap visualization 块简化为：
-
-```yaml
-visualization:
-  enable: true
-  frame_id: camera_init
-  rate: 10.0
-  range: [10.0, 10.0, 1.2]
-```
-
-删除旧的 per-topic enable、topic name 和 lazy_publish 配置。
-
----
-
-## 验证要求
-
-完成后编译：
-
-```bash
-colcon build --symlink-install
-```
-
-启动后验证：
-
-```bash
-ros2 topic list | grep rog_map
-```
-
-期望：
-
-1. `visualization.enable=true` 时，固定 topic 存在。
-2. `visualization.enable=false` 时，不执行可视化发布逻辑。
-3. 无订阅者时，不构造可视化消息。
-4. 执行 `ros2 topic hz /rog_map/field` 后，只触发 field 消息构造和发布。
-5. 打开 RViz 只订阅 `/rog_map/layer_value` 后，不应构造其他 topic 的消息。
-6. ROGMap 内部 projection、field、query 不受 visualization 参数简化影响。
-7. MincoPlanner 正常规划。
-8. 不出现参数未声明导致的启动失败。
-
----
-
-## 禁止事项
-
-不要做以下改动：
-
-```text
-不要改变 ROGMap 建图逻辑。
-不要改变 raycasting 逻辑。
-不要改变 decay 逻辑。
-不要改变 projection 分类逻辑。
-不要改变 field / ESDF 计算逻辑。
-不要改变 QueryAdapter 查询语义。
-不要改变 MincoPlanner 对 ROGMap 的调用方式。
-不要改变 frame transform 逻辑。
-不要新增可视化性能统计。
-不要把可视化相关字段加入 CSV。
-不要在没有订阅者时构造大消息。
-```
-
----
-
-## 最终输出
-
-完成后只输出：
-
-```text
-1. 修改文件列表
-2. 删除/废弃的 visualization 参数列表
-3. 当前保留的 visualization 参数
-4. 编译结果
-5. 简单验证命令
-```
+请严格控制修改范围，不要重构整体架构，不要改动 planner，不要改动 ESDF 符号，不要改动全局 `isOccupied()` / `getGridType()` 的原始语义。

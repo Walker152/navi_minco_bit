@@ -114,7 +114,8 @@ Performance 参数用于性能统计、CSV 输出、dirty column 增量刷新和
 
 | 参数 | 用途 |
 | --- | --- |
-| `/rog_map/occupied` | 三维占据点，用于检查障碍物是否被正确建图。 |
+| `/rog_map/occupied` | 三维占据点，保留 ROGMap 原始安全查询语义，包含 virtual ground / ceil / safe margin。 |
+| `/rog_map/raw_occupied` | raw 三维占据点，只基于 `occupancy_buffer_`，用于排查 projection 是否被安全查询语义污染。 |
 | `/rog_map/unknown` | 三维未知体素，用于检查未知空间分布。 |
 | `/rog_map/inflated_occupied` | 膨胀后的三维占据点。 |
 | `/rog_map/inflated_unknown` | 膨胀后的未知体素。 |
