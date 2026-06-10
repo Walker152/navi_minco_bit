@@ -59,11 +59,9 @@ LidarMergerNode::LidarMergerNode(const rclcpp::NodeOptions & options) : Node("li
   pub_merged_ = this->create_publisher<livox_ros_driver2::msg::CustomMsg>(merged_topic_, qos);
 
   if (publish_pointcloud_) {
-    pub_front_cloud_ =
-      this->create_publisher<sensor_msgs::msg::PointCloud2>(front_cloud_topic_, qos);
+    pub_front_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(front_cloud_topic_, qos);
     pub_back_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(back_cloud_topic_, qos);
-    pub_merged_cloud_ =
-      this->create_publisher<sensor_msgs::msg::PointCloud2>(merged_cloud_topic_, qos);
+    pub_merged_cloud_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(merged_cloud_topic_, qos);
   }
 
   RCLCPP_INFO(this->get_logger(), "双雷达融合节点已启动。目标坐标系：主雷达 (前雷达)。");

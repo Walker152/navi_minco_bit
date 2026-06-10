@@ -36,9 +36,11 @@ def generate_launch_description():
             # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['1', '3', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['6.7', '3.9', '0', '0', '0', '0', 'map', 'camera_init'],
-            # arguments=['12', '5.0', '0', '1.57', '0', '0', 'map', 'camera_init'],
+            # arguments=['9.0', '4.0', '0', '1.57', '0', '0', 'map', 'camera_init'],
             # 2026 rmuc
-            arguments=['4.0', '7.3', '0', '0', '0', '0', 'map', 'camera_init'],
+            # x坐标：台阶到基地边缘1655mm+基地长1881mm+车身y半长198.5mm+地图投影边缘300mm=4036mm
+            # y坐标：场地y半长7500mm-半车宽191mm=7309mm
+            arguments=['4.034', '7.3', '0', '0', '0', '0', 'map', 'camera_init'],
             output='screen'),
 
         # 静态TF: map -> minimap
@@ -47,8 +49,8 @@ def generate_launch_description():
             executable='static_transform_publisher',
             name='static_tf_map_to_minimap',
             # 红方使用全0，蓝方使用28,12
-            # arguments=['0', '0', '0', '0', '0', '0', 'map', 'minimap'],
-            arguments=['28', '15', '0', '3.14', '0', '0', 'map', 'minimap'],
+            # arguments=['0.3', '0', '0', '0', '0', '0', 'map', 'minimap'],
+            arguments=['28.7', '15', '0', '3.14', '0', '0', 'map', 'minimap'],
             output='screen'),
 
         # 静态TF: camera_init -> body
