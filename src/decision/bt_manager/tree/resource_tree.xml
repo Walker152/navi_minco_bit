@@ -12,14 +12,14 @@
             <RequestReviveAction revive_type="free" />
           </Sequence>
           <!-- 金币复活：在敌方半场或进攻战术 + 金币充足 -->
-          <Sequence name="InstantRevive">
+          <!-- <Sequence name="InstantRevive">
             <Fallback>
               <CheckInZone zone_name="enemy_defense" branch="InstantRevive" />
               <CheckTacticalModeCondition mode="attack" branch="InstantRevive" />
             </Fallback>
             <CheckCoinRemaining threshold="{instant_resurrect_cost}" mode="greater" branch="InstantRevive" />
-            <RequestReviveAction revive_type="instant" />
-          </Sequence>
+            <RequestReviveAction revive_type="instant" max_instant_revive_count="1" />
+          </Sequence> -->
         </ReactiveFallback>
       </ReactiveSequence>
 

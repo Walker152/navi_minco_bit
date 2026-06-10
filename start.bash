@@ -4,7 +4,7 @@ source ./install/setup.bash
 
 # PTP Sync
 gnome-terminal -- bash -c "sudo ./scripts/ptp_sync.bash; exec bash"
-# sleep 10
+sleep 10
 
 # MID360 
 gnome-terminal -- bash -c "ros2 launch livox_ros_driver2 msg_MID360_launch.py; exec bash"
@@ -12,19 +12,19 @@ sleep 1
 
 # Lidar Merger
 # gnome-terminal -- bash -c "ros2 launch lidar_merger dual_lidar_merger.launch.py; exec bash"
-sleep 3
+# sleep 3
 
 # SLAM
 gnome-terminal -- bash -c "ros2 launch point_lio point_lio.launch.py; exec bash"
-sleep 5
+sleep 1
 
 # ICP
 # gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
 # sleep 1
 
-# # Cloud Crop Filter
-# gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
-# sleep 1
+# Cloud Crop Filter
+gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
+sleep 1
 
 # Navigation2
 gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"
@@ -40,9 +40,24 @@ sleep 1
 # Communication
 gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
 
-
 # Rosbag record
-# gnome-terminal -- bash -c "mkdir -p ~/roslaunchbag && ros2 bag record -a -o ~/rosbag/$(date +%Y%m%d_%H%M%S); exec bash"
+ROSBAG_TOPICS=(
+  /tf
+  /tf_static
+  /aft_mapped_to_init
+  /map
+  /global_costmap/costmap_raw
+  /opt_path
+  /opt_path_vis
+  /astar_path_vis
+  /recover_goal
+  /mpc_predict_path
+  /cmd_vel_mpc
+  /cmd_force_mpc
+  /sentry/behaivor_send
+  /sentry/area_markers
+)
+# gnome-terminal -- bash -c "mkdir -p ~/rosbag && ros2 bag record -o ~/rosbag/$(date +%Y%m%d_%H%M%S) ${ROSBAG_TOPICS[*]}; exec bash"
 
 # Foxglove
 # gnome-terminal -- bash -c "ros2 launch foxglove_bridge foxglove_bridge_launch.xml port:=8765; exec bash"

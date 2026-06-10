@@ -43,7 +43,7 @@
               <Inverter>
                 <CheckInEnemyFortZone branch="ArrivedEnemyFortRandomGyro" />
               </Inverter>
-              <SetGyroState use_gyro="false"
+              <SetGyroState use_gyro="true"
                             gyro_vel="0.0"
                             random_speed="false" />
             </Sequence>
@@ -92,14 +92,16 @@
             <CheckEngagedStatus expected="false" branch="MoveStanceGyroBranch" />
           </Fallback>
           <SetGyroState use_gyro="true" 
-                        gyro_vel="20.0" 
+                        gyro_vel="40.0" 
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
           <Fallback name="MoveStanceSelector">
-            <Sequence name="DisengagedHighlandDefendBranch">
-              <CheckInZone zone_name="highland" branch="DisengagedHighlandDefendBranch" />
+            <!-- <Sequence name="DisengagedHighlandDefendBranch">
+              <Inverter>
+                <CheckInZone zone_name="own_defend" branch="DisengagedHighlandDefendBranch" />
+              </Inverter>
               <ChangeStance name="ChangeStanceDisengagedHighlandDefend" stance="DEFEND" />
-            </Sequence>
+            </Sequence> -->
             <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
           </Fallback>
         </Sequence>

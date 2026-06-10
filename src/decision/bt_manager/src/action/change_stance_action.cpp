@@ -166,6 +166,8 @@ float TunnelGyroAlignAction::computeTunnelGyroVelPid(double yaw_error,
 void TunnelGyroAlignAction::resetPidState()
 {
   pid_initialized_ = false;
+  target_yaw_selected_ = false;
+  selected_target_yaw_ = 0.0;
   integral_error_ = 0.0;
   last_error_ = 0.0;
 }
@@ -204,27 +206,43 @@ BT::NodeStatus TunnelGyroAlignAction::tick()
     return BT::NodeStatus::FAILURE;
   }
 
-  const double base_target_yaw = static_cast<double>(
+  const double configured_target_yaw = static_cast<double>(
     tunnel_recovery_configs[static_cast<std::size_t>(active_tunnel_idx)].tunnel_pass_yaw_target_rad);
-  const double current_yaw = yawFromQuaternion(current_pose.orientation);
-  const double error_forward = wrapAngle(base_target_yaw - current_yaw);
-  const double error_backward = wrapAngle(base_target_yaw + M_PI - current_yaw);
-  double yaw_error = 0.0;
-  if (!pid_initialized_) {
-    yaw_error = (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
-  } else {
-    const double forward_abs = std::abs(error_forward);
-    const double backward_abs = std::abs(error_backward);
-    if (forward_abs < (backward_abs - 0.5)) {
-      yaw_error = error_forward;
-    } else if (backward_abs < (forward_abs - 0.5)) {
-      yaw_error = error_backward;
-    } else {
-      const double forward_delta = std::abs(wrapAngle(error_forward - last_error_));
-      const double backward_delta = std::abs(wrapAngle(error_backward - last_error_));
-      yaw_error = (forward_delta <= backward_delta) ? error_forward : error_backward;
-    }
+  const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
+  if (!target_yaw_selected_) {
+    selected_target_yaw_ =
+      (enemy_defense_zone.contains(current_point) || own_defense_zone.contains(current_point))
+        ? configured_target_yaw
+        : wrapAngle(configured_target_yaw + M_PI);
+    target_yaw_selected_ = true;
   }
+  const double base_target_yaw = selected_target_yaw_;
+  const double current_yaw = yawFromQuaternion(current_pose.orientation);
+  const double yaw_error = wrapAngle(base_target_yaw - current_yaw);
+  // std::cout << CYAN << "[STANCE_TREE]" << GREEN << "TunnelGyroAlignAction: tunnel_idx=" <<
+  // active_tunnel_idx << ", current_yaw=" << current_yaw << ", target_yaw=" << base_target_yaw << ", yaw_error=" <<
+  //         yaw_error << RESET << std::endl;
+  // const double base_target_yaw = static_cast<double>(
+  // tunnel_recovery_configs[static_cast<std::size_t>(active_tunnel_idx)].tunnel_pass_yaw_target_rad);
+  // const double current_yaw = yawFromQuaternion(current_pose.orientation);
+  // const double error_forward = wrapAngle(base_target_yaw - current_yaw);
+  // const double error_backward = wrapAngle(base_target_yaw + M_PI - current_yaw);
+  // double yaw_error = 0.0;
+  // if (!pid_initialized_) {
+  //   yaw_error = (std::abs(error_forward) <= std::abs(error_backward)) ? error_forward : error_backward;
+  // } else {
+  //   const double forward_abs = std::abs(error_forward);
+  //   const double backward_abs = std::abs(error_backward);
+  //   if (forward_abs < (backward_abs - 0.5)) {
+  //     yaw_error = error_forward;
+  //   } else if (backward_abs < (forward_abs - 0.5)) {
+  //     yaw_error = error_backward;
+  //   } else {
+  //     const double forward_delta = std::abs(wrapAngle(error_forward - last_error_));
+  //     const double backward_delta = std::abs(wrapAngle(error_backward - last_error_));
+  //     yaw_error = (forward_delta <= backward_delta) ? error_forward : error_backward;
+  //   }
+  // }
 
   const auto now = std::chrono::steady_clock::now();
   const float computed_gyro_vel =
