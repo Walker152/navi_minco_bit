@@ -73,7 +73,6 @@ serial_packages=(
 	dbscan_cluster
 	communication
 	bt_manager
-	lidar_merger
 	minco_planner
 	minco_controller
 )

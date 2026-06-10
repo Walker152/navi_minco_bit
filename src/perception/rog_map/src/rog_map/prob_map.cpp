@@ -626,6 +626,57 @@ void ProbMap::boxSearch(
   }
 }
 
+void ProbMap::rawOccupiedBoxSearch(
+  const Vec3f & _box_min, const Vec3f & _box_max, vec_E<Vec3f> & out_points) const
+{
+  out_points.clear();
+  if (map_empty_) {
+    std::cout << YELLOW << " -- [ROG] Map is empty, cannot perform raw occupied box search." << RESET
+              << std::endl;
+    return;
+  }
+  if ((_box_max - _box_min).minCoeff() <= 0) {
+    std::cout << YELLOW << " -- [ROG] Raw occupied box search failed, box size is zero." << RESET
+              << std::endl;
+    return;
+  }
+
+  Vec3f box_min_d = _box_min, box_max_d = _box_max;
+  boundBoxByLocalMap(box_min_d, box_max_d);
+  if ((box_max_d - box_min_d).minCoeff() <= 0) {
+    std::cout << YELLOW << " -- [ROG] Raw occupied box search failed, box size is zero." << RESET
+              << std::endl;
+    return;
+  }
+
+  Vec3i box_min_id_g, box_max_id_g;
+  posToGlobalIndex(box_min_d, box_min_id_g);
+  posToGlobalIndex(box_max_d, box_max_id_g);
+  const Vec3i box_size = box_max_id_g - box_min_id_g;
+  out_points.reserve(box_size.prod() / 3);
+
+  for (int i = box_min_id_g.x() + 1; i < box_max_id_g.x(); ++i) {
+    for (int j = box_min_id_g.y() + 1; j < box_max_id_g.y(); ++j) {
+      for (int k = box_min_id_g.z() + 1; k < box_max_id_g.z(); ++k) {
+        const Vec3i id_g(i, j, k);
+        if (!insideLocalMap(id_g)) {
+          continue;
+        }
+        const int hash_id = getHashIndexFromGlobalIndex(id_g);
+        if (hash_id < 0 || hash_id >= static_cast<int>(occupancy_buffer_.size())) {
+          continue;
+        }
+        if (!isOccupied(occupancy_buffer_[hash_id])) {
+          continue;
+        }
+        Vec3f pos;
+        globalIndexToPos(id_g, pos);
+        out_points.push_back(pos);
+      }
+    }
+  }
+}
+
 void ProbMap::boxSearchInflate(
   const Vec3f & box_min, const Vec3f & box_max, const GridType & gt, vec_E<Vec3f> & out_points) const
 {
