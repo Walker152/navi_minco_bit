@@ -383,7 +383,7 @@ planner_server:
           # [projection][bool] 是否生成二维投影 layer；关闭会导致 QueryAdapter/ESDF 缺少二维语义输入。
           enable: true
           # [projection][m] 参与二维投影统计的 z 下界，基于 frame_id 而非默认地面；过高可能漏掉地面和低矮障碍。
-          min_z: -0.25
+          min_z: -0.75
           # [projection][m] 参与二维投影统计的 z 上界；过低会漏掉车体高度内障碍，过高会引入上方无关结构。
           max_z: 0.80
           # [projection][bool] UNKNOWN 是否写成障碍 mask；true 会阻挡 ESDF/规划，false 更开放但未知区域风险更高。
@@ -419,11 +419,11 @@ planner_server:
           # [projection][m] 可通过表面厚度阈值；过小会把粗糙地面判障碍，过大可能放行厚障碍。
           surface_thickness: 0.06
           # [projection][m] 最大可跨越台阶高度；调大能通过更高的台阶，但可能把较高的障碍误判为可通行。
-          max_step_height: 0.1
+          max_step_height: 0.5
           # [projection][degree] 最大可通行坡度；对 23 度通过角底盘可先 20~22 度，过大风险高，过小会拒绝坡道。
-          max_slope_deg: 20.0
+          max_slope_deg: 40.0
           # [projection][bool] 是否检查车体上方净空；开启会影响 PASSABLE/FREE/OCCUPIED 分类和 ESDF mask。
-          clearance_check_enable: true
+          clearance_check_enable: false
           # [projection][m] 车体顶部额外净空要求，不是机器人总高度；过大容易误判低顶空间不可通行。
           min_clearance_height: 0.05
           # [projection][m] 隧道墙/竖直墙高度阈值；调低更容易把竖直结构判为 OCCUPIED。
