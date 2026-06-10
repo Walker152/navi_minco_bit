@@ -17,3 +17,9 @@ build-*/
 .venv/
 .log/
 .bash
+.claude/
+.agents/
+.codex/
+AGENTS.md
+CLAUDE.md
+CODEX.md
