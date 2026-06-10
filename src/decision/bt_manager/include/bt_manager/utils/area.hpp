@@ -13,34 +13,34 @@ namespace Sentry_BT {
 // for rmuc
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
   AreaPolygon<6, Point2D>{
-    Point2D{8.5, 5.0}, Point2D{10.0, 5.0}, Point2D{11.5, 5.0},
-    Point2D{11.5, 0.1}, Point2D{10.0, 0.1}, Point2D{8.5, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{6.5, 6.5}, Point2D{10.0, 6.5}, Point2D{13.0, 6.5},
+    Point2D{13.0, 0.1}, Point2D{10.0, 0.1}, Point2D{6.5, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{19.5, 15.0},
-    Point2D{19.5, 11.5}, Point2D{18.75, 11.5}, Point2D{17.0, 11.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{16.0, 15.0}, Point2D{18.75, 15.0}, Point2D{22.0, 15.0},
+    Point2D{22.0, 8.5}, Point2D{18.75, 8.5}, Point2D{16.0, 8.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{7.6, 9.1}, Point2D{11.0, 13.8}, Point2D{16.7, 13.8},
-    Point2D{16.7, 12.5}, Point2D{12.7, 12.5}, Point2D{10.6, 9.1}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{7.6, 8.8}, Point2D{11.0, 14.5}, Point2D{18.5, 14.5},
+    Point2D{18.5, 12.5}, Point2D{12.7, 12.5}, Point2D{10.3, 8.8}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{12.3, 3.0}, Point2D{15.65, 3.0}, Point2D{19.0, 3.0},
-    Point2D{19.0, 1.2}, Point2D{15.65, 1.2}, Point2D{12.3, 1.2}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{21.4, 6.2}, Point2D{18.0, 0.5}, Point2D{10.5, 0.5},
+    Point2D{10.5, 2.5}, Point2D{16.3, 2.5}, Point2D{18.7, 6.2}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
   Area_Square{Point2D{14.7, 11.0}, Point2D{15.7, 12.0}},
 };  // 假设这是奖励区域的坐标范围
 inline std::array<Area_Square, 4> tunnel_zone = {
-  Area_Square{Point2D{10.4, 3.6}, Point2D{9.3, 1.8}},
-  Area_Square{Point2D{19.7, 13.2}, Point2D{18.6, 11.4}},
-  Area_Square{Point2D{14.1, 13.8}, Point2D{12.1, 13.0}},
-  Area_Square{Point2D{16.9, 2.0}, Point2D{14.9, 1.2}},
+  Area_Square{Point2D{10.2, 3.6}, Point2D{9.4, 1.9}},     // Home Right Tunnel
+  Area_Square{Point2D{19.6, 13.1}, Point2D{18.8, 11.4}},  // Enemy Right Tunnel
+  Area_Square{Point2D{15.4, 13.8}, Point2D{12.1, 13.0}},  // Home Left Tunnel
+  Area_Square{Point2D{17.2, 2.0}, Point2D{13.6, 1.2}},    // Enemy Left Tunnel
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
-  TunnelRecoveryConfig{-1.57f, Point2D{3.0, 3.0, 0.0}, Point2D{9.8, 2.8, 0.0}, 0.0f, 1.2f},
-  TunnelRecoveryConfig{1.57f, Point2D{3.0, 3.0, 0.0}, Point2D{19.1, 12.3, 0.0}, 0.0f, 1.0f},
-  TunnelRecoveryConfig{0.0f, Point2D{22.0, 7.5, 0.0}, Point2D{12.8, 13.3, 0.0}, 0.0f, 1.5f},
-  TunnelRecoveryConfig{3.14f, Point2D{22.0, 7.5, 0.0}, Point2D{15.8, 1.6, 0.0}, 0.0f, 1.4f},
+  TunnelRecoveryConfig{-1.57f, Point2D{3.0, 3.0, 0.0}, Point2D{9.8, 2.8, 0.0}, 0.0f, 1.2f}, // Home Right Tunnel
+  TunnelRecoveryConfig{1.57f, Point2D{3.0, 3.0, 0.0}, Point2D{19.1, 12.3, 0.0}, 0.0f, 1.0f}, // Enemy Right Tunnel
+  TunnelRecoveryConfig{0.0f, Point2D{22.0, 7.5, 0.0}, Point2D{12.8, 13.3, 0.0}, 0.0f, 1.5f}, // Home Left Tunnel
+  TunnelRecoveryConfig{3.14f, Point2D{22.0, 7.5, 0.0}, Point2D{15.8, 1.6, 0.0}, 0.0f, 1.4f}, // Enemy Left Tunnelb
 };
 inline std::array<Area_Square, 2> stairs_zone{
   Area_Square{Point2D{9.4, 1.8}, Point2D{8.0, 0.2}},
@@ -52,11 +52,11 @@ inline std::array<Area_Square, 2> stairs_lower_safe_zone{
 };
 inline AreaPolygon<8, Point2D> highland_zone{
   Point2D{13.2, 12.7}, 
-  Point2D{10.9, 10.0},
+  Point2D{10.9, 9.8},
   Point2D{10.9, 4.8},
   Point2D{13.5, 2.3},
   Point2D{15.8, 2.3},
-  Point2D{18.1, 5.0},
+  Point2D{18.1, 5.2},
   Point2D{18.1, 10.2},
   Point2D{15.5, 12.7},
 };
@@ -64,7 +64,7 @@ inline AreaPolygon<8, Point2D> own_defense_zone{
   Point2D{0.3, 9.8}, 
   Point2D{8.3, 9.8},
   Point2D{11.0, 13.6},
-  Point2D{12.9, 13.6},
+  Point2D{13.3, 13.6},
   Point2D{9.6, 8.4},
   Point2D{9.6, 6.9},
   Point2D{10.6, 4.4},
@@ -74,7 +74,7 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{28.7, 5.2}, 
   Point2D{20.7, 5.2},
   Point2D{18.0, 1.4},
-  Point2D{16.1, 1.4},
+  Point2D{15.8, 1.4},
   Point2D{19.4, 6.6},
   Point2D{19.4, 8.1},
   Point2D{18.4, 10.6},
@@ -92,7 +92,9 @@ inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{13.3, 9.7},
   Point2D{14.7, 9.7},
 };
-inline Area_Circle enemy_fort_zone{Point2D{22.0, 7.5}, 0.7};
+inline Area_Circle enemy_fort_zone{Point2D{22.0, 7.5}, 1.0};
+inline Area_Circle enemy_fort_engage_zone{Point2D{22.0, 7.5}, 0.3};
+
 inline AreaPolygon<6, Point2D> own_highland_buff_zone{
   Point2D{13.0, 12.3},
   Point2D{13.0, 11.1},
@@ -159,17 +161,42 @@ inline std::vector<Point2D> nav_points = {
   // {7.5, 6.8, 0.0}  // OUTPOST
 };
 
-inline std::vector<PatrolPoint> patrol_points_normal = {
-  // for rmuc
-  {{16.0, 11.2, 0.0}, 5000},
-  // {{17.3, 8.5, 0.0}, 5000},
-  {{12.2, 10.5, 0.0}, 5000},
+using PatrolList = std::vector<PatrolPoint>; 
+inline std::vector<PatrolList> normal_patrol_branches = {
+    {  
+        {{20.2, 14.0, 0.0}, 5000}  // 雷霆大坐点位
+    },
+    {
+        {{21.0, 7.3, 0.0}, 5000},
+        {{24.0, 7.8, 0.0}, 5000},
+        {{20.4, 6.0, 0.0}, 5000} // 冲家巡逻点
+    },
+    {
+        {{16.1, 10.4, 0.0}, 5000},
+        {{17.2, 8.3, 0.0}, 5000},
+        // {{12.0, 10.4, 0.0}, 5000} // 高地巡逻点
+    }
+    //可继续加
 };
 
-inline std::vector<PatrolPoint> patrol_points_attack = {
-  {{16.0, 12.0, 0.0}, 5000}, {{17.3, 7.9, 0.0}, 5000}, {{15.3, 11.0, 0.0}, 6000}
+inline std::vector<PatrolList> attack_patrol_branches = {
+    {   
+        {{20.2, 14.0, 0.0}, 5000}
+    },
+    { 
+        {{21.0, 9.7, 0.0}, 5000},
+        {{24.0, 7.8, 0.0}, 5000},
+        {{20.4, 6.0, 0.0}, 5000}
+    },
+    {
+        {{16.1, 10.4, 0.0}, 5000},
+        {{17.2, 8.3, 0.0}, 5000},
+        // {{12.0, 10.4, 0.0}, 5000}
+    }
+    //可继续加
 };
 #endif
+
 #ifdef TEST_AREA
 // for test
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
@@ -323,10 +350,12 @@ inline std::vector<PatrolPoint> patrol_points_normal = {
   {{10.0, 2.3, 0.0}, 5000},
   {{11.6, 2.0, 0.0}, 5000},
   {{9.6, 2.6, 0.0}, 5000}
-  };
+};
 
 inline std::vector<PatrolPoint> patrol_points_attack = {
-  {{16.0, 12.0, 0.0}, 5000}, {{17.3, 7.9, 0.0}, 5000}, {{15.3, 11.0, 0.0}, 6000}
+  {{16.0, 12.0, 0.0}, 5000}, 
+  {{17.3, 7.9, 0.0}, 5000}, 
+  {{15.3, 11.0, 0.0}, 6000}
 };
 #endif
 // =============== 战略模式：巡逻点与云台巡检区域映射表 ===============
@@ -345,7 +374,8 @@ enum class PatrolZoneType {
   ENEMY_DEFENSE,
   OWN_DEFENSE,
   HIGHLAND,
-  OWN_OUTPOST
+  OWN_OUTPOST,
+  STAIRZONE
 };
 
 struct PatrolZoneTypeHash {
@@ -360,29 +390,31 @@ inline std::unordered_map<TacticalMode, std::unordered_map<PatrolZoneType, Gimba
     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
-    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}}
+    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
+    {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
   }},
   {TacticalMode::DEFENSIVE, {
     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
-    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}}
+    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
+    {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
   }},
   {TacticalMode::BALANCED, {
     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
-    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}}
+    {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
+    {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
   }}
 };
 
 // 1. 底盘巡逻点映射表 (TacticalMode -> PatrolList)
-inline std::unordered_map<TacticalMode, PatrolList> tactical_patrol_map = {
-  {TacticalMode::OFFENSIVE, patrol_points_attack},
-  {TacticalMode::DEFENSIVE, patrol_points_normal},
-  {TacticalMode::BALANCED, patrol_points_normal}
+inline std::unordered_map<TacticalMode, std::vector<PatrolList>> tactical_patrol_branches = {
+    {TacticalMode::DEFENSIVE, normal_patrol_branches},
+    {TacticalMode::BALANCED, normal_patrol_branches},
+    {TacticalMode::OFFENSIVE, attack_patrol_branches}
 };
-
 // clang-format on
 inline const std::unordered_map<TacticalMode, std::vector<AreaPolygon<8, Point2D>>> tracking_areas = {
   {TacticalMode::DEFENSIVE, {own_defense_zone, highland_zone, enemy_defense_zone}},
