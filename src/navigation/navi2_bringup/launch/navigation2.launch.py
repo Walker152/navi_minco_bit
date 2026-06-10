@@ -36,7 +36,7 @@ def generate_launch_description():
             # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['1', '3', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['6.7', '3.9', '0', '0', '0', '0', 'map', 'camera_init'],
-            # arguments=['12', '5.0', '0', '1.57', '0', '0', 'map', 'camera_init'],
+            # arguments=['9.0', '4.0', '0', '1.57', '0', '0', 'map', 'camera_init'],
             # 2026 rmuc
             # x坐标：台阶到基地边缘1655mm+基地长1881mm+车身y半长198.5mm+地图投影边缘300mm=4036mm
             # y坐标：场地y半长7500mm-半车宽191mm=7309mm
@@ -50,24 +50,24 @@ def generate_launch_description():
             name='static_tf_map_to_minimap',
             # 红方使用全0，蓝方使用28,12
             # arguments=['0.3', '0', '0', '0', '0', '0', 'map', 'minimap'],
-            arguments=['28.3', '15', '0', '3.14', '0', '0', 'map', 'minimap'],
+            arguments=['28.7', '15', '0', '3.14', '0', '0', 'map', 'minimap'],
             output='screen'),
 
         # 静态TF: camera_init -> body
-        launch_ros.actions.Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_tf_camera_init_to_body',
-            arguments=['0', '0', '0', '0', '0', '0', 'camera_init', 'body'],
-            output='screen'),
+        # launch_ros.actions.Node(
+        #     package='tf2_ros',
+        #     executable='static_transform_publisher',
+        #     name='static_tf_camera_init_to_body',
+        #     arguments=['0', '0', '0', '0', '0', '0', 'camera_init', 'body'],
+        #     output='screen'),
 
-        # 静态TF: body -> base_link
-        launch_ros.actions.Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_tf_body_to_base_link',
-            arguments=['0', '-0.20', '0', '0', '0', '0', 'body', 'base_link'],
-            output='screen'),
+        # # 静态TF: body -> base_link
+        # launch_ros.actions.Node(
+        #     package='tf2_ros',
+        #     executable='static_transform_publisher',
+        #     name='static_tf_body_to_base_link',
+        #     arguments=['0', '0.20', '0', '0', '0', '0', 'body', 'base_link'],
+        #     output='screen'),
         # 声明新的 Launch 参数
         launch.actions.DeclareLaunchArgument('use_sim_time', default_value=use_sim_time,
                                              description='Use simulation (Gazebo) clock if true'),
