@@ -18,6 +18,8 @@ void ROGMapVisualizer::configure(const rclcpp::node_interfaces::NodeBaseInterfac
 
   const rclcpp::QoS qos(rclcpp::QoS(1).best_effort().keep_last(1).durability_volatile());
   pubs_.occ_pub = createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/occupied", qos);
+  pubs_.raw_occ_pub =
+    createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/raw_occupied", qos);
   pubs_.unknown_pub = createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/unknown", qos);
   pubs_.occ_inf_pub =
     createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/inflated_occupied", qos);
