@@ -115,8 +115,8 @@ void ProbMap::initProbMap()
   int map_size = sc_.map_size_i.prod();
 
   occupancy_buffer_.resize(map_size, 0);
-  last_hit_time_.resize(map_size, 0.0f);
-  last_update_time_.resize(map_size, 0.0f);
+  last_hit_time_.resize(map_size, 0.0);
+  last_update_time_.resize(map_size, 0.0);
   active_flags_.resize(map_size, 0U);
   active_ids_.clear();
   dirty_column_flags_.resize(
@@ -819,8 +819,8 @@ void ProbMap::hitPointUpdate(const Vec3f & pos, const int & hash_id, const int &
   markDirtyColumn(id_g);
 
   if (hash_id >= 0 && hash_id < static_cast<int>(last_hit_time_.size())) {
-    last_hit_time_[hash_id] = static_cast<float>(current_update_time_);
-    last_update_time_[hash_id] = static_cast<float>(current_update_time_);
+    last_hit_time_[hash_id] = current_update_time_;
+    last_update_time_[hash_id] = current_update_time_;
     if (!active_flags_[hash_id]) {
       active_flags_[hash_id] = 1U;
       active_ids_.push_back(hash_id);
@@ -910,7 +910,7 @@ bool ProbMap::applyDecay(double now)
 
     prob =
       static_cast<float>(std::max(static_cast<double>(cfg_.l_min), static_cast<double>(prob) - rate * dt));
-    last_update_time_[hash_id] = static_cast<float>(now);
+    last_update_time_[hash_id] = now;
 
     const GridType to_type = classifyProb(prob);
     if (from_type != to_type) {
