@@ -1134,9 +1134,9 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   auto opt_end_time = rclcpp::Clock().now().seconds();
   double opt_duration = opt_end_time - opt_start_time;
-  // std::cout << GREEN << "[MincoPlanner] Minco optimization time: "
-  //           << opt_duration << " seconds, "
-  //           << "cost: " << final_cost << RESET << std::endl;
+  std::cout << GREEN << "[MincoPlanner] Minco optimization time: "
+            << opt_duration << " seconds, "
+            << "cost: " << final_cost << RESET << std::endl;
 
   // 8.5 Quality gating (hard validation) before publishing.
   if (!validateTrajectory(opt_traj, end_state.col(0))) {

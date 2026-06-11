@@ -407,7 +407,7 @@ planner_server:
           # [projection][cell] hole fill 邻域半径；调大会填更多洞并增加 projection 计算量。
           hole_fill_radius: 1
           # [projection][cell数] 判定洞周围障碍邻居数量；调低更保守，调高减少误填。
-          hole_fill_min_occupied_neighbors: 7
+          hole_fill_min_occupied_neighbors: 5
           # [projection][bool] 是否启用地形可通行分析；开启后综合车体碰撞带、坡度、台阶、净空等判断 PASSABLE。
           terrain_enable: true
           # [projection][m] 车体碰撞带 z 下界，基于 ROGMap frame；若 camera_init 在雷达高度附近，不能直接写地面系高度。
@@ -448,7 +448,7 @@ planner_server:
           # [performance][bool] 是否启用性能统计；影响统计、发布和 CSV，不直接改变地图逻辑。
           enable: true
           # [performance][bool] 是否输出性能 CSV；开启会写文件并增加少量 IO 开销。
-          csv_enable: false
+          csv_enable: true
           # [performance][path] 性能 CSV 路径；需保证进程有写权限，路径错误会导致日志文件不可用。
           csv_path: /tmp/rog_map_performance.csv
           # [performance][path] 地图信息 CSV 路径；用于记录地图配置和尺寸，调参审计时有用。
