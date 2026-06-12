@@ -214,7 +214,8 @@ global_costmap:
       robot_radius: 0.20
       resolution: 0.05
       track_unknown_space: true
-      plugins: ["static_layer", "stvl_layer", "inflation_layer"]
+      # plugins: ["static_layer", "stvl_layer", "inflation_layer"]
+      plugins: ["static_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
@@ -289,6 +290,7 @@ planner_server:
     MincoPlanner:
       plugin: "minco_planner/MincoPlanner"
       planner_mode: PRIORMAP
+      # planner_mode: EXPLORATION
       frames:
         map_frame: map
         rog_frame: camera_init
@@ -349,7 +351,7 @@ planner_server:
           # [raycasting][m,m] 射线有效距离 [min,max]；min 过大会忽略近处点，max 过大会增加计算量并可能引入远处噪声。
           ray_range: [0.30, 10.0]
           # [raycasting][m,m,m] 每次局部更新盒尺寸；调大覆盖更多点但 raycasting 和 dirty column 数量上升。
-          local_update_box: [10.0, 10.0, 1.5]
+          local_update_box: [10.0, 10.0, 2.5]
           # [raycasting][概率] unknown 判断阈值相关参数；影响 UNKNOWN/FREE/OCCUPIED 判定，进而影响 projection layer。
           unk_thresh: 0.70
           # [raycasting][概率] 命中点增加占据概率的强度；调大障碍更快变 OCCUPIED，但噪声也更容易固化。
@@ -373,9 +375,9 @@ planner_server:
           # [decay][bool] 是否启用动态障碍遗忘；关闭会让旧障碍长期残留，影响 layer、ESDF 和规划安全。
           enable: true
           # [decay][s] 观测后保持时间；过短障碍闪烁，过长动态障碍残留。
-          keep_time: 0.35
+          keep_time: 1.0
           # [decay][s] 从 occupied 衰减到 free 的时间尺度；过短清除激进，过长 ESDF 障碍源残留。
-          decay_time: 1.0
+          decay_time: 3.0
           # [decay][bool] 只维护活跃 cell 衰减列表；开启通常降低计算量，若列表维护异常会影响动态清除完整性。
           active_list_enable: true
 
@@ -407,13 +409,13 @@ planner_server:
           # [projection][cell] hole fill 邻域半径；调大会填更多洞并增加 projection 计算量。
           hole_fill_radius: 1
           # [projection][cell数] 判定洞周围障碍邻居数量；调低更保守，调高减少误填。
-          hole_fill_min_occupied_neighbors: 7
+          hole_fill_min_occupied_neighbors: 5
           # [projection][bool] 是否启用地形可通行分析；开启后综合车体碰撞带、坡度、台阶、净空等判断 PASSABLE。
           terrain_enable: true
           # [projection][m] 车体碰撞带 z 下界，基于 ROGMap frame；若 camera_init 在雷达高度附近，不能直接写地面系高度。
           robot_body_z_min: -0.23
           # [projection][m] 车体碰撞带 z 上界，基于 ROGMap frame；误配会导致地面/上方结构被错误纳入碰撞带。
-          robot_body_z_max: 0.05
+          robot_body_z_max: 0.25
           # [projection][m] 可通过表面厚度阈值；过小会把粗糙地面判障碍，过大可能放行厚障碍。
           surface_thickness: 0.08
           # [projection][m] 最大可跨越台阶高度；调大能通过更高的台阶，但可能把较高的障碍误判为可通行。
@@ -425,7 +427,7 @@ planner_server:
           # [projection][m] 车体顶部净空要求（合并原 overhead_clearance_margin）；检查 ceiling_z 是否低于 body_z_max+此值，低于则阻挡。
           min_clearance_height: 0.02
           # [projection][m] 隧道墙/竖直墙高度阈值；调低更容易把竖直结构判为 OCCUPIED。
-          tunnel_wall_min_height: 0.50
+          tunnel_wall_min_height: 0.20
           # [projection][bool] PASSABLE 是否在 layer_value 中写成 FREE；无论 true/false，PASSABLE 的 mask 都为 1，会作为 ESDF 可通行区。
           passable_as_free: true
         field:
@@ -454,19 +456,19 @@ planner_server:
           # [performance][path] 地图信息 CSV 路径；用于记录地图配置和尺寸，调参审计时有用。
           map_info_csv_path: /tmp/rog_map_info.csv
           # [performance][bool] 是否启用详细逐帧统计；关闭后不写 detailed CSV，降低诊断开销。
-          detailed_enable: true
+          detailed_enable: false
           # [performance][bool] 是否写逐帧 detailed CSV；每次有效 updateMapInternal 写一行。
-          detailed_csv_enable: true
+          detailed_csv_enable: false
           # [performance][path] 逐帧 detailed CSV 路径，用于定位单帧 raycast/projection/field/query 瓶颈。
           detailed_csv_path: /tmp/rog_map_perf_detailed.csv
           # [performance][bool] 是否写窗口 summary CSV；按 summary_rate 聚合输入、更新、field 和可视化频率。
-          summary_csv_enable: true
+          summary_csv_enable: false
           # [performance][path] 窗口 summary CSV 路径，用于 tail -f 快速观察瓶颈。
           summary_csv_path: /tmp/rog_map_perf_summary.csv
           # [performance][行] CSV flush 间隔；避免每行强制 flush 变成新瓶颈，节点退出时仍会关闭文件。
           csv_flush_every_n: 30
           # [performance][bool] 是否发布性能 topic；开启便于在线观察，增加极小发布开销。
-          publish_enable: true
+          publish_enable: false
           # [performance][topic] 性能统计发布 topic；仅影响监控订阅路径。
           topic: /rog_map/performance
           # [performance][bool] 是否打印性能摘要；开启便于调试但会增加终端输出噪声。
