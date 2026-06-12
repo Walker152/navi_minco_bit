@@ -284,8 +284,8 @@ BT::NodeStatus CheckStanceCooldown::tick()
   const double cooldown = getInput<double>("cooldown").value_or(5.0);
 
   const auto last_change = ChangeStance::getLastChangeTime();
-  const auto now = std::chrono::system_clock::now();
-  const double elapsed = (last_change == std::chrono::time_point<std::chrono::system_clock>::min())
+  const auto now = std::chrono::steady_clock::now();
+  const double elapsed = (last_change == std::chrono::time_point<std::chrono::steady_clock>::min())
                            ? std::numeric_limits<double>::infinity()
                            : std::chrono::duration<double>(now - last_change).count();
 

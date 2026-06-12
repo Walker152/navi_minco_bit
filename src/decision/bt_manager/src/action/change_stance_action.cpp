@@ -5,8 +5,8 @@
 
 using namespace color_text;
 namespace Sentry_BT {
-std::chrono::time_point<std::chrono::system_clock> ChangeStance::last_change_time_ =
-  std::chrono::time_point<std::chrono::system_clock>::min();
+std::chrono::time_point<std::chrono::steady_clock> ChangeStance::last_change_time_ =
+  std::chrono::time_point<std::chrono::steady_clock>::min();
 
 // ------------------- SetGyroState -------------------
 SetGyroState::SetGyroState(const std::string & name, const BT::NodeConfiguration & config)
@@ -342,7 +342,7 @@ BT::NodeStatus ChangeStance::applyStanceChange()
   // std::cout << MAGENTA << "[STANCE_TREE]" << GREEN << "Change from stance "
   //           << stance_to_string(current_stance_) << " to stance " << stance_to_string(desired_stance_)
   //           << RESET << std::endl;
-  last_change_time_ = std::chrono::system_clock::now();
+  last_change_time_ = std::chrono::steady_clock::now();
   return BT::NodeStatus::SUCCESS;
 }
 
