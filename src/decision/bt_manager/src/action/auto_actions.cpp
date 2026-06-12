@@ -23,23 +23,27 @@ BT::PortsList SetCoordinate::providedPorts()
 BT::NodeStatus SetCoordinate::tick()
 {
   auto goal_index = getInput<int>("goal");
+  if (!goal_index) {
+    throw BT::RuntimeError("missing required input [goal]: ", goal_index.error());
+  }
+  const int idx = goal_index.value();
 
-  if (goal_index.value() < 0 || goal_index.value() >= static_cast<int>(nav_points.size())) {
+  if (idx < 0 || idx >= static_cast<int>(nav_points.size())) {
     return BT::NodeStatus::FAILURE;
   }
 
   static const std::array<std::string, 6> goal_names = {
     "HOME", "BONUS", "ENEMY_OUTPOST", "OWN_FORT", "ENEMY_FORT", "OWN_OUTPOST"};
-  Sentry_BT::Point2D point = nav_points[goal_index.value()];
+  Sentry_BT::Point2D point = nav_points[idx];
 
   auto blackboard = config().blackboard;
   blackboard->set("nav_goal", point);
   static int last_goal_index = -1;
-  if (goal_index.value() != last_goal_index) {
+  if (idx != last_goal_index) {
     std::cout << CYAN << "[NAV_TREE]" << GREEN << "Set navigation goal to "
-              << goal_names[goal_index.value()] << ": (" << point.x << ", " << point.y << ")" << RESET
+              << goal_names[idx] << ": (" << point.x << ", " << point.y << ")" << RESET
               << std::endl;
-    last_goal_index = goal_index.value();
+    last_goal_index = idx;
   }
   return BT::NodeStatus::SUCCESS;
 }
@@ -121,6 +125,10 @@ BT::NodeStatus SetTargetCoordinate::tick()
     point.x = target_x + ux * tracing_dist;
     point.y = target_y + uy * tracing_dist;
     guidance_case = 0;
+  } else {
+    // 机器人已基本到达目标，方向向量无意义。保持当前位置为目标点，避免落到地图原点 (0,0)。
+    point.x = current_x;
+    point.y = current_y;
   }
   static int last_guidance_case = -1;
   if (guidance_case != last_guidance_case) {
@@ -259,9 +267,7 @@ BT::NodeStatus SelectPatrolPoint::tick()
 
   // 获取当前巡逻索引
   int current_index = 0;
-  if (auto index = blackboard->get<int>("patrol_index")) {
-    current_index = index;
-  } else {
+  if (!blackboard->get<int>("patrol_index", current_index)) {
     blackboard->set("patrol_index", current_index);
   }
 
@@ -298,6 +304,13 @@ BT::NodeStatus SelectPatrolPoint::tick()
     patrol_points = Sentry_BT::normal_patrol_branches.at(0);
   }
 
+  // 巡逻点列表为空时直接失败，避免下方 [] 越界与 % size() 除零
+  if (patrol_points.empty()) {
+    std::cerr << "[WARN] SelectPatrolPoint: empty patrol list for tactical mode "
+              << static_cast<int>(tactical_mode) << ", branch " << branch << std::endl;
+    return BT::NodeStatus::FAILURE;
+  }
+
   // 检查索引有效性
   if (current_index >= static_cast<int>(patrol_points.size())) {
     current_index = 0;
@@ -329,7 +342,7 @@ Wait::Wait(const std::string & name, const BT::NodeConfiguration & config)
 
 BT::PortsList Wait::providedPorts()
 {
-  return {BT::InputPort<int>("milliseconds")};
+  return {BT::InputPort<int>("milliseconds", 0, "Fallback wait time when patrol point has none")};
 }
 
 BT::NodeStatus Wait::onStart()
@@ -353,14 +366,14 @@ BT::NodeStatus Wait::onStart()
   }();
 
   int effective_index = patrol_index;
-  if (patrol_index >= static_cast<int>(patrol_list.size())) {
+  if (patrol_index < 0 || patrol_index >= static_cast<int>(patrol_list.size())) {
     effective_index = 0;
   }
 
-  auto wait_time = patrol_list[effective_index].duration_ms;
+  // 巡逻点为空时退回到 milliseconds 端口（默认 0），避免空表越界
+  int wait_time = patrol_list.empty() ? 0 : patrol_list[effective_index].duration_ms;
   if (!wait_time) {
-    auto time = getInput<int>("milliseconds");
-    wait_time = time.value();
+    wait_time = getInput<int>("milliseconds").value_or(0);
   }
 
   static int last_wait_time = -1;

@@ -71,7 +71,10 @@ BT::NodeStatus SetGimbalPose::tick()
   auto blackboard = config().blackboard;
 
   const auto gimbal_mode = getInput<int>("mode");
-  const PitchPos pos = gimbal_mode == 1 ? PitchPos::DOWN : PitchPos::UP;
+  if (!gimbal_mode) {
+    throw BT::RuntimeError("missing required input [mode]: ", gimbal_mode.error());
+  }
+  const PitchPos pos = gimbal_mode.value() == 1 ? PitchPos::DOWN : PitchPos::UP;
   blackboard->set<PitchPos>("pitch_mode", pos);
   return BT::NodeStatus::SUCCESS;
 }
@@ -95,7 +98,7 @@ BT::NodeStatus SetGimbalPoseByAreaAction::tick()
 
   Point2D current_pt{current_pose.position.x, current_pose.position.y, 0.0};
   bool is_in_zone = false;
-  PatrolZoneType target_zone;
+  PatrolZoneType target_zone = PatrolZoneType::HIGHLAND;
 
   for (const auto & zone : stairs_zone) {
     if (zone.contains(current_pt)) {

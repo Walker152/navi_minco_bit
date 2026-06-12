@@ -85,6 +85,7 @@ private:
   float last_health_ = std::numeric_limits<float>::max();
   std::chrono::steady_clock::time_point last_health_change_time_;
   bool cooldown_active_ = false;
+  bool initialized_ = false;
 };
 
 class CheckTargetLocked : public BT::ConditionNode
