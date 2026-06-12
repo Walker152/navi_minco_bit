@@ -611,20 +611,29 @@ void PerformanceMonitor::maybeWriteSummary(double stamp)
               << window_.projection_max << " field=" << window_.field_sum / updates << '/'
               << window_.field_max << " query=" << window_.query_sum / updates << '/'
               << window_.query_max << '\n'
-              << "  projection: full=" << window_.full_refresh_delta
+              << " projection: full=" << window_.full_refresh_delta
               << " dirty=" << window_.dirty_update_delta
               << " dirty_ratio_avg=" << window_.dirty_ratio_sum / updates
               << " mask_change=" << window_.mask_changed_delta
               << " avg_mask_diff=" << window_.mask_diff_ratio_sum / updates << '\n'
-              << "  field: updates=" << window_.field_updates
+              << " field: updates=" << window_.field_updates
               << " skips=" << window_.field_skip_delta
               << " skip_not_dirty=" << window_.field_skip_not_dirty_delta
               << " skip_period=" << window_.field_skip_period_not_ready_delta
               << " seq=" << stats_.field_sequence << " age_ms=" << stats_.field_age_ms << '\n'
-              << "  points: avg=" << window_.input_points_sum / updates
+              << " points: avg=" << window_.input_points_sum / updates
               << " max=" << window_.input_points_max
               << " dropped_no_odom=" << dropped_cloud_no_odom_count_
-              << " dropped_timeout=" << dropped_cloud_odom_timeout_count_ << std::endl;
+              << " dropped_timeout=" << dropped_cloud_odom_timeout_count_ 
+              << " raycast_latest: input = " << stats_.raycast_input_point_count
+              << " used=" << stats_.raycast_used_point_count
+              << " hit=" << stats_.hit_count
+              << " miss=" << stats_.miss_count
+              << " skip_near=" << stats_.raycast_skipped_near_count
+              << " skip_far=" << stats_.raycast_skipped_far_count
+              << " skip_outside=" <<stats_.raycast_skipped_outside_count
+              << " decayed=" << stats_.decayed_count
+              << std::endl;
   }
   resetWindow(stamp);
 }

@@ -126,8 +126,8 @@ namespace rog_map {
         ESDFMap::Ptr esdf_map_;
         /// Spherical neighborhood lookup table
         std::vector<float> occupancy_buffer_;
-        std::vector<float> last_hit_time_;
-        std::vector<float> last_update_time_;
+        std::vector<double> last_hit_time_;
+        std::vector<double> last_update_time_;
         std::vector<int> active_ids_;
         std::vector<uint8_t> active_flags_;
         std::vector<int> dirty_column_ids_;
