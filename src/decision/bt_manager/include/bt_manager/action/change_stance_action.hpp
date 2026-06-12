@@ -68,7 +68,7 @@ public:
   BT::NodeStatus onRunning() override;
   void onHalted() override;
 
-  static std::chrono::time_point<std::chrono::steady_clock> getLastChangeTime()
+  static std::chrono::time_point<std::chrono::system_clock> getLastChangeTime()
   {
     return last_change_time_;
   }
@@ -79,7 +79,7 @@ private:
   SentryStance desired_stance_{SentryStance::DEFEND};
   SentryStance current_stance_{SentryStance::DEFEND};
 
-  static std::chrono::time_point<std::chrono::steady_clock> last_change_time_;
+  static std::chrono::time_point<std::chrono::system_clock> last_change_time_;
 };
 
 class UpdateEnhanceTime : public BT::SyncActionNode
