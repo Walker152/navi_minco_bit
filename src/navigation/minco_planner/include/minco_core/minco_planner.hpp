@@ -96,30 +96,12 @@ private:
     std::string failure_reason{"NONE"};
     double stamp_ros{0.0};
     long long stamp_steady_ns{0};
-    bool warm_start_used{false};
     bool success{false};
-    double duration_ms{0.0};
-    size_t global_path_point_count{0};
-    size_t local_dense_point_count{0};
-    size_t sparse_point_count{0};
-    size_t piece_count{0};
-    double trajectory_duration{std::numeric_limits<double>::quiet_NaN()};
-    double optimizer_iterations{std::numeric_limits<double>::quiet_NaN()};
-    double optimizer_return_code{std::numeric_limits<double>::quiet_NaN()};
-    double objective_total{std::numeric_limits<double>::quiet_NaN()};
-    double seed_min_esdf{std::numeric_limits<double>::quiet_NaN()};
-    double optimized_min_esdf{std::numeric_limits<double>::quiet_NaN()};
-    double min_esdf_improvement{std::numeric_limits<double>::quiet_NaN()};
-    double safe_violation_sample_count{std::numeric_limits<double>::quiet_NaN()};
-    double max_velocity{std::numeric_limits<double>::quiet_NaN()};
-    double max_acceleration{std::numeric_limits<double>::quiet_NaN()};
-    double max_jerk{std::numeric_limits<double>::quiet_NaN()};
-    double field_sequence{std::numeric_limits<double>::quiet_NaN()};
-    double snapshot_sequence{std::numeric_limits<double>::quiet_NaN()};
-    double field_age_ms{std::numeric_limits<double>::quiet_NaN()};
-    double query_failed_count{0.0};
-    bool old_traj_reused{false};
-    bool recovery_triggered{false};
+    double global_search_time_ms{std::numeric_limits<double>::quiet_NaN()};
+    double local_search_time_ms{std::numeric_limits<double>::quiet_NaN()};
+    double optimizer_time_ms{std::numeric_limits<double>::quiet_NaN()};
+    double total_replan_time_ms{std::numeric_limits<double>::quiet_NaN()};
+    double planner_hz{std::numeric_limits<double>::quiet_NaN()};
   };
 
   // === Utility & Helper Functions ===
@@ -163,9 +145,6 @@ private:
   void configureMincoPerfLogging(const nav2_util::LifecycleNode::SharedPtr & node, const std::string & prefix);
   void writeMincoPerfHeader();
   void writeMincoPerfRow(const MincoPerfSample & sample);
-  void sampleSeedClearance(const std::vector<Eigen::Vector3d> & seed_points, MincoPerfSample & sample) const;
-  void sampleTrajectoryMetrics(const traj_opt::Trajectory & traj, MincoPerfSample & sample) const;
-  void recordQueryMetadata(const rog_map::QueryResult & query, MincoPerfSample & sample) const;
 
   void initPlannerMode(
     const std::string & planner_mode_param, const std::string & map_frame, const std::string & rog_frame);
@@ -253,6 +232,7 @@ private:
 
   std::mutex path_mutex_;
   std::mutex goal_mutex_;
+  std::mutex perf_mutex_;
   mutable std::mutex odom_mutex_;
   mutable std::mutex mutex_;
 
@@ -260,6 +240,9 @@ private:
   rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
   std::ofstream minco_perf_csv_;
   int minco_perf_csv_rows_{0};
+  double last_global_search_time_ms_{std::numeric_limits<double>::quiet_NaN()};
+  bool has_fresh_global_search_time_{false};
+  long long last_minco_perf_stamp_ns_{0};
   std::string last_validation_failure_reason_{"KINEMATIC_VIOLATION"};
 };
 

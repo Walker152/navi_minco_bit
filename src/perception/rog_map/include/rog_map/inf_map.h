@@ -48,8 +48,6 @@ namespace rog_map {
 
         void getInflationNumAndTime(double &inf_n, double &inf_t);
 
-        void writeMapInfoToLog(std::ofstream &log_file);
-
         void boxSearch(const Vec3f &box_min, const Vec3f &box_max,
                        const GridType &gt, vec_E<Vec3f> &out_points) const;
 
@@ -88,4 +86,3 @@ namespace rog_map {
         void resetOneCell(const int &hash_id) override;
     };
 }
-

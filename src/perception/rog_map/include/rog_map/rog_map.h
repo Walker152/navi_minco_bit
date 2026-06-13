@@ -126,8 +126,6 @@ namespace rog_map {
 
     protected:
 
-        std::ofstream time_log_file_, map_info_log_file_;
-
         std::shared_ptr<ProjectionLayer> layer_;
         std::shared_ptr<DynamicLayer> field_;
         std::shared_ptr<QueryAdapter> query_;

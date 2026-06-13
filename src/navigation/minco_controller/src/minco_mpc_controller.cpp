@@ -8,6 +8,7 @@
 #include <cmath>
 #include <iomanip>
 #include <limits>
+#include <optional>
 #include <sstream>
 
 #include <Eigen/Geometry>
@@ -83,13 +84,11 @@ void MincoMpcController::configureMpcPerfLogging(
   const rclcpp_lifecycle::LifecycleNode::SharedPtr & node)
 {
   nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".performance.enable", rclcpp::ParameterValue(true));
+  nav2_util::declare_parameter_if_not_declared(
     node, name_ + ".performance.detailed_csv_enable", rclcpp::ParameterValue(false));
   nav2_util::declare_parameter_if_not_declared(
-    node, name_ + ".performance.award_csv_enable", rclcpp::ParameterValue(false));
-  nav2_util::declare_parameter_if_not_declared(
     node, name_ + ".performance.mpc_csv_path", rclcpp::ParameterValue(mpc_perf_csv_path_));
-  nav2_util::declare_parameter_if_not_declared(
-    node, name_ + ".performance.deadline_ms", rclcpp::ParameterValue(mpc_perf_deadline_ms_));
   nav2_util::declare_parameter_if_not_declared(
     node, name_ + ".performance.run_id", rclcpp::ParameterValue(""));
   nav2_util::declare_parameter_if_not_declared(
@@ -97,16 +96,15 @@ void MincoMpcController::configureMpcPerfLogging(
   nav2_util::declare_parameter_if_not_declared(
     node, name_ + ".performance.variant", rclcpp::ParameterValue(""));
 
+  bool performance_enable = true;
   bool detailed_csv_enable = false;
-  bool award_csv_enable = false;
+  node->get_parameter(name_ + ".performance.enable", performance_enable);
   node->get_parameter(name_ + ".performance.detailed_csv_enable", detailed_csv_enable);
-  node->get_parameter(name_ + ".performance.award_csv_enable", award_csv_enable);
   node->get_parameter(name_ + ".performance.mpc_csv_path", mpc_perf_csv_path_);
-  node->get_parameter(name_ + ".performance.deadline_ms", mpc_perf_deadline_ms_);
   node->get_parameter(name_ + ".performance.run_id", award_run_id_);
   node->get_parameter(name_ + ".performance.scenario", award_scenario_);
   node->get_parameter(name_ + ".performance.variant", award_variant_);
-  mpc_perf_csv_enable_ = detailed_csv_enable || award_csv_enable;
+  mpc_perf_csv_enable_ = performance_enable && detailed_csv_enable;
   if (!mpc_perf_csv_enable_) {
     return;
   }
@@ -126,10 +124,8 @@ void MincoMpcController::writeMpcPerfHeader()
     return;
   }
   mpc_perf_csv_
-    << "run_id,scenario,variant,stamp_ros,stamp_steady_ns,success,failure_reason,cycle_duration_ms,"
-       "qp_duration_ms,qp_return_code,qp_nwsr,deadline_miss,trajectory_id,reference_age_ms,"
-       "tracking_error,cross_track_error,along_track_error,yaw_error,cmd_vx,cmd_vy,cmd_wz,ref_vx,"
-       "ref_vy,ref_wz\n";
+    << "run_id,scenario,variant,stamp_ros,stamp_steady_ns,success,solve_time_ms,cycle_time_ms,"
+       "controller_hz,cmd_vx,cmd_vy,cmd_wz,ref_vx,ref_vy,ref_wz\n";
 }
 
 void MincoMpcController::writeMpcPerfRow(const MpcPerfSample & sample)
@@ -140,13 +136,9 @@ void MincoMpcController::writeMpcPerfRow(const MpcPerfSample & sample)
   mpc_perf_csv_ << csvText(award_run_id_) << ',' << csvText(award_scenario_) << ','
                 << csvText(award_variant_) << ',' << csvNum(sample.stamp_ros) << ','
                 << sample.stamp_steady_ns << ',' << csvBool(sample.success) << ','
-                << csvText(sample.failure_reason) << ',' << csvNum(sample.cycle_duration_ms) << ','
-                << csvNum(sample.qp_duration_ms) << ",NaN,NaN," << csvBool(sample.deadline_miss) << ','
-                << sample.trajectory_id << ',' << csvNum(sample.reference_age_ms) << ','
-                << csvNum(sample.tracking_error) << ',' << csvNum(sample.cross_track_error) << ','
-                << csvNum(sample.along_track_error) << ',' << csvNum(sample.yaw_error) << ','
-                << csvNum(sample.cmd_vx) << ',' << csvNum(sample.cmd_vy) << ','
-                << csvNum(sample.cmd_wz) << ',' << csvNum(sample.ref_vx) << ','
+                << csvNum(sample.solve_time_ms) << ',' << csvNum(sample.cycle_time_ms) << ','
+                << csvNum(sample.controller_hz) << ',' << csvNum(sample.cmd_vx) << ','
+                << csvNum(sample.cmd_vy) << ',' << csvNum(sample.cmd_wz) << ',' << csvNum(sample.ref_vx) << ','
                 << csvNum(sample.ref_vy) << ',' << csvNum(sample.ref_wz) << '\n';
   if (++mpc_perf_csv_rows_ % 30 == 0) {
     mpc_perf_csv_.flush();
@@ -698,23 +690,34 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   const geometry_msgs::msg::Twist & velocity,
   nav2_core::GoalChecker * goal_checker)
 {
-  const auto cycle_start = std::chrono::steady_clock::now();
+  const bool record_perf = mpc_perf_csv_enable_;
+  const auto cycle_start = record_perf ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
   auto node = node_.lock();
 
   const rclcpp::Time now = node->now();
-  MpcPerfSample perf;
-  perf.stamp_ros = now.seconds();
-  perf.stamp_steady_ns = steadyNowNs();
-  auto finish = [&](geometry_msgs::msg::TwistStamped out_cmd, bool success, const std::string & reason) {
-    perf.success = success;
-    perf.failure_reason = success ? "NONE" : reason;
-    perf.cycle_duration_ms =
-      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - cycle_start).count();
-    perf.deadline_miss = mpc_perf_deadline_ms_ > 0.0 && perf.cycle_duration_ms > mpc_perf_deadline_ms_;
-    perf.cmd_vx = out_cmd.twist.linear.x;
-    perf.cmd_vy = out_cmd.twist.linear.y;
-    perf.cmd_wz = out_cmd.twist.angular.z;
-    writeMpcPerfRow(perf);
+  std::optional<MpcPerfSample> perf;
+  if (record_perf) {
+    perf.emplace();
+    perf->stamp_ros = now.seconds();
+    perf->stamp_steady_ns = steadyNowNs();
+  }
+  auto finish = [&](geometry_msgs::msg::TwistStamped out_cmd, bool success, const std::string &) {
+    if (perf) {
+      perf->success = success;
+      perf->cycle_time_ms =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - cycle_start).count();
+      if (last_mpc_perf_stamp_ns_ > 0 && perf->stamp_steady_ns > last_mpc_perf_stamp_ns_) {
+        const double dt_sec = static_cast<double>(perf->stamp_steady_ns - last_mpc_perf_stamp_ns_) * 1.0e-9;
+        if (dt_sec > 1.0e-9) {
+          perf->controller_hz = 1.0 / dt_sec;
+        }
+      }
+      last_mpc_perf_stamp_ns_ = perf->stamp_steady_ns;
+      perf->cmd_vx = out_cmd.twist.linear.x;
+      perf->cmd_vy = out_cmd.twist.linear.y;
+      perf->cmd_wz = out_cmd.twist.angular.z;
+      writeMpcPerfRow(*perf);
+    }
     return out_cmd;
   };
 
@@ -803,38 +806,24 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     cmd.twist.angular.z = 0.0;
     return finish(cmd, false, ok_ref ? "SOLVER_UNAVAILABLE" : "NO_REFERENCE");
   }
-  if (!ref.empty()) {
-    const Eigen::Vector2d error(curr.x - ref.front().pos.x(), curr.y - ref.front().pos.y());
-    const double yaw = ref.front().yaw;
-    const Eigen::Vector2d along(std::cos(yaw), std::sin(yaw));
-    const Eigen::Vector2d cross(-std::sin(yaw), std::cos(yaw));
-    perf.tracking_error = error.norm();
-    perf.along_track_error = error.dot(along);
-    perf.cross_track_error = error.dot(cross);
-    perf.yaw_error = normalizeYaw(curr.yaw - ref.front().yaw);
-    perf.ref_vx = ref.front().vel.x();
-    perf.ref_vy = ref.front().vel.y();
-    perf.ref_wz = ref.front().yaw_rate;
-  }
-  {
-    std::lock_guard<std::mutex> lk(data_mtx_);
-    if (latest_opt_path_ && !latest_opt_path_->cmds.empty()) {
-      perf.trajectory_id = latest_opt_path_->cmds.front().trajectory_id;
-      const rclcpp::Time traj_stamp(latest_opt_path_->header.stamp);
-      perf.reference_age_ms = std::max(0.0, (now - traj_stamp).seconds() * 1000.0);
-    }
+  if (perf && !ref.empty()) {
+    perf->ref_vx = ref.front().vel.x();
+    perf->ref_vy = ref.front().vel.y();
+    perf->ref_wz = ref.front().yaw_rate;
   }
 
   // 3) 调用 MPC 求解（输出 global_frame_ 系速度，此处为 camera_init）
   Control u_global;
   std::vector<State> pred_states;
-  const auto qp_start = std::chrono::steady_clock::now();
+  const auto solve_start = record_perf ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
 #ifdef MINCO_DEBUG
   auto t_start = std::chrono::high_resolution_clock::now();
 #endif
   bool success = solver_->solve(curr, ref, u_global, &pred_states);
-  perf.qp_duration_ms =
-    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - qp_start).count();
+  if (perf) {
+    perf->solve_time_ms =
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - solve_start).count();
+  }
 
   publishVisualization(pred_states, curr);
 
