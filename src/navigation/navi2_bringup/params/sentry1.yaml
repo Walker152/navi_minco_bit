@@ -332,16 +332,16 @@ planner_server:
           enable: true
           # [ros_callback][topic] 普通点云输入；点云密度直接影响三维占据、二维 layer 置信度和 ESDF 障碍距离。
           cloud_topic: /cloud_registered
-          # [ros_callback][topic] 稠密点云输入；配合 use_dense_cloud 使用，能补全地图但会明显增加 CPU 占用。
-          dense_cloud_topic: /cloud_registered_dense
+          # [ros_callback][topic] Point-LIO 补偿后的完整点云输入；配合 use_dense_cloud 使用，能补全地图但会明显增加 CPU 占用。
+          dense_cloud_topic: /cloud_registered_full
           # [ros_callback][topic] 里程计输入；时间戳/坐标系异常会导致点云被丢弃或地图错位。
           odom_topic: /aft_mapped_to_init
           # [ros_callback][s] 点云匹配里程计的最大时间差；过小易丢点云，过大可能用滞后位姿更新地图。
           odom_timeout: 0.08
           # [ros_callback][ms] ROGMap updateCallback 定时器周期；调小响应更快但 CPU 更高，代码中会把 <=0 修正为 1ms。
           update_period_ms: 50
-          # [ros_callback][bool] 是否订阅 dense_cloud_topic；开启会提高地图完整性，也会增加 raycasting/projection 计算量。
-          use_dense_cloud: false
+          # [ros_callback][bool] 是否订阅 dense_cloud_topic；开启后 ROGMap 不再使用稀疏 /cloud_registered 建图。
+          use_dense_cloud: true
 
         raycasting:
           # [raycasting][bool] 是否启用三维概率占据 raycasting；关闭会使动态地图、projection 和 ESDF 缺少在线点云更新。

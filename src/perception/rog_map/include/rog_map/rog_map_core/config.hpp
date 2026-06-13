@@ -138,7 +138,7 @@ public:
 
     ros_callback_en = false;
     cloud_topic = "/cloud_registered";
-    dense_cloud_topic = "/cloud_registered_dense";
+    dense_cloud_topic = "/cloud_registered_full";
     odom_topic = "/lidar_slam/odom";
     odom_timeout = 0.05;
     update_period_ms = 1;
@@ -453,11 +453,14 @@ public:
       return a.x() * a.x() + a.y() * a.y() + a.z() * a.z() < b.x() * b.x() + b.y() * b.y() + b.z() * b.z();
     });
     RCLCPP_INFO(node->get_logger(),
-      "[ROGMap Config] loaded prefix='%s', frame_id='%s', cloud='%s', odom='%s', resolution=%.3f, "
+      "[ROGMap Config] loaded prefix='%s', frame_id='%s', cloud='%s', dense_cloud='%s', use_dense=%s, "
+      "odom='%s', resolution=%.3f, "
       "map_size=[%.2f %.2f %.2f], projection=%s, field=%s/%s, performance=%s, visualization=%s",
       prefix.c_str(),
       frame_id.c_str(),
       cloud_topic.c_str(),
+      dense_cloud_topic.c_str(),
+      use_dense_cloud ? "true" : "false",
       odom_topic.c_str(),
       resolution,
       map_size_d.x(),
