@@ -16,6 +16,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <deque>
 #include <limits>
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/path.hpp>
@@ -131,6 +132,32 @@ struct PoseUpdateDebugStats
 };
 
 PoseUpdateDebugStats pose_update_debug_stats;
+
+struct FullCloudPoint
+{
+  PointType point;
+  double stamp{0.0};
+};
+
+struct StateSnapshot
+{
+  double stamp{0.0};
+  V3D pos{V3D::Zero()};
+  M3D rot{M3D::Identity()};
+  V3D vel{V3D::Zero()};
+  V3D acc{V3D::Zero()};
+  V3D omg{V3D::Zero()};
+  M3D R_L_I{M3D::Identity()};
+  V3D T_L_I{V3D::Zero()};
+};
+
+constexpr double kFullCloudMaxQueueAge = 0.20;
+
+std::deque<FullCloudPoint> full_cloud_queue;
+bool has_full_cloud_anchor = false;
+StateSnapshot full_cloud_anchor;
+PointCloudXYZI::Ptr full_cloud_world(new PointCloudXYZI());
+uint64_t last_full_cloud_enqueued_points = 0;
 
 double average_or_zero(double sum, uint64_t count)
 {
@@ -528,6 +555,177 @@ void pointBodyLidarToIMU(PointType const * const pi, PointType * const po)
   po->intensity = pi->intensity;
 }
 
+bool isFinitePoint(const PointType & point)
+{
+  return std::isfinite(point.x) && std::isfinite(point.y) && std::isfinite(point.z);
+}
+
+void enqueueFullCloud(const PointCloudXYZI::Ptr & cloud, double lidar_beg_time)
+{
+  last_full_cloud_enqueued_points = 0;
+  if (!cloud) {
+    return;
+  }
+
+  for (const auto & point : cloud->points) {
+    if (!isFinitePoint(point)) {
+      continue;
+    }
+
+    FullCloudPoint full_point;
+    full_point.point = point;
+    full_point.stamp = lidar_beg_time + static_cast<double>(point.curvature) / 1000.0;
+    if (!std::isfinite(full_point.stamp)) {
+      continue;
+    }
+
+    full_cloud_queue.push_back(full_point);
+    ++last_full_cloud_enqueued_points;
+  }
+}
+
+StateSnapshot makeStateSnapshot(double stamp)
+{
+  StateSnapshot snapshot;
+  snapshot.stamp = stamp;
+
+  if (!use_imu_as_input) {
+    snapshot.pos = kf_output.x_.pos;
+    snapshot.rot = kf_output.x_.rot;
+    snapshot.vel = kf_output.x_.vel;
+    snapshot.acc = kf_output.x_.rot * kf_output.x_.acc + kf_output.x_.gravity;
+    snapshot.omg = kf_output.x_.omg;
+    if (extrinsic_est_en) {
+      snapshot.R_L_I = kf_output.x_.offset_R_L_I;
+      snapshot.T_L_I = kf_output.x_.offset_T_L_I;
+    } else {
+      snapshot.R_L_I = Lidar_R_wrt_IMU;
+      snapshot.T_L_I = Lidar_T_wrt_IMU;
+    }
+  } else {
+    snapshot.pos = kf_input.x_.pos;
+    snapshot.rot = kf_input.x_.rot;
+    snapshot.vel = kf_input.x_.vel;
+    snapshot.acc = kf_input.x_.rot * (input_in.acc - kf_input.x_.ba) + kf_input.x_.gravity;
+    snapshot.omg = input_in.gyro - kf_input.x_.bg;
+    if (extrinsic_est_en) {
+      snapshot.R_L_I = kf_input.x_.offset_R_L_I;
+      snapshot.T_L_I = kf_input.x_.offset_T_L_I;
+    } else {
+      snapshot.R_L_I = Lidar_R_wrt_IMU;
+      snapshot.T_L_I = Lidar_T_wrt_IMU;
+    }
+  }
+
+  return snapshot;
+}
+
+PointType transformFullPointForward(const StateSnapshot & anchor, const FullCloudPoint & full_point)
+{
+  const double dt = full_point.stamp - anchor.stamp;
+  const M3D R_pred = anchor.rot * Exp(anchor.omg, dt);
+  const V3D p_pred = anchor.pos + anchor.vel * dt + 0.5 * anchor.acc * dt * dt;
+
+  const V3D p_lidar(full_point.point.x, full_point.point.y, full_point.point.z);
+  const V3D p_imu = anchor.R_L_I * p_lidar + anchor.T_L_I;
+  const V3D p_world = R_pred * p_imu + p_pred;
+
+  PointType output = full_point.point;
+  output.x = p_world.x();
+  output.y = p_world.y();
+  output.z = p_world.z();
+  return output;
+}
+
+void publishFullCloudWorld(
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pubLaserCloudFullWorld,
+  double stamp)
+{
+  if (!pubLaserCloudFullWorld || !full_cloud_world || full_cloud_world->empty()) {
+    return;
+  }
+
+  sensor_msgs::msg::PointCloud2 cloud_msg;
+  pcl::toROSMsg(*full_cloud_world, cloud_msg);
+  cloud_msg.header.stamp = get_ros_time(stamp);
+  cloud_msg.header.frame_id = "camera_init";
+  pubLaserCloudFullWorld->publish(cloud_msg);
+}
+
+void maybeLogFullCloudStats(size_t published_points, size_t dropped_old_points)
+{
+  static auto last_log_time = std::chrono::steady_clock::now();
+  const auto now = std::chrono::steady_clock::now();
+  if (std::chrono::duration<double>(now - last_log_time).count() < 1.0) {
+    return;
+  }
+  last_log_time = now;
+
+  RCLCPP_INFO(LOGGER,
+    "[Point-LIO][FullCloud] input=%llu, published=%zu, queue=%zu, dropped_old=%zu",
+    static_cast<unsigned long long>(last_full_cloud_enqueued_points),
+    published_points,
+    full_cloud_queue.size(),
+    dropped_old_points);
+}
+
+void processFullCloudWithSnapshot(
+  const StateSnapshot & current_snapshot,
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pubLaserCloudFullWorld)
+{
+  if (!std::isfinite(current_snapshot.stamp)) {
+    return;
+  }
+
+  if (!has_full_cloud_anchor) {
+    full_cloud_anchor = current_snapshot;
+    has_full_cloud_anchor = true;
+    return;
+  }
+
+  if (current_snapshot.stamp <= full_cloud_anchor.stamp) {
+    full_cloud_anchor = current_snapshot;
+    return;
+  }
+
+  full_cloud_world->clear();
+  size_t dropped_old_points = 0;
+
+  while (!full_cloud_queue.empty() &&
+         current_snapshot.stamp - full_cloud_queue.front().stamp > kFullCloudMaxQueueAge) {
+    full_cloud_queue.pop_front();
+    ++dropped_old_points;
+  }
+
+  while (!full_cloud_queue.empty()) {
+    const FullCloudPoint & full_point = full_cloud_queue.front();
+    if (full_point.stamp < full_cloud_anchor.stamp) {
+      full_cloud_queue.pop_front();
+      ++dropped_old_points;
+      continue;
+    }
+    if (full_point.stamp > current_snapshot.stamp) {
+      break;
+    }
+
+    const PointType point_world = transformFullPointForward(full_cloud_anchor, full_point);
+    if (isFinitePoint(point_world)) {
+      full_cloud_world->push_back(point_world);
+    }
+    full_cloud_queue.pop_front();
+  }
+
+  if (!full_cloud_world->empty()) {
+    full_cloud_world->width = static_cast<uint32_t>(full_cloud_world->size());
+    full_cloud_world->height = 1;
+    full_cloud_world->is_dense = false;
+    publishFullCloudWorld(pubLaserCloudFullWorld, current_snapshot.stamp);
+  }
+
+  maybeLogFullCloudStats(full_cloud_world->size(), dropped_old_points);
+  full_cloud_anchor = current_snapshot;
+}
+
 void MapIncremental()
 {
   PointVector points_to_add;
@@ -604,7 +802,6 @@ void publish_accumulated_map(
   pubLaserCloudMap->publish(map_msg);
 }
 
-PointCloudXYZI::Ptr pcl_wait_pub(new PointCloudXYZI(500000, 1));
 PointCloudXYZI::Ptr pcl_wait_save(new PointCloudXYZI());
 void publish_frame_world(
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pubLaserCloudFullRes)
@@ -975,9 +1172,10 @@ private:
     }
     sub_imu_ = create_subscription<sensor_msgs::msg::Imu>(imu_topic, rclcpp::SensorDataQoS(), imu_cbk);
     pub_laser_cloud_full_res_ = create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered", 20);
+    pub_laser_cloud_full_world_ =
+      create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_registered_full", rclcpp::SensorDataQoS());
     pub_laser_cloud_full_res_body_ =
       create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered_body", 20);
-    pub_laser_cloud_effect_ = create_publisher<sensor_msgs::msg::PointCloud2>("cloud_effected", 20);
     pub_laser_cloud_map_ = create_publisher<sensor_msgs::msg::PointCloud2>("Laser_map", 20);
     pub_odom_aft_mapped_ = create_publisher<nav_msgs::msg::Odometry>("aft_mapped_to_init", 20);
     pub_path_ = create_publisher<nav_msgs::msg::Path>("path", 20);
@@ -1009,8 +1207,8 @@ private:
   rclcpp::Subscription<livox_ros_driver2::msg::CustomMsg>::SharedPtr sub_pcl_livox_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_laser_cloud_full_res_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_laser_cloud_full_world_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_laser_cloud_full_res_body_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_laser_cloud_effect_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_laser_cloud_map_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_aft_mapped_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_path_;
@@ -1096,6 +1294,9 @@ void LaserMappingNode::processingLoop()
         is_first_frame = true;
         flg_reset = false;
         init_map = false;
+        full_cloud_queue.clear();
+        has_full_cloud_anchor = false;
+        full_cloud_world->clear();
 
         {
           ivox_.reset(new IVoxType(ivox_options_));
@@ -1152,6 +1353,7 @@ void LaserMappingNode::processingLoop()
       /*** downsample the feature points in a scan ***/
       t1 = omp_get_wtime();
       p_imu->Process(Measures, feats_undistort);
+      enqueueFullCloud(feats_undistort, Measures.lidar_beg_time);
       if (space_down_sample) {
         downSizeFilterSurf.setInputCloud(feats_undistort);
         downSizeFilterSurf.filter(*feats_down_body);
@@ -1223,6 +1425,9 @@ void LaserMappingNode::processingLoop()
         } else {
           init_map = false;
         }
+        full_cloud_queue.clear();
+        has_full_cloud_anchor = false;
+        full_cloud_world->clear();
         continue;
       }
 
@@ -1235,9 +1440,8 @@ void LaserMappingNode::processingLoop()
       t2 = omp_get_wtime();
 
       /*** iterated state estimation ***/
-      crossmat_list.reserve(feats_down_size);
-      pbody_list.reserve(feats_down_size);
-      // pbody_ext_list.reserve(feats_down_size);
+      crossmat_list.resize(feats_down_size);
+      pbody_list.resize(feats_down_size);
 
       for (size_t i = 0; i < feats_down_body->size(); i++) {
         V3D point_this(
@@ -1374,6 +1578,7 @@ void LaserMappingNode::processingLoop()
             }
             record_runtime_rate(RuntimeRateEvent::PoseUpdate);
             record_pose_update_debug_update(static_cast<uint64_t>(time_seq[k]), time_current);
+            processFullCloudWithSnapshot(makeStateSnapshot(time_current), pub_laser_cloud_full_world_);
             solve_start = omp_get_wtime();
 
             if (publish_odometry_without_downsample) {
@@ -1563,6 +1768,7 @@ void LaserMappingNode::processingLoop()
             }
             record_runtime_rate(RuntimeRateEvent::PoseUpdate);
             record_pose_update_debug_update(static_cast<uint64_t>(time_seq[k]), time_current);
+            processFullCloudWithSnapshot(makeStateSnapshot(time_current), pub_laser_cloud_full_world_);
 
             solve_start = omp_get_wtime();
 
