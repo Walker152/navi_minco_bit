@@ -150,42 +150,15 @@ x, y, z, intensity, tag, line, offset_time
 - `launch_ROS2/msg_mixed_MID360.launch.py`
 - `CMakeLists.txt`
 - `package.xml`
-- `test/internal_lidar_merger_test.cpp`
 
 仓库根目录的 `start.bash` 已注释外部 `lidar_merger` 启动。
 
-## 构建与测试
-
-构建：
+## 构建
 
 ```bash
 source /opt/ros/humble/setup.bash
 colcon build --packages-select livox_ros_driver2
 ```
-
-带测试构建：
-
-```bash
-source /opt/ros/humble/setup.bash
-colcon build --packages-select livox_ros_driver2 --cmake-args -DBUILD_TESTING=ON
-```
-
-运行内部融合单元测试：
-
-```bash
-build/livox_ros_driver2/internal_lidar_merger_test
-```
-
-当前单元测试覆盖：
-
-- back->front 外参平移变换
-- roll/pitch/yaw 矩阵变换
-- `CustomMsg` 合并后的 `timebase/header/point_num/offset_time`
-- `PointCloud2` 合并后的字段、点数、timestamp
-- 超过同步时间窗时的丢弃方向
-- 只支持 `xfer_format = 0/1`
-
-注意：完整 `colcon test --packages-select livox_ros_driver2` 目前仍会因为包内既有 lint 问题失败，主要来自 `3rdparty/rapidjson`、旧 launch 文件、CMake/package.xml 风格检查；这不是内部融合 gtest 或编译失败。
 
 ## 真机验收
 

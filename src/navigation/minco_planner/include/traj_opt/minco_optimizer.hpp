@@ -3,7 +3,9 @@
 
 #include <Eigen/Core>
 #include <cmath>
+#include <cstdint>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -87,6 +89,11 @@ public:
 
   void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map) { opt_vars_.map = map; }
 
+  int lastIterationCount() const { return last_iteration_count_; }
+  int lastReturnCode() const { return last_return_code_; }
+  double lastObjectiveTotal() const { return last_objective_total_; }
+  uint64_t lastQueryFailureCount() const { return last_query_failure_count_; }
+
   // --- Trajectory Optimization ---
   double optimize(const std::vector<Eigen::Vector3d> & waypoints,
     const Eigen::Matrix3d & start_state,
@@ -137,6 +144,7 @@ private:
 
     // Result cache.
     VecDf penalty_log;
+    uint64_t query_failure_count{0};
 
     // MINCO solver instance.
     std::shared_ptr<traj_opt::MINCO_S3NU> minco_solver_;
@@ -167,7 +175,8 @@ private:
     double & cost,
     VecDf & partialGradByTimes,
     MatD3f & partialGradByCoeffs,
-    VecDf & penalty_log);
+    VecDf & penalty_log,
+    uint64_t & query_failure_count);
 
   static void computeTimeBarrier(const OptVars & opt_vars,
     const VecDf & times,
@@ -182,6 +191,10 @@ private:
 
   // === State Variables & Caches ===
   OptVars opt_vars_;
+  int last_iteration_count_{0};
+  int last_return_code_{0};
+  double last_objective_total_{std::numeric_limits<double>::quiet_NaN()};
+  uint64_t last_query_failure_count_{0};
 };
 
 }  // namespace minco_planner
