@@ -17,15 +17,18 @@ void ROGMapVisualizer::configure(const rclcpp::node_interfaces::NodeBaseInterfac
   }
 
   const rclcpp::QoS qos(rclcpp::QoS(1).best_effort().keep_last(1).durability_volatile());
-  pubs_.occ_pub = createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/occupied", qos);
+  pubs_.occ_pub =
+    createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/occupied", qos);
   pubs_.raw_occ_pub =
     createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/raw_occupied", qos);
-  pubs_.unknown_pub = createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/unknown", qos);
+  pubs_.unknown_pub =
+    createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/unknown", qos);
   pubs_.occ_inf_pub =
     createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/inflated_occupied", qos);
   pubs_.unknown_inf_pub =
     createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/inflated_unknown", qos);
-  pubs_.frontier_pub = createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/frontier", qos);
+  pubs_.frontier_pub =
+    createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/frontier", qos);
   if (cfg.esdf_en) {
     pubs_.esdf_pub =
       createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "rog_map/esdf", qos);
@@ -36,9 +39,10 @@ void ROGMapVisualizer::configure(const rclcpp::node_interfaces::NodeBaseInterfac
     createPublisher<nav_msgs::msg::OccupancyGrid>(parameters, topics, "/rog_map/layer_type", qos);
   pubs_.layer_confidence_pub =
     createPublisher<nav_msgs::msg::OccupancyGrid>(parameters, topics, "/rog_map/layer_confidence", qos);
-  pubs_.layer_height_pub =
-    createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/layer_height", qos);
-  pubs_.field_pub = createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/field", qos);
+  pubs_.layer_height_delta_pub =
+    createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/layer_height_delta", qos);
+  pubs_.field_pub =
+    createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/field", qos);
   pubs_.decay_cells_pub =
     createPublisher<sensor_msgs::msg::PointCloud2>(parameters, topics, "/rog_map/decay_cells", qos);
   pubs_.mkr_arr_pub =

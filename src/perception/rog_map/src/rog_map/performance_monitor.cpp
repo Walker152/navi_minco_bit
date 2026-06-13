@@ -240,7 +240,8 @@ void PerformanceMonitor::fillInputStats(RuntimeStats & stats)
   stats.cloud_callback_count = cloud_callback_count_;
   stats.cloud_callback_hz = hzFrom(cloud_callback_count_, first_cloud_stamp_, last_cloud_stamp_);
   stats.cloud_msg_points = last_cloud_points_;
-  stats.cloud_msg_points_avg = cloud_callback_count_ > 0.0 ? cloud_points_sum_ / cloud_callback_count_ : 0.0;
+  stats.cloud_msg_points_avg =
+    cloud_callback_count_ > 0.0 ? cloud_points_sum_ / cloud_callback_count_ : 0.0;
   stats.cloud_msg_points_max = cloud_points_max_;
   stats.cloud_convert_time_ms = last_cloud_convert_time_ms_;
   stats.cloud_queue_delay_ms = last_cloud_queue_delay_ms_;
@@ -365,7 +366,6 @@ void PerformanceMonitor::writeDetailedHeader()
       "projection_config_time_ms",
       "projection_update_full_time_ms",
       "projection_update_dirty_time_ms",
-      "projection_terrain_time_ms",
       "projection_hole_fill_time_ms",
       "projection_value_mask_time_ms",
       "projection_refresh_reason",
@@ -378,6 +378,12 @@ void PerformanceMonitor::writeDetailedHeader()
       "projection_full_refresh_count",
       "projection_dirty_update_count",
       "projection_no_update_count",
+      "projection_thin_surface_count",
+      "projection_vertical_wall_count",
+      "projection_hollow_tunnel_count",
+      "projection_ambiguous_occupied_count",
+      "projection_empty_column_count",
+      "projection_insufficient_observation_count",
       "layer_mask_changed",
       "layer_mask_diff_count",
       "layer_mask_diff_ratio",
@@ -413,7 +419,7 @@ void PerformanceMonitor::writeDetailedHeader()
       "query_refresh_time_ms",
       "query_snapshot_alloc_time_ms",
       "query_copy_values_time_ms",
-      "query_copy_types_heights_confidence_time_ms",
+      "query_copy_types_height_delta_confidence_time_ms",
       "query_copy_field_distances_time_ms",
       "query_update_pointer_time_ms",
       "query_sequence",
@@ -494,7 +500,6 @@ void PerformanceMonitor::writeDetailedRow(const RuntimeStats & s)
       num(s.projection_config_time),
       num(s.projection_update_full_time),
       num(s.projection_update_dirty_time),
-      num(s.projection_terrain_time),
       num(s.projection_hole_fill_time),
       num(s.projection_value_mask_time),
       sanitize(s.projection_refresh_reason),
@@ -507,6 +512,12 @@ void PerformanceMonitor::writeDetailedRow(const RuntimeStats & s)
       num(s.full_layer_refresh_count),
       num(s.dirty_layer_update_count),
       num(s.projection_no_update_count),
+      num(s.projection_thin_surface_count),
+      num(s.projection_vertical_wall_count),
+      num(s.projection_hollow_tunnel_count),
+      num(s.projection_ambiguous_occupied_count),
+      num(s.projection_empty_column_count),
+      num(s.projection_insufficient_observation_count),
       boolean(s.layer_mask_changed),
       num(s.layer_mask_diff_count),
       num(s.layer_mask_diff_ratio),
@@ -542,7 +553,7 @@ void PerformanceMonitor::writeDetailedRow(const RuntimeStats & s)
       num(s.query_refresh_time),
       num(s.query_snapshot_alloc_time),
       num(s.query_copy_values_time),
-      num(s.query_copy_types_heights_confidence_time),
+      num(s.query_copy_types_height_delta_confidence_time),
       num(s.query_copy_field_distances_time),
       num(s.query_update_pointer_time),
       num(s.query_sequence),
@@ -609,31 +620,32 @@ void PerformanceMonitor::maybeWriteSummary(double stamp)
               << window_.update_total_max << " raycast=" << window_.raycast_sum / updates << '/'
               << window_.raycast_max << " proj=" << window_.projection_sum / updates << '/'
               << window_.projection_max << " field=" << window_.field_sum / updates << '/'
-              << window_.field_max << " query=" << window_.query_sum / updates << '/'
-              << window_.query_max << '\n'
+              << window_.field_max << " query=" << window_.query_sum / updates << '/' << window_.query_max
+              << '\n'
               << " projection: full=" << window_.full_refresh_delta
               << " dirty=" << window_.dirty_update_delta
               << " dirty_ratio_avg=" << window_.dirty_ratio_sum / updates
               << " mask_change=" << window_.mask_changed_delta
               << " avg_mask_diff=" << window_.mask_diff_ratio_sum / updates << '\n'
-              << " field: updates=" << window_.field_updates
-              << " skips=" << window_.field_skip_delta
+              << " classification: thin=" << stats_.projection_thin_surface_count
+              << " wall=" << stats_.projection_vertical_wall_count
+              << " tunnel=" << stats_.projection_hollow_tunnel_count
+              << " ambiguous=" << stats_.projection_ambiguous_occupied_count
+              << " empty=" << stats_.projection_empty_column_count
+              << " insufficient=" << stats_.projection_insufficient_observation_count << '\n'
+              << " field: updates=" << window_.field_updates << " skips=" << window_.field_skip_delta
               << " skip_not_dirty=" << window_.field_skip_not_dirty_delta
               << " skip_period=" << window_.field_skip_period_not_ready_delta
               << " seq=" << stats_.field_sequence << " age_ms=" << stats_.field_age_ms << '\n'
               << " points: avg=" << window_.input_points_sum / updates
-              << " max=" << window_.input_points_max
-              << " dropped_no_odom=" << dropped_cloud_no_odom_count_
-              << " dropped_timeout=" << dropped_cloud_odom_timeout_count_ 
+              << " max=" << window_.input_points_max << " dropped_no_odom=" << dropped_cloud_no_odom_count_
+              << " dropped_timeout=" << dropped_cloud_odom_timeout_count_
               << " raycast_latest: input = " << stats_.raycast_input_point_count
-              << " used=" << stats_.raycast_used_point_count
-              << " hit=" << stats_.hit_count
-              << " miss=" << stats_.miss_count
-              << " skip_near=" << stats_.raycast_skipped_near_count
+              << " used=" << stats_.raycast_used_point_count << " hit=" << stats_.hit_count
+              << " miss=" << stats_.miss_count << " skip_near=" << stats_.raycast_skipped_near_count
               << " skip_far=" << stats_.raycast_skipped_far_count
-              << " skip_outside=" <<stats_.raycast_skipped_outside_count
-              << " decayed=" << stats_.decayed_count
-              << std::endl;
+              << " skip_outside=" << stats_.raycast_skipped_outside_count
+              << " decayed=" << stats_.decayed_count << std::endl;
   }
   resetWindow(stamp);
 }

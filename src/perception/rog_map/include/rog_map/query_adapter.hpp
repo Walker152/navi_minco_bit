@@ -21,7 +21,7 @@ struct MapSnapshot
   std::vector<uint8_t> values;
   std::vector<uint8_t> types;
   std::vector<double> distances;
-  std::vector<float> heights;
+  std::vector<float> height_deltas;
   std::vector<float> confidence;
   uint64_t field_sequence{0};
   double field_stamp{0.0};

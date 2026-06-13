@@ -85,6 +85,17 @@ if(OpenMP_CXX_FOUND)
         target_link_libraries(${library_name} OpenMP::OpenMP_CXX)
 endif()
 
+if(BUILD_TESTING)
+        find_package(ament_cmake_gtest REQUIRED)
+
+        ament_add_gtest(projection_layer_height_ratio_test
+                test/projection_layer_height_ratio_test.cpp
+        )
+        target_link_libraries(projection_layer_height_ratio_test
+                ${library_name}
+        )
+endif()
+
 install(TARGETS ${library_name}
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib

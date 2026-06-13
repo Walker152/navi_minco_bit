@@ -382,54 +382,68 @@ planner_server:
           active_list_enable: true
 
         projection:
-          # [projection][bool] 是否生成二维投影 layer；关闭会导致 QueryAdapter/ESDF 缺少二维语义输入。
+          # 是否构建二维 ProjectionLayer。
           enable: true
-          # [projection][m] 参与二维投影统计的 z 下界，基于 frame_id 而非默认地面；过高可能漏掉地面和低矮障碍。
-          min_z: -0.25
-          # [projection][m] 参与二维投影统计的 z 上界；过低会漏掉车体高度内障碍，过高会引入上方无关结构。
-          max_z: 1.5
-          # [projection][bool] UNKNOWN 是否写成障碍 mask；true 会阻挡 ESDF/规划，false 更开放但未知区域风险更高。
+
+          # [absolute Z coordinate, m]
+          # ROGMap frame 中参与单柱扫描的绝对 Z 下界。
+          # 这是坐标值，不是地面相对高度，也不是高度差。
+          scan_z_min_abs: -0.25
+
+          # [absolute Z coordinate, m]
+          # ROGMap frame 中参与单柱扫描的绝对 Z 上界。
+          # 这是坐标值，不是障碍高度，也不是高度差。
+          scan_z_max_abs: 1.50
+
+          # UNKNOWN 是否作为 ESDF 障碍。
           unknown_as_occupied: false
-          # [projection][voxel] 每个 xy 列至少观测 voxel 数；过大产生大量 UNKNOWN，过小易受噪声误判。
+
+          # 每个 XY 柱中 KNOWN_FREE + OCCUPIED 的最小观测体素数。
           min_observed_voxels: 2
-          # [projection][m] 低矮障碍高度阈值；低于该值可能判为 PASSABLE，调大更容易放行低矮物体。
-          low_obstacle_height: 0.08
-          # [projection][m] 柱状/墙体障碍高度阈值；调低更保守，调高可能漏判较矮障碍。
-          obstacle_height: 0.20
-          # [projection][比例] 占据点高度密度阈值；调大可过滤稀疏噪声，调小更容易把稀疏点判成实体障碍。
-          min_ratio: 0.35
-          # [projection][cost] PASSABLE 在 layer_value 中的代价值；不等于 ESDF，passable_as_free=true 时实际写 0。
+
+          # [vertical height difference, m]
+          # 同一 XY 柱中最高与最低占据体素的垂直高度差 H。
+          # 不超过该值时，分类为地面或坡面薄表面。
+          # 这是差值，不是 ROGMap frame 中的绝对 Z 坐标。
+          surface_height_delta_max: 0.10
+
+          # [vertical height difference, m]
+          # 判定竖直墙所需的最小单柱垂直高度差 H。
+          # 这是差值，不是绝对 Z 坐标。
+          wall_height_delta_min: 0.20
+
+          # [dimensionless ratio, 0~1]
+          # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
+          wall_occupancy_ratio_min: 0.80
+
+          # [vertical height difference, m]
+          # 可通行隧道所需的最小上下表面高度差。
+          # 应包含机器人实际高度和安全余量。
+          # 这是差值，不是绝对 Z 坐标。
+          tunnel_height_delta_min: 0.24
+
+          # [vertical height difference, m]
+          # 当前 RM 场景中允许识别为目标隧道的最大上下表面高度差。
+          # 这是差值，不是绝对 Z 坐标。
+          tunnel_height_delta_max: 0.40
+
+          # [dimensionless ratio, 0~1]
+          # 隧道上下表面之间的最大垂直占据率。
+          tunnel_occupancy_ratio_max: 0.55
+
+          # PASSABLE 在 value layer 中的代价值。
           passable_cost: 50
-          # [projection][bool] 是否启用语义迟滞；降低 OCCUPIED 到 FREE/PASSABLE 的闪烁，略增加状态记忆。
-          hysteresis_enable: true
-          # [projection][次] 类型切换确认次数；调大更稳但障碍清除更慢。
-          hysteresis_count: 2
-          # [projection][bool] 是否填补被障碍围住的小洞；开启会让 ESDF 更保守，减少穿过窄缝。
-          hole_fill_enable: true
-          # [projection][cell] hole fill 邻域半径；调大会填更多洞并增加 projection 计算量。
-          hole_fill_radius: 1
-          # [projection][cell数] 判定洞周围障碍邻居数量；调低更保守，调高减少误填。
-          hole_fill_min_occupied_neighbors: 5
-          # [projection][bool] 是否启用地形可通行分析；开启后综合车体碰撞带、坡度、台阶、净空等判断 PASSABLE。
-          terrain_enable: true
-          # [projection][m] 车体碰撞带 z 下界，基于 ROGMap frame；若 camera_init 在雷达高度附近，不能直接写地面系高度。
-          robot_body_z_min: -0.23
-          # [projection][m] 车体碰撞带 z 上界，基于 ROGMap frame；误配会导致地面/上方结构被错误纳入碰撞带。
-          robot_body_z_max: 0.25
-          # [projection][m] 可通过表面厚度阈值；过小会把粗糙地面判障碍，过大可能放行厚障碍。
-          surface_thickness: 0.08
-          # [projection][m] 最大可跨越台阶高度；调大能通过更高的台阶，但可能把较高的障碍误判为可通行。
-          max_step_height: 0.06
-          # [projection][degree] 最大可通行坡度；对 23 度通过角底盘可先 20~22 度，过大风险高，过小会拒绝坡道。
-          max_slope_deg: 20.0
-          # [projection][bool] 是否检查车体上方净空；开启会影响 PASSABLE/FREE/OCCUPIED 分类和 ESDF mask。
-          clearance_check_enable: true
-          # [projection][m] 车体顶部净空要求（合并原 overhead_clearance_margin）；检查 ceiling_z 是否低于 body_z_max+此值，低于则阻挡。
-          min_clearance_height: 0.02
-          # [projection][m] 隧道墙/竖直墙高度阈值；调低更容易把竖直结构判为 OCCUPIED。
-          tunnel_wall_min_height: 0.20
-          # [projection][bool] PASSABLE 是否在 layer_value 中写成 FREE；无论 true/false，PASSABLE 的 mask 都为 1，会作为 ESDF 可通行区。
+
+          # PASSABLE 是否在 value layer 中写为 FREE。
+          # PASSABLE 的 ESDF mask 始终为 1。
           passable_as_free: true
+
+          hysteresis_enable: true
+          hysteresis_count: 2
+
+          hole_fill_enable: true
+          hole_fill_radius: 1
+          hole_fill_min_occupied_neighbors: 5
         field:
           # [field][bool] 是否生成二维 dynamic field/ESDF；关闭会让规划器缺少距离和梯度查询。
           enable: true
