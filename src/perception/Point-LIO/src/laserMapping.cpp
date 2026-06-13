@@ -158,6 +158,8 @@ std::deque<FullCloudPoint> full_cloud_queue;
 bool has_full_cloud_anchor = false;
 StateSnapshot full_cloud_anchor;
 PointCloudXYZI::Ptr full_cloud_world(new PointCloudXYZI());
+uint64_t full_cloud_accum_points = 0;
+uint64_t full_cloud_dropped_accum = 0;
 uint64_t last_full_cloud_enqueued_points = 0;
 
 double average_or_zero(double sum, uint64_t count)
@@ -638,41 +640,8 @@ PointType transformFullPointForward(const StateSnapshot & anchor, const FullClou
   return output;
 }
 
-void publishFullCloudWorld(
-  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pubLaserCloudFullWorld,
-  double stamp)
-{
-  if (!pubLaserCloudFullWorld || !full_cloud_world || full_cloud_world->empty()) {
-    return;
-  }
-
-  auto cloud_msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
-  pcl::toROSMsg(*full_cloud_world, *cloud_msg);
-  cloud_msg->header.stamp = get_ros_time(stamp);
-  cloud_msg->header.frame_id = "camera_init";
-  pubLaserCloudFullWorld->publish(std::move(cloud_msg));
-}
-
-void maybeLogFullCloudStats(size_t published_points, size_t dropped_old_points)
-{
-  static auto last_log_time = std::chrono::steady_clock::now();
-  const auto now = std::chrono::steady_clock::now();
-  if (std::chrono::duration<double>(now - last_log_time).count() < 1.0) {
-    return;
-  }
-  last_log_time = now;
-
-  RCLCPP_INFO(LOGGER,
-    "[Point-LIO][FullCloud] input=%llu, published=%zu, queue=%zu, dropped_old=%zu",
-    static_cast<unsigned long long>(last_full_cloud_enqueued_points),
-    published_points,
-    full_cloud_queue.size(),
-    dropped_old_points);
-}
-
-void processFullCloudWithSnapshot(
-  const StateSnapshot & current_snapshot,
-  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pubLaserCloudFullWorld)
+void processFullCloudSegmentWithSnapshot(
+  const StateSnapshot & current_snapshot)
 {
   if (!std::isfinite(current_snapshot.stamp)) {
     return;
@@ -689,7 +658,6 @@ void processFullCloudWithSnapshot(
     return;
   }
 
-  full_cloud_world->clear();
   size_t dropped_old_points = 0;
 
   while (!full_cloud_queue.empty() &&
@@ -712,19 +680,42 @@ void processFullCloudWithSnapshot(
     const PointType point_world = transformFullPointForward(full_cloud_anchor, full_point);
     if (isFinitePoint(point_world)) {
       full_cloud_world->push_back(point_world);
+      ++full_cloud_accum_points;
     }
     full_cloud_queue.pop_front();
   }
 
-  if (!full_cloud_world->empty()) {
-    full_cloud_world->width = static_cast<uint32_t>(full_cloud_world->size());
-    full_cloud_world->height = 1;
-    full_cloud_world->is_dense = false;
-    publishFullCloudWorld(pubLaserCloudFullWorld, current_snapshot.stamp);
+  full_cloud_dropped_accum += dropped_old_points;
+  full_cloud_anchor = current_snapshot;
+}
+
+void publishAccumulatedFullCloudWorld(
+  const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub,
+  double stamp)
+{
+  if (!pub || !full_cloud_world || full_cloud_world->empty()) {
+    return;
   }
 
-  maybeLogFullCloudStats(full_cloud_world->size(), dropped_old_points);
-  full_cloud_anchor = current_snapshot;
+  full_cloud_world->width = static_cast<uint32_t>(full_cloud_world->size());
+  full_cloud_world->height = 1;
+  full_cloud_world->is_dense = false;
+
+  auto cloud_msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
+  pcl::toROSMsg(*full_cloud_world, *cloud_msg);
+  cloud_msg->header.stamp = get_ros_time(stamp);
+  cloud_msg->header.frame_id = "camera_init";
+  pub->publish(std::move(cloud_msg));
+
+  RCLCPP_INFO(LOGGER,
+    "[Point-LIO][FullCloud] published_points=%zu, queue=%zu, dropped_old=%zu",
+    full_cloud_world->size(),
+    full_cloud_queue.size(),
+    full_cloud_dropped_accum);
+
+  full_cloud_world->clear();
+  full_cloud_accum_points = 0;
+  full_cloud_dropped_accum = 0;
 }
 
 void MapIncremental()
@@ -1298,6 +1289,8 @@ void LaserMappingNode::processingLoop()
         full_cloud_queue.clear();
         has_full_cloud_anchor = false;
         full_cloud_world->clear();
+        full_cloud_accum_points = 0;
+        full_cloud_dropped_accum = 0;
 
         {
           ivox_.reset(new IVoxType(ivox_options_));
@@ -1429,6 +1422,8 @@ void LaserMappingNode::processingLoop()
         full_cloud_queue.clear();
         has_full_cloud_anchor = false;
         full_cloud_world->clear();
+        full_cloud_accum_points = 0;
+        full_cloud_dropped_accum = 0;
         continue;
       }
 
@@ -1579,7 +1574,7 @@ void LaserMappingNode::processingLoop()
             }
             record_runtime_rate(RuntimeRateEvent::PoseUpdate);
             record_pose_update_debug_update(static_cast<uint64_t>(time_seq[k]), time_current);
-            processFullCloudWithSnapshot(makeStateSnapshot(time_current), pub_laser_cloud_full_world_);
+            processFullCloudSegmentWithSnapshot(makeStateSnapshot(time_current));
             solve_start = omp_get_wtime();
 
             if (publish_odometry_without_downsample) {
@@ -1769,7 +1764,7 @@ void LaserMappingNode::processingLoop()
             }
             record_runtime_rate(RuntimeRateEvent::PoseUpdate);
             record_pose_update_debug_update(static_cast<uint64_t>(time_seq[k]), time_current);
-            processFullCloudWithSnapshot(makeStateSnapshot(time_current), pub_laser_cloud_full_world_);
+            processFullCloudSegmentWithSnapshot(makeStateSnapshot(time_current));
 
             solve_start = omp_get_wtime();
 
@@ -1896,6 +1891,10 @@ void LaserMappingNode::processingLoop()
         publish_path(pub_path_);
       if (scan_pub_en || pcd_save_en)
         publish_frame_world(pub_laser_cloud_full_res_);
+      if (has_full_cloud_anchor && lidar_end_time > full_cloud_anchor.stamp) {
+        processFullCloudSegmentWithSnapshot(makeStateSnapshot(lidar_end_time));
+      }
+      publishAccumulatedFullCloudWorld(pub_laser_cloud_full_world_, lidar_end_time);
       if (scan_pub_en && scan_body_pub_en)
         publish_frame_body(pub_laser_cloud_full_res_body_);
       if (scan_pub_en)
