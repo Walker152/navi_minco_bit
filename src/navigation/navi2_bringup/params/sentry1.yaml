@@ -442,8 +442,8 @@ planner_server:
 
         performance:
           enable: true
-          detailed_csv_enable: false
-          summary_csv_enable: false
+          detailed_csv_enable: true
+          summary_csv_enable: true
           detailed_csv_path: /tmp/rog_map_perf_detailed.csv
           summary_csv_path: /tmp/rog_map_perf_summary.csv
           minco_csv_path: /tmp/minco_perf_detailed.csv
