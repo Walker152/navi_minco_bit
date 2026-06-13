@@ -1348,6 +1348,11 @@ void LaserMappingNode::processingLoop()
       t1 = omp_get_wtime();
       p_imu->Process(Measures, feats_undistort);
       enqueueFullCloud(feats_undistort, Measures.lidar_beg_time);
+      if (!has_full_cloud_anchor) {
+        full_cloud_anchor = makeStateSnapshot(Measures.lidar_beg_time);
+        full_cloud_anchor.stamp = Measures.lidar_beg_time;
+        has_full_cloud_anchor = true;
+      }
       if (space_down_sample) {
         downSizeFilterSurf.setInputCloud(feats_undistort);
         downSizeFilterSurf.filter(*feats_down_body);
