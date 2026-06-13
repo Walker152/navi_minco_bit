@@ -58,7 +58,6 @@ struct RuntimeStats
   double projection_scanner_time{0.0};
   double projection_update_full_time{0.0};
   double projection_update_dirty_time{0.0};
-  double projection_terrain_time{0.0};
   double projection_hole_fill_time{0.0};
   double projection_value_mask_time{0.0};
   double projection_count_cells_time{0.0};
@@ -74,6 +73,12 @@ struct RuntimeStats
   double projection_dirty_over_ratio{0.0};
   double projection_dirty_ratio{0.0};
   double projection_no_update_count{0.0};
+  double projection_thin_surface_count{0.0};
+  double projection_vertical_wall_count{0.0};
+  double projection_hollow_tunnel_count{0.0};
+  double projection_ambiguous_occupied_count{0.0};
+  double projection_empty_column_count{0.0};
+  double projection_insufficient_observation_count{0.0};
   std::string projection_refresh_reason{"none"};
   double layer_mask_changed{0.0};
   double layer_mask_diff_count{0.0};
@@ -119,7 +124,7 @@ struct RuntimeStats
   double field_update_hz_window{0.0};
   double query_snapshot_alloc_time{0.0};
   double query_copy_values_time{0.0};
-  double query_copy_types_heights_confidence_time{0.0};
+  double query_copy_types_height_delta_confidence_time{0.0};
   double query_copy_field_distances_time{0.0};
   double query_update_pointer_time{0.0};
   double query_sequence{0.0};
@@ -167,7 +172,10 @@ public:
   void configure(const PerformanceConfig & config);
   bool enabled() const { return config_.enable; }
   bool csvEnabled() const { return config_.enable && config_.csv_enable; }
-  bool detailedCsvEnabled() const { return config_.enable && config_.detailed_enable && config_.detailed_csv_enable; }
+  bool detailedCsvEnabled() const
+  {
+    return config_.enable && config_.detailed_enable && config_.detailed_csv_enable;
+  }
   bool summaryCsvEnabled() const { return config_.enable && config_.summary_csv_enable; }
   bool publishEnabled() const { return config_.enable && config_.publish_enable; }
   bool printEnabled() const { return config_.enable && config_.print_enable; }

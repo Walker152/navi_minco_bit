@@ -23,6 +23,9 @@
 
 #pragma once
 
+#include <cmath>
+#include <stdexcept>
+
 #include <nav2_util/node_utils.hpp>
 #include <rclcpp/rclcpp.hpp>
 
@@ -222,67 +225,81 @@ public:
     }
 
     layer_en = true;
-    layer_min_z = -0.20;
-    layer_max_z = 0.80;
-    low_obstacle_height = 0.07;
-    obstacle_height = 0.14;
-    min_ratio = 0.35;
+    scan_z_min_abs = -0.25;
+    scan_z_max_abs = 1.50;
     min_observed_voxels = 2;
     unknown_as_occupied = true;
+    surface_height_delta_max = 0.10;
+    wall_height_delta_min = 0.20;
+    wall_occupancy_ratio_min = 0.80;
+    tunnel_height_delta_min = 0.24;
+    tunnel_height_delta_max = 0.40;
+    tunnel_occupancy_ratio_max = 0.55;
     passable_cost = 50;
+    passable_as_free = true;
     layer_hysteresis_en = true;
     layer_hysteresis_count = 2;
     layer_hole_fill_en = true;
     layer_hole_fill_radius = 1;
     layer_hole_fill_min_occupied_neighbors = 5;
-    load("layer.enable", layer_en);
     load("projection.enable", layer_en);
-    load("layer.min_z", layer_min_z);
-    load("projection.min_z", layer_min_z);
-    load("layer.max_z", layer_max_z);
-    load("projection.max_z", layer_max_z);
-    load("layer.low_obstacle_height", low_obstacle_height);
-    load("projection.low_obstacle_height", low_obstacle_height);
-    load("layer.obstacle_height", obstacle_height);
-    load("projection.obstacle_height", obstacle_height);
-    load("layer.min_ratio", min_ratio);
-    load("projection.min_ratio", min_ratio);
-    load("layer.min_observed_voxels", min_observed_voxels);
+    load("projection.scan_z_min_abs", scan_z_min_abs);
+    load("projection.scan_z_max_abs", scan_z_max_abs);
     load("projection.min_observed_voxels", min_observed_voxels);
-    load("layer.unknown_as_occupied", unknown_as_occupied);
     load("projection.unknown_as_occupied", unknown_as_occupied);
-    load("layer.passable_cost", passable_cost);
+    load("projection.surface_height_delta_max", surface_height_delta_max);
+    load("projection.wall_height_delta_min", wall_height_delta_min);
+    load("projection.wall_occupancy_ratio_min", wall_occupancy_ratio_min);
+    load("projection.tunnel_height_delta_min", tunnel_height_delta_min);
+    load("projection.tunnel_height_delta_max", tunnel_height_delta_max);
+    load("projection.tunnel_occupancy_ratio_max", tunnel_occupancy_ratio_max);
     load("projection.passable_cost", passable_cost);
-    load("layer.hysteresis_enable", layer_hysteresis_en);
-    load("projection.hysteresis_enable", layer_hysteresis_en);
-    load("layer.hysteresis_count", layer_hysteresis_count);
-    load("projection.hysteresis_count", layer_hysteresis_count);
-    load("layer.hole_fill_enable", layer_hole_fill_en);
-    load("projection.hole_fill_enable", layer_hole_fill_en);
-    load("layer.hole_fill_radius", layer_hole_fill_radius);
-    load("projection.hole_fill_radius", layer_hole_fill_radius);
-    load("layer.hole_fill_min_occupied_neighbors", layer_hole_fill_min_occupied_neighbors);
-    load("projection.hole_fill_min_occupied_neighbors", layer_hole_fill_min_occupied_neighbors);
-    terrain_enable = false;
-    robot_body_z_min = 0.02;
-    robot_body_z_max = 0.30;
-    surface_thickness = 0.08;
-    max_step_height = 0.10;
-    max_slope_deg = 18.0;
-    clearance_check_enable = false;
-    min_clearance_height = 0.30;
-    tunnel_wall_min_height = 0.18;
-    passable_as_free = false;
-    load("projection.terrain_enable", terrain_enable);
-    load("projection.robot_body_z_min", robot_body_z_min);
-    load("projection.robot_body_z_max", robot_body_z_max);
-    load("projection.surface_thickness", surface_thickness);
-    load("projection.max_step_height", max_step_height);
-    load("projection.max_slope_deg", max_slope_deg);
-    load("projection.clearance_check_enable", clearance_check_enable);
-    load("projection.min_clearance_height", min_clearance_height);
-    load("projection.tunnel_wall_min_height", tunnel_wall_min_height);
     load("projection.passable_as_free", passable_as_free);
+    load("projection.hysteresis_enable", layer_hysteresis_en);
+    load("projection.hysteresis_count", layer_hysteresis_count);
+    load("projection.hole_fill_enable", layer_hole_fill_en);
+    load("projection.hole_fill_radius", layer_hole_fill_radius);
+    load("projection.hole_fill_min_occupied_neighbors", layer_hole_fill_min_occupied_neighbors);
+    if (!std::isfinite(scan_z_min_abs) || !std::isfinite(scan_z_max_abs) ||
+        scan_z_max_abs <= scan_z_min_abs) {
+      throw std::invalid_argument(
+        "projection.scan_z_min_abs and projection.scan_z_max_abs must be finite absolute Z "
+        "coordinates in the ROGMap frame, and scan_z_max_abs must be greater than scan_z_min_abs.");
+    }
+    if (!std::isfinite(surface_height_delta_max) || surface_height_delta_max < 0.0) {
+      throw std::invalid_argument(
+        "projection.surface_height_delta_max must be a non-negative vertical height difference.");
+    }
+    if (!std::isfinite(wall_height_delta_min) || wall_height_delta_min <= surface_height_delta_max) {
+      throw std::invalid_argument(
+        "projection.wall_height_delta_min must be a vertical height difference greater than "
+        "surface_height_delta_max.");
+    }
+    if (!std::isfinite(wall_occupancy_ratio_min) || wall_occupancy_ratio_min < 0.0 ||
+        wall_occupancy_ratio_min > 1.0) {
+      throw std::invalid_argument(
+        "projection.wall_occupancy_ratio_min must be a dimensionless ratio in [0, 1].");
+    }
+    if (!std::isfinite(tunnel_occupancy_ratio_max) || tunnel_occupancy_ratio_max < 0.0 ||
+        tunnel_occupancy_ratio_max > 1.0) {
+      throw std::invalid_argument(
+        "projection.tunnel_occupancy_ratio_max must be a dimensionless ratio in [0, 1].");
+    }
+    if (tunnel_occupancy_ratio_max >= wall_occupancy_ratio_min) {
+      throw std::invalid_argument(
+        "projection.tunnel_occupancy_ratio_max must be a dimensionless ratio smaller than "
+        "wall_occupancy_ratio_min.");
+    }
+    if (!std::isfinite(tunnel_height_delta_min) || tunnel_height_delta_min <= surface_height_delta_max) {
+      throw std::invalid_argument(
+        "projection.tunnel_height_delta_min must be a vertical height difference greater than "
+        "surface_height_delta_max.");
+    }
+    if (!std::isfinite(tunnel_height_delta_max) || tunnel_height_delta_max < tunnel_height_delta_min) {
+      throw std::invalid_argument(
+        "projection.tunnel_height_delta_max must be a vertical height difference greater than or equal "
+        "to tunnel_height_delta_min.");
+    }
 
     field_en = true;
     field_inflation_radius = 0.33;
@@ -459,29 +476,23 @@ public:
   double esdf_resolution{};
 
   bool layer_en{true};
-  double layer_min_z{-0.20};
-  double layer_max_z{0.80};
-  double low_obstacle_height{0.07};
-  double obstacle_height{0.14};
-  double min_ratio{0.35};
+  double scan_z_min_abs{-0.25};
+  double scan_z_max_abs{1.50};
   int min_observed_voxels{2};
   bool unknown_as_occupied{true};
+  double surface_height_delta_max{0.10};
+  double wall_height_delta_min{0.20};
+  double wall_occupancy_ratio_min{0.80};
+  double tunnel_height_delta_min{0.24};
+  double tunnel_height_delta_max{0.40};
+  double tunnel_occupancy_ratio_max{0.55};
   int passable_cost{50};
   bool layer_hysteresis_en{true};
   int layer_hysteresis_count{2};
   bool layer_hole_fill_en{true};
   int layer_hole_fill_radius{1};
   int layer_hole_fill_min_occupied_neighbors{5};
-  bool terrain_enable{false};
-  double robot_body_z_min{0.02};
-  double robot_body_z_max{0.30};
-  double surface_thickness{0.08};
-  double max_step_height{0.10};
-  double max_slope_deg{18.0};
-  bool clearance_check_enable{false};
-  double min_clearance_height{0.30};
-  double tunnel_wall_min_height{0.18};
-  bool passable_as_free{false};
+  bool passable_as_free{true};
 
   bool field_en{true};
   double field_inflation_radius{0.33};

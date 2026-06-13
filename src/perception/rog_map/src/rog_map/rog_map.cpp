@@ -362,7 +362,7 @@ void ROGMap::refreshLayers()
 {
   const auto config_start = std::chrono::steady_clock::now();
   // 从三维概率占据地图按 xy 列生成二维 layer，并把 layer mask 作为 field/ESDF 的障碍输入。
-  // projection 的 z 范围和车体高度参数均采用 ROGMap frame，不默认 z=0 是地面。
+  // scan_z_min_abs/scan_z_max_abs 是 ROGMap frame 中的绝对 Z 坐标，不是相对地面的高度。
   if (!cfg_.layer_en || !layer_) {
     runtime_stats_.projection_refresh_reason = "layer_disabled";
     return;
@@ -370,26 +370,20 @@ void ROGMap::refreshLayers()
 
   ProjectionLayerConfig layer_cfg;
   layer_cfg.unknown_as_occupied = cfg_.unknown_as_occupied;
-  layer_cfg.low_obstacle_height = cfg_.low_obstacle_height;
-  layer_cfg.obstacle_height = cfg_.obstacle_height;
-  layer_cfg.min_ratio = cfg_.min_ratio;
   layer_cfg.min_observed_voxels = cfg_.min_observed_voxels;
+  layer_cfg.surface_height_delta_max = cfg_.surface_height_delta_max;
+  layer_cfg.wall_height_delta_min = cfg_.wall_height_delta_min;
+  layer_cfg.wall_occupancy_ratio_min = cfg_.wall_occupancy_ratio_min;
+  layer_cfg.tunnel_height_delta_min = cfg_.tunnel_height_delta_min;
+  layer_cfg.tunnel_height_delta_max = cfg_.tunnel_height_delta_max;
+  layer_cfg.tunnel_occupancy_ratio_max = cfg_.tunnel_occupancy_ratio_max;
   layer_cfg.passable_cost = static_cast<uint8_t>(std::clamp(cfg_.passable_cost, 0, 252));
+  layer_cfg.passable_as_free = cfg_.passable_as_free;
   layer_cfg.hysteresis_en = cfg_.layer_hysteresis_en;
   layer_cfg.hysteresis_count = cfg_.layer_hysteresis_count;
   layer_cfg.hole_fill_en = cfg_.layer_hole_fill_en;
   layer_cfg.hole_fill_radius = cfg_.layer_hole_fill_radius;
   layer_cfg.hole_fill_min_occupied_neighbors = cfg_.layer_hole_fill_min_occupied_neighbors;
-  layer_cfg.terrain_enable = cfg_.terrain_enable;
-  layer_cfg.robot_body_z_min = cfg_.robot_body_z_min;
-  layer_cfg.robot_body_z_max = cfg_.robot_body_z_max;
-  layer_cfg.surface_thickness = cfg_.surface_thickness;
-  layer_cfg.max_step_height = cfg_.max_step_height;
-  layer_cfg.max_slope_deg = cfg_.max_slope_deg;
-  layer_cfg.clearance_check_enable = cfg_.clearance_check_enable;
-  layer_cfg.min_clearance_height = cfg_.min_clearance_height;
-  layer_cfg.tunnel_wall_min_height = cfg_.tunnel_wall_min_height;
-  layer_cfg.passable_as_free = cfg_.passable_as_free;
 
   const int width = mapWidth();
   const int height = mapHeight();
@@ -400,8 +394,8 @@ void ROGMap::refreshLayers()
 
   int z_min = 0;
   int z_max = 0;
-  posToGlobalIndex(cfg_.layer_min_z, z_min);
-  posToGlobalIndex(cfg_.layer_max_z, z_max);
+  posToGlobalIndex(cfg_.scan_z_min_abs, z_min);
+  posToGlobalIndex(cfg_.scan_z_max_abs, z_max);
   if (z_min > z_max) {
     std::swap(z_min, z_max);
   }
@@ -451,42 +445,26 @@ void ROGMap::refreshLayers()
     return GridType::UNKNOWN;
   };
 
-  auto scanner = [this, min_id, z_min, z_max, layer_cfg, rawGridType](int mx, int my) {
+  auto scanner = [this, min_id, z_min, z_max, rawGridType](int mx, int my) {
     ColumnStats stats;
     const int gx = min_id.x() + mx;
     const int gy = min_id.y() + my;
-    const double body_z_min = std::min(layer_cfg.robot_body_z_min, layer_cfg.robot_body_z_max);
-    const double body_z_max = std::max(layer_cfg.robot_body_z_min, layer_cfg.robot_body_z_max);
     for (int gz = z_min; gz <= z_max; ++gz) {
       Vec3i id_g(gx, gy, gz);
       GridType gt = rawGridType(id_g);
       if (gt == GridType::OCCUPIED || gt == GridType::KNOWN_FREE) {
-        ++stats.observed;
+        ++stats.observed_count;
         stats.last_update_time = std::max(stats.last_update_time, cellLastUpdateTime(id_g));
       }
       if (gt == GridType::OCCUPIED) {
-        ++stats.occupied;
+        ++stats.occupied_count;
+        stats.occupied_z_index_min = std::min(stats.occupied_z_index_min, gz);
+        stats.occupied_z_index_max = std::max(stats.occupied_z_index_max, gz);
         Vec3f pos;
         globalIndexToPos(id_g, pos);
-        stats.min_z = std::min(stats.min_z, pos.z());
-        stats.max_z = std::max(stats.max_z, pos.z());
+        stats.occupied_z_min_abs = std::min(stats.occupied_z_min_abs, static_cast<double>(pos.z()));
+        stats.occupied_z_max_abs = std::max(stats.occupied_z_max_abs, static_cast<double>(pos.z()));
         stats.last_hit_time = std::max(stats.last_hit_time, cellLastHitTime(id_g));
-        if (pos.z() < body_z_min) {
-          ++stats.occupied_below_body;
-          if (!std::isfinite(stats.ground_z) || pos.z() > stats.ground_z) {
-            stats.ground_z = pos.z();
-          }
-        } else if (pos.z() <= body_z_max) {
-          ++stats.occupied_in_body_band;
-          stats.body_band_min_z = std::min(stats.body_band_min_z, pos.z());
-          stats.body_band_max_z = std::max(stats.body_band_max_z, pos.z());
-          if (!std::isfinite(stats.ground_z) || pos.z() < stats.ground_z) {
-            stats.ground_z = pos.z();
-          }
-        } else {
-          ++stats.occupied_above_body;
-          stats.ceiling_z = std::min(stats.ceiling_z, pos.z());
-        }
       }
     }
     return stats;
@@ -511,7 +489,8 @@ void ROGMap::refreshLayers()
     }
   } else if (has_dirty_update) {
     const auto dirty_start = std::chrono::steady_clock::now();
-    layer_->updateDirty(width, height, res, origin, layer_cfg, scanner, dirty_columns, false, &projection_stats);
+    layer_->updateDirty(
+      width, height, res, origin, layer_cfg, scanner, dirty_columns, false, &projection_stats);
     runtime_stats_.projection_update_dirty_time = elapsedMs(dirty_start);
     runtime_stats_.dirty_layer_update_count += 1.0;
     runtime_stats_.projection_refresh_reason = "dirty_update";
@@ -527,14 +506,20 @@ void ROGMap::refreshLayers()
   if (projection_stats.update_dirty_time_ms > 0.0) {
     runtime_stats_.projection_update_dirty_time = projection_stats.update_dirty_time_ms;
   }
-  runtime_stats_.projection_terrain_time = projection_stats.terrain_time_ms;
   runtime_stats_.projection_hole_fill_time = projection_stats.hole_fill_time_ms;
   runtime_stats_.projection_value_mask_time = projection_stats.value_mask_time_ms;
+  runtime_stats_.projection_thin_surface_count = projection_stats.thin_surface_count;
+  runtime_stats_.projection_vertical_wall_count = projection_stats.vertical_wall_count;
+  runtime_stats_.projection_hollow_tunnel_count = projection_stats.hollow_tunnel_count;
+  runtime_stats_.projection_ambiguous_occupied_count = projection_stats.ambiguous_occupied_count;
+  runtime_stats_.projection_empty_column_count = projection_stats.empty_column_count;
+  runtime_stats_.projection_insufficient_observation_count =
+    projection_stats.insufficient_observation_count;
   runtime_stats_.dirty_column_count = static_cast<double>(dirty_columns.size());
   if (force_full_refresh) {
     runtime_stats_.dirty_expanded_column_count = static_cast<double>(cell_count);
   } else if (has_dirty_update) {
-    const int dirty_radius = std::max(1, layer_cfg.hole_fill_radius + 1);
+    const int dirty_radius = layer_cfg.hole_fill_en ? std::max(0, layer_cfg.hole_fill_radius) : 0;
     runtime_stats_.dirty_expanded_column_count = static_cast<double>(std::min(cell_count,
       dirty_columns.size() * static_cast<size_t>((2 * dirty_radius + 1) * (2 * dirty_radius + 1))));
   } else {
@@ -623,6 +608,12 @@ void ROGMap::refreshLayers()
               << ", projection free_count=" << runtime_stats_.free_count
               << ", projection passable_count=" << runtime_stats_.passable_count
               << ", projection unknown_count=" << runtime_stats_.unknown_count
+              << ", classification: thin=" << runtime_stats_.projection_thin_surface_count
+              << ", wall=" << runtime_stats_.projection_vertical_wall_count
+              << ", tunnel=" << runtime_stats_.projection_hollow_tunnel_count
+              << ", ambiguous=" << runtime_stats_.projection_ambiguous_occupied_count
+              << ", empty=" << runtime_stats_.projection_empty_column_count
+              << ", insufficient=" << runtime_stats_.projection_insufficient_observation_count
               << ", mask0_count=" << runtime_stats_.layer_mask_occupied_count
               << ", mask1_count=" << runtime_stats_.layer_mask_free_count << std::endl;
     last_projection_log = projection_log_now;
@@ -671,8 +662,9 @@ void ROGMap::refreshLayers()
       std::isfinite(previous_field_update_time)
         ? std::max(0.0, current_update_time_ - previous_field_update_time) * 1000.0
         : 0.0;
-    runtime_stats_.field_update_hz_window =
-      runtime_stats_.field_update_interval_ms > 1.0e-6 ? 1000.0 / runtime_stats_.field_update_interval_ms : 0.0;
+    runtime_stats_.field_update_hz_window = runtime_stats_.field_update_interval_ms > 1.0e-6
+                                              ? 1000.0 / runtime_stats_.field_update_interval_ms
+                                              : 0.0;
   } else {
     runtime_stats_.field_time = 0.0;
     runtime_stats_.field_actual_update = 0.0;
@@ -723,14 +715,14 @@ void ROGMap::refreshQuery()
   runtime_stats_.query_copy_values_time = elapsedMs(values_start);
   const auto meta_start = std::chrono::steady_clock::now();
   snapshot->types.resize(layer_->cells().size(), 0U);
-  snapshot->heights.resize(layer_->cells().size(), 0.0f);
+  snapshot->height_deltas.resize(layer_->cells().size(), 0.0f);
   snapshot->confidence.resize(layer_->cells().size(), 0.0f);
   for (size_t i = 0; i < layer_->cells().size(); ++i) {
     snapshot->types[i] = static_cast<uint8_t>(layer_->cells()[i].type);
-    snapshot->heights[i] = layer_->cells()[i].height;
+    snapshot->height_deltas[i] = layer_->cells()[i].height_delta;
     snapshot->confidence[i] = layer_->cells()[i].confidence;
   }
-  runtime_stats_.query_copy_types_heights_confidence_time = elapsedMs(meta_start);
+  runtime_stats_.query_copy_types_height_delta_confidence_time = elapsedMs(meta_start);
   if (field_) {
     const auto field_copy_start = std::chrono::steady_clock::now();
     snapshot->distances = field_->distances();
@@ -750,7 +742,8 @@ void ROGMap::refreshQuery()
   runtime_stats_.query_field_sequence = static_cast<double>(snapshot->field_sequence);
   runtime_stats_.query_field_stale = snapshot->field_stale ? 1.0 : 0.0;
   runtime_stats_.query_field_age_ms =
-    snapshot->field_stamp > 0.0 ? std::max(0.0, current_update_time_ - snapshot->field_stamp) * 1000.0 : 0.0;
+    snapshot->field_stamp > 0.0 ? std::max(0.0, current_update_time_ - snapshot->field_stamp) * 1000.0
+                                : 0.0;
   runtime_stats_.query_distance_size = static_cast<double>(snapshot->distances.size());
 }
 
