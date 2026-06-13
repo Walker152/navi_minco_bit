@@ -18,6 +18,7 @@
 #include <cmath>
 #include <deque>
 #include <limits>
+#include <vector>
 #include <memory>
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/path.hpp>
@@ -153,14 +154,20 @@ struct StateSnapshot
 };
 
 constexpr double kFullCloudMaxQueueAge = 0.20;
+constexpr double kFullCloudStampEps = 1.0e-6;
+
+bool fullCloudPointStampLess(const FullCloudPoint & a, const FullCloudPoint & b)
+{
+  return a.stamp < b.stamp;
+}
 
 std::deque<FullCloudPoint> full_cloud_queue;
 bool has_full_cloud_anchor = false;
 StateSnapshot full_cloud_anchor;
 PointCloudXYZI::Ptr full_cloud_world(new PointCloudXYZI());
-uint64_t full_cloud_accum_points = 0;
-uint64_t full_cloud_dropped_accum = 0;
+uint64_t full_cloud_dropped_points_this_scan = 0;
 uint64_t last_full_cloud_enqueued_points = 0;
+uint64_t last_full_cloud_out_of_order = 0;
 
 double average_or_zero(double sum, uint64_t count)
 {
@@ -566,10 +573,15 @@ bool isFinitePoint(const PointType & point)
 void enqueueFullCloud(const PointCloudXYZI::Ptr & cloud, double lidar_beg_time)
 {
   last_full_cloud_enqueued_points = 0;
+  last_full_cloud_out_of_order = 0;
   if (!cloud) {
     return;
   }
 
+  std::vector<FullCloudPoint> batch;
+  batch.reserve(cloud->points.size());
+
+  double prev_stamp = -std::numeric_limits<double>::infinity();
   for (const auto & point : cloud->points) {
     if (!isFinitePoint(point)) {
       continue;
@@ -582,9 +594,30 @@ void enqueueFullCloud(const PointCloudXYZI::Ptr & cloud, double lidar_beg_time)
       continue;
     }
 
-    full_cloud_queue.push_back(full_point);
+    if (full_point.stamp < prev_stamp) {
+      ++last_full_cloud_out_of_order;
+    }
+    prev_stamp = full_point.stamp;
+
+    batch.emplace_back(std::move(full_point));
     ++last_full_cloud_enqueued_points;
   }
+
+  if (batch.empty()) {
+    return;
+  }
+
+  // Sort batch by stamp before appending to queue
+  std::stable_sort(batch.begin(), batch.end(), fullCloudPointStampLess);
+
+  // Append sorted batch to queue
+  for (auto & fp : batch) {
+    full_cloud_queue.push_back(std::move(fp));
+  }
+
+  // Ensure full queue is globally sorted (handles residual future points from
+  // prior scans interleaved with current-scan points)
+  std::stable_sort(full_cloud_queue.begin(), full_cloud_queue.end(), fullCloudPointStampLess);
 }
 
 StateSnapshot makeStateSnapshot(double stamp)
@@ -653,7 +686,7 @@ void processFullCloudSegmentWithSnapshot(
     return;
   }
 
-  if (current_snapshot.stamp <= full_cloud_anchor.stamp) {
+  if (current_snapshot.stamp <= full_cloud_anchor.stamp + kFullCloudStampEps) {
     full_cloud_anchor = current_snapshot;
     return;
   }
@@ -668,24 +701,23 @@ void processFullCloudSegmentWithSnapshot(
 
   while (!full_cloud_queue.empty()) {
     const FullCloudPoint & full_point = full_cloud_queue.front();
-    if (full_point.stamp < full_cloud_anchor.stamp) {
+    if (full_point.stamp + kFullCloudStampEps < full_cloud_anchor.stamp) {
       full_cloud_queue.pop_front();
       ++dropped_old_points;
       continue;
     }
-    if (full_point.stamp > current_snapshot.stamp) {
+    if (full_point.stamp > current_snapshot.stamp + kFullCloudStampEps) {
       break;
     }
 
     const PointType point_world = transformFullPointForward(full_cloud_anchor, full_point);
     if (isFinitePoint(point_world)) {
       full_cloud_world->push_back(point_world);
-      ++full_cloud_accum_points;
     }
     full_cloud_queue.pop_front();
   }
 
-  full_cloud_dropped_accum += dropped_old_points;
+  full_cloud_dropped_points_this_scan += dropped_old_points;
   full_cloud_anchor = current_snapshot;
 }
 
@@ -708,14 +740,16 @@ void publishAccumulatedFullCloudWorld(
   pub->publish(std::move(cloud_msg));
 
   RCLCPP_INFO(LOGGER,
-    "[Point-LIO][FullCloud] published_points=%zu, queue=%zu, dropped_old=%zu",
+    "[Point-LIO][FullCloud] enqueued=%llu published=%zu queue_remaining=%zu "
+    "dropped_old=%llu out_of_order=%llu",
+    static_cast<unsigned long long>(last_full_cloud_enqueued_points),
     full_cloud_world->size(),
     full_cloud_queue.size(),
-    full_cloud_dropped_accum);
+    static_cast<unsigned long long>(full_cloud_dropped_points_this_scan),
+    static_cast<unsigned long long>(last_full_cloud_out_of_order));
 
   full_cloud_world->clear();
-  full_cloud_accum_points = 0;
-  full_cloud_dropped_accum = 0;
+  full_cloud_dropped_points_this_scan = 0;
 }
 
 void MapIncremental()
@@ -1289,8 +1323,7 @@ void LaserMappingNode::processingLoop()
         full_cloud_queue.clear();
         has_full_cloud_anchor = false;
         full_cloud_world->clear();
-        full_cloud_accum_points = 0;
-        full_cloud_dropped_accum = 0;
+        full_cloud_dropped_points_this_scan = 0;
 
         {
           ivox_.reset(new IVoxType(ivox_options_));
@@ -1427,8 +1460,7 @@ void LaserMappingNode::processingLoop()
         full_cloud_queue.clear();
         has_full_cloud_anchor = false;
         full_cloud_world->clear();
-        full_cloud_accum_points = 0;
-        full_cloud_dropped_accum = 0;
+        full_cloud_dropped_points_this_scan = 0;
         continue;
       }
 
