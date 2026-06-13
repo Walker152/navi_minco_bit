@@ -35,7 +35,6 @@ ROSBAG_TOPICS=(
   /tf
   /tf_static
   /aft_mapped_to_init
-  /map
   /global_costmap/costmap_raw
   /opt_path
   /opt_path_vis
@@ -43,9 +42,12 @@ ROSBAG_TOPICS=(
   /recover_goal
   /mpc_predict_path
   /cmd_vel_mpc
-  /cmd_force_mpc
   /sentry/behaivor_send
   /sentry/area_markers
+  /cloud_registered_full
+  /rog_map/occupied
+  /rog_map/layer_value
+  /rog_map/field
   # /livox/lidar
   # /livox/imu_192_168_1_135
 )
