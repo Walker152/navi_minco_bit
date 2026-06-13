@@ -394,17 +394,17 @@ planner_server:
           # [vertical height difference, m]
           # 判定竖直墙所需的最小单柱垂直高度差 H。
           # 这是差值，不是绝对 Z 坐标。
-          wall_height_delta_min: 0.20
+          wall_height_delta_min: 0.40
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
-          wall_occupancy_ratio_min: 0.80
+          wall_occupancy_ratio_min: 0.60
 
           # [vertical height difference, m]
           # 可通行隧道所需的最小上下表面高度差。
           # 应包含机器人实际高度和安全余量。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_min: 0.24
+          tunnel_height_delta_min: 0.28
 
           # [vertical height difference, m]
           # 当前 RM 场景中允许识别为目标隧道的最大上下表面高度差。
