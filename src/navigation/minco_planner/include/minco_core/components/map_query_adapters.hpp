@@ -22,6 +22,7 @@ public:
   bool copyValues(std::vector<unsigned char> & out) const override;
   bool isValid(unsigned int mx, unsigned int my) const override;
   bool isFree(unsigned int mx, unsigned int my) const override;
+  rog_map::QueryResult query(const Eigen::Vector3d & pos) const override;
   bool evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const override;
 
 private:
@@ -49,6 +50,7 @@ public:
   bool copyValues(std::vector<unsigned char> & out) const override;
   bool isValid(unsigned int mx, unsigned int my) const override;
   bool isFree(unsigned int mx, unsigned int my) const override;
+  rog_map::QueryResult query(const Eigen::Vector3d & pos) const override;
   bool evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const override;
 
 private:

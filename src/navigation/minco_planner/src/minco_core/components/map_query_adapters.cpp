@@ -4,6 +4,8 @@
 
 #include <Eigen/Geometry>
 
+#include <cmath>
+
 namespace minco_planner {
 
 namespace {
@@ -112,17 +114,31 @@ bool Nav2CostmapQuery::isFree(unsigned int mx, unsigned int my) const
 
 bool Nav2CostmapQuery::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const
 {
+  const auto result = query(pos);
+  dist = result.distance;
+  grad = result.gradient;
+  return result.ok;
+}
+
+rog_map::QueryResult Nav2CostmapQuery::query(const Eigen::Vector3d & pos) const
+{
+  rog_map::QueryResult result;
+  if (!pos.allFinite()) {
+    result.status = rog_map::QueryStatus::NONFINITE_INPUT;
+    return result;
+  }
   unsigned int mx = 0;
   unsigned int my = 0;
   if (!worldToMap(pos.x(), pos.y(), mx, my)) {
-    dist = -1.0;
-    grad = Eigen::Vector3d::Zero();
-    return false;
+    result.status = rog_map::QueryStatus::OUT_OF_MAP;
+    return result;
   }
   const auto cost = value(mx, my);
-  dist = isLethalCost(cost) ? -1.0 : resolution();
-  grad = Eigen::Vector3d::Zero();
-  return true;
+  result.ok = true;
+  result.status = rog_map::QueryStatus::OK;
+  result.distance = isLethalCost(cost) ? -1.0 : resolution();
+  result.gradient = Eigen::Vector3d::Zero();
+  return result;
 }
 
 FrameAwareRogQuery::FrameAwareRogQuery(std::shared_ptr<rog_map::MapQueryInterface> raw,
@@ -213,24 +229,41 @@ bool FrameAwareRogQuery::isFree(unsigned int mx, unsigned int my) const
 
 bool FrameAwareRogQuery::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const
 {
-  dist = 0.0;
-  grad = Eigen::Vector3d::Zero();
+  const auto result = query(pos);
+  dist = result.distance;
+  grad = result.gradient;
+  return result.ok;
+}
+
+rog_map::QueryResult FrameAwareRogQuery::query(const Eigen::Vector3d & pos) const
+{
+  rog_map::QueryResult result;
+  if (!pos.allFinite()) {
+    result.status = rog_map::QueryStatus::NONFINITE_INPUT;
+    return result;
+  }
   if (!raw_) {
-    return false;
+    result.status = rog_map::QueryStatus::SNAPSHOT_INVALID;
+    return result;
   }
   Eigen::Vector3d rog_pos = pos;
   if (!transformPlanningToRog(pos, rog_pos)) {
-    return false;
+    result.status = rog_map::QueryStatus::TF_FAILED;
+    return result;
   }
-  Eigen::Vector3d rog_grad = Eigen::Vector3d::Zero();
-  const bool ok = raw_->evaluate(rog_pos, dist, rog_grad);
-  if (!ok) {
-    return false;
+  result = raw_->query(rog_pos);
+  if (!result.ok) {
+    return result;
   }
-  if (!rotateRogToPlanning(rog_grad, grad)) {
-    grad = rog_grad;
+  Eigen::Vector3d planning_grad = Eigen::Vector3d::Zero();
+  if (rotateRogToPlanning(result.gradient, planning_grad)) {
+    result.gradient = planning_grad;
   }
-  return true;
+  if (!std::isfinite(result.distance) || !result.gradient.allFinite()) {
+    result.ok = false;
+    result.status = rog_map::QueryStatus::NONFINITE_OUTPUT;
+  }
+  return result;
 }
 
 bool FrameAwareRogQuery::transformPlanningToRog(const Eigen::Vector3d & in, Eigen::Vector3d & out) const

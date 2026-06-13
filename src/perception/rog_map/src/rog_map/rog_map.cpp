@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <thread>
 
 #include <rog_map/map_registry.hpp>
@@ -68,6 +69,11 @@ void ROGMap::init()
   perf_cfg.detailed_csv_path = cfg_.performance_detailed_csv_path;
   perf_cfg.summary_csv_enable = cfg_.performance_summary_csv_enable;
   perf_cfg.summary_csv_path = cfg_.performance_summary_csv_path;
+  perf_cfg.award_csv_enable = cfg_.performance_award_csv_enable;
+  perf_cfg.field_stale_threshold_ms = cfg_.performance_field_stale_threshold_ms;
+  perf_cfg.run_id = cfg_.performance_run_id;
+  perf_cfg.scenario = cfg_.performance_scenario;
+  perf_cfg.variant = cfg_.performance_variant;
   perf_cfg.csv_flush_every_n = cfg_.performance_csv_flush_every_n;
   perf_cfg.publish_enable = cfg_.performance_publish_enable;
   perf_cfg.print_enable = cfg_.performance_print_enable;
@@ -315,6 +321,8 @@ void ROGMap::updateMapInternal(const PointCloud & cloud, const Pose & pose)
   const double update_stamp = getSystemWalltimeNow();
   static uint64_t update_sequence = 0;
   const uint64_t this_update_sequence = ++update_sequence;
+  const uint64_t projection_sequence_before = projection_sequence_;
+  const uint64_t mask_sequence_before = mask_sequence_;
   const uint64_t field_sequence_before = field_sequence_;
   updateRobotState(pose);
   const double update_robot_state_ms = elapsedMs(total_start);
@@ -324,6 +332,9 @@ void ROGMap::updateMapInternal(const PointCloud & cloud, const Pose & pose)
   runtime_stats_.stamp = update_stamp;
   runtime_stats_.update_seq = static_cast<double>(this_update_sequence);
   runtime_stats_.update_robot_state_time = update_robot_state_ms;
+  runtime_stats_.projection_sequence_delta =
+    static_cast<double>(projection_sequence_ - projection_sequence_before);
+  runtime_stats_.mask_sequence_delta = static_cast<double>(mask_sequence_ - mask_sequence_before);
   runtime_stats_.field_sequence_delta = static_cast<double>(field_sequence_ - field_sequence_before);
   if (performance_monitor_) {
     performance_monitor_->fillInputStats(runtime_stats_);
@@ -345,6 +356,10 @@ void ROGMap::updateMapInternal(const PointCloud & cloud, const Pose & pose)
   const auto query_start = std::chrono::steady_clock::now();
   refreshQuery();
   runtime_stats_.query_refresh_time = elapsedMs(query_start);
+  runtime_stats_.projection_sequence_delta =
+    static_cast<double>(projection_sequence_ - projection_sequence_before);
+  runtime_stats_.mask_sequence_delta = static_cast<double>(mask_sequence_ - mask_sequence_before);
+  runtime_stats_.field_sequence_delta = static_cast<double>(field_sequence_ - field_sequence_before);
   runtime_stats_.total_update_time = elapsedMs(total_start);
   runtime_stats_.cpu_thread_hint = static_cast<double>(std::max(1U, std::thread::hardware_concurrency()));
   if (performance_monitor_ && performance_monitor_->csvEnabled()) {
@@ -530,6 +545,7 @@ void ROGMap::refreshLayers()
 
   const bool layer_updated = force_full_refresh || has_dirty_update;
   if (layer_updated) {
+    ++projection_sequence_;
     clearDirtyColumns();
   }
 
@@ -545,7 +561,12 @@ void ROGMap::refreshLayers()
     }
   }
   const bool mask_changed = mask_diff_count > 0;
+  if (mask_changed) {
+    ++mask_sequence_;
+  }
+  runtime_stats_.projection_sequence = static_cast<double>(projection_sequence_);
   runtime_stats_.layer_mask_changed = mask_changed ? 1.0 : 0.0;
+  runtime_stats_.mask_sequence = static_cast<double>(mask_sequence_);
   runtime_stats_.layer_mask_diff_count = static_cast<double>(mask_diff_count);
   runtime_stats_.layer_mask_diff_ratio =
     new_mask.empty() ? 0.0 : static_cast<double>(mask_diff_count) / static_cast<double>(new_mask.size());
@@ -685,7 +706,10 @@ void ROGMap::refreshLayers()
     }
     runtime_stats_.field_skipped_count = 1.0;
     if (cfg_.field_en && field_dirty_) {
-      field_stale_ = true;
+      const double field_age_ms =
+        last_field_stamp_ > 0.0 ? std::max(0.0, current_update_time_ - last_field_stamp_) * 1000.0
+                                : std::numeric_limits<double>::infinity();
+      field_stale_ = field_age_ms > cfg_.performance_field_stale_threshold_ms;
     }
   }
   runtime_stats_.field_sequence = static_cast<double>(field_sequence_);
@@ -703,7 +727,10 @@ void ROGMap::refreshQuery()
   const auto alloc_start = std::chrono::steady_clock::now();
   auto snapshot = std::make_shared<MapSnapshot>();
   runtime_stats_.query_snapshot_alloc_time = elapsedMs(alloc_start);
-  snapshot->sequence = ++query_sequence_;
+  snapshot->sequence = ++snapshot_sequence_;
+  snapshot->snapshot_sequence = snapshot->sequence;
+  snapshot->projection_sequence = projection_sequence_;
+  snapshot->mask_sequence = mask_sequence_;
   snapshot->stamp = current_update_time_;
   snapshot->width = layer_->width();
   snapshot->height = layer_->height();
@@ -739,12 +766,25 @@ void ROGMap::refreshQuery()
   query_->update(snapshot, field_);
   runtime_stats_.query_update_pointer_time = elapsedMs(update_start);
   runtime_stats_.query_sequence = static_cast<double>(snapshot->sequence);
+  runtime_stats_.snapshot_sequence = static_cast<double>(snapshot->snapshot_sequence);
   runtime_stats_.query_field_sequence = static_cast<double>(snapshot->field_sequence);
   runtime_stats_.query_field_stale = snapshot->field_stale ? 1.0 : 0.0;
   runtime_stats_.query_field_age_ms =
     snapshot->field_stamp > 0.0 ? std::max(0.0, current_update_time_ - snapshot->field_stamp) * 1000.0
                                 : 0.0;
   runtime_stats_.query_distance_size = static_cast<double>(snapshot->distances.size());
+  const QueryCounters query_counts = query_->queryCounters();
+  runtime_stats_.query_ok_count = static_cast<double>(query_counts.ok);
+  runtime_stats_.query_failed_count = static_cast<double>(query_counts.failed);
+  runtime_stats_.query_out_of_map_count = static_cast<double>(query_counts.out_of_map);
+  runtime_stats_.query_interpolation_failed_count =
+    static_cast<double>(query_counts.interpolation_failed);
+  runtime_stats_.query_tf_failed_count = static_cast<double>(query_counts.tf_failed);
+  runtime_stats_.query_snapshot_invalid_count = static_cast<double>(query_counts.snapshot_invalid);
+  runtime_stats_.query_field_uninitialized_count =
+    static_cast<double>(query_counts.field_uninitialized);
+  runtime_stats_.query_nonfinite_input_count = static_cast<double>(query_counts.nonfinite_input);
+  runtime_stats_.query_nonfinite_output_count = static_cast<double>(query_counts.nonfinite_output);
 }
 
 RobotState ROGMap::getRobotState() const
