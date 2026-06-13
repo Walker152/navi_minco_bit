@@ -37,6 +37,7 @@ def generate_launch_description():
     use_composition = LaunchConfiguration('use_composition')
     container_name = LaunchConfiguration('container_name')
     container_name_full = (namespace, '/', container_name)
+    planner_container_name = LaunchConfiguration('planner_container_name')
     use_respawn = LaunchConfiguration('use_respawn')
     log_level = LaunchConfiguration('log_level')
 
@@ -100,6 +101,11 @@ def generate_launch_description():
         'container_name', default_value='nav2_container',
         description='the name of conatiner that nodes will load in if use composition')
 
+    declare_planner_container_name_cmd = DeclareLaunchArgument(
+        'planner_container_name',
+        default_value='livox_pointlio_container',
+        description='Container that planner_server will load into for Point-LIO to ROGMap intra-process cloud path')
+
     declare_use_respawn_cmd = DeclareLaunchArgument(
         'use_respawn', default_value='False',
         description='Whether to respawn if a node crashes. Applied when composition is disabled.')
@@ -124,16 +130,6 @@ def generate_launch_description():
                 package='nav2_smoother',
                 executable='smoother_server',
                 name='smoother_server',
-                output='screen',
-                respawn=use_respawn,
-                respawn_delay=2.0,
-                parameters=[configured_params],
-                arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings),
-            Node(
-                package='nav2_planner',
-                executable='planner_server',
-                name='planner_server',
                 output='screen',
                 respawn=use_respawn,
                 respawn_delay=2.0,
@@ -210,12 +206,6 @@ def generate_launch_description():
                 parameters=[configured_params],
                 remappings=remappings),
             ComposableNode(
-                package='nav2_planner',
-                plugin='nav2_planner::PlannerServer',
-                name='planner_server',
-                parameters=[configured_params],
-                remappings=remappings),
-            ComposableNode(
                 package='nav2_behaviors',
                 plugin='behavior_server::BehaviorServer',
                 name='behavior_server',
@@ -250,6 +240,19 @@ def generate_launch_description():
         ],
     )
 
+    load_planner_into_pointlio_container = LoadComposableNodes(
+        target_container=planner_container_name,
+        composable_node_descriptions=[
+            ComposableNode(
+                package='nav2_planner',
+                plugin='nav2_planner::PlannerServer',
+                name='planner_server',
+                parameters=[configured_params],
+                remappings=remappings,
+                extra_arguments=[{'use_intra_process_comms': True}]),
+        ],
+    )
+
     # Create the launch description and populate
     ld = LaunchDescription()
 
@@ -263,10 +266,12 @@ def generate_launch_description():
     ld.add_action(declare_autostart_cmd)
     ld.add_action(declare_use_composition_cmd)
     ld.add_action(declare_container_name_cmd)
+    ld.add_action(declare_planner_container_name_cmd)
     ld.add_action(declare_use_respawn_cmd)
     ld.add_action(declare_log_level_cmd)
     # Add the actions to launch all of the navigation nodes
     ld.add_action(load_nodes)
+    ld.add_action(load_planner_into_pointlio_container)
     ld.add_action(load_composable_nodes)
 
     return ld

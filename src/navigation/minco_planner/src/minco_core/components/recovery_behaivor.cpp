@@ -164,18 +164,29 @@ bool RecoverServer::calculateEscapeVelocity(const geometry_msgs::msg::PoseStampe
   const double fx_minus = esdf_func(Eigen::Vector3d(cx - h, cy, 0.0));
   const double fy_plus = esdf_func(Eigen::Vector3d(cx, cy + h, 0.0));
   const double fy_minus = esdf_func(Eigen::Vector3d(cx, cy - h, 0.0));
+  if (!std::isfinite(fx_plus) || !std::isfinite(fx_minus) || !std::isfinite(fy_plus) ||
+      !std::isfinite(fy_minus)) {
+    escape_vel_out.setZero();
+    return false;
+  }
 
   const double grad_x = (fx_plus - fx_minus) / (2.0 * h);
   const double grad_y = (fy_plus - fy_minus) / (2.0 * h);
   Eigen::Vector2d grad(grad_x, grad_y);
 
   const double grad_norm = grad.norm();
+  if (!std::isfinite(grad_norm)) {
+    escape_vel_out.setZero();
+    return false;
+  }
+
   if (grad_norm < 1e-3) {
     constexpr int num_samples = 36;        // 采样数量，每 10 度采一个点
     constexpr double search_radius = 0.4;  // 搜索半径 0.4 米（稍微大于机器人的膨胀半径）
 
     double max_esdf = -std::numeric_limits<double>::max();
     double best_angle = 0.0;
+    bool found_finite_sample = false;
 
     for (int i = 0; i < num_samples; ++i) {
       const double angle = (2.0 * M_PI * i) / num_samples;
@@ -183,11 +194,20 @@ bool RecoverServer::calculateEscapeVelocity(const geometry_msgs::msg::PoseStampe
       const double sample_y = cy + search_radius * std::sin(angle);
 
       const double current_esdf = esdf_func(Eigen::Vector3d(sample_x, sample_y, 0.0));
+      if (!std::isfinite(current_esdf)) {
+        continue;
+      }
+      found_finite_sample = true;
 
       if (current_esdf > max_esdf) {
         max_esdf = current_esdf;
         best_angle = angle;
       }
+    }
+
+    if (!found_finite_sample) {
+      escape_vel_out.setZero();
+      return false;
     }
 
     // 朝着最开阔（ESDF 最大）的角度输出逃逸速度

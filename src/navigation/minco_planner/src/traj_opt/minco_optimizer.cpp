@@ -14,8 +14,15 @@ double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d> & waypoints,
   geometry_utils::Trajectory & out_traj)
 {
   // 1. Setup the optimization problem
+  last_iteration_count_ = 0;
+  last_return_code_ = 0;
+  last_objective_total_ = std::numeric_limits<double>::quiet_NaN();
+  last_query_failure_count_ = 0;
+  opt_vars_.query_failure_count = 0;
+
   if (!setupProblemAndCheck(waypoints, start_state, end_state)) {
     cout << YELLOW << " -- [TrajOpt] Error in setup problem, force return." << RESET << endl;
+    last_return_code_ = lbfgs::LBFGSERR_INVALIDPARAMETERS;
     return INFINITY;
   }
 
@@ -65,6 +72,10 @@ double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d> & waypoints,
     nullptr,
     &this->opt_vars_,
     lbfgs_params);
+  last_iteration_count_ = opt_vars_.iter_num;
+  last_return_code_ = ret;
+  last_objective_total_ = minCostFunctional;
+  last_query_failure_count_ = opt_vars_.query_failure_count;
 
   if (cfg_.print_optimizer_log) {
     cout << " -- [MincoOpt] Opt finish, with iter num: " << opt_vars_.iter_num << "\n";
@@ -163,7 +174,8 @@ double MincoOptimizer::costFunctional(void * ptr, const VecDf & x, VecDf & g)
     cost,
     partialGradByTimes,
     partialGradByCoeffs,
-    opt_vars_.penalty_log);
+    opt_vars_.penalty_log,
+    opt_vars_.query_failure_count);
 
   // 6. Propagate gradients to points and times
   Mat3Df gradByPoints;
@@ -249,7 +261,8 @@ void MincoOptimizer::constraintsFunctional(const VecDf & T,
   double & cost,
   VecDf & partialGradByTimes,
   MatD3f & partialGradByCoeffs,
-  VecDf & penalty_log)
+  VecDf & penalty_log,
+  uint64_t & query_failure_count)
 {
   (void)hybrid_esdf_map;
 
@@ -308,6 +321,8 @@ void MincoOptimizer::constraintsFunctional(const VecDf & T,
         if (query.ok) {
           esdf_dist = query.distance;
           esdf_grad = query.gradient;
+        } else {
+          ++query_failure_count;
         }
 
         const double violaPos = safe_dist - esdf_dist;

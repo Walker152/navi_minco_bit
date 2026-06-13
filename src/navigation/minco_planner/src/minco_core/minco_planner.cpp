@@ -154,13 +154,118 @@ void MincoPlanner::writeMincoPerfRow(const MincoPerfSample & sample)
                   << csvText(sample.failure_reason) << ',' << csvNum(sample.duration_ms) << ','
                   << sample.global_path_point_count << ',' << sample.local_dense_point_count << ','
                   << sample.sparse_point_count << ',' << sample.piece_count << ','
-                  << csvNum(sample.trajectory_duration) << ",NaN,NaN," << csvNum(sample.objective_total)
-                  << ",NaN,NaN,NaN,NaN,NaN,NaN,NaN," << csvNum(sample.field_sequence) << ','
+                  << csvNum(sample.trajectory_duration) << ',' << csvNum(sample.optimizer_iterations)
+                  << ',' << csvNum(sample.optimizer_return_code) << ',' << csvNum(sample.objective_total)
+                  << ',' << csvNum(sample.seed_min_esdf) << ',' << csvNum(sample.optimized_min_esdf)
+                  << ',' << csvNum(sample.min_esdf_improvement) << ','
+                  << csvNum(sample.safe_violation_sample_count) << ',' << csvNum(sample.max_velocity)
+                  << ',' << csvNum(sample.max_acceleration) << ',' << csvNum(sample.max_jerk) << ','
+                  << csvNum(sample.field_sequence) << ','
                   << csvNum(sample.snapshot_sequence) << ',' << csvNum(sample.field_age_ms) << ','
                   << csvNum(sample.query_failed_count) << ',' << csvBool(sample.old_traj_reused) << ','
                   << csvBool(sample.recovery_triggered) << '\n';
   if (++minco_perf_csv_rows_ % 30 == 0) {
     minco_perf_csv_.flush();
+  }
+}
+
+void MincoPlanner::recordQueryMetadata(const rog_map::QueryResult & query, MincoPerfSample & sample) const
+{
+  if (!std::isfinite(sample.field_sequence)) {
+    sample.field_sequence = static_cast<double>(query.field_sequence);
+  }
+  if (!std::isfinite(sample.snapshot_sequence)) {
+    sample.snapshot_sequence = static_cast<double>(query.snapshot_sequence);
+  }
+  if (!std::isfinite(sample.field_age_ms) && std::isfinite(query.field_age_ms)) {
+    sample.field_age_ms = query.field_age_ms;
+  }
+}
+
+void MincoPlanner::sampleSeedClearance(
+  const std::vector<Eigen::Vector3d> & seed_points, MincoPerfSample & sample) const
+{
+  if (!mode_context_ || !mode_context_->dynamicQuery() || seed_points.empty()) {
+    return;
+  }
+
+  double min_esdf = std::numeric_limits<double>::infinity();
+  for (const auto & point : seed_points) {
+    const auto query = mode_context_->dynamicQuery()->query(point);
+    recordQueryMetadata(query, sample);
+    if (!query.ok) {
+      sample.query_failed_count += 1.0;
+      continue;
+    }
+    min_esdf = std::min(min_esdf, query.distance);
+  }
+
+  if (std::isfinite(min_esdf)) {
+    sample.seed_min_esdf = min_esdf;
+  }
+}
+
+void MincoPlanner::sampleTrajectoryMetrics(const traj_opt::Trajectory & traj, MincoPerfSample & sample) const
+{
+  const double dur = traj.getTotalDuration();
+  if (!(std::isfinite(dur) && dur > 1e-6)) {
+    return;
+  }
+
+  constexpr double kDt = 0.05;
+  const int steps = std::max(1, static_cast<int>(std::ceil(dur / kDt)));
+  double min_esdf = std::numeric_limits<double>::infinity();
+  double safe_violation_count = 0.0;
+  double max_velocity = 0.0;
+  double max_acceleration = 0.0;
+  double max_jerk = 0.0;
+  bool has_kinematic_sample = false;
+
+  const auto query = (mode_context_ && mode_context_->dynamicQuery()) ? mode_context_->dynamicQuery() : nullptr;
+  for (int i = 0; i <= steps; ++i) {
+    const double t = std::min(dur, static_cast<double>(i) * kDt);
+    const Eigen::Vector3d pos = traj.getPos(t);
+    const Eigen::Vector3d vel = traj.getVel(t);
+    const Eigen::Vector3d acc = traj.getAcc(t);
+    const Eigen::Vector3d jer = traj.getJer(t);
+
+    if (vel.allFinite() && acc.allFinite() && jer.allFinite()) {
+      max_velocity = std::max(max_velocity, vel.norm());
+      max_acceleration = std::max(max_acceleration, acc.norm());
+      max_jerk = std::max(max_jerk, jer.norm());
+      has_kinematic_sample = true;
+    } else {
+      safe_violation_count += 1.0;
+    }
+
+    if (!query) {
+      continue;
+    }
+
+    const auto esdf = query->query(pos);
+    recordQueryMetadata(esdf, sample);
+    if (!esdf.ok) {
+      sample.query_failed_count += 1.0;
+      safe_violation_count += 1.0;
+      continue;
+    }
+    min_esdf = std::min(min_esdf, esdf.distance);
+    if (!(std::isfinite(esdf.distance) && esdf.distance > minco_config.safe_dist)) {
+      safe_violation_count += 1.0;
+    }
+  }
+
+  if (std::isfinite(min_esdf)) {
+    sample.optimized_min_esdf = min_esdf;
+  }
+  sample.safe_violation_sample_count = safe_violation_count;
+  if (has_kinematic_sample) {
+    sample.max_velocity = max_velocity;
+    sample.max_acceleration = max_acceleration;
+    sample.max_jerk = max_jerk;
+  }
+  if (std::isfinite(sample.seed_min_esdf) && std::isfinite(sample.optimized_min_esdf)) {
+    sample.min_esdf_improvement = sample.optimized_min_esdf - sample.seed_min_esdf;
   }
 }
 
@@ -1130,6 +1235,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   perf.sparse_point_count = seed.sparse_waypoints.size();
   std::vector<Eigen::Vector3d> sparse_path = seed.sparse_waypoints;
   const bool local_end_is_goal = seed.local_end_is_goal;
+  sampleSeedClearance(sparse_path, perf);
 
   std_msgs::msg::Header header_msg;
   header_msg.frame_id = output_frame_;
@@ -1151,6 +1257,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   }
 
   if (state == PlanningState::EMERGENCY_STOP) {
+    perf.recovery_triggered = true;
     return finish(false, "RECOVERY_TRIGGERED");
   }
   perf.warm_start_used = state == PlanningState::HOT_START;
@@ -1271,7 +1378,12 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   auto opt_start_time = rclcpp::Clock().now().seconds();
   double final_cost =
     minco_optimizer_->optimize(sparse_path, start_state, end_state, local_vmaxs, opt_traj);
-  perf.objective_total = final_cost;
+  perf.optimizer_iterations = static_cast<double>(minco_optimizer_->lastIterationCount());
+  perf.optimizer_return_code = static_cast<double>(minco_optimizer_->lastReturnCode());
+  perf.objective_total = std::isfinite(minco_optimizer_->lastObjectiveTotal())
+                           ? minco_optimizer_->lastObjectiveTotal()
+                           : final_cost;
+  perf.query_failed_count += static_cast<double>(minco_optimizer_->lastQueryFailureCount());
 
   const double max_allowed_cost = 3000.0;
   if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
@@ -1292,6 +1404,9 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
                   << "[MincoPlanner] Last trajectory is still valid and safe. Continuing to execute it."
                   << RESET << std::endl;
         perf.old_traj_reused = true;
+        perf.piece_count = static_cast<size_t>(last_traj_snapshot.getPieceNum());
+        perf.trajectory_duration = last_traj_snapshot.getTotalDuration();
+        sampleTrajectoryMetrics(last_traj_snapshot, perf);
         return finish(true, "NONE");
       }
       return finish(false, "OPTIMIZER_FAILED");
@@ -1305,11 +1420,15 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
             << opt_duration << " seconds, "
             << "cost: " << final_cost << RESET << std::endl;
 
+  perf.piece_count = static_cast<size_t>(opt_traj.getPieceNum());
+  perf.trajectory_duration = opt_traj.getTotalDuration();
+  sampleTrajectoryMetrics(opt_traj, perf);
+
   // 8.5 Quality gating (hard validation) before publishing.
   if (!validateTrajectory(opt_traj, end_state.col(0))) {
     std::cout << RED << "[MincoPlanner] Trajectory validation failed! Rejecting." << RESET << std::endl;
     is_traj_safe_.store(false);
-    return finish(false, "KINEMATIC_VIOLATION");
+    return finish(false, last_validation_failure_reason_);
   }
 
   double fallback_yaw = 0.0;
@@ -1400,15 +1519,6 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   has_last_yaw_traj_ = true;
 
   is_traj_safe_.store(true);
-  perf.piece_count = static_cast<size_t>(opt_traj.getPieceNum());
-  perf.trajectory_duration = opt_traj.getTotalDuration();
-  if (mode_context_ && mode_context_->dynamicQuery()) {
-    const auto query = mode_context_->dynamicQuery()->query(start_state.col(0));
-    perf.field_sequence = static_cast<double>(query.field_sequence);
-    perf.snapshot_sequence = static_cast<double>(query.snapshot_sequence);
-    perf.field_age_ms = query.field_age_ms;
-    perf.query_failed_count = query.ok ? 0.0 : 1.0;
-  }
   return finish(true, "NONE");
 }
 
@@ -1753,12 +1863,14 @@ bool MincoPlanner::optimizeYaw(const Eigen::Matrix3d & start_state,
 bool MincoPlanner::validateTrajectory(
   const traj_opt::Trajectory & traj, const Eigen::Vector3d & expected_end_pos)
 {
+  last_validation_failure_reason_ = "KINEMATIC_VIOLATION";
   constexpr double kDt = 0.05;
   constexpr double kSevereScale = 1.5;
 
   const double dur = traj.getTotalDuration();
   if (!(std::isfinite(dur) && dur > 1e-6)) {
     std::cout << YELLOW << "[MincoPlanner] validateTrajectory: invalid duration." << RESET << std::endl;
+    last_validation_failure_reason_ = "OPTIMIZER_FAILED";
     return false;
   }
 
@@ -1767,6 +1879,7 @@ bool MincoPlanner::validateTrajectory(
   if (!(std::isfinite(vmax) && std::isfinite(amax) && vmax > 1e-6 && amax > 1e-6)) {
     std::cout << YELLOW << "[MincoPlanner] validateTrajectory: invalid vmax/amax config." << RESET
               << std::endl;
+    last_validation_failure_reason_ = "KINEMATIC_VIOLATION";
     return false;
   }
 
@@ -1779,12 +1892,14 @@ bool MincoPlanner::validateTrajectory(
     const Eigen::Vector3d a = traj.getAcc(t);
     if (!(v.allFinite() && a.allFinite())) {
       std::cout << YELLOW << "[MincoPlanner] validateTrajectory: non-finite v/a." << RESET << std::endl;
+      last_validation_failure_reason_ = "KINEMATIC_VIOLATION";
       return false;
     }
     if (v.norm() > vmax_severe || a.norm() > amax_severe) {
       std::cout << YELLOW << "[MincoPlanner] validateTrajectory: severe dynamics violation."
                 << " |v|=" << v.norm() << " (limit=" << vmax_severe << ")"
                 << ", |a|=" << a.norm() << " (limit=" << amax_severe << ")" << RESET << std::endl;
+      last_validation_failure_reason_ = "KINEMATIC_VIOLATION";
       return false;
     }
   }
@@ -1794,6 +1909,7 @@ bool MincoPlanner::validateTrajectory(
   if (!end_pos.allFinite()) {
     std::cout << YELLOW << "[MincoPlanner] validateTrajectory: non-finite end position." << RESET
               << std::endl;
+    last_validation_failure_reason_ = "KINEMATIC_VIOLATION";
     return false;
   }
 
@@ -1801,12 +1917,14 @@ bool MincoPlanner::validateTrajectory(
   if (!(std::isfinite(goal_err) && goal_err <= traj_goal_tolerance_)) {
     std::cout << YELLOW << "[MincoPlanner] validateTrajectory: goal not reached. err=" << goal_err
               << " tol=" << traj_goal_tolerance_ << RESET << std::endl;
+    last_validation_failure_reason_ = "KINEMATIC_VIOLATION";
     return false;
   }
 
   // 3) Collision safety.
   if (!checkCollision(traj)) {
     std::cout << YELLOW << "[MincoPlanner] validateTrajectory: collision detected." << RESET << std::endl;
+    last_validation_failure_reason_ = "COLLISION";
     return false;
   }
 
