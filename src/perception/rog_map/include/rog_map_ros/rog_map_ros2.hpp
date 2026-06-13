@@ -159,7 +159,8 @@ class ROGMapROS : public ROGMap
     const double cbk_t = now().seconds();
     const double msg_stamp = rclcpp::Time(cloud_msg->header.stamp).seconds();
     const double queue_delay_ms = msg_stamp > 0.0 ? std::max(0.0, cbk_t - msg_stamp) * 1000.0 : 0.0;
-    const double msg_points = static_cast<double>(cloud_msg->width) * static_cast<double>(cloud_msg->height);
+    const double msg_points =
+      static_cast<double>(cloud_msg->width) * static_cast<double>(cloud_msg->height);
     if (performance_monitor_) {
       performance_monitor_->recordCloudCallback(cbk_t, msg_points, queue_delay_ms, 0.0);
     }
@@ -271,7 +272,8 @@ class ROGMapROS : public ROGMap
       vecEVec3fToPC2(unknown_map, cloud_msg);
       vm_.unknown_pub->publish(cloud_msg);
     }
-    if (cfg_.unk_inflation_en && vm_.unknown_inf_pub && vm_.unknown_inf_pub->get_subscription_count() >= 1) {
+    if (cfg_.unk_inflation_en && vm_.unknown_inf_pub &&
+        vm_.unknown_inf_pub->get_subscription_count() >= 1) {
       vec_E<Vec3f> inf_unknown_map;
       boxSearchInflate(box_min, box_max, UNKNOWN, inf_unknown_map);
       sensor_msgs::msg::PointCloud2 cloud_msg;
@@ -308,10 +310,10 @@ class ROGMapROS : public ROGMap
         fillLayerGrid(confidence, grid);
         vm_.layer_confidence_pub->publish(grid);
       }
-      if (vm_.layer_height_pub && vm_.layer_height_pub->get_subscription_count() >= 1) {
-        sensor_msgs::msg::PointCloud2 height_cloud;
-        fillLayerHeightCloud(height_cloud);
-        vm_.layer_height_pub->publish(height_cloud);
+      if (vm_.layer_height_delta_pub && vm_.layer_height_delta_pub->get_subscription_count() >= 1) {
+        sensor_msgs::msg::PointCloud2 height_delta_cloud;
+        fillLayerHeightDeltaCloud(height_delta_cloud);
+        vm_.layer_height_delta_pub->publish(height_delta_cloud);
       }
     }
 
@@ -326,7 +328,8 @@ class ROGMapROS : public ROGMap
       vm_.decay_cells_pub->publish(decay_cloud);
     }
 
-    if (cfg_.frontier_extraction_en && vm_.frontier_pub && vm_.frontier_pub->get_subscription_count() >= 1) {
+    if (cfg_.frontier_extraction_en && vm_.frontier_pub &&
+        vm_.frontier_pub->get_subscription_count() >= 1) {
       vec_E<Vec3f> frontier_map;
       boxSearch(box_min, box_max, FRONTIER, frontier_map);
       sensor_msgs::msg::PointCloud2 cloud_msg;
@@ -472,7 +475,7 @@ class ROGMapROS : public ROGMap
            (vm_.layer_value_pub && vm_.layer_value_pub->get_subscription_count() >= 1) ||
            (vm_.layer_type_pub && vm_.layer_type_pub->get_subscription_count() >= 1) ||
            (vm_.layer_confidence_pub && vm_.layer_confidence_pub->get_subscription_count() >= 1) ||
-           (vm_.layer_height_pub && vm_.layer_height_pub->get_subscription_count() >= 1) ||
+           (vm_.layer_height_delta_pub && vm_.layer_height_delta_pub->get_subscription_count() >= 1) ||
            (vm_.field_pub && vm_.field_pub->get_subscription_count() >= 1) ||
            (vm_.decay_cells_pub && vm_.decay_cells_pub->get_subscription_count() >= 1) ||
            (vm_.frontier_pub && vm_.frontier_pub->get_subscription_count() >= 1) ||
@@ -514,7 +517,7 @@ class ROGMapROS : public ROGMap
     }
   }
 
-  void fillLayerHeightCloud(sensor_msgs::msg::PointCloud2 & cloud)
+  void fillLayerHeightDeltaCloud(sensor_msgs::msg::PointCloud2 & cloud)
   {
     pcl::PointCloud<pcl::PointXYZI> pcl_cloud;
     const auto & cells = layer_->cells();
@@ -535,8 +538,8 @@ class ROGMapROS : public ROGMap
           static_cast<float>(layer_->origin().x() + (static_cast<double>(x) + 0.5) * layer_->resolution());
         p.y =
           static_cast<float>(layer_->origin().y() + (static_cast<double>(y) + 0.5) * layer_->resolution());
-        p.z = cell.max_z;
-        p.intensity = cell.height;
+        p.z = cell.occupied_z_max_abs;
+        p.intensity = cell.height_delta;
         pcl_cloud.push_back(p);
       }
     }
@@ -626,7 +629,7 @@ class ROGMapROS : public ROGMap
       vm_.unknown_inf_pub = pubs.unknown_inf_pub;
       vm_.frontier_pub = pubs.frontier_pub;
       vm_.esdf_pub = pubs.esdf_pub;
-      vm_.layer_height_pub = pubs.layer_height_pub;
+      vm_.layer_height_delta_pub = pubs.layer_height_delta_pub;
       vm_.field_pub = pubs.field_pub;
       vm_.decay_cells_pub = pubs.decay_cells_pub;
       vm_.layer_value_pub = pubs.layer_value_pub;

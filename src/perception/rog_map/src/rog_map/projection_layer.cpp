@@ -8,11 +8,6 @@ namespace rog_map {
 
 namespace {
 
-bool finiteOrNan(double value)
-{
-  return std::isfinite(value) || std::isnan(value);
-}
-
 double elapsedMs(const std::chrono::steady_clock::time_point & start)
 {
   return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
@@ -21,82 +16,64 @@ double elapsedMs(const std::chrono::steady_clock::time_point & start)
 CellType classifyCell(
   const ColumnStats & stats, CellData & cell, const ProjectionLayerConfig & config, double resolution)
 {
-  // 将一个 xy 栅格列内的三维占据统计压缩为二维语义。
-  // 高度参数均按 ROGMap frame 解释，不一定以地面 z=0 为基准。
   const int min_observed = std::max(1, config.min_observed_voxels);
   cell.confidence = static_cast<float>(
-    std::clamp(static_cast<double>(stats.observed) / static_cast<double>(min_observed), 0.0, 1.0));
+    std::clamp(static_cast<double>(stats.observed_count) / static_cast<double>(min_observed), 0.0, 1.0));
 
-  if (stats.occupied > 0 && std::isfinite(stats.min_z) && std::isfinite(stats.max_z)) {
-    cell.min_z = static_cast<float>(stats.min_z);
-    cell.max_z = static_cast<float>(stats.max_z);
-    cell.height = static_cast<float>(std::max(0.0, stats.max_z - stats.min_z));
-    cell.ratio = static_cast<float>((static_cast<double>(stats.occupied + 1) * resolution) /
-                                    std::max(static_cast<double>(cell.height), resolution));
-  }
-  cell.ground_z = static_cast<float>(stats.ground_z);
-  cell.ceiling_z = static_cast<float>(stats.ceiling_z);
-
-  if (stats.observed < min_observed) {
+  if (stats.observed_count < min_observed) {
+    cell.raw_reason = ProjectionClassReason::INSUFFICIENT_OBSERVATION;
+    cell.traversable = 0U;
     return CellType::UNKNOWN;
   }
-  if (stats.occupied == 0) {
+
+  if (stats.occupied_count == 0) {
+    cell.raw_reason = ProjectionClassReason::EMPTY_COLUMN;
+    cell.traversable = 1U;
     return CellType::FREE;
   }
 
-  if (config.terrain_enable) {
-    const double body_z_min = std::min(config.robot_body_z_min, config.robot_body_z_max);
-    const double body_z_max = std::max(config.robot_body_z_min, config.robot_body_z_max);
-    const double body_clearance_top = body_z_max + config.min_clearance_height;
-    const bool body_band_blocked = stats.occupied_in_body_band > 0;
-    const bool has_ground = std::isfinite(stats.ground_z);
-    const bool ceiling_blocks = config.clearance_check_enable && std::isfinite(stats.ceiling_z) &&
-                                stats.ceiling_z < body_z_max + config.min_clearance_height;
-    const bool slope_ok = static_cast<double>(cell.slope_deg) <= config.max_slope_deg;
-    const bool step_ok = static_cast<double>(cell.step_height) <= config.max_step_height;
-    const bool surface_ok =
-      !has_ground || (static_cast<double>(cell.height) <= std::max(config.surface_thickness, resolution) ||
-                       stats.occupied_below_body > 0);
-    const bool vertical_wall = static_cast<double>(cell.height) > config.tunnel_wall_min_height &&
-                               static_cast<double>(cell.ratio) > config.min_ratio && body_band_blocked;
-
-    if (!body_band_blocked && !ceiling_blocks && slope_ok && step_ok && surface_ok) {
-      cell.traversable = 1U;
-      return CellType::PASSABLE;
-    }
-
-    if (body_band_blocked) {
-      const double body_band_height =
-        std::isfinite(stats.body_band_min_z) && std::isfinite(stats.body_band_max_z)
-          ? stats.body_band_max_z - stats.body_band_min_z
-          : static_cast<double>(cell.height);
-      const bool crossable_body_band = body_band_height <= std::max(config.surface_thickness, resolution) &&
-                                       static_cast<double>(cell.step_height) <= config.max_step_height &&
-                                       !vertical_wall;
-      if (crossable_body_band && !ceiling_blocks && slope_ok) {
-        cell.traversable = 1U;
-        return CellType::PASSABLE;
-      }
-    }
-
-    if (vertical_wall || ceiling_blocks || body_band_blocked) {
-      cell.traversable = 0U;
-      return CellType::OCCUPIED;
-    }
-
-    if (stats.occupied_above_body > 0 && !ceiling_blocks &&
-        (!std::isfinite(stats.ceiling_z) || stats.ceiling_z >= body_clearance_top)) {
-      cell.traversable = 1U;
-      return CellType::FREE;
-    }
-  }
-
-  if (cell.height <= config.low_obstacle_height) {
-    return CellType::PASSABLE;
-  }
-  if (cell.height > config.obstacle_height && cell.ratio > config.min_ratio) {
+  const bool valid_occupied_span = stats.occupied_z_index_min <= stats.occupied_z_index_max &&
+                                   std::isfinite(stats.occupied_z_min_abs) &&
+                                   std::isfinite(stats.occupied_z_max_abs);
+  if (!valid_occupied_span) {
+    cell.raw_reason = ProjectionClassReason::AMBIGUOUS_OCCUPIED;
+    cell.traversable = 0U;
     return CellType::OCCUPIED;
   }
+
+  const int span_steps = stats.occupied_z_index_max - stats.occupied_z_index_min;
+  const double height_delta = static_cast<double>(span_steps) * resolution;
+  cell.occupied_z_min_abs = static_cast<float>(stats.occupied_z_min_abs);
+  cell.occupied_z_max_abs = static_cast<float>(stats.occupied_z_max_abs);
+  cell.height_delta = static_cast<float>(height_delta);
+
+  if (height_delta <= config.surface_height_delta_max) {
+    cell.vertical_occupancy_ratio = 1.0F;
+    cell.raw_reason = ProjectionClassReason::THIN_SURFACE;
+    cell.traversable = 1U;
+    return CellType::PASSABLE;
+  }
+
+  const double vertical_occupancy_ratio =
+    std::clamp((static_cast<double>(stats.occupied_count - 1) * resolution) / height_delta, 0.0, 1.0);
+  cell.vertical_occupancy_ratio = static_cast<float>(vertical_occupancy_ratio);
+
+  if (height_delta >= config.wall_height_delta_min &&
+      vertical_occupancy_ratio >= config.wall_occupancy_ratio_min) {
+    cell.raw_reason = ProjectionClassReason::SOLID_VERTICAL_WALL;
+    cell.traversable = 0U;
+    return CellType::OCCUPIED;
+  }
+
+  if (height_delta >= config.tunnel_height_delta_min && height_delta <= config.tunnel_height_delta_max &&
+      vertical_occupancy_ratio <= config.tunnel_occupancy_ratio_max) {
+    cell.raw_reason = ProjectionClassReason::HOLLOW_TUNNEL;
+    cell.traversable = 1U;
+    return CellType::PASSABLE;
+  }
+
+  cell.raw_reason = ProjectionClassReason::AMBIGUOUS_OCCUPIED;
+  cell.traversable = 0U;
   return CellType::OCCUPIED;
 }
 
@@ -161,16 +138,12 @@ void ProjectionLayer::updateFull(int width,
     }
   }
 
-  const auto terrain_start = std::chrono::steady_clock::now();
-  updateTerrainNeighborhood(config, nullptr);
-  if (stats) {
-    stats->terrain_time_ms += elapsedMs(terrain_start);
-  }
   const auto hole_start = std::chrono::steady_clock::now();
   applyHoleFill(config, nullptr);
   if (stats) {
     stats->hole_fill_time_ms += elapsedMs(hole_start);
   }
+
   const auto value_start = std::chrono::steady_clock::now();
   for (size_t idx = 0; idx < cells_.size(); ++idx) {
     applyValueAndMask(cells_[idx], config);
@@ -180,6 +153,7 @@ void ProjectionLayer::updateFull(int width,
   if (stats) {
     stats->value_mask_time_ms += elapsedMs(value_start);
     stats->update_full_time_ms += elapsedMs(full_start);
+    collectClassificationStats(cells_, stats);
   }
 }
 
@@ -202,13 +176,14 @@ void ProjectionLayer::updateDirty(int width,
   if (dirty_columns.empty()) {
     if (stats) {
       stats->update_dirty_time_ms += elapsedMs(dirty_start);
+      collectClassificationStats(cells_, stats);
     }
     return;
   }
 
   const size_t expected = static_cast<size_t>(width_) * static_cast<size_t>(height_);
   std::vector<uint8_t> update_mask(expected, 0U);
-  const int dirty_radius = std::max(1, config.hole_fill_radius + 1);
+  const int dirty_radius = config.hole_fill_en ? std::max(0, config.hole_fill_radius) : 0;
   std::vector<int> expanded;
   expanded.reserve(
     dirty_columns.size() * static_cast<size_t>((2 * dirty_radius + 1) * (2 * dirty_radius + 1)));
@@ -239,16 +214,13 @@ void ProjectionLayer::updateDirty(int width,
     const size_t idx = static_cast<size_t>(idx_int);
     updateOneCell(idx, idx_int % width_, idx_int / width_, config, scanner, previous);
   }
-  const auto terrain_start = std::chrono::steady_clock::now();
-  updateTerrainNeighborhood(config, &update_mask);
-  if (stats) {
-    stats->terrain_time_ms += elapsedMs(terrain_start);
-  }
+
   const auto hole_start = std::chrono::steady_clock::now();
   applyHoleFill(config, &update_mask);
   if (stats) {
     stats->hole_fill_time_ms += elapsedMs(hole_start);
   }
+
   const auto value_start = std::chrono::steady_clock::now();
   for (const int idx_int : expanded) {
     const size_t idx = static_cast<size_t>(idx_int);
@@ -259,6 +231,7 @@ void ProjectionLayer::updateDirty(int width,
   if (stats) {
     stats->value_mask_time_ms += elapsedMs(value_start);
     stats->update_dirty_time_ms += elapsedMs(dirty_start);
+    collectClassificationStats(cells_, stats);
   }
 }
 
@@ -272,8 +245,7 @@ bool ProjectionLayer::matchesGeometry(
 
 void ProjectionLayer::applyValueAndMask(CellData & cell, const ProjectionLayerConfig & config)
 {
-  // value 供 planner/可视化读取代价值；mask 才是生成二维 ESDF 的输入。
-  // mask=1 表示 FREE/PASSABLE 可通行，mask=0 表示障碍；UNKNOWN 是否阻挡由 unknown_as_occupied 决定。
+  // value is a cost/debug layer; mask is the 2D ESDF source, where 0 is obstacle and 1 is free.
   switch (cell.type) {
   case CellType::UNKNOWN:
     cell.value = config.unknown_as_occupied ? 254U : 255U;
@@ -294,6 +266,42 @@ void ProjectionLayer::applyValueAndMask(CellData & cell, const ProjectionLayerCo
   }
 }
 
+void ProjectionLayer::collectClassificationStats(
+  const std::vector<CellData> & cells, ProjectionUpdateStats * stats)
+{
+  if (!stats) {
+    return;
+  }
+  stats->thin_surface_count = 0.0;
+  stats->vertical_wall_count = 0.0;
+  stats->hollow_tunnel_count = 0.0;
+  stats->ambiguous_occupied_count = 0.0;
+  stats->empty_column_count = 0.0;
+  stats->insufficient_observation_count = 0.0;
+  for (const auto & cell : cells) {
+    switch (cell.raw_reason) {
+    case ProjectionClassReason::INSUFFICIENT_OBSERVATION:
+      stats->insufficient_observation_count += 1.0;
+      break;
+    case ProjectionClassReason::EMPTY_COLUMN:
+      stats->empty_column_count += 1.0;
+      break;
+    case ProjectionClassReason::THIN_SURFACE:
+      stats->thin_surface_count += 1.0;
+      break;
+    case ProjectionClassReason::SOLID_VERTICAL_WALL:
+      stats->vertical_wall_count += 1.0;
+      break;
+    case ProjectionClassReason::HOLLOW_TUNNEL:
+      stats->hollow_tunnel_count += 1.0;
+      break;
+    case ProjectionClassReason::AMBIGUOUS_OCCUPIED:
+      stats->ambiguous_occupied_count += 1.0;
+      break;
+    }
+  }
+}
+
 void ProjectionLayer::updateOneCell(size_t idx,
   int x,
   int y,
@@ -301,8 +309,6 @@ void ProjectionLayer::updateOneCell(size_t idx,
   const ColumnScanner & scanner,
   const std::vector<CellData> & previous)
 {
-  (void)x;
-  (void)y;
   const ColumnStats stats = scanner(x, y);
 
   CellData cell;
@@ -329,7 +335,7 @@ void ProjectionLayer::updateOneCell(size_t idx,
 CellType ProjectionLayer::applyHysteresis(
   size_t idx, CellType raw_type, const ProjectionLayerConfig & config)
 {
-  // 对 OCCUPIED -> 非 OCCUPIED 的变化做迟滞，降低点云闪烁导致的 layer 抖动。
+  // OCCUPIED enters immediately; clearing to FREE/PASSABLE waits for repeated confirmation.
   CellData & cell = cells_[idx];
   if (!config.hysteresis_en || config.hysteresis_count <= 0 || cell.type == CellType::UNKNOWN ||
       raw_type == CellType::OCCUPIED) {
@@ -370,68 +376,10 @@ CellType ProjectionLayer::applyHysteresis(
   return cell.type;
 }
 
-void ProjectionLayer::updateTerrainNeighborhood(
-  const ProjectionLayerConfig & config, const std::vector<uint8_t> * update_mask)
-{
-  // 基于相邻列 ground_z 估计台阶和坡度；这些高度仍在 ROGMap frame 下解释。
-  if (!config.terrain_enable || width_ <= 0 || height_ <= 0 || cells_.empty()) {
-    return;
-  }
-  const auto before = cells_;
-  for (int y = 0; y < height_; ++y) {
-    for (int x = 0; x < width_; ++x) {
-      const size_t idx = static_cast<size_t>(y) * static_cast<size_t>(width_) + static_cast<size_t>(x);
-      if (update_mask && (idx >= update_mask->size() || (*update_mask)[idx] == 0U)) {
-        continue;
-      }
-      auto & cell = cells_[idx];
-      if (!finiteOrNan(cell.ground_z)) {
-        cell.ground_z = std::numeric_limits<float>::quiet_NaN();
-      }
-      double max_step = 0.0;
-      double max_slope = 0.0;
-      if (std::isfinite(cell.ground_z)) {
-        for (int dy = -1; dy <= 1; ++dy) {
-          for (int dx = -1; dx <= 1; ++dx) {
-            if (dx == 0 && dy == 0) {
-              continue;
-            }
-            const int nx = x + dx;
-            const int ny = y + dy;
-            if (nx < 0 || ny < 0 || nx >= width_ || ny >= height_) {
-              continue;
-            }
-            const size_t nidx =
-              static_cast<size_t>(ny) * static_cast<size_t>(width_) + static_cast<size_t>(nx);
-            const auto & neighbor = before[nidx];
-            if (!std::isfinite(neighbor.ground_z)) {
-              continue;
-            }
-            const double dz =
-              std::abs(static_cast<double>(cell.ground_z) - static_cast<double>(neighbor.ground_z));
-            const double run = resolution_ * std::sqrt(static_cast<double>(dx * dx + dy * dy));
-            max_step = std::max(max_step, dz);
-            if (run > 1.0e-9) {
-              max_slope = std::max(max_slope, std::atan2(dz, run) * 180.0 / M_PI);
-            }
-          }
-        }
-      }
-      cell.step_height = static_cast<float>(max_step);
-      cell.slope_deg = static_cast<float>(max_slope);
-      if (cell.type == CellType::PASSABLE &&
-          (max_step > config.max_step_height || max_slope > config.max_slope_deg)) {
-        cell.type = CellType::OCCUPIED;
-        cell.traversable = 0U;
-      }
-    }
-  }
-}
-
 void ProjectionLayer::applyHoleFill(
   const ProjectionLayerConfig & config, const std::vector<uint8_t> * update_mask)
 {
-  // 将被障碍包围的小块 UNKNOWN/FREE 洞填成 OCCUPIED，使 mask 和 ESDF 不穿过窄缝。
+  // Only UNKNOWN/FREE holes are filled. PASSABLE, including HOLLOW_TUNNEL, keeps its raw classification.
   if (!config.hole_fill_en || config.hole_fill_radius <= 0 ||
       config.hole_fill_min_occupied_neighbors <= 0 || width_ <= 0 || height_ <= 0 || cells_.empty()) {
     return;
@@ -468,6 +416,8 @@ void ProjectionLayer::applyHoleFill(
       }
       if (occupied_neighbors >= config.hole_fill_min_occupied_neighbors) {
         cells_[idx].type = CellType::OCCUPIED;
+        cells_[idx].hole_filled = true;
+        cells_[idx].traversable = 0U;
       }
     }
   }
