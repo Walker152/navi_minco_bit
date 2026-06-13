@@ -2,6 +2,9 @@
 
 #include "data_structure/base/trajectory.h"
 
+#include <cmath>
+#include <limits>
+
 namespace minco_planner {
 
 void TrajectorySafetyChecker::configure(double safe_dist, double sample_dt, rclcpp::Logger logger)
@@ -47,8 +50,19 @@ bool TrajectorySafetyChecker::checkPoint(const Eigen::Vector3d & pos) const
   }
   double esdf_dist = 0.0;
   Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
-  dynamic_query_->evaluate(pos, esdf_dist, esdf_grad);
-  return esdf_dist > safe_dist_;
+  const auto query = dynamic_query_->query(pos);
+  if (!query.ok) {
+    RCLCPP_WARN_THROTTLE(logger_,
+      *rclcpp::Clock::make_shared(),
+      1000,
+      "[MincoPlanner] Trajectory safety query failed: %s",
+      rog_map::queryStatusName(query.status));
+    return false;
+  }
+  esdf_dist = query.distance;
+  esdf_grad = query.gradient;
+  (void)esdf_grad;
+  return std::isfinite(esdf_dist) && esdf_dist > safe_dist_;
 }
 
 bool TrajectorySafetyChecker::checkTrajectory(const traj_opt::Trajectory & traj) const
@@ -73,8 +87,11 @@ double TrajectorySafetyChecker::getDistance(const Eigen::Vector3d & pos) const
   }
   double dist = 0.0;
   Eigen::Vector3d grad = Eigen::Vector3d::Zero();
-  dynamic_query_->evaluate(pos, dist, grad);
-  return dist;
+  const auto query = dynamic_query_->query(pos);
+  dist = query.distance;
+  grad = query.gradient;
+  (void)grad;
+  return query.ok ? dist : std::numeric_limits<double>::quiet_NaN();
 }
 
 bool TrajectorySafetyChecker::projectOutOfObstacle(Eigen::Vector3d & pos, double margin) const
@@ -84,7 +101,12 @@ bool TrajectorySafetyChecker::projectOutOfObstacle(Eigen::Vector3d & pos, double
   }
   double esdf_dist = 0.0;
   Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
-  dynamic_query_->evaluate(pos, esdf_dist, esdf_grad);
+  const auto query = dynamic_query_->query(pos);
+  if (!query.ok) {
+    return false;
+  }
+  esdf_dist = query.distance;
+  esdf_grad = query.gradient;
   if (esdf_dist < 0.0 && esdf_grad.norm() > 1e-6) {
     pos += (margin - esdf_dist) * esdf_grad.normalized();
     return true;

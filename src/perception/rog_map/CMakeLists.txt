@@ -94,6 +94,13 @@ if(BUILD_TESTING)
         target_link_libraries(projection_layer_height_ratio_test
                 ${library_name}
         )
+
+        ament_add_gtest(query_adapter_status_test
+                test/query_adapter_status_test.cpp
+        )
+        target_link_libraries(query_adapter_status_test
+                ${library_name}
+        )
 endif()
 
 install(TARGETS ${library_name}

@@ -302,9 +302,13 @@ void MincoOptimizer::constraintsFunctional(const VecDf & T,
 
       // For position cost
       if (weightPos > 0.0 && map) {
-        double esdf_dist = 0.0;
-        Eigen::Vector3d esdf_grad;
-        map->evaluate(pos.cast<double>(), esdf_dist, esdf_grad);
+        double esdf_dist = -safe_dist;
+        Eigen::Vector3d esdf_grad = Eigen::Vector3d::Zero();
+        const auto query = map->query(pos.cast<double>());
+        if (query.ok) {
+          esdf_dist = query.distance;
+          esdf_grad = query.gradient;
+        }
 
         const double violaPos = safe_dist - esdf_dist;
         double violaPosPena, violaPosPenaD;

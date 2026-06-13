@@ -132,7 +132,9 @@ namespace rog_map {
         std::shared_ptr<DynamicLayer> field_;
         std::shared_ptr<QueryAdapter> query_;
         std::unique_ptr<PerformanceMonitor> performance_monitor_;
-        uint64_t query_sequence_{0};
+        uint64_t projection_sequence_{0};
+        uint64_t mask_sequence_{0};
+        uint64_t snapshot_sequence_{0};
         double last_field_update_time_{-std::numeric_limits<double>::infinity()};
         bool field_dirty_{true};
         uint64_t field_sequence_{0};

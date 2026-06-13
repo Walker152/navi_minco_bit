@@ -18,6 +18,7 @@
 #include <cmath>
 #include <deque>
 #include <limits>
+#include <memory>
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/path.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -645,11 +646,11 @@ void publishFullCloudWorld(
     return;
   }
 
-  sensor_msgs::msg::PointCloud2 cloud_msg;
-  pcl::toROSMsg(*full_cloud_world, cloud_msg);
-  cloud_msg.header.stamp = get_ros_time(stamp);
-  cloud_msg.header.frame_id = "camera_init";
-  pubLaserCloudFullWorld->publish(cloud_msg);
+  auto cloud_msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
+  pcl::toROSMsg(*full_cloud_world, *cloud_msg);
+  cloud_msg->header.stamp = get_ros_time(stamp);
+  cloud_msg->header.frame_id = "camera_init";
+  pubLaserCloudFullWorld->publish(std::move(cloud_msg));
 }
 
 void maybeLogFullCloudStats(size_t published_points, size_t dropped_old_points)
@@ -1172,8 +1173,8 @@ private:
     }
     sub_imu_ = create_subscription<sensor_msgs::msg::Imu>(imu_topic, rclcpp::SensorDataQoS(), imu_cbk);
     pub_laser_cloud_full_res_ = create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered", 20);
-    pub_laser_cloud_full_world_ =
-      create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_registered_full", rclcpp::SensorDataQoS());
+    pub_laser_cloud_full_world_ = create_publisher<sensor_msgs::msg::PointCloud2>(
+      "/cloud_registered_full", rclcpp::SensorDataQoS().keep_last(1));
     pub_laser_cloud_full_res_body_ =
       create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered_body", 20);
     pub_laser_cloud_map_ = create_publisher<sensor_msgs::msg::PointCloud2>("Laser_map", 20);

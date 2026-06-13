@@ -4,8 +4,11 @@
 #include <iostream>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <iomanip>
 #include <limits>
+#include <sstream>
 
 #include <Eigen/Geometry>
 
@@ -32,9 +35,122 @@ void log_info_line(std::string_view text)
 
 namespace minco_controller {
 
+namespace {
+
+std::string csvNum(double value)
+{
+  if (!std::isfinite(value)) {
+    return "NaN";
+  }
+  std::ostringstream ss;
+  ss << std::fixed << std::setprecision(6) << value;
+  return ss.str();
+}
+
+std::string csvBool(bool value)
+{
+  return value ? "1" : "0";
+}
+
+std::string csvText(std::string value)
+{
+  std::replace(value.begin(), value.end(), ',', '_');
+  return value;
+}
+
+long long steadyNowNs()
+{
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(
+    std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+}  // namespace
+
+MincoMpcController::~MincoMpcController()
+{
+  if (mpc_perf_csv_.is_open()) {
+    mpc_perf_csv_.flush();
+    mpc_perf_csv_.close();
+  }
+}
+
 double MincoMpcController::normalizeYaw(double yaw)
 {
   return std::atan2(std::sin(yaw), std::cos(yaw));
+}
+
+void MincoMpcController::configureMpcPerfLogging(
+  const rclcpp_lifecycle::LifecycleNode::SharedPtr & node)
+{
+  nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".performance.detailed_csv_enable", rclcpp::ParameterValue(false));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".performance.award_csv_enable", rclcpp::ParameterValue(false));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".performance.mpc_csv_path", rclcpp::ParameterValue(mpc_perf_csv_path_));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".performance.deadline_ms", rclcpp::ParameterValue(mpc_perf_deadline_ms_));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".performance.run_id", rclcpp::ParameterValue(""));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".performance.scenario", rclcpp::ParameterValue(""));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".performance.variant", rclcpp::ParameterValue(""));
+
+  bool detailed_csv_enable = false;
+  bool award_csv_enable = false;
+  node->get_parameter(name_ + ".performance.detailed_csv_enable", detailed_csv_enable);
+  node->get_parameter(name_ + ".performance.award_csv_enable", award_csv_enable);
+  node->get_parameter(name_ + ".performance.mpc_csv_path", mpc_perf_csv_path_);
+  node->get_parameter(name_ + ".performance.deadline_ms", mpc_perf_deadline_ms_);
+  node->get_parameter(name_ + ".performance.run_id", award_run_id_);
+  node->get_parameter(name_ + ".performance.scenario", award_scenario_);
+  node->get_parameter(name_ + ".performance.variant", award_variant_);
+  mpc_perf_csv_enable_ = detailed_csv_enable || award_csv_enable;
+  if (!mpc_perf_csv_enable_) {
+    return;
+  }
+
+  mpc_perf_csv_.open(mpc_perf_csv_path_, std::ios::out | std::ios::trunc);
+  if (!mpc_perf_csv_.is_open()) {
+    RCLCPP_ERROR(logger_, "[MincoMpc] Failed to open MPC perf CSV: %s", mpc_perf_csv_path_.c_str());
+    mpc_perf_csv_enable_ = false;
+    return;
+  }
+  writeMpcPerfHeader();
+}
+
+void MincoMpcController::writeMpcPerfHeader()
+{
+  if (!mpc_perf_csv_.is_open()) {
+    return;
+  }
+  mpc_perf_csv_
+    << "run_id,scenario,variant,stamp_ros,stamp_steady_ns,success,failure_reason,cycle_duration_ms,"
+       "qp_duration_ms,qp_return_code,qp_nwsr,deadline_miss,trajectory_id,reference_age_ms,"
+       "tracking_error,cross_track_error,along_track_error,yaw_error,cmd_vx,cmd_vy,cmd_wz,ref_vx,"
+       "ref_vy,ref_wz\n";
+}
+
+void MincoMpcController::writeMpcPerfRow(const MpcPerfSample & sample)
+{
+  if (!mpc_perf_csv_enable_ || !mpc_perf_csv_.is_open()) {
+    return;
+  }
+  mpc_perf_csv_ << csvText(award_run_id_) << ',' << csvText(award_scenario_) << ','
+                << csvText(award_variant_) << ',' << csvNum(sample.stamp_ros) << ','
+                << sample.stamp_steady_ns << ',' << csvBool(sample.success) << ','
+                << csvText(sample.failure_reason) << ',' << csvNum(sample.cycle_duration_ms) << ','
+                << csvNum(sample.qp_duration_ms) << ",NaN,NaN," << csvBool(sample.deadline_miss) << ','
+                << sample.trajectory_id << ',' << csvNum(sample.reference_age_ms) << ','
+                << csvNum(sample.tracking_error) << ',' << csvNum(sample.cross_track_error) << ','
+                << csvNum(sample.along_track_error) << ',' << csvNum(sample.yaw_error) << ','
+                << csvNum(sample.cmd_vx) << ',' << csvNum(sample.cmd_vy) << ','
+                << csvNum(sample.cmd_wz) << ',' << csvNum(sample.ref_vx) << ','
+                << csvNum(sample.ref_vy) << ',' << csvNum(sample.ref_wz) << '\n';
+  if (++mpc_perf_csv_rows_ % 30 == 0) {
+    mpc_perf_csv_.flush();
+  }
 }
 
 void MincoMpcController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
@@ -52,6 +168,7 @@ void MincoMpcController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPt
 
   global_frame_ = costmap_ros_->getGlobalFrameID();
   base_frame_ = costmap_ros_->getBaseFrameID();
+  configureMpcPerfLogging(node);
 
   // 声明/读取参数
   nav2_util::declare_parameter_if_not_declared(node, name + ".dt", rclcpp::ParameterValue(0.05));
@@ -226,6 +343,10 @@ void MincoMpcController::extractGlobalVelocityAndYaw(const nav_msgs::msg::Odomet
 
 void MincoMpcController::cleanup()
 {
+  if (mpc_perf_csv_.is_open()) {
+    mpc_perf_csv_.flush();
+    mpc_perf_csv_.close();
+  }
   opt_path_sub_.reset();
   odom_sub_.reset();
   mpc_predict_path_pub_.reset();
@@ -577,9 +698,26 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   const geometry_msgs::msg::Twist & velocity,
   nav2_core::GoalChecker * goal_checker)
 {
+  const auto cycle_start = std::chrono::steady_clock::now();
   auto node = node_.lock();
 
   const rclcpp::Time now = node->now();
+  MpcPerfSample perf;
+  perf.stamp_ros = now.seconds();
+  perf.stamp_steady_ns = steadyNowNs();
+  auto finish = [&](geometry_msgs::msg::TwistStamped out_cmd, bool success, const std::string & reason) {
+    perf.success = success;
+    perf.failure_reason = success ? "NONE" : reason;
+    perf.cycle_duration_ms =
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - cycle_start).count();
+    perf.deadline_miss = mpc_perf_deadline_ms_ > 0.0 && perf.cycle_duration_ms > mpc_perf_deadline_ms_;
+    perf.cmd_vx = out_cmd.twist.linear.x;
+    perf.cmd_vy = out_cmd.twist.linear.y;
+    perf.cmd_wz = out_cmd.twist.angular.z;
+    writeMpcPerfRow(perf);
+    return out_cmd;
+  };
+
   nav_msgs::msg::Odometry::SharedPtr latest_odom;
   {
     std::lock_guard<std::mutex> lk(data_mtx_);
@@ -643,7 +781,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
       cmd.twist.linear.x = 0.0;
       cmd.twist.linear.y = 0.0;
       cmd.twist.angular.z = 0.0;
-      return cmd;
+      return finish(cmd, true, "NONE");
     }
   }
 
@@ -663,16 +801,40 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     cmd.twist.linear.x = 0.0;
     cmd.twist.linear.y = 0.0;
     cmd.twist.angular.z = 0.0;
-    return cmd;
+    return finish(cmd, false, ok_ref ? "SOLVER_UNAVAILABLE" : "NO_REFERENCE");
+  }
+  if (!ref.empty()) {
+    const Eigen::Vector2d error(curr.x - ref.front().pos.x(), curr.y - ref.front().pos.y());
+    const double yaw = ref.front().yaw;
+    const Eigen::Vector2d along(std::cos(yaw), std::sin(yaw));
+    const Eigen::Vector2d cross(-std::sin(yaw), std::cos(yaw));
+    perf.tracking_error = error.norm();
+    perf.along_track_error = error.dot(along);
+    perf.cross_track_error = error.dot(cross);
+    perf.yaw_error = normalizeYaw(curr.yaw - ref.front().yaw);
+    perf.ref_vx = ref.front().vel.x();
+    perf.ref_vy = ref.front().vel.y();
+    perf.ref_wz = ref.front().yaw_rate;
+  }
+  {
+    std::lock_guard<std::mutex> lk(data_mtx_);
+    if (latest_opt_path_ && !latest_opt_path_->cmds.empty()) {
+      perf.trajectory_id = latest_opt_path_->cmds.front().trajectory_id;
+      const rclcpp::Time traj_stamp(latest_opt_path_->header.stamp);
+      perf.reference_age_ms = std::max(0.0, (now - traj_stamp).seconds() * 1000.0);
+    }
   }
 
   // 3) 调用 MPC 求解（输出 global_frame_ 系速度，此处为 camera_init）
   Control u_global;
   std::vector<State> pred_states;
+  const auto qp_start = std::chrono::steady_clock::now();
 #ifdef MINCO_DEBUG
   auto t_start = std::chrono::high_resolution_clock::now();
 #endif
   bool success = solver_->solve(curr, ref, u_global, &pred_states);
+  perf.qp_duration_ms =
+    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - qp_start).count();
 
   publishVisualization(pred_states, curr);
 
@@ -725,7 +887,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     cmd.twist.linear.x = 0.0;
     cmd.twist.linear.y = 0.0;
     cmd.twist.angular.z = 0.0;
-    return cmd;
+    return finish(cmd, false, "QP_FAILED");
   }
 
   // 5) 直接下发全局坐标系速度
@@ -801,7 +963,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   cmd.twist.linear.x = vx;
   cmd.twist.linear.y = vy;
   cmd.twist.angular.z = wz;
-  return cmd;
+  return finish(cmd, true, "NONE");
 }
 
 void MincoMpcController::publishVisualization(

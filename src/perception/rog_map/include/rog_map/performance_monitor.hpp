@@ -54,6 +54,8 @@ struct RuntimeStats
   double refresh_layers_time{0.0};
   double performance_csv_write_time{0.0};
   double projection_total_time{0.0};
+  double projection_sequence{0.0};
+  double projection_sequence_delta{0.0};
   double projection_config_time{0.0};
   double projection_scanner_time{0.0};
   double projection_update_full_time{0.0};
@@ -81,6 +83,8 @@ struct RuntimeStats
   double projection_insufficient_observation_count{0.0};
   std::string projection_refresh_reason{"none"};
   double layer_mask_changed{0.0};
+  double mask_sequence{0.0};
+  double mask_sequence_delta{0.0};
   double layer_mask_diff_count{0.0};
   double layer_mask_diff_ratio{0.0};
   double layer_mask_free_count{0.0};
@@ -128,10 +132,20 @@ struct RuntimeStats
   double query_copy_field_distances_time{0.0};
   double query_update_pointer_time{0.0};
   double query_sequence{0.0};
+  double snapshot_sequence{0.0};
   double query_field_sequence{0.0};
   double query_field_stale{0.0};
   double query_field_age_ms{0.0};
   double query_distance_size{0.0};
+  double query_ok_count{0.0};
+  double query_failed_count{0.0};
+  double query_out_of_map_count{0.0};
+  double query_interpolation_failed_count{0.0};
+  double query_tf_failed_count{0.0};
+  double query_snapshot_invalid_count{0.0};
+  double query_field_uninitialized_count{0.0};
+  double query_nonfinite_input_count{0.0};
+  double query_nonfinite_output_count{0.0};
   double cpu_thread_hint{0.0};
 };
 
@@ -146,6 +160,13 @@ struct PerformanceConfig
   std::string detailed_csv_path{"/tmp/rog_map_perf_detailed.csv"};
   bool summary_csv_enable{false};
   std::string summary_csv_path{"/tmp/rog_map_perf_summary.csv"};
+  bool award_csv_enable{false};
+  std::string award_metrics_csv_path{"/tmp/navigation_award_metrics.csv"};
+  std::string award_manifest_path{"/tmp/navigation_award_run_manifest.json"};
+  double field_stale_threshold_ms{200.0};
+  std::string run_id{};
+  std::string scenario{};
+  std::string variant{};
   int csv_flush_every_n{30};
   bool publish_enable{true};
   bool print_enable{false};
@@ -225,6 +246,9 @@ private:
     double field_skip_delta{0.0};
     double field_skip_not_dirty_delta{0.0};
     double field_skip_period_not_ready_delta{0.0};
+    double field_stale_delta{0.0};
+    double query_failed_first{-1.0};
+    double query_failed_last{0.0};
     double mask_changed_delta{0.0};
     double mask_diff_ratio_sum{0.0};
     double dirty_ratio_sum{0.0};
@@ -235,6 +259,8 @@ private:
   void addElapsed(double RuntimeStats::*field, double elapsed_ms);
   void writeDetailedHeader();
   void writeSummaryHeader();
+  void writeAwardManifest();
+  void writeAwardMetrics();
   void writeDetailedRow(const RuntimeStats & stats);
   void maybeWriteSummary(double stamp);
   void resetWindow(double stamp);
@@ -247,6 +273,7 @@ private:
   std::ofstream map_info_csv_;
   std::ofstream detailed_csv_;
   std::ofstream summary_csv_;
+  std::ofstream award_metrics_csv_;
   int performance_csv_rows_{0};
   int detailed_csv_rows_{0};
   int summary_csv_rows_{0};
@@ -269,6 +296,8 @@ private:
   double first_valid_update_stamp_{0.0};
   double last_valid_update_stamp_{0.0};
   WindowAccumulator window_{};
+  std::chrono::system_clock::time_point run_start_wall_{};
+  double run_start_stamp_{0.0};
   std::mutex mutex_;
 };
 

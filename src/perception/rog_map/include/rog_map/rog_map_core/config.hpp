@@ -137,19 +137,15 @@ public:
     load("frontier_extraction_en", frontier_extraction_en);
 
     ros_callback_en = false;
-    cloud_topic = "/cloud_registered";
-    dense_cloud_topic = "/cloud_registered_full";
+    cloud_topic = "/cloud_registered_full";
     odom_topic = "/lidar_slam/odom";
     odom_timeout = 0.05;
     update_period_ms = 1;
-    use_dense_cloud = false;
     load("ros_callback.enable", ros_callback_en);
     load("ros_callback.cloud_topic", cloud_topic);
-    load("ros_callback.dense_cloud_topic", dense_cloud_topic);
     load("ros_callback.odom_topic", odom_topic);
     load("ros_callback.odom_timeout", odom_timeout);
     load("ros_callback.update_period_ms", update_period_ms);
-    load("ros_callback.use_dense_cloud", use_dense_cloud);
     if (update_period_ms <= 0) {
       update_period_ms = 1;
     }
@@ -338,6 +334,11 @@ public:
     performance_detailed_csv_path = "/tmp/rog_map_perf_detailed.csv";
     performance_summary_csv_enable = false;
     performance_summary_csv_path = "/tmp/rog_map_perf_summary.csv";
+    performance_award_csv_enable = false;
+    performance_field_stale_threshold_ms = 200.0;
+    performance_run_id = "";
+    performance_scenario = "";
+    performance_variant = "";
     performance_csv_flush_every_n = 30;
     performance_publish_enable = true;
     performance_topic = "/rog_map/performance";
@@ -361,6 +362,11 @@ public:
     load("performance.detailed_csv_path", performance_detailed_csv_path);
     load("performance.summary_csv_enable", performance_summary_csv_enable);
     load("performance.summary_csv_path", performance_summary_csv_path);
+    load("performance.award_csv_enable", performance_award_csv_enable);
+    load("performance.field_stale_threshold_ms", performance_field_stale_threshold_ms);
+    load("performance.run_id", performance_run_id);
+    load("performance.scenario", performance_scenario);
+    load("performance.variant", performance_variant);
     load("performance.csv_flush_every_n", performance_csv_flush_every_n);
     load("performance.publish_enable", performance_publish_enable);
     load("performance.topic", performance_topic);
@@ -453,14 +459,12 @@ public:
       return a.x() * a.x() + a.y() * a.y() + a.z() * a.z() < b.x() * b.x() + b.y() * b.y() + b.z() * b.z();
     });
     RCLCPP_INFO(node->get_logger(),
-      "[ROGMap Config] loaded prefix='%s', frame_id='%s', cloud='%s', dense_cloud='%s', use_dense=%s, "
+      "[ROGMap Config] loaded prefix='%s', frame_id='%s', cloud='%s', "
       "odom='%s', resolution=%.3f, "
       "map_size=[%.2f %.2f %.2f], projection=%s, field=%s/%s, performance=%s, visualization=%s",
       prefix.c_str(),
       frame_id.c_str(),
       cloud_topic.c_str(),
-      dense_cloud_topic.c_str(),
-      use_dense_cloud ? "true" : "false",
       odom_topic.c_str(),
       resolution,
       map_size_d.x(),
@@ -524,6 +528,11 @@ public:
   string performance_detailed_csv_path{"/tmp/rog_map_perf_detailed.csv"};
   bool performance_summary_csv_enable{false};
   string performance_summary_csv_path{"/tmp/rog_map_perf_summary.csv"};
+  bool performance_award_csv_enable{false};
+  double performance_field_stale_threshold_ms{200.0};
+  string performance_run_id{};
+  string performance_scenario{};
+  string performance_variant{};
   int performance_csv_flush_every_n{30};
   bool performance_publish_enable{true};
   string performance_topic{"/rog_map/performance"};
@@ -564,8 +573,7 @@ public:
   string frame_id{};
   bool map_sliding_en{true};
   Vec3f fix_map_origin{};
-  string odom_topic{}, cloud_topic{}, dense_cloud_topic{};
-  bool use_dense_cloud{false};
+  string odom_topic{}, cloud_topic{};
   int update_period_ms{1};
   /* probability update */
   double raycast_range_min{}, raycast_range_max{};

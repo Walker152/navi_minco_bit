@@ -3,6 +3,9 @@
 
 #include "minco_core/header.hpp"
 
+#include <fstream>
+#include <limits>
+
 namespace rog_map {
 class ROGMapROS;
 }  // namespace rog_map
@@ -87,6 +90,29 @@ private:
     EMERGENCY_STOP  // Immediate backup braking with safety priority.
   };
 
+  struct MincoPerfSample
+  {
+    std::string planner_mode{"UNKNOWN"};
+    std::string failure_reason{"NONE"};
+    double stamp_ros{0.0};
+    long long stamp_steady_ns{0};
+    bool warm_start_used{false};
+    bool success{false};
+    double duration_ms{0.0};
+    size_t global_path_point_count{0};
+    size_t local_dense_point_count{0};
+    size_t sparse_point_count{0};
+    size_t piece_count{0};
+    double trajectory_duration{std::numeric_limits<double>::quiet_NaN()};
+    double objective_total{std::numeric_limits<double>::quiet_NaN()};
+    double field_sequence{std::numeric_limits<double>::quiet_NaN()};
+    double snapshot_sequence{std::numeric_limits<double>::quiet_NaN()};
+    double field_age_ms{std::numeric_limits<double>::quiet_NaN()};
+    double query_failed_count{0.0};
+    bool old_traj_reused{false};
+    bool recovery_triggered{false};
+  };
+
   // === Utility & Helper Functions ===
   PlanningState determinePlanningState(
     const geometry_msgs::msg::Pose & start_pose, const std::vector<Eigen::Vector3d> & new_path);
@@ -125,6 +151,9 @@ private:
 
   bool ensureMapAvailable();
   void rebuildModeDependentQueries();
+  void configureMincoPerfLogging(const nav2_util::LifecycleNode::SharedPtr & node, const std::string & prefix);
+  void writeMincoPerfHeader();
+  void writeMincoPerfRow(const MincoPerfSample & sample);
 
   void initPlannerMode(
     const std::string & planner_mode_param, const std::string & map_frame, const std::string & rog_frame);
@@ -173,6 +202,11 @@ private:
   double esdf_resolution_;
   MincoOptimizer::Config minco_config;
   RecoverServer::Config recovery_server_config_{};
+  bool minco_perf_csv_enable_{false};
+  std::string award_run_id_{};
+  std::string award_scenario_{};
+  std::string award_variant_{};
+  std::string minco_perf_csv_path_{"/tmp/minco_perf_detailed.csv"};
 
   // === Core Modules (Pointers to FSM, Optimizers, etc.) ===
   std::unique_ptr<Astar> astar_planner_;
@@ -212,6 +246,8 @@ private:
 
   std::unique_ptr<Visualizer> visualizer_;
   rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
+  std::ofstream minco_perf_csv_;
+  int minco_perf_csv_rows_{0};
 };
 
 }  // namespace minco_planner
