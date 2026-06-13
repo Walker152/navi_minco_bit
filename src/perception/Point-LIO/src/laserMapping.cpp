@@ -127,6 +127,16 @@ struct PoseUpdateDebugStats
   double odom_wall_dt_max_ms = 0.0;
   uint64_t odom_wall_dt_count = 0;
 
+  double full_undistort_time_sum_ms = 0.0;
+  double full_undistort_time_min_ms = std::numeric_limits<double>::infinity();
+  double full_undistort_time_max_ms = 0.0;
+  uint64_t full_undistort_time_count = 0;
+
+  double map_incremental_time_sum_ms = 0.0;
+  double map_incremental_time_min_ms = std::numeric_limits<double>::infinity();
+  double map_incremental_time_max_ms = 0.0;
+  uint64_t map_incremental_time_count = 0;
+
   double last_sensor_update_time = -1.0;
   double last_odom_stamp_time = -1.0;
   std::chrono::steady_clock::time_point last_odom_wall_time;
@@ -206,6 +216,14 @@ void reset_pose_update_debug_window_locked(std::chrono::steady_clock::time_point
   pose_update_debug_stats.odom_wall_dt_min_ms = std::numeric_limits<double>::infinity();
   pose_update_debug_stats.odom_wall_dt_max_ms = 0.0;
   pose_update_debug_stats.odom_wall_dt_count = 0;
+  pose_update_debug_stats.full_undistort_time_sum_ms = 0.0;
+  pose_update_debug_stats.full_undistort_time_min_ms = std::numeric_limits<double>::infinity();
+  pose_update_debug_stats.full_undistort_time_max_ms = 0.0;
+  pose_update_debug_stats.full_undistort_time_count = 0;
+  pose_update_debug_stats.map_incremental_time_sum_ms = 0.0;
+  pose_update_debug_stats.map_incremental_time_min_ms = std::numeric_limits<double>::infinity();
+  pose_update_debug_stats.map_incremental_time_max_ms = 0.0;
+  pose_update_debug_stats.map_incremental_time_count = 0;
 }
 
 void maybe_print_pose_update_debug_locked(std::chrono::steady_clock::time_point now)
@@ -245,6 +263,16 @@ void maybe_print_pose_update_debug_locked(std::chrono::steady_clock::time_point 
   const uint64_t min_points_per_update =
     pose_update_debug_stats.pose_update_count > 0 ? pose_update_debug_stats.min_points_per_update : 0;
 
+  const double avg_full_undistort_time_ms =
+    average_or_zero(
+      pose_update_debug_stats.full_undistort_time_sum_ms,
+      pose_update_debug_stats.full_undistort_time_count);
+
+  const double avg_map_incremental_time_ms =
+    average_or_zero(
+      pose_update_debug_stats.map_incremental_time_sum_ms,
+      pose_update_debug_stats.map_incremental_time_count);
+
   RCLCPP_INFO(LOGGER,
     "[Point-LIO][PoseDebug] window=%.2fs\n"
     "  sync=%.1fHz, pose_update=%.1fHz, odom_pub=%.1fHz\n"
@@ -252,6 +280,8 @@ void maybe_print_pose_update_debug_locked(std::chrono::steady_clock::time_point 
     "  full_pts/sync_avg=%.1f, down_pts/sync_avg=%.1f\n"
     "  pts/update avg=%.2f min=%llu max=%llu\n"
     "  update_bins single=%llu small=%llu medium=%llu large=%llu\n"
+    "  full_undistort_time_ms avg=%.2f min=%.2f max=%.2f count=%llu\n"
+    "  map_incremental_time_ms avg=%.2f min=%.2f max=%.2f count=%llu\n"
     "  sensor_update_dt_ms avg=%.2f min=%.2f max=%.2f\n"
     "  odom_stamp_dt_ms avg=%.2f min=%.2f max=%.2f\n"
     "  odom_wall_dt_ms avg=%.2f min=%.2f max=%.2f",
@@ -270,6 +300,18 @@ void maybe_print_pose_update_debug_locked(std::chrono::steady_clock::time_point 
     static_cast<unsigned long long>(pose_update_debug_stats.small_update_count),
     static_cast<unsigned long long>(pose_update_debug_stats.medium_update_count),
     static_cast<unsigned long long>(pose_update_debug_stats.large_update_count),
+    avg_full_undistort_time_ms,
+    min_or_zero(
+      pose_update_debug_stats.full_undistort_time_min_ms,
+      pose_update_debug_stats.full_undistort_time_count),
+    pose_update_debug_stats.full_undistort_time_max_ms,
+    static_cast<unsigned long long>(pose_update_debug_stats.full_undistort_time_count),
+    avg_map_incremental_time_ms,
+    min_or_zero(
+      pose_update_debug_stats.map_incremental_time_min_ms,
+      pose_update_debug_stats.map_incremental_time_count),
+    pose_update_debug_stats.map_incremental_time_max_ms,
+    static_cast<unsigned long long>(pose_update_debug_stats.map_incremental_time_count),
     average_or_zero(
       pose_update_debug_stats.sensor_update_dt_sum_ms, pose_update_debug_stats.sensor_update_dt_count),
     min_or_zero(
@@ -405,6 +447,40 @@ void record_pose_update_debug_odom(const builtin_interfaces::msg::Time & stamp)
   }
   pose_update_debug_stats.last_odom_wall_time = now;
   pose_update_debug_stats.has_last_odom_wall_time = true;
+  maybe_print_pose_update_debug_locked(now);
+}
+
+void record_pose_update_debug_full_undistort(double time_ms)
+{
+  if (!debug_pose_update_detail || !std::isfinite(time_ms) || time_ms < 0.0) {
+    return;
+  }
+
+  const auto now = std::chrono::steady_clock::now();
+  std::lock_guard<std::mutex> lock(pose_update_debug_stats.mutex);
+  pose_update_debug_stats.full_undistort_time_sum_ms += time_ms;
+  pose_update_debug_stats.full_undistort_time_min_ms =
+    std::min(pose_update_debug_stats.full_undistort_time_min_ms, time_ms);
+  pose_update_debug_stats.full_undistort_time_max_ms =
+    std::max(pose_update_debug_stats.full_undistort_time_max_ms, time_ms);
+  ++pose_update_debug_stats.full_undistort_time_count;
+  maybe_print_pose_update_debug_locked(now);
+}
+
+void record_pose_update_debug_map_incremental(double time_ms)
+{
+  if (!debug_pose_update_detail || !std::isfinite(time_ms) || time_ms < 0.0) {
+    return;
+  }
+
+  const auto now = std::chrono::steady_clock::now();
+  std::lock_guard<std::mutex> lock(pose_update_debug_stats.mutex);
+  pose_update_debug_stats.map_incremental_time_sum_ms += time_ms;
+  pose_update_debug_stats.map_incremental_time_min_ms =
+    std::min(pose_update_debug_stats.map_incremental_time_min_ms, time_ms);
+  pose_update_debug_stats.map_incremental_time_max_ms =
+    std::max(pose_update_debug_stats.map_incremental_time_max_ms, time_ms);
+  ++pose_update_debug_stats.map_incremental_time_count;
   maybe_print_pose_update_debug_locked(now);
 }
 
@@ -1379,7 +1455,12 @@ void LaserMappingNode::processingLoop()
 
       /*** downsample the feature points in a scan ***/
       t1 = omp_get_wtime();
-      p_imu->Process(Measures, feats_undistort);
+      {
+        const double full_undistort_start = omp_get_wtime();
+        p_imu->Process(Measures, feats_undistort);
+        record_pose_update_debug_full_undistort(
+          (omp_get_wtime() - full_undistort_start) * 1000.0);
+      }
       enqueueFullCloud(feats_undistort, Measures.lidar_beg_time);
       if (!has_full_cloud_anchor) {
         full_cloud_anchor = makeStateSnapshot(Measures.lidar_beg_time);
@@ -1912,15 +1993,26 @@ void LaserMappingNode::processingLoop()
 
       /*** add the feature points to map ***/
       t3 = omp_get_wtime();
+      double map_incremental_ms = 0.0;
+      bool map_incremental_called = false;
       if (feats_down_size > 4) {
         if (enable_prior_pcd) {
           sleep_time++;
           if (sleep_time > 200) {
+            const double map_incremental_start = omp_get_wtime();
             MapIncremental();
+            map_incremental_ms = (omp_get_wtime() - map_incremental_start) * 1000.0;
+            map_incremental_called = true;
           }
         } else {
+          const double map_incremental_start = omp_get_wtime();
           MapIncremental();
+          map_incremental_ms = (omp_get_wtime() - map_incremental_start) * 1000.0;
+          map_incremental_called = true;
         }
+      }
+      if (map_incremental_called) {
+        record_pose_update_debug_map_incremental(map_incremental_ms);
       }
       t5 = omp_get_wtime();
       /******* Publish points *******/
