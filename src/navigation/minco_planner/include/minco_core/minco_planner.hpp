@@ -104,7 +104,16 @@ private:
     size_t sparse_point_count{0};
     size_t piece_count{0};
     double trajectory_duration{std::numeric_limits<double>::quiet_NaN()};
+    double optimizer_iterations{std::numeric_limits<double>::quiet_NaN()};
+    double optimizer_return_code{std::numeric_limits<double>::quiet_NaN()};
     double objective_total{std::numeric_limits<double>::quiet_NaN()};
+    double seed_min_esdf{std::numeric_limits<double>::quiet_NaN()};
+    double optimized_min_esdf{std::numeric_limits<double>::quiet_NaN()};
+    double min_esdf_improvement{std::numeric_limits<double>::quiet_NaN()};
+    double safe_violation_sample_count{std::numeric_limits<double>::quiet_NaN()};
+    double max_velocity{std::numeric_limits<double>::quiet_NaN()};
+    double max_acceleration{std::numeric_limits<double>::quiet_NaN()};
+    double max_jerk{std::numeric_limits<double>::quiet_NaN()};
     double field_sequence{std::numeric_limits<double>::quiet_NaN()};
     double snapshot_sequence{std::numeric_limits<double>::quiet_NaN()};
     double field_age_ms{std::numeric_limits<double>::quiet_NaN()};
@@ -154,6 +163,9 @@ private:
   void configureMincoPerfLogging(const nav2_util::LifecycleNode::SharedPtr & node, const std::string & prefix);
   void writeMincoPerfHeader();
   void writeMincoPerfRow(const MincoPerfSample & sample);
+  void sampleSeedClearance(const std::vector<Eigen::Vector3d> & seed_points, MincoPerfSample & sample) const;
+  void sampleTrajectoryMetrics(const traj_opt::Trajectory & traj, MincoPerfSample & sample) const;
+  void recordQueryMetadata(const rog_map::QueryResult & query, MincoPerfSample & sample) const;
 
   void initPlannerMode(
     const std::string & planner_mode_param, const std::string & map_frame, const std::string & rog_frame);
@@ -248,6 +260,7 @@ private:
   rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
   std::ofstream minco_perf_csv_;
   int minco_perf_csv_rows_{0};
+  std::string last_validation_failure_reason_{"KINEMATIC_VIOLATION"};
 };
 
 }  // namespace minco_planner
