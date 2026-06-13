@@ -74,7 +74,6 @@ void ProbMap::initProbMap()
     cfg_.map_sliding_en,
     cfg_.map_sliding_thresh,
     cfg_.fix_map_origin);
-  time_consuming_.resize(time_consuming_name_.size(), 0.0);
   inf_map_ = std::make_shared<InfMap>(cfg_);
 
   if (cfg_.frontier_extraction_en) {
@@ -293,87 +292,6 @@ bool ProbMap::isUnknownInflate(const Vec3f & pos) const
 
 // Query====================================================
 
-void ProbMap::writeTimeConsumingToLog(std::ofstream & log_file)
-{
-  if (!log_file.is_open()) {
-    return;
-  }
-  if (time_consuming_.size() < time_consuming_name_.size()) {
-    time_consuming_.resize(time_consuming_name_.size(), 0.0);
-  }
-  time_consuming_[0] = runtime_stats_.total_update_time;
-  time_consuming_[1] = runtime_stats_.raycast_time;
-  time_consuming_[2] = runtime_stats_.prob_update_time;
-  time_consuming_[3] = runtime_stats_.inflation_time;
-  time_consuming_[4] = runtime_stats_.input_point_count;
-  time_consuming_[5] = runtime_stats_.cache_count;
-  time_consuming_[6] = runtime_stats_.inflation_count;
-  time_consuming_[7] = runtime_stats_.raycast_parallel_time;
-  time_consuming_[8] = runtime_stats_.raycast_merge_time;
-  time_consuming_[9] = runtime_stats_.hit_count;
-  time_consuming_[10] = runtime_stats_.miss_count;
-  time_consuming_[11] = runtime_stats_.decay_time;
-  time_consuming_[12] = runtime_stats_.projection_time;
-  time_consuming_[13] = runtime_stats_.field_time;
-  time_consuming_[14] = runtime_stats_.query_refresh_time;
-  time_consuming_[15] = runtime_stats_.occupied_count;
-  time_consuming_[16] = runtime_stats_.unknown_count;
-  time_consuming_[17] = runtime_stats_.passable_count;
-  time_consuming_[18] = runtime_stats_.free_count;
-  time_consuming_[19] = runtime_stats_.decayed_count;
-  time_consuming_[20] = runtime_stats_.dirty_column_count;
-  time_consuming_[21] = runtime_stats_.dirty_expanded_column_count;
-  time_consuming_[22] = runtime_stats_.full_layer_refresh_count;
-  time_consuming_[23] = runtime_stats_.dirty_layer_update_count;
-  time_consuming_[24] = runtime_stats_.field_skipped_count;
-  for (long unsigned int i = 0; i < time_consuming_.size(); i++) {
-    log_file << time_consuming_[i];
-    if (i != time_consuming_.size() - 1)
-      log_file << ", ";
-  }
-  log_file << std::endl;
-}
-
-void ProbMap::writeMapInfoToLog(std::ofstream & log_file)
-{
-  if (!log_file.is_open()) {
-    return;
-  }
-  log_file << "[ProbMap]" << std::endl;
-  log_file << "\tmap_size_d: " << cfg_.map_size_d.transpose() << std::endl;
-  log_file << "\tresolution: " << cfg_.resolution << std::endl;
-  log_file << "\tmap_size_i: " << sc_.map_size_i.transpose() << std::endl;
-  log_file << "\tlocal_update_box_size: " << cfg_.local_update_box_d.transpose() << std::endl;
-  log_file << "\tp_min: " << cfg_.p_min << std::endl;
-  log_file << "\tp_max: " << cfg_.p_max << std::endl;
-  log_file << "\tp_hit: " << cfg_.p_hit << std::endl;
-  log_file << "\tp_miss: " << cfg_.p_miss << std::endl;
-  log_file << "\tp_occ: " << cfg_.p_occ << std::endl;
-  log_file << "\tp_free: " << cfg_.p_free << std::endl;
-  log_file << "\tunk_thresh: " << cfg_.unk_thresh << std::endl;
-  log_file << "\tmap_sliding_thresh: " << cfg_.map_sliding_thresh << std::endl;
-  log_file << "\tmap_sliding_en: " << cfg_.map_sliding_en << std::endl;
-  log_file << "\tfix_map_origin: " << cfg_.fix_map_origin.transpose() << std::endl;
-  log_file << "\tvisualization_range: " << cfg_.visualization_range.transpose() << std::endl;
-  log_file << "\tvirtual_ceil_height: " << cfg_.virtual_ceil_height << std::endl;
-  log_file << "\tvirtual_ground_height: " << cfg_.virtual_ground_height << std::endl;
-  log_file << "\tbatch_update_size: " << cfg_.batch_update_size << std::endl;
-  log_file << "\tfrontier_extraction_en: " << cfg_.frontier_extraction_en << std::endl;
-  log_file << "\tparallel_raycast_en: " << cfg_.parallel_raycast_en << std::endl;
-  log_file << "\traycast_num_threads: " << cfg_.raycast_num_threads << std::endl;
-  log_file << "\tdecay_en: " << cfg_.decay_en << std::endl;
-  log_file << "\tdecay_keep_time: " << cfg_.keep_time << std::endl;
-  log_file << "\tdecay_time: " << cfg_.decay_time << std::endl;
-  log_file << "\tdecay_rate: " << cfg_.decay_rate << std::endl;
-  log_file << "\tlayer_hysteresis_en: " << cfg_.layer_hysteresis_en << std::endl;
-  log_file << "\tlayer_hysteresis_count: " << cfg_.layer_hysteresis_count << std::endl;
-  log_file << "\tlayer_hole_fill_en: " << cfg_.layer_hole_fill_en << std::endl;
-  log_file << "\tlayer_hole_fill_radius: " << cfg_.layer_hole_fill_radius << std::endl;
-  log_file << "\tfield_max_distance: " << cfg_.field_max_distance << std::endl;
-  log_file << "\tfield_min_distance: " << cfg_.field_min_distance << std::endl;
-  inf_map_->writeMapInfoToLog(log_file);
-}
-
 void ProbMap::updateOccPointCloud(const PointCloud & input_cloud)
 {
   /// Step 1; Raycast and add to update cache.
@@ -431,7 +349,6 @@ void ProbMap::updateProbMap(const PointCloud & cloud, const Pose & pose)
   TimeConsuming tc("updateMap", false);
   runtime_stats_ = RuntimeStats{};
   const Vec3f & pos = pose.first;
-  time_consuming_[4] = cloud.size();
   runtime_stats_.input_point_count = cloud.size();
   if (cfg_.map_sliding_en && !insideLocalMap(pos) && raycast_data_.batch_update_counter == 0) {
     std::cout << YELLOW << " -- [ROGMapCore] cur_pose out of map range, reset the map." << RESET
@@ -460,26 +377,20 @@ void ProbMap::updateProbMap(const PointCloud & cloud, const Pose & pose)
   updateLocalBox(pos);
   TimeConsuming t_raycast("raycast", false);
   raycastProcess(cloud, pos);
-  time_consuming_[1] = t_raycast.stop();
-  runtime_stats_.raycast_time = time_consuming_[1];
+  runtime_stats_.raycast_time = t_raycast.stop();
   raycast_data_.batch_update_counter++;
   if (raycast_data_.batch_update_counter >= cfg_.batch_update_size) {
     raycast_data_.batch_update_counter = 0;
-    time_consuming_[5] = raycast_data_.update_cache_id_g.size();
-    runtime_stats_.cache_count = time_consuming_[5];
+    runtime_stats_.cache_count = static_cast<double>(raycast_data_.update_cache_id_g.size());
     TimeConsuming t_update("update", false);
     probabilisticMapFromCache();
-    time_consuming_[2] = t_update.stop();
-    runtime_stats_.prob_update_time = time_consuming_[2];
+    runtime_stats_.prob_update_time = t_update.stop();
     map_empty_ = false;
   }
   runtime_stats_.dirty_column_count_from_probmap = static_cast<double>(dirtyColumnIds().size());
   runtime_stats_.active_cell_count = static_cast<double>(active_ids_.size());
-  inf_map_->getInflationNumAndTime(time_consuming_[6], time_consuming_[3]);
-  runtime_stats_.inflation_count = time_consuming_[6];
-  runtime_stats_.inflation_time = time_consuming_[3];
-  time_consuming_[0] = tc.stop();
-  runtime_stats_.total_update_time = time_consuming_[0];
+  inf_map_->getInflationNumAndTime(runtime_stats_.inflation_count, runtime_stats_.inflation_time);
+  runtime_stats_.total_update_time = tc.stop();
 
   /* Update ESDF map */
   if (cfg_.esdf_en) {

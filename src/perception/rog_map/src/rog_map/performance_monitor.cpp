@@ -2,11 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <ctime>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
-#include <thread>
 
 namespace rog_map {
 
@@ -17,9 +15,10 @@ double elapsedMs(const std::chrono::steady_clock::time_point & start)
   return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 }
 
-double safeValue(double value)
+long long steadyNowNs()
 {
-  return std::isfinite(value) ? value : 0.0;
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(
+    std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 double hzFrom(double count, double first_stamp, double last_stamp)
@@ -33,14 +32,12 @@ double hzFrom(double count, double first_stamp, double last_stamp)
 
 std::string num(double value)
 {
+  if (!std::isfinite(value)) {
+    return "NaN";
+  }
   std::ostringstream ss;
-  ss << std::fixed << std::setprecision(6) << safeValue(value);
+  ss << std::fixed << std::setprecision(6) << value;
   return ss.str();
-}
-
-std::string boolean(double value)
-{
-  return value != 0.0 ? "1" : "0";
 }
 
 void writeCsvLine(std::ofstream & stream, const std::vector<std::string> & fields)
@@ -52,20 +49,6 @@ void writeCsvLine(std::ofstream & stream, const std::vector<std::string> & field
     }
   }
   stream << '\n';
-}
-
-std::string isoTime(std::chrono::system_clock::time_point tp)
-{
-  const std::time_t t = std::chrono::system_clock::to_time_t(tp);
-  std::tm tm{};
-#if defined(_WIN32)
-  gmtime_s(&tm, &t);
-#else
-  gmtime_r(&t, &tm);
-#endif
-  std::ostringstream ss;
-  ss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
-  return ss.str();
 }
 
 }  // namespace
@@ -98,25 +81,11 @@ void PerformanceMonitor::configure(const PerformanceConfig & config)
   }
   resetStats();
   resetWindow(0.0);
-  run_start_wall_ = std::chrono::system_clock::now();
-  run_start_stamp_ = 0.0;
-  performance_csv_rows_ = 0;
   detailed_csv_rows_ = 0;
   summary_csv_rows_ = 0;
 
   if (!config_.enable) {
     return;
-  }
-  if (csvEnabled()) {
-    performance_csv_.open(config_.csv_path, std::ios::out | std::ios::trunc);
-    map_info_csv_.open(config_.map_info_csv_path, std::ios::out | std::ios::trunc);
-    if (!performance_csv_.is_open()) {
-      std::cerr << "[ROGMapPerf] failed to open csv_path: " << config_.csv_path << std::endl;
-    }
-    if (!map_info_csv_.is_open()) {
-      std::cerr << "[ROGMapPerf] failed to open map_info_csv_path: " << config_.map_info_csv_path
-                << std::endl;
-    }
   }
   if (detailedCsvEnabled()) {
     detailed_csv_.open(config_.detailed_csv_path, std::ios::out | std::ios::trunc);
@@ -136,36 +105,6 @@ void PerformanceMonitor::configure(const PerformanceConfig & config)
       writeSummaryHeader();
     }
   }
-  if (config_.award_csv_enable) {
-    award_metrics_csv_.open(config_.award_metrics_csv_path, std::ios::out | std::ios::trunc);
-    if (!award_metrics_csv_.is_open()) {
-      std::cerr << "[ROGMapPerf] failed to open award_metrics_csv_path: "
-                << config_.award_metrics_csv_path << std::endl;
-    }
-    writeAwardManifest();
-  }
-}
-
-void PerformanceMonitor::writePerformanceCsvHeader(const std::vector<std::string> & fields)
-{
-  if (!csvEnabled() || !performance_csv_.is_open()) {
-    return;
-  }
-  writeCsvLine(performance_csv_, fields);
-}
-
-void PerformanceMonitor::writePerformanceCsvRow(const std::vector<double> & values)
-{
-  if (!csvEnabled() || !performance_csv_.is_open()) {
-    return;
-  }
-  std::vector<std::string> fields;
-  fields.reserve(values.size());
-  for (const double value : values) {
-    fields.push_back(num(value));
-  }
-  writeCsvLine(performance_csv_, fields);
-  flushIfNeeded(performance_csv_, performance_csv_rows_);
 }
 
 void PerformanceMonitor::recordCloudCallback(
@@ -298,31 +237,6 @@ void PerformanceMonitor::observeUpdate(const RuntimeStats & stats)
   window_.valid_updates += 1.0;
   window_.field_updates += stats.field_actual_update != 0.0 ? 1.0 : 0.0;
   window_.update_count += 1.0;
-  window_.update_total_sum += stats.total_update_time;
-  window_.update_total_max = std::max(window_.update_total_max, stats.total_update_time);
-  window_.raycast_sum += stats.raycast_time;
-  window_.raycast_max = std::max(window_.raycast_max, stats.raycast_time);
-  window_.projection_sum += stats.projection_total_time;
-  window_.projection_max = std::max(window_.projection_max, stats.projection_total_time);
-  window_.field_sum += stats.field_time;
-  window_.field_max = std::max(window_.field_max, stats.field_time);
-  window_.query_sum += stats.query_refresh_time;
-  window_.query_max = std::max(window_.query_max, stats.query_refresh_time);
-  window_.full_refresh_delta += stats.projection_refresh_reason.rfind("full_", 0) == 0 ? 1.0 : 0.0;
-  window_.dirty_update_delta += stats.projection_refresh_reason == "dirty_update" ? 1.0 : 0.0;
-  window_.field_skip_delta += stats.field_actual_update == 0.0 ? 1.0 : 0.0;
-  window_.field_skip_not_dirty_delta += stats.field_skip_reason == "not_dirty" ? 1.0 : 0.0;
-  window_.field_skip_period_not_ready_delta += stats.field_skip_reason == "period_not_ready" ? 1.0 : 0.0;
-  window_.field_stale_delta += stats.field_stale != 0.0 ? 1.0 : 0.0;
-  if (window_.query_failed_first < 0.0) {
-    window_.query_failed_first = stats.query_failed_count;
-  }
-  window_.query_failed_last = stats.query_failed_count;
-  window_.mask_changed_delta += stats.layer_mask_changed != 0.0 ? 1.0 : 0.0;
-  window_.mask_diff_ratio_sum += stats.layer_mask_diff_ratio;
-  window_.dirty_ratio_sum += stats.projection_dirty_ratio;
-  window_.input_points_sum += stats.input_point_count;
-  window_.input_points_max = std::max(window_.input_points_max, stats.input_point_count);
 
   if (detailedCsvEnabled() && detailed_csv_.is_open()) {
     writeDetailedRow(stats);
@@ -332,14 +246,6 @@ void PerformanceMonitor::observeUpdate(const RuntimeStats & stats)
 
 void PerformanceMonitor::close()
 {
-  if (performance_csv_.is_open()) {
-    performance_csv_.flush();
-    performance_csv_.close();
-  }
-  if (map_info_csv_.is_open()) {
-    map_info_csv_.flush();
-    map_info_csv_.close();
-  }
   if (detailed_csv_.is_open()) {
     detailed_csv_.flush();
     detailed_csv_.close();
@@ -347,11 +253,6 @@ void PerformanceMonitor::close()
   if (summary_csv_.is_open()) {
     summary_csv_.flush();
     summary_csv_.close();
-  }
-  if (award_metrics_csv_.is_open()) {
-    writeAwardMetrics();
-    award_metrics_csv_.flush();
-    award_metrics_csv_.close();
   }
 }
 
@@ -366,395 +267,84 @@ void PerformanceMonitor::addElapsed(double RuntimeStats::*field, double elapsed_
 void PerformanceMonitor::writeDetailedHeader()
 {
   writeCsvLine(detailed_csv_,
-    {"stamp",
-      "update_seq",
-      "cloud_callback_hz_window",
-      "valid_update_hz_window",
-      "cloud_msg_points",
-      "cloud_msg_points_avg",
-      "cloud_msg_points_max",
-      "cloud_queue_delay_ms",
+    {"run_id",
+      "scenario",
+      "variant",
+      "stamp_ros",
+      "stamp_steady_ns",
+      "cloud_callback_hz",
+      "map_update_hz",
+      "input_points",
       "cloud_convert_time_ms",
-      "valid_cloud_count",
-      "dropped_cloud_empty_count",
-      "dropped_cloud_no_odom_count",
-      "dropped_cloud_odom_timeout_count",
-      "odom_hz",
-      "odom_age_ms",
-      "input_point_count",
-      "raycast_input_point_count",
-      "raycast_used_point_count",
-      "raycast_skipped_near_count",
-      "raycast_skipped_far_count",
-      "raycast_skipped_outside_count",
-      "update_total_time_ms",
-      "update_robot_state_time_ms",
-      "prob_update_time_ms",
       "raycast_time_ms",
-      "raycast_parallel_time_ms",
-      "raycast_merge_time_ms",
-      "inflation_time_ms",
+      "prob_update_time_ms",
       "decay_time_ms",
-      "refresh_layers_time_ms",
-      "performance_csv_write_time_ms",
-      "projection_total_time_ms",
-      "projection_sequence",
-      "projection_sequence_delta",
-      "projection_config_time_ms",
-      "projection_update_full_time_ms",
-      "projection_update_dirty_time_ms",
-      "projection_hole_fill_time_ms",
-      "projection_value_mask_time_ms",
-      "projection_refresh_reason",
-      "projection_cell_count",
-      "projection_z_layers",
-      "projection_scanned_voxel_estimate",
-      "projection_dirty_column_count",
-      "projection_dirty_expanded_column_count",
-      "projection_dirty_ratio",
-      "projection_full_refresh_count",
-      "projection_dirty_update_count",
-      "projection_no_update_count",
-      "projection_thin_surface_count",
-      "projection_vertical_wall_count",
-      "projection_hollow_tunnel_count",
-      "projection_ambiguous_occupied_count",
-      "projection_empty_column_count",
-      "projection_insufficient_observation_count",
-      "layer_mask_changed",
-      "mask_sequence",
-      "mask_sequence_delta",
-      "layer_mask_diff_count",
-      "layer_mask_diff_ratio",
-      "layer_mask_free_count",
-      "layer_mask_occupied_count",
-      "layer_type_free_count",
-      "layer_type_passable_count",
-      "layer_type_occupied_count",
-      "layer_type_unknown_count",
-      "field_enabled",
-      "field_dirty_before",
-      "field_period_ready",
-      "field_should_update",
-      "field_actual_update",
-      "field_skip_reason",
+      "projection_time_ms",
       "field_time_ms",
-      "field_edt_positive_time_ms",
-      "field_edt_negative_time_ms",
-      "field_distance_fill_time_ms",
-      "field_copy_time_ms",
-      "field_sequence",
-      "field_sequence_delta",
-      "field_update_count",
-      "field_skipped_count",
-      "field_skip_not_dirty_count",
-      "field_skip_period_not_ready_count",
-      "field_skip_layer_empty_count",
-      "field_skip_disabled_count",
-      "field_stale",
-      "field_age_ms",
-      "field_update_interval_ms",
-      "field_update_hz_window",
-      "query_refresh_time_ms",
-      "query_snapshot_alloc_time_ms",
-      "query_copy_values_time_ms",
-      "query_copy_types_height_delta_confidence_time_ms",
-      "query_copy_field_distances_time_ms",
-      "query_update_pointer_time_ms",
-      "query_sequence",
-      "snapshot_sequence",
-      "query_field_sequence",
-      "query_field_stale",
-      "query_field_age_ms",
-      "query_distance_size",
-      "query_ok_count",
-      "query_failed_count",
-      "query_out_of_map_count",
-      "query_interpolation_failed_count",
-      "query_tf_failed_count",
-      "query_snapshot_invalid_count",
-      "query_field_uninitialized_count",
-      "query_nonfinite_input_count",
-      "query_nonfinite_output_count",
-      "cpu_thread_hint"});
+      "snapshot_time_ms",
+      "total_update_time_ms",
+      "free_count",
+      "passable_count",
+      "occupied_count",
+      "unknown_count",
+      "reason_insufficient_observation",
+      "reason_empty_column",
+      "reason_thin_surface",
+      "reason_solid_vertical_wall",
+      "reason_hollow_tunnel",
+      "reason_ambiguous_occupied"});
 }
 
 void PerformanceMonitor::writeSummaryHeader()
 {
   writeCsvLine(summary_csv_,
-    {"window_start_stamp",
-      "window_duration_s",
-      "cloud_callback_hz",
-      "valid_update_hz",
-      "field_update_hz",
-      "avg_update_total_time_ms",
-      "max_update_total_time_ms",
-      "avg_raycast_time_ms",
-      "max_raycast_time_ms",
-      "avg_projection_time_ms",
-      "max_projection_time_ms",
-      "avg_field_time_ms",
-      "max_field_time_ms",
-      "avg_query_refresh_time_ms",
-      "max_query_refresh_time_ms",
-      "full_refresh_count_delta",
-      "dirty_update_count_delta",
-      "field_update_count_delta",
-      "field_skip_count_delta",
-      "field_skip_not_dirty_delta",
-      "field_skip_period_not_ready_delta",
-      "field_stale_count",
-      "query_failed_count",
-      "mask_changed_count_delta",
-      "avg_mask_diff_ratio",
-      "avg_dirty_ratio",
-      "avg_input_points",
-      "max_input_points"});
-}
-
-void PerformanceMonitor::writeAwardManifest()
-{
-  std::ofstream manifest(config_.award_manifest_path, std::ios::out | std::ios::trunc);
-  if (!manifest.is_open()) {
-    std::cerr << "[ROGMapPerf] failed to open award_manifest_path: " << config_.award_manifest_path
-              << std::endl;
-    return;
-  }
-  manifest << "{\n"
-           << "  \"run_id\": \"" << sanitize(config_.run_id) << "\",\n"
-           << "  \"scenario\": \"" << sanitize(config_.scenario) << "\",\n"
-           << "  \"variant\": \"" << sanitize(config_.variant) << "\",\n"
-           << "  \"start_time\": \"" << isoTime(run_start_wall_) << "\",\n"
-           << "  \"git_commit\": \"unknown\",\n"
-           << "  \"config_file\": \"unknown\",\n"
-           << "  \"robot\": \"sentry\",\n"
-           << "  \"hardware\": \"unknown\",\n"
-           << "  \"os\": \"unknown\",\n"
-           << "  \"map_resolution\": \"NaN\",\n"
-           << "  \"map_size\": [\"NaN\", \"NaN\", \"NaN\"],\n"
-           << "  \"planner_mode\": \"unknown\",\n"
-           << "  \"max_velocity\": \"NaN\",\n"
-           << "  \"max_acceleration\": \"NaN\",\n"
-           << "  \"controller_frequency\": \"NaN\",\n"
-           << "  \"notes\": \"auto-generated; missing fields are intentionally unknown\"\n"
-           << "}\n";
-}
-
-void PerformanceMonitor::writeAwardMetrics()
-{
-  if (!award_metrics_csv_.is_open()) {
-    return;
-  }
-  const auto end_wall = std::chrono::system_clock::now();
-  const double duration_sec =
-    std::chrono::duration<double>(end_wall - run_start_wall_).count();
-  writeCsvLine(award_metrics_csv_,
     {"run_id",
       "scenario",
       "variant",
-      "start_time",
-      "end_time",
-      "duration_sec",
-      "cloud_callback_hz_avg",
-      "map_effective_update_hz_avg",
-      "field_update_hz_avg",
-      "cloud_age_p95_ms",
-      "field_age_p95_ms",
-      "raycast_p95_ms",
-      "projection_p95_ms",
-      "field_p95_ms",
-      "total_map_update_p95_ms",
-      "minco_success_rate",
-      "minco_duration_p50_ms",
-      "minco_duration_p95_ms",
-      "minco_duration_p99_ms",
-      "minco_iterations_avg",
-      "minco_hot_start_iterations_avg",
-      "minco_cold_start_iterations_avg",
-      "minco_return_ok_rate",
-      "seed_min_esdf_min",
-      "optimized_min_esdf_min",
-      "min_esdf_improvement_avg",
-      "query_failed_count",
-      "field_stale_count",
-      "collision_reject_count",
-      "old_traj_reuse_count",
-      "recovery_trigger_count",
-      "mpc_hz_avg",
-      "mpc_deadline_miss_count",
-      "qp_success_rate",
-      "qp_duration_p95_ms",
-      "tracking_rmse",
-      "cross_track_rmse",
-      "along_track_rmse",
-      "yaw_rmse",
-      "cpu_percent_avg",
-      "cpu_percent_p95",
-      "rss_mb_avg",
-      "rss_mb_max",
-      "thread_count_avg"});
-  writeCsvLine(award_metrics_csv_,
-    {sanitize(config_.run_id),
-      sanitize(config_.scenario),
-      sanitize(config_.variant),
-      isoTime(run_start_wall_),
-      isoTime(end_wall),
-      num(duration_sec),
-      num(stats_.cloud_callback_hz),
-      num(stats_.valid_update_hz),
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      num(stats_.query_failed_count),
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN",
-      "NaN"});
+      "window_start_stamp",
+      "window_duration_sec",
+      "cloud_callback_hz",
+      "map_update_hz",
+      "field_update_hz",
+      "last_total_update_time_ms",
+      "last_raycast_time_ms",
+      "last_projection_time_ms",
+      "last_field_time_ms",
+      "last_free_count",
+      "last_passable_count",
+      "last_occupied_count",
+      "last_unknown_count"});
 }
 
 void PerformanceMonitor::writeDetailedRow(const RuntimeStats & s)
 {
-  const double hw = static_cast<double>(std::max(1U, std::thread::hardware_concurrency()));
   writeCsvLine(detailed_csv_,
-    {num(s.stamp),
-      num(s.update_seq),
+    {sanitize(config_.run_id),
+      sanitize(config_.scenario),
+      sanitize(config_.variant),
+      num(s.stamp),
+      std::to_string(steadyNowNs()),
       num(s.cloud_callback_hz),
       num(s.valid_update_hz),
-      num(s.cloud_msg_points),
-      num(s.cloud_msg_points_avg),
-      num(s.cloud_msg_points_max),
-      num(s.cloud_queue_delay_ms),
-      num(s.cloud_convert_time_ms),
-      num(s.valid_cloud_count),
-      num(s.dropped_cloud_empty_count),
-      num(s.dropped_cloud_no_odom_count),
-      num(s.dropped_cloud_odom_timeout_count),
-      num(s.odom_hz),
-      num(s.odom_age_ms),
       num(s.input_point_count),
-      num(s.raycast_input_point_count),
-      num(s.raycast_used_point_count),
-      num(s.raycast_skipped_near_count),
-      num(s.raycast_skipped_far_count),
-      num(s.raycast_skipped_outside_count),
-      num(s.total_update_time),
-      num(s.update_robot_state_time),
-      num(s.prob_update_time),
+      num(s.cloud_convert_time_ms),
       num(s.raycast_time),
-      num(s.raycast_parallel_time),
-      num(s.raycast_merge_time),
-      num(s.inflation_time),
+      num(s.prob_update_time),
       num(s.decay_time),
-      num(s.refresh_layers_time),
-      num(s.performance_csv_write_time),
       num(s.projection_total_time),
-      num(s.projection_sequence),
-      num(s.projection_sequence_delta),
-      num(s.projection_config_time),
-      num(s.projection_update_full_time),
-      num(s.projection_update_dirty_time),
-      num(s.projection_hole_fill_time),
-      num(s.projection_value_mask_time),
-      sanitize(s.projection_refresh_reason),
-      num(s.projection_cell_count),
-      num(s.projection_z_layers),
-      num(s.projection_scanned_voxel_estimate),
-      num(s.dirty_column_count),
-      num(s.dirty_expanded_column_count),
-      num(s.projection_dirty_ratio),
-      num(s.full_layer_refresh_count),
-      num(s.dirty_layer_update_count),
-      num(s.projection_no_update_count),
-      num(s.projection_thin_surface_count),
-      num(s.projection_vertical_wall_count),
-      num(s.projection_hollow_tunnel_count),
-      num(s.projection_ambiguous_occupied_count),
-      num(s.projection_empty_column_count),
-      num(s.projection_insufficient_observation_count),
-      boolean(s.layer_mask_changed),
-      num(s.mask_sequence),
-      num(s.mask_sequence_delta),
-      num(s.layer_mask_diff_count),
-      num(s.layer_mask_diff_ratio),
-      num(s.layer_mask_free_count),
-      num(s.layer_mask_occupied_count),
+      num(s.field_time),
+      num(s.query_refresh_time),
+      num(s.total_update_time),
       num(s.free_count),
       num(s.passable_count),
       num(s.occupied_count),
       num(s.unknown_count),
-      boolean(s.field_enabled),
-      boolean(s.field_dirty_before),
-      boolean(s.field_period_ready),
-      boolean(s.field_should_update),
-      boolean(s.field_actual_update),
-      sanitize(s.field_skip_reason),
-      num(s.field_time),
-      num(s.field_edt_positive_time),
-      num(s.field_edt_negative_time),
-      num(s.field_distance_fill_time),
-      num(s.field_copy_time),
-      num(s.field_sequence),
-      num(s.field_sequence_delta),
-      num(s.field_update_count),
-      num(s.field_skipped_count),
-      num(s.field_skip_not_dirty_count),
-      num(s.field_skip_period_not_ready_count),
-      num(s.field_skip_layer_empty_count),
-      num(s.field_skip_disabled_count),
-      boolean(s.field_stale),
-      num(s.field_age_ms),
-      num(s.field_update_interval_ms),
-      num(s.field_update_hz_window),
-      num(s.query_refresh_time),
-      num(s.query_snapshot_alloc_time),
-      num(s.query_copy_values_time),
-      num(s.query_copy_types_height_delta_confidence_time),
-      num(s.query_copy_field_distances_time),
-      num(s.query_update_pointer_time),
-      num(s.query_sequence),
-      num(s.snapshot_sequence),
-      num(s.query_field_sequence),
-      boolean(s.query_field_stale),
-      num(s.query_field_age_ms),
-      num(s.query_distance_size),
-      num(s.query_ok_count),
-      num(s.query_failed_count),
-      num(s.query_out_of_map_count),
-      num(s.query_interpolation_failed_count),
-      num(s.query_tf_failed_count),
-      num(s.query_snapshot_invalid_count),
-      num(s.query_field_uninitialized_count),
-      num(s.query_nonfinite_input_count),
-      num(s.query_nonfinite_output_count),
-      num(s.cpu_thread_hint > 0.0 ? s.cpu_thread_hint : hw)});
+      num(s.projection_insufficient_observation_count),
+      num(s.projection_empty_column_count),
+      num(s.projection_thin_surface_count),
+      num(s.projection_vertical_wall_count),
+      num(s.projection_hollow_tunnel_count),
+      num(s.projection_ambiguous_occupied_count)});
   flushIfNeeded(detailed_csv_, detailed_csv_rows_);
 }
 
@@ -769,80 +359,50 @@ void PerformanceMonitor::maybeWriteSummary(double stamp)
   if (duration + 1.0e-9 < period) {
     return;
   }
-  const double updates = std::max(1.0, window_.update_count);
   const double cloud_hz = duration > 1.0e-6 ? window_.cloud_callbacks / duration : 0.0;
   const double valid_hz = duration > 1.0e-6 ? window_.valid_updates / duration : 0.0;
   const double field_hz = duration > 1.0e-6 ? window_.field_updates / duration : 0.0;
-  const double query_failed_delta =
-    window_.query_failed_first >= 0.0 ? std::max(0.0, window_.query_failed_last - window_.query_failed_first) : 0.0;
 
   if (summaryCsvEnabled() && summary_csv_.is_open()) {
     writeCsvLine(summary_csv_,
-      {num(window_.start_stamp),
+      {sanitize(config_.run_id),
+        sanitize(config_.scenario),
+        sanitize(config_.variant),
+        num(window_.start_stamp),
         num(duration),
         num(cloud_hz),
         num(valid_hz),
         num(field_hz),
-        num(window_.update_total_sum / updates),
-        num(window_.update_total_max),
-        num(window_.raycast_sum / updates),
-        num(window_.raycast_max),
-        num(window_.projection_sum / updates),
-        num(window_.projection_max),
-        num(window_.field_sum / updates),
-        num(window_.field_max),
-        num(window_.query_sum / updates),
-        num(window_.query_max),
-        num(window_.full_refresh_delta),
-        num(window_.dirty_update_delta),
-        num(window_.field_updates),
-        num(window_.field_skip_delta),
-        num(window_.field_skip_not_dirty_delta),
-        num(window_.field_skip_period_not_ready_delta),
-        num(window_.field_stale_delta),
-        num(query_failed_delta),
-        num(window_.mask_changed_delta),
-        num(window_.mask_diff_ratio_sum / updates),
-        num(window_.dirty_ratio_sum / updates),
-        num(window_.input_points_sum / updates),
-        num(window_.input_points_max)});
+        num(stats_.total_update_time),
+        num(stats_.raycast_time),
+        num(stats_.projection_total_time),
+        num(stats_.field_time),
+        num(stats_.free_count),
+        num(stats_.passable_count),
+        num(stats_.occupied_count),
+        num(stats_.unknown_count)});
     flushIfNeeded(summary_csv_, summary_csv_rows_);
   }
 
   if (printEnabled()) {
     std::cerr << "[ROGMapPerf] win=" << std::fixed << std::setprecision(2) << duration
-              << "s cloud_cb=" << cloud_hz << "Hz valid_update=" << valid_hz
+              << "s cloud_cb_hz=" << cloud_hz << " map_update_hz=" << valid_hz
               << "Hz field_update=" << field_hz << "Hz\n"
-              << "  time_ms avg/max: total=" << window_.update_total_sum / updates << '/'
-              << window_.update_total_max << " raycast=" << window_.raycast_sum / updates << '/'
-              << window_.raycast_max << " proj=" << window_.projection_sum / updates << '/'
-              << window_.projection_max << " field=" << window_.field_sum / updates << '/'
-              << window_.field_max << " query=" << window_.query_sum / updates << '/' << window_.query_max
+              << "  time_ms: total=" << stats_.total_update_time
+              << " raycast=" << stats_.raycast_time
+              << " projection=" << stats_.projection_total_time
+              << " field=" << stats_.field_time
               << '\n'
-              << " projection: full=" << window_.full_refresh_delta
-              << " dirty=" << window_.dirty_update_delta
-              << " dirty_ratio_avg=" << window_.dirty_ratio_sum / updates
-              << " mask_change=" << window_.mask_changed_delta
-              << " avg_mask_diff=" << window_.mask_diff_ratio_sum / updates << '\n'
-              << " classification: thin=" << stats_.projection_thin_surface_count
-              << " wall=" << stats_.projection_vertical_wall_count
-              << " tunnel=" << stats_.projection_hollow_tunnel_count
+              << "  cells: free=" << stats_.free_count
+              << " passable=" << stats_.passable_count
+              << " occupied=" << stats_.occupied_count
+              << " unknown=" << stats_.unknown_count << '\n'
+              << "  classification: thin=" << stats_.projection_thin_surface_count
+              << " solid_wall=" << stats_.projection_vertical_wall_count
+              << " hollow_tunnel=" << stats_.projection_hollow_tunnel_count
               << " ambiguous=" << stats_.projection_ambiguous_occupied_count
               << " empty=" << stats_.projection_empty_column_count
-              << " insufficient=" << stats_.projection_insufficient_observation_count << '\n'
-              << " field: updates=" << window_.field_updates << " skips=" << window_.field_skip_delta
-              << " skip_not_dirty=" << window_.field_skip_not_dirty_delta
-              << " skip_period=" << window_.field_skip_period_not_ready_delta
-              << " seq=" << stats_.field_sequence << " age_ms=" << stats_.field_age_ms << '\n'
-              << " points: avg=" << window_.input_points_sum / updates
-              << " max=" << window_.input_points_max << " dropped_no_odom=" << dropped_cloud_no_odom_count_
-              << " dropped_timeout=" << dropped_cloud_odom_timeout_count_
-              << " raycast_latest: input = " << stats_.raycast_input_point_count
-              << " used=" << stats_.raycast_used_point_count << " hit=" << stats_.hit_count
-              << " miss=" << stats_.miss_count << " skip_near=" << stats_.raycast_skipped_near_count
-              << " skip_far=" << stats_.raycast_skipped_far_count
-              << " skip_outside=" << stats_.raycast_skipped_outside_count
-              << " decayed=" << stats_.decayed_count << std::endl;
+              << " insufficient=" << stats_.projection_insufficient_observation_count << std::endl;
   }
   resetWindow(stamp);
 }

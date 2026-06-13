@@ -65,16 +65,9 @@ private:
     double stamp_ros{0.0};
     long long stamp_steady_ns{0};
     bool success{false};
-    std::string failure_reason{"NONE"};
-    double cycle_duration_ms{0.0};
-    double qp_duration_ms{std::numeric_limits<double>::quiet_NaN()};
-    bool deadline_miss{false};
-    uint32_t trajectory_id{0};
-    double reference_age_ms{std::numeric_limits<double>::quiet_NaN()};
-    double tracking_error{std::numeric_limits<double>::quiet_NaN()};
-    double cross_track_error{std::numeric_limits<double>::quiet_NaN()};
-    double along_track_error{std::numeric_limits<double>::quiet_NaN()};
-    double yaw_error{std::numeric_limits<double>::quiet_NaN()};
+    double solve_time_ms{std::numeric_limits<double>::quiet_NaN()};
+    double cycle_time_ms{std::numeric_limits<double>::quiet_NaN()};
+    double controller_hz{std::numeric_limits<double>::quiet_NaN()};
     double cmd_vx{0.0};
     double cmd_vy{0.0};
     double cmd_wz{0.0};
@@ -191,7 +184,7 @@ private:
   std::string award_scenario_{};
   std::string award_variant_{};
   std::string mpc_perf_csv_path_{"/tmp/mpc_perf_detailed.csv"};
-  double mpc_perf_deadline_ms_{10.0};
+  long long last_mpc_perf_stamp_ns_{0};
 
   // Low-pass filter for MPC output to prevent stick-slip oscillation on slopes.
   mutable Eigen::Vector3d prev_u_global_{0.0, 0.0, 0.0};

@@ -97,10 +97,6 @@ namespace rog_map {
 
         void updateOccPointCloud(const PointCloud &input_cloud);
 
-        void writeTimeConsumingToLog(std::ofstream &log_file);
-
-        void writeMapInfoToLog(std::ofstream &log_file);
-
         void updateProbMap(const PointCloud &cloud, const Pose &pose);
 
         void setUpdateTime(double now);
@@ -153,15 +149,6 @@ namespace rog_map {
         };
 
         RuntimeStats runtime_stats_;
-
-        vector<double> time_consuming_;
-        vector<string> time_consuming_name_{"Total", "Raycast", "Update_cache", "Inflation", "PointCloudNumber",
-                                            "CacheNumber", "InflationNumber", "RaycastParallel", "RaycastMerge",
-                                            "HitCount", "MissCount", "Decay", "Projection", "Field",
-                                            "QueryRefresh", "OccupiedCount", "UnknownCount", "PassableCount",
-                                            "FreeCount", "DecayedCount", "DirtyColumnCount",
-                                            "DirtyExpandedColumnCount", "FullLayerRefreshCount",
-                                            "DirtyLayerUpdateCount", "FieldSkippedCount"};
 
         // standardization query
         // Known free < l_free
