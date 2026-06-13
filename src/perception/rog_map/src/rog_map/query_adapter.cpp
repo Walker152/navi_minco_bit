@@ -101,6 +101,20 @@ void clampResult(const MapSnapshot & snap, double & dist, Eigen::Vector3d & grad
   }
 }
 
+QueryResult makeResult(const MapSnapshot & snap, QueryStatus status)
+{
+  QueryResult result;
+  result.status = status;
+  result.projection_sequence = snap.projection_sequence;
+  result.mask_sequence = snap.mask_sequence;
+  result.field_sequence = snap.field_sequence;
+  result.snapshot_sequence = snap.snapshot_sequence != 0U ? snap.snapshot_sequence : snap.sequence;
+  result.field_age_ms =
+    snap.field_stamp > 0.0 && snap.stamp >= snap.field_stamp ? (snap.stamp - snap.field_stamp) * 1000.0
+                                                             : std::numeric_limits<double>::quiet_NaN();
+  return result;
+}
+
 }  // namespace
 
 void QueryAdapter::update(
@@ -115,6 +129,53 @@ std::shared_ptr<const MapSnapshot> QueryAdapter::snapshot() const
 {
   std::lock_guard<std::mutex> lock(mutex_);
   return snapshot_;
+}
+
+QueryCounters QueryAdapter::queryCounters() const
+{
+  std::lock_guard<std::mutex> lock(counters_mutex_);
+  return counters_;
+}
+
+void recordQueryStatus(QueryCounters & counters, QueryStatus status)
+{
+  if (status == QueryStatus::OK) {
+    ++counters.ok;
+    return;
+  }
+  ++counters.failed;
+  switch (status) {
+  case QueryStatus::OK:
+    break;
+  case QueryStatus::OUT_OF_MAP:
+    ++counters.out_of_map;
+    break;
+  case QueryStatus::SNAPSHOT_INVALID:
+    ++counters.snapshot_invalid;
+    break;
+  case QueryStatus::FIELD_UNINITIALIZED:
+    ++counters.field_uninitialized;
+    break;
+  case QueryStatus::INTERPOLATION_FAILED:
+    ++counters.interpolation_failed;
+    break;
+  case QueryStatus::TF_FAILED:
+    ++counters.tf_failed;
+    break;
+  case QueryStatus::NONFINITE_INPUT:
+    ++counters.nonfinite_input;
+    break;
+  case QueryStatus::NONFINITE_OUTPUT:
+    ++counters.nonfinite_output;
+    break;
+  }
+}
+
+QueryResult QueryAdapter::recorded(QueryResult result) const
+{
+  std::lock_guard<std::mutex> lock(counters_mutex_);
+  recordQueryStatus(counters_, result.status);
+  return result;
 }
 
 bool QueryAdapter::worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my) const
@@ -227,16 +288,23 @@ bool QueryAdapter::isFree(unsigned int mx, unsigned int my) const
   return snap->values[idx] < 253U;
 }
 
-bool QueryAdapter::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const
+QueryResult QueryAdapter::query(const Eigen::Vector3d & pos) const
 {
   // 向规划器暴露二维 ESDF 查询；距离来自 field mask，不直接来自 layer_value。
-  // quadratic 在边界或邻域不足时回退到 bilinear，失败时返回 max_distance 和零梯度。
+  // quadratic 在边界或邻域不足时回退到 bilinear，失败用 QueryStatus 显式表达。
+  QueryResult invalid;
+  if (!pos.allFinite()) {
+    invalid.status = QueryStatus::NONFINITE_INPUT;
+    return recorded(invalid);
+  }
+
   const auto snap = snapshot();
   if (!snap || snap->width <= 1 || snap->height <= 1 || snap->resolution <= 0.0 ||
-      snap->distances.size() != static_cast<size_t>(snap->width) * static_cast<size_t>(snap->height)) {
-    dist = snap ? snap->field_max_distance : 10.0;
-    grad.setZero();
-    return false;
+      snap->values.size() != static_cast<size_t>(snap->width) * static_cast<size_t>(snap->height)) {
+    return recorded(invalid);
+  }
+  if (snap->distances.size() != static_cast<size_t>(snap->width) * static_cast<size_t>(snap->height)) {
+    return recorded(makeResult(*snap, QueryStatus::FIELD_UNINITIALIZED));
   }
 
   const double px = (pos.x() - snap->origin_x) / snap->resolution;
@@ -244,14 +312,14 @@ bool QueryAdapter::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::V
   const int ix = static_cast<int>(std::floor(px));
   const int iy = static_cast<int>(std::floor(py));
   if (ix < 0 || iy < 0 || ix >= snap->width - 1 || iy >= snap->height - 1) {
-    dist = snap->field_max_distance;
-    grad.setZero();
-    return false;
+    return recorded(makeResult(*snap, QueryStatus::OUT_OF_MAP));
   }
 
   const double fx = px - static_cast<double>(ix);
   const double fy = py - static_cast<double>(iy);
 
+  double dist = std::numeric_limits<double>::quiet_NaN();
+  Eigen::Vector3d grad = Eigen::Vector3d::Zero();
   bool ok = false;
   if (snap->interpolation == InterpolationMode::QUADRATIC) {
     ok = sampleQuadratic(*snap, ix, iy, fx, fy, dist, grad);
@@ -260,13 +328,27 @@ bool QueryAdapter::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::V
     ok = sampleBilinear(*snap, ix, iy, fx, fy, dist, grad);
   }
   if (!ok) {
-    dist = snap->field_max_distance;
-    grad.setZero();
-    return false;
+    return recorded(makeResult(*snap, QueryStatus::INTERPOLATION_FAILED));
   }
 
   clampResult(*snap, dist, grad);
-  return true;
+  if (!std::isfinite(dist) || !grad.allFinite()) {
+    return recorded(makeResult(*snap, QueryStatus::NONFINITE_OUTPUT));
+  }
+
+  QueryResult result = makeResult(*snap, QueryStatus::OK);
+  result.ok = true;
+  result.distance = dist;
+  result.gradient = grad;
+  return recorded(result);
+}
+
+bool QueryAdapter::evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const
+{
+  const QueryResult result = query(pos);
+  dist = result.distance;
+  grad = result.gradient;
+  return result.ok;
 }
 
 }  // namespace rog_map

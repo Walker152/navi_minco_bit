@@ -6,7 +6,12 @@
 #include "rog_map/map_registry.hpp"
 #include "rog_map_ros/rog_map_ros2.hpp"
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 
 namespace minco_planner {
 
@@ -16,7 +21,148 @@ MincoPlanner::MincoPlanner() : tf_(nullptr)
 {
 }
 
-MincoPlanner::~MincoPlanner() = default;
+MincoPlanner::~MincoPlanner()
+{
+  if (minco_perf_csv_.is_open()) {
+    minco_perf_csv_.flush();
+    minco_perf_csv_.close();
+  }
+}
+
+namespace {
+
+std::string csvNum(double value)
+{
+  if (!std::isfinite(value)) {
+    return "NaN";
+  }
+  std::ostringstream ss;
+  ss << std::fixed << std::setprecision(6) << value;
+  return ss.str();
+}
+
+std::string csvBool(bool value)
+{
+  return value ? "1" : "0";
+}
+
+std::string csvText(std::string value)
+{
+  std::replace(value.begin(), value.end(), ',', '_');
+  return value;
+}
+
+long long steadyNowNs()
+{
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(
+    std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+}  // namespace
+
+void MincoPlanner::configureMincoPerfLogging(
+  const nav2_util::LifecycleNode::SharedPtr & node, const std::string & prefix)
+{
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "performance.detailed_csv_enable", rclcpp::ParameterValue(false));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "performance.award_csv_enable", rclcpp::ParameterValue(false));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "performance.minco_csv_path", rclcpp::ParameterValue(minco_perf_csv_path_));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "performance.run_id", rclcpp::ParameterValue(""));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "performance.scenario", rclcpp::ParameterValue(""));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "performance.variant", rclcpp::ParameterValue(""));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "rog_map.performance.detailed_csv_enable", rclcpp::ParameterValue(false));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "rog_map.performance.award_csv_enable", rclcpp::ParameterValue(false));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "rog_map.performance.minco_csv_path", rclcpp::ParameterValue(minco_perf_csv_path_));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "rog_map.performance.run_id", rclcpp::ParameterValue(""));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "rog_map.performance.scenario", rclcpp::ParameterValue(""));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "rog_map.performance.variant", rclcpp::ParameterValue(""));
+
+  bool detailed_csv_enable = false;
+  bool award_csv_enable = false;
+  node->get_parameter(prefix + "performance.detailed_csv_enable", detailed_csv_enable);
+  node->get_parameter(prefix + "performance.award_csv_enable", award_csv_enable);
+  node->get_parameter(prefix + "performance.minco_csv_path", minco_perf_csv_path_);
+  node->get_parameter(prefix + "performance.run_id", award_run_id_);
+  node->get_parameter(prefix + "performance.scenario", award_scenario_);
+  node->get_parameter(prefix + "performance.variant", award_variant_);
+  if (!detailed_csv_enable) {
+    node->get_parameter(prefix + "rog_map.performance.detailed_csv_enable", detailed_csv_enable);
+  }
+  if (!award_csv_enable) {
+    node->get_parameter(prefix + "rog_map.performance.award_csv_enable", award_csv_enable);
+  }
+  if (minco_perf_csv_path_ == "/tmp/minco_perf_detailed.csv") {
+    node->get_parameter(prefix + "rog_map.performance.minco_csv_path", minco_perf_csv_path_);
+  }
+  if (award_run_id_.empty()) {
+    node->get_parameter(prefix + "rog_map.performance.run_id", award_run_id_);
+  }
+  if (award_scenario_.empty()) {
+    node->get_parameter(prefix + "rog_map.performance.scenario", award_scenario_);
+  }
+  if (award_variant_.empty()) {
+    node->get_parameter(prefix + "rog_map.performance.variant", award_variant_);
+  }
+  minco_perf_csv_enable_ = detailed_csv_enable || award_csv_enable;
+
+  if (!minco_perf_csv_enable_) {
+    return;
+  }
+  minco_perf_csv_.open(minco_perf_csv_path_, std::ios::out | std::ios::trunc);
+  if (!minco_perf_csv_.is_open()) {
+    RCLCPP_ERROR(logger_, "[MincoPlanner] Failed to open minco perf CSV: %s", minco_perf_csv_path_.c_str());
+    minco_perf_csv_enable_ = false;
+    return;
+  }
+  writeMincoPerfHeader();
+}
+
+void MincoPlanner::writeMincoPerfHeader()
+{
+  if (!minco_perf_csv_.is_open()) {
+    return;
+  }
+  minco_perf_csv_
+    << "run_id,scenario,variant,stamp_ros,stamp_steady_ns,planner_mode,warm_start_used,success,"
+       "failure_reason,duration_ms,global_path_point_count,local_dense_point_count,sparse_point_count,"
+       "piece_count,trajectory_duration,optimizer_iterations,optimizer_return_code,objective_total,"
+       "seed_min_esdf,optimized_min_esdf,min_esdf_improvement,safe_violation_sample_count,max_velocity,"
+       "max_acceleration,max_jerk,field_sequence,snapshot_sequence,field_age_ms,query_failed_count,"
+       "old_traj_reused,recovery_triggered\n";
+}
+
+void MincoPlanner::writeMincoPerfRow(const MincoPerfSample & sample)
+{
+  if (!minco_perf_csv_enable_ || !minco_perf_csv_.is_open()) {
+    return;
+  }
+  minco_perf_csv_ << csvText(award_run_id_) << ',' << csvText(award_scenario_) << ','
+                  << csvText(award_variant_) << ',' << csvNum(sample.stamp_ros) << ','
+                  << sample.stamp_steady_ns << ',' << csvText(sample.planner_mode) << ','
+                  << csvBool(sample.warm_start_used) << ',' << csvBool(sample.success) << ','
+                  << csvText(sample.failure_reason) << ',' << csvNum(sample.duration_ms) << ','
+                  << sample.global_path_point_count << ',' << sample.local_dense_point_count << ','
+                  << sample.sparse_point_count << ',' << sample.piece_count << ','
+                  << csvNum(sample.trajectory_duration) << ",NaN,NaN," << csvNum(sample.objective_total)
+                  << ",NaN,NaN,NaN,NaN,NaN,NaN,NaN," << csvNum(sample.field_sequence) << ','
+                  << csvNum(sample.snapshot_sequence) << ',' << csvNum(sample.field_age_ms) << ','
+                  << csvNum(sample.query_failed_count) << ',' << csvBool(sample.old_traj_reused) << ','
+                  << csvBool(sample.recovery_triggered) << '\n';
+  if (++minco_perf_csv_rows_ % 30 == 0) {
+    minco_perf_csv_.flush();
+  }
+}
 
 bool MincoPlanner::configureRogMap(
   const nav2_util::LifecycleNode::SharedPtr & node, const std::string & plugin_prefix)
@@ -164,6 +310,7 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   logger_ = node->get_logger();
 
   const std::string prefix = name_ + ".";
+  configureMincoPerfLogging(node, prefix);
 
   // --- General config --------------------------------------------------------
 
@@ -939,8 +1086,22 @@ bool MincoPlanner::PlanGlobalPath(
 
 bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose)
 {
+  const auto replan_start = std::chrono::steady_clock::now();
+  MincoPerfSample perf;
+  perf.stamp_ros = rclcpp::Clock().now().seconds();
+  perf.stamp_steady_ns = steadyNowNs();
+  perf.planner_mode = mode_params_.planner_mode;
+  auto finish = [&](bool success, const std::string & reason) {
+    perf.success = success;
+    perf.failure_reason = success ? "NONE" : reason;
+    perf.duration_ms = std::chrono::duration<double, std::milli>(
+      std::chrono::steady_clock::now() - replan_start).count();
+    writeMincoPerfRow(perf);
+    return success;
+  };
+
   if (!minco_optimizer_ || !mode_context_ || !local_path_processor_) {
-    return false;
+    return finish(false, "OPTIMIZER_FAILED");
   }
 
   // Snapshot the global goal for end-state logic.
@@ -950,9 +1111,10 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   {
     std::lock_guard<std::mutex> lock(path_mutex_);
     if (latest_global_path_.empty()) {
-      return false;
+      return finish(false, "OPTIMIZER_FAILED");
     }
     global_path_snapshot = latest_global_path_;
+    perf.global_path_point_count = global_path_snapshot.size();
     global_goal.x() = latest_global_path_.back().pose.position.x;
     global_goal.y() = latest_global_path_.back().pose.position.y;
     global_goal.z() = 0.0;
@@ -962,8 +1124,10 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   const LocalPathSeed seed =
     local_path_processor_->buildSeed(global_path_snapshot, current_pose, *mode_context_);
   if (!seed.valid) {
-    return false;
+    return finish(false, "COLLISION");
   }
+  perf.local_dense_point_count = seed.dense_path.size();
+  perf.sparse_point_count = seed.sparse_waypoints.size();
   std::vector<Eigen::Vector3d> sparse_path = seed.sparse_waypoints;
   const bool local_end_is_goal = seed.local_end_is_goal;
 
@@ -987,8 +1151,9 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   }
 
   if (state == PlanningState::EMERGENCY_STOP) {
-    return false;
+    return finish(false, "RECOVERY_TRIGGERED");
   }
+  perf.warm_start_used = state == PlanningState::HOT_START;
 
   // 5. Prepare start state.
   Eigen::Matrix3d start_state;
@@ -1106,6 +1271,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   auto opt_start_time = rclcpp::Clock().now().seconds();
   double final_cost =
     minco_optimizer_->optimize(sparse_path, start_state, end_state, local_vmaxs, opt_traj);
+  perf.objective_total = final_cost;
 
   const double max_allowed_cost = 3000.0;
   if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
@@ -1125,11 +1291,12 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
         std::cout << YELLOW
                   << "[MincoPlanner] Last trajectory is still valid and safe. Continuing to execute it."
                   << RESET << std::endl;
-        return true;
+        perf.old_traj_reused = true;
+        return finish(true, "NONE");
       }
-      return false;
+      return finish(false, "OPTIMIZER_FAILED");
     }
-    return false;
+    return finish(false, "OPTIMIZER_FAILED");
   }
 
   auto opt_end_time = rclcpp::Clock().now().seconds();
@@ -1142,7 +1309,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   if (!validateTrajectory(opt_traj, end_state.col(0))) {
     std::cout << RED << "[MincoPlanner] Trajectory validation failed! Rejecting." << RESET << std::endl;
     is_traj_safe_.store(false);
-    return false;
+    return finish(false, "KINEMATIC_VIOLATION");
   }
 
   double fallback_yaw = 0.0;
@@ -1233,7 +1400,16 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   has_last_yaw_traj_ = true;
 
   is_traj_safe_.store(true);
-  return true;
+  perf.piece_count = static_cast<size_t>(opt_traj.getPieceNum());
+  perf.trajectory_duration = opt_traj.getTotalDuration();
+  if (mode_context_ && mode_context_->dynamicQuery()) {
+    const auto query = mode_context_->dynamicQuery()->query(start_state.col(0));
+    perf.field_sequence = static_cast<double>(query.field_sequence);
+    perf.snapshot_sequence = static_cast<double>(query.snapshot_sequence);
+    perf.field_age_ms = query.field_age_ms;
+    perf.query_failed_count = query.ok ? 0.0 : 1.0;
+  }
+  return finish(true, "NONE");
 }
 
 void MincoPlanner::PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path,

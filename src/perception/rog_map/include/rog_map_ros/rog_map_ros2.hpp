@@ -154,7 +154,7 @@ class ROGMapROS : public ROGMap
     br_map_ego_->sendTransform(transformStamped);
   }
 
-  void cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg)
+  void cloudCallback(sensor_msgs::msg::PointCloud2::UniquePtr cloud_msg)
   {
     const double cbk_t = now().seconds();
     const double msg_stamp = rclcpp::Time(cloud_msg->header.stamp).seconds();
@@ -646,9 +646,11 @@ class ROGMapROS : public ROGMap
       rc_.odom_sub = createSubscription<nav_msgs::msg::Odometry>(
         cfg_.odom_topic, qos, std::bind(&ROGMapROS::odomCallback, this, std::placeholders::_1), so);
       so.callback_group = rc_.cloud_me_cbk_group;
-      const std::string cloud_topic = cfg_.use_dense_cloud ? cfg_.dense_cloud_topic : cfg_.cloud_topic;
       rc_.cloud_sub = createSubscription<sensor_msgs::msg::PointCloud2>(
-        cloud_topic, qos, std::bind(&ROGMapROS::cloudCallback, this, std::placeholders::_1), so);
+        cfg_.cloud_topic,
+        qos,
+        [this](sensor_msgs::msg::PointCloud2::UniquePtr msg) { this->cloudCallback(std::move(msg)); },
+        so);
       rc_.update_cbk_group = createCallbackGroup(rclcpp::CallbackGroupType::MutuallyExclusive);
       rc_.update_timer = createWallTimer(std::chrono::milliseconds(cfg_.update_period_ms),
         std::bind(&ROGMapROS::updateCallback, this),
