@@ -249,7 +249,7 @@ def generate_launch_description():
                 name='planner_server',
                 parameters=[configured_params],
                 remappings=remappings,
-                extra_arguments=[{'use_intra_process_comms': True}]),
+                extra_arguments=[{'use_intra_process_comms': False}]),
         ],
     )
 

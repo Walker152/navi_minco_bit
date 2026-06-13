@@ -646,9 +646,10 @@ class ROGMapROS : public ROGMap
       rc_.odom_sub = createSubscription<nav_msgs::msg::Odometry>(
         cfg_.odom_topic, qos, std::bind(&ROGMapROS::odomCallback, this, std::placeholders::_1), so);
       so.callback_group = rc_.cloud_me_cbk_group;
+      so.use_intra_process_comm = rclcpp::IntraProcessSetting::Enable;
       rc_.cloud_sub = createSubscription<sensor_msgs::msg::PointCloud2>(
         cfg_.cloud_topic,
-        qos,
+        rclcpp::SensorDataQoS().keep_last(1),
         [this](sensor_msgs::msg::PointCloud2::UniquePtr msg) { this->cloudCallback(std::move(msg)); },
         so);
       rc_.update_cbk_group = createCallbackGroup(rclcpp::CallbackGroupType::MutuallyExclusive);
