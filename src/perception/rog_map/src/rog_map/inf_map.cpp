@@ -123,14 +123,6 @@ void InfMap::getInflationNumAndTime(double & inf_n, double & inf_t)
   inf_t_ = 0;
 }
 
-void InfMap::writeMapInfoToLog(std::ofstream & log_file)
-{
-  log_file << "[InfMap]" << std::endl;
-  log_file << "\tresolution: " << sc_.resolution << std::endl;
-  log_file << "\tmap_size_i: " << sc_.map_size_i.transpose() << std::endl;
-  log_file << "\tmap_size_d: " << (sc_.map_size_i.cast<double>() * sc_.resolution).transpose() << std::endl;
-}
-
 void InfMap::boxSearch(
   const Vec3f & box_min, const Vec3f & box_max, const GridType & gt, vec_E<Vec3f> & out_points) const
 {

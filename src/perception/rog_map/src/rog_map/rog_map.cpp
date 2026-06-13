@@ -61,21 +61,14 @@ void ROGMap::init()
   performance_monitor_ = std::make_unique<PerformanceMonitor>();
   PerformanceConfig perf_cfg;
   perf_cfg.enable = cfg_.performance_enable;
-  perf_cfg.csv_enable = cfg_.performance_csv_enable;
-  perf_cfg.csv_path = cfg_.performance_csv_path;
-  perf_cfg.map_info_csv_path = cfg_.performance_map_info_csv_path;
-  perf_cfg.detailed_enable = cfg_.performance_detailed_enable;
   perf_cfg.detailed_csv_enable = cfg_.performance_detailed_csv_enable;
   perf_cfg.detailed_csv_path = cfg_.performance_detailed_csv_path;
   perf_cfg.summary_csv_enable = cfg_.performance_summary_csv_enable;
   perf_cfg.summary_csv_path = cfg_.performance_summary_csv_path;
-  perf_cfg.award_csv_enable = cfg_.performance_award_csv_enable;
-  perf_cfg.field_stale_threshold_ms = cfg_.performance_field_stale_threshold_ms;
   perf_cfg.run_id = cfg_.performance_run_id;
   perf_cfg.scenario = cfg_.performance_scenario;
   perf_cfg.variant = cfg_.performance_variant;
   perf_cfg.csv_flush_every_n = cfg_.performance_csv_flush_every_n;
-  perf_cfg.publish_enable = cfg_.performance_publish_enable;
   perf_cfg.print_enable = cfg_.performance_print_enable;
   perf_cfg.summary_rate = cfg_.performance_summary_rate;
   performance_monitor_->configure(perf_cfg);
@@ -93,11 +86,6 @@ void ROGMap::init()
     local_map_bound_max_d_ = cfg_.half_map_size_d + cfg_.fix_map_origin;
     mapSliding(cfg_.fix_map_origin);
     inf_map_->mapSliding(cfg_.fix_map_origin);
-  }
-
-  if (performance_monitor_->csvEnabled()) {
-    writeMapInfoToLog(performance_monitor_->mapInfoCsv());
-    performance_monitor_->writePerformanceCsvHeader(time_consuming_name_);
   }
 
   if (cfg_.load_pcd_en) {
@@ -362,11 +350,6 @@ void ROGMap::updateMapInternal(const PointCloud & cloud, const Pose & pose)
   runtime_stats_.field_sequence_delta = static_cast<double>(field_sequence_ - field_sequence_before);
   runtime_stats_.total_update_time = elapsedMs(total_start);
   runtime_stats_.cpu_thread_hint = static_cast<double>(std::max(1U, std::thread::hardware_concurrency()));
-  if (performance_monitor_ && performance_monitor_->csvEnabled()) {
-    const auto csv_start = std::chrono::steady_clock::now();
-    writeTimeConsumingToLog(performance_monitor_->performanceCsv());
-    runtime_stats_.performance_csv_write_time = elapsedMs(csv_start);
-  }
   if (performance_monitor_) {
     performance_monitor_->stats() = runtime_stats_;
     performance_monitor_->observeUpdate(runtime_stats_);
@@ -438,8 +421,6 @@ void ROGMap::refreshLayers()
   runtime_stats_.projection_full_layer_required = fullLayerRefreshRequired() ? 1.0 : 0.0;
   runtime_stats_.projection_dirty_column_enabled = cfg_.dirty_column_en ? 1.0 : 0.0;
   runtime_stats_.projection_dirty_over_ratio = dirty_over_ratio ? 1.0 : 0.0;
-  runtime_stats_.projection_dirty_ratio =
-    cell_count > 0 ? static_cast<double>(dirty_columns.size()) / static_cast<double>(cell_count) : 0.0;
 
   const auto projection_start = std::chrono::steady_clock::now();
   auto rawGridType = [this](const Vec3i & id_g) -> GridType {
@@ -567,9 +548,6 @@ void ROGMap::refreshLayers()
   runtime_stats_.projection_sequence = static_cast<double>(projection_sequence_);
   runtime_stats_.layer_mask_changed = mask_changed ? 1.0 : 0.0;
   runtime_stats_.mask_sequence = static_cast<double>(mask_sequence_);
-  runtime_stats_.layer_mask_diff_count = static_cast<double>(mask_diff_count);
-  runtime_stats_.layer_mask_diff_ratio =
-    new_mask.empty() ? 0.0 : static_cast<double>(mask_diff_count) / static_cast<double>(new_mask.size());
   runtime_stats_.layer_mask_occupied_count = 0.0;
   runtime_stats_.layer_mask_free_count = 0.0;
   for (const auto mask : new_mask) {
@@ -592,6 +570,12 @@ void ROGMap::refreshLayers()
   runtime_stats_.layer_value_occupied_count = 0.0;
   runtime_stats_.layer_value_unknown_count = 0.0;
   runtime_stats_.layer_value_passable_count = 0.0;
+  runtime_stats_.projection_thin_surface_count = 0.0;
+  runtime_stats_.projection_vertical_wall_count = 0.0;
+  runtime_stats_.projection_hollow_tunnel_count = 0.0;
+  runtime_stats_.projection_ambiguous_occupied_count = 0.0;
+  runtime_stats_.projection_empty_column_count = 0.0;
+  runtime_stats_.projection_insufficient_observation_count = 0.0;
   for (const auto & cell : layer_->cells()) {
     switch (cell.type) {
     case CellType::OCCUPIED:
@@ -605,6 +589,26 @@ void ROGMap::refreshLayers()
       break;
     case CellType::FREE:
       runtime_stats_.free_count += 1.0;
+      break;
+    }
+    switch (cell.raw_reason) {
+    case ProjectionClassReason::INSUFFICIENT_OBSERVATION:
+      runtime_stats_.projection_insufficient_observation_count += 1.0;
+      break;
+    case ProjectionClassReason::EMPTY_COLUMN:
+      runtime_stats_.projection_empty_column_count += 1.0;
+      break;
+    case ProjectionClassReason::THIN_SURFACE:
+      runtime_stats_.projection_thin_surface_count += 1.0;
+      break;
+    case ProjectionClassReason::SOLID_VERTICAL_WALL:
+      runtime_stats_.projection_vertical_wall_count += 1.0;
+      break;
+    case ProjectionClassReason::HOLLOW_TUNNEL:
+      runtime_stats_.projection_hollow_tunnel_count += 1.0;
+      break;
+    case ProjectionClassReason::AMBIGUOUS_OCCUPIED:
+      runtime_stats_.projection_ambiguous_occupied_count += 1.0;
       break;
     }
   }
@@ -697,25 +701,21 @@ void ROGMap::refreshLayers()
       runtime_stats_.field_skip_layer_empty_count = 1.0;
     } else if (!field_dirty_) {
       runtime_stats_.field_skip_reason = "not_dirty";
-      runtime_stats_.field_skip_not_dirty_count = 1.0;
     } else if (!period_ready) {
       runtime_stats_.field_skip_reason = "period_not_ready";
-      runtime_stats_.field_skip_period_not_ready_count = 1.0;
     } else {
       runtime_stats_.field_skip_reason = "unknown";
     }
     runtime_stats_.field_skipped_count = 1.0;
     if (cfg_.field_en && field_dirty_) {
+      constexpr double kFieldStaleThresholdMs = 200.0;
       const double field_age_ms =
         last_field_stamp_ > 0.0 ? std::max(0.0, current_update_time_ - last_field_stamp_) * 1000.0
                                 : std::numeric_limits<double>::infinity();
-      field_stale_ = field_age_ms > cfg_.performance_field_stale_threshold_ms;
+      field_stale_ = field_age_ms > kFieldStaleThresholdMs;
     }
   }
   runtime_stats_.field_sequence = static_cast<double>(field_sequence_);
-  runtime_stats_.field_stale = field_stale_ ? 1.0 : 0.0;
-  runtime_stats_.field_age_ms =
-    last_field_stamp_ > 0.0 ? std::max(0.0, current_update_time_ - last_field_stamp_) * 1000.0 : 0.0;
 }
 
 void ROGMap::refreshQuery()
@@ -751,9 +751,7 @@ void ROGMap::refreshQuery()
   }
   runtime_stats_.query_copy_types_height_delta_confidence_time = elapsedMs(meta_start);
   if (field_) {
-    const auto field_copy_start = std::chrono::steady_clock::now();
     snapshot->distances = field_->distances();
-    runtime_stats_.query_copy_field_distances_time = elapsedMs(field_copy_start);
     snapshot->field_sequence = field_sequence_;
     snapshot->field_stamp = last_field_stamp_;
     snapshot->field_stale = field_stale_;
@@ -762,29 +760,7 @@ void ROGMap::refreshQuery()
     snapshot->field_clamp_distance = field_->clampDistanceEnabled();
     snapshot->interpolation = field_->interpolationMode();
   }
-  const auto update_start = std::chrono::steady_clock::now();
   query_->update(snapshot, field_);
-  runtime_stats_.query_update_pointer_time = elapsedMs(update_start);
-  runtime_stats_.query_sequence = static_cast<double>(snapshot->sequence);
-  runtime_stats_.snapshot_sequence = static_cast<double>(snapshot->snapshot_sequence);
-  runtime_stats_.query_field_sequence = static_cast<double>(snapshot->field_sequence);
-  runtime_stats_.query_field_stale = snapshot->field_stale ? 1.0 : 0.0;
-  runtime_stats_.query_field_age_ms =
-    snapshot->field_stamp > 0.0 ? std::max(0.0, current_update_time_ - snapshot->field_stamp) * 1000.0
-                                : 0.0;
-  runtime_stats_.query_distance_size = static_cast<double>(snapshot->distances.size());
-  const QueryCounters query_counts = query_->queryCounters();
-  runtime_stats_.query_ok_count = static_cast<double>(query_counts.ok);
-  runtime_stats_.query_failed_count = static_cast<double>(query_counts.failed);
-  runtime_stats_.query_out_of_map_count = static_cast<double>(query_counts.out_of_map);
-  runtime_stats_.query_interpolation_failed_count =
-    static_cast<double>(query_counts.interpolation_failed);
-  runtime_stats_.query_tf_failed_count = static_cast<double>(query_counts.tf_failed);
-  runtime_stats_.query_snapshot_invalid_count = static_cast<double>(query_counts.snapshot_invalid);
-  runtime_stats_.query_field_uninitialized_count =
-    static_cast<double>(query_counts.field_uninitialized);
-  runtime_stats_.query_nonfinite_input_count = static_cast<double>(query_counts.nonfinite_input);
-  runtime_stats_.query_nonfinite_output_count = static_cast<double>(query_counts.nonfinite_output);
 }
 
 RobotState ROGMap::getRobotState() const

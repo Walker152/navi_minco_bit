@@ -11,6 +11,7 @@
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <sstream>
 
 namespace minco_planner {
@@ -64,9 +65,9 @@ void MincoPlanner::configureMincoPerfLogging(
   const nav2_util::LifecycleNode::SharedPtr & node, const std::string & prefix)
 {
   nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "performance.detailed_csv_enable", rclcpp::ParameterValue(false));
+    node, prefix + "performance.enable", rclcpp::ParameterValue(true));
   nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "performance.award_csv_enable", rclcpp::ParameterValue(false));
+    node, prefix + "performance.detailed_csv_enable", rclcpp::ParameterValue(false));
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "performance.minco_csv_path", rclcpp::ParameterValue(minco_perf_csv_path_));
   nav2_util::declare_parameter_if_not_declared(
@@ -76,9 +77,9 @@ void MincoPlanner::configureMincoPerfLogging(
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "performance.variant", rclcpp::ParameterValue(""));
   nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "rog_map.performance.detailed_csv_enable", rclcpp::ParameterValue(false));
+    node, prefix + "rog_map.performance.enable", rclcpp::ParameterValue(true));
   nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "rog_map.performance.award_csv_enable", rclcpp::ParameterValue(false));
+    node, prefix + "rog_map.performance.detailed_csv_enable", rclcpp::ParameterValue(false));
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "rog_map.performance.minco_csv_path", rclcpp::ParameterValue(minco_perf_csv_path_));
   nav2_util::declare_parameter_if_not_declared(
@@ -88,10 +89,10 @@ void MincoPlanner::configureMincoPerfLogging(
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "rog_map.performance.variant", rclcpp::ParameterValue(""));
 
+  bool performance_enable = true;
   bool detailed_csv_enable = false;
-  bool award_csv_enable = false;
+  node->get_parameter(prefix + "performance.enable", performance_enable);
   node->get_parameter(prefix + "performance.detailed_csv_enable", detailed_csv_enable);
-  node->get_parameter(prefix + "performance.award_csv_enable", award_csv_enable);
   node->get_parameter(prefix + "performance.minco_csv_path", minco_perf_csv_path_);
   node->get_parameter(prefix + "performance.run_id", award_run_id_);
   node->get_parameter(prefix + "performance.scenario", award_scenario_);
@@ -99,8 +100,8 @@ void MincoPlanner::configureMincoPerfLogging(
   if (!detailed_csv_enable) {
     node->get_parameter(prefix + "rog_map.performance.detailed_csv_enable", detailed_csv_enable);
   }
-  if (!award_csv_enable) {
-    node->get_parameter(prefix + "rog_map.performance.award_csv_enable", award_csv_enable);
+  if (performance_enable) {
+    node->get_parameter(prefix + "rog_map.performance.enable", performance_enable);
   }
   if (minco_perf_csv_path_ == "/tmp/minco_perf_detailed.csv") {
     node->get_parameter(prefix + "rog_map.performance.minco_csv_path", minco_perf_csv_path_);
@@ -114,7 +115,7 @@ void MincoPlanner::configureMincoPerfLogging(
   if (award_variant_.empty()) {
     node->get_parameter(prefix + "rog_map.performance.variant", award_variant_);
   }
-  minco_perf_csv_enable_ = detailed_csv_enable || award_csv_enable;
+  minco_perf_csv_enable_ = performance_enable && detailed_csv_enable;
 
   if (!minco_perf_csv_enable_) {
     return;
@@ -134,12 +135,8 @@ void MincoPlanner::writeMincoPerfHeader()
     return;
   }
   minco_perf_csv_
-    << "run_id,scenario,variant,stamp_ros,stamp_steady_ns,planner_mode,warm_start_used,success,"
-       "failure_reason,duration_ms,global_path_point_count,local_dense_point_count,sparse_point_count,"
-       "piece_count,trajectory_duration,optimizer_iterations,optimizer_return_code,objective_total,"
-       "seed_min_esdf,optimized_min_esdf,min_esdf_improvement,safe_violation_sample_count,max_velocity,"
-       "max_acceleration,max_jerk,field_sequence,snapshot_sequence,field_age_ms,query_failed_count,"
-       "old_traj_reused,recovery_triggered\n";
+    << "run_id,scenario,variant,stamp_ros,stamp_steady_ns,planner_mode,success,failure_reason,"
+       "global_search_time_ms,local_search_time_ms,optimizer_time_ms,total_replan_time_ms,planner_hz\n";
 }
 
 void MincoPlanner::writeMincoPerfRow(const MincoPerfSample & sample)
@@ -150,122 +147,14 @@ void MincoPlanner::writeMincoPerfRow(const MincoPerfSample & sample)
   minco_perf_csv_ << csvText(award_run_id_) << ',' << csvText(award_scenario_) << ','
                   << csvText(award_variant_) << ',' << csvNum(sample.stamp_ros) << ','
                   << sample.stamp_steady_ns << ',' << csvText(sample.planner_mode) << ','
-                  << csvBool(sample.warm_start_used) << ',' << csvBool(sample.success) << ','
-                  << csvText(sample.failure_reason) << ',' << csvNum(sample.duration_ms) << ','
-                  << sample.global_path_point_count << ',' << sample.local_dense_point_count << ','
-                  << sample.sparse_point_count << ',' << sample.piece_count << ','
-                  << csvNum(sample.trajectory_duration) << ',' << csvNum(sample.optimizer_iterations)
-                  << ',' << csvNum(sample.optimizer_return_code) << ',' << csvNum(sample.objective_total)
-                  << ',' << csvNum(sample.seed_min_esdf) << ',' << csvNum(sample.optimized_min_esdf)
-                  << ',' << csvNum(sample.min_esdf_improvement) << ','
-                  << csvNum(sample.safe_violation_sample_count) << ',' << csvNum(sample.max_velocity)
-                  << ',' << csvNum(sample.max_acceleration) << ',' << csvNum(sample.max_jerk) << ','
-                  << csvNum(sample.field_sequence) << ','
-                  << csvNum(sample.snapshot_sequence) << ',' << csvNum(sample.field_age_ms) << ','
-                  << csvNum(sample.query_failed_count) << ',' << csvBool(sample.old_traj_reused) << ','
-                  << csvBool(sample.recovery_triggered) << '\n';
+                  << csvBool(sample.success) << ',' << csvText(sample.failure_reason) << ','
+                  << csvNum(sample.global_search_time_ms) << ','
+                  << csvNum(sample.local_search_time_ms) << ','
+                  << csvNum(sample.optimizer_time_ms) << ','
+                  << csvNum(sample.total_replan_time_ms) << ','
+                  << csvNum(sample.planner_hz) << '\n';
   if (++minco_perf_csv_rows_ % 30 == 0) {
     minco_perf_csv_.flush();
-  }
-}
-
-void MincoPlanner::recordQueryMetadata(const rog_map::QueryResult & query, MincoPerfSample & sample) const
-{
-  if (!std::isfinite(sample.field_sequence)) {
-    sample.field_sequence = static_cast<double>(query.field_sequence);
-  }
-  if (!std::isfinite(sample.snapshot_sequence)) {
-    sample.snapshot_sequence = static_cast<double>(query.snapshot_sequence);
-  }
-  if (!std::isfinite(sample.field_age_ms) && std::isfinite(query.field_age_ms)) {
-    sample.field_age_ms = query.field_age_ms;
-  }
-}
-
-void MincoPlanner::sampleSeedClearance(
-  const std::vector<Eigen::Vector3d> & seed_points, MincoPerfSample & sample) const
-{
-  if (!mode_context_ || !mode_context_->dynamicQuery() || seed_points.empty()) {
-    return;
-  }
-
-  double min_esdf = std::numeric_limits<double>::infinity();
-  for (const auto & point : seed_points) {
-    const auto query = mode_context_->dynamicQuery()->query(point);
-    recordQueryMetadata(query, sample);
-    if (!query.ok) {
-      sample.query_failed_count += 1.0;
-      continue;
-    }
-    min_esdf = std::min(min_esdf, query.distance);
-  }
-
-  if (std::isfinite(min_esdf)) {
-    sample.seed_min_esdf = min_esdf;
-  }
-}
-
-void MincoPlanner::sampleTrajectoryMetrics(const traj_opt::Trajectory & traj, MincoPerfSample & sample) const
-{
-  const double dur = traj.getTotalDuration();
-  if (!(std::isfinite(dur) && dur > 1e-6)) {
-    return;
-  }
-
-  constexpr double kDt = 0.05;
-  const int steps = std::max(1, static_cast<int>(std::ceil(dur / kDt)));
-  double min_esdf = std::numeric_limits<double>::infinity();
-  double safe_violation_count = 0.0;
-  double max_velocity = 0.0;
-  double max_acceleration = 0.0;
-  double max_jerk = 0.0;
-  bool has_kinematic_sample = false;
-
-  const auto query = (mode_context_ && mode_context_->dynamicQuery()) ? mode_context_->dynamicQuery() : nullptr;
-  for (int i = 0; i <= steps; ++i) {
-    const double t = std::min(dur, static_cast<double>(i) * kDt);
-    const Eigen::Vector3d pos = traj.getPos(t);
-    const Eigen::Vector3d vel = traj.getVel(t);
-    const Eigen::Vector3d acc = traj.getAcc(t);
-    const Eigen::Vector3d jer = traj.getJer(t);
-
-    if (vel.allFinite() && acc.allFinite() && jer.allFinite()) {
-      max_velocity = std::max(max_velocity, vel.norm());
-      max_acceleration = std::max(max_acceleration, acc.norm());
-      max_jerk = std::max(max_jerk, jer.norm());
-      has_kinematic_sample = true;
-    } else {
-      safe_violation_count += 1.0;
-    }
-
-    if (!query) {
-      continue;
-    }
-
-    const auto esdf = query->query(pos);
-    recordQueryMetadata(esdf, sample);
-    if (!esdf.ok) {
-      sample.query_failed_count += 1.0;
-      safe_violation_count += 1.0;
-      continue;
-    }
-    min_esdf = std::min(min_esdf, esdf.distance);
-    if (!(std::isfinite(esdf.distance) && esdf.distance > minco_config.safe_dist)) {
-      safe_violation_count += 1.0;
-    }
-  }
-
-  if (std::isfinite(min_esdf)) {
-    sample.optimized_min_esdf = min_esdf;
-  }
-  sample.safe_violation_sample_count = safe_violation_count;
-  if (has_kinematic_sample) {
-    sample.max_velocity = max_velocity;
-    sample.max_acceleration = max_acceleration;
-    sample.max_jerk = max_jerk;
-  }
-  if (std::isfinite(sample.seed_min_esdf) && std::isfinite(sample.optimized_min_esdf)) {
-    sample.min_esdf_improvement = sample.optimized_min_esdf - sample.seed_min_esdf;
   }
 }
 
@@ -1176,13 +1065,28 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
 bool MincoPlanner::PlanGlobalPath(
   const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal)
 {
+  const bool record_perf = minco_perf_csv_enable_;
+  const auto search_start = record_perf ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+  auto record_search_time = [&]() {
+    if (!record_perf) {
+      return;
+    }
+    const double elapsed_ms =
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - search_start).count();
+    std::lock_guard<std::mutex> perf_lock(perf_mutex_);
+    last_global_search_time_ms_ = elapsed_ms;
+    has_fresh_global_search_time_ = true;
+  };
+
   if (!global_path_searcher_ || !mode_context_) {
     return false;
   }
   std::vector<geometry_msgs::msg::PoseStamped> planned_path;
   if (!global_path_searcher_->plan(start, goal, *mode_context_, planned_path)) {
+    record_search_time();
     return false;
   }
+  record_search_time();
 
   std::lock_guard<std::mutex> path_lock(path_mutex_);
   latest_global_path_ = std::move(planned_path);
@@ -1191,17 +1095,39 @@ bool MincoPlanner::PlanGlobalPath(
 
 bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose)
 {
-  const auto replan_start = std::chrono::steady_clock::now();
-  MincoPerfSample perf;
-  perf.stamp_ros = rclcpp::Clock().now().seconds();
-  perf.stamp_steady_ns = steadyNowNs();
-  perf.planner_mode = mode_params_.planner_mode;
+  const bool record_perf = minco_perf_csv_enable_;
+  const auto replan_start = record_perf ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+  std::optional<MincoPerfSample> perf;
+  if (record_perf) {
+    perf.emplace();
+    perf->stamp_ros = rclcpp::Clock().now().seconds();
+    perf->stamp_steady_ns = steadyNowNs();
+    perf->planner_mode = mode_params_.planner_mode;
+    std::lock_guard<std::mutex> perf_lock(perf_mutex_);
+    if (has_fresh_global_search_time_) {
+      perf->global_search_time_ms = last_global_search_time_ms_;
+      has_fresh_global_search_time_ = false;
+    }
+  }
   auto finish = [&](bool success, const std::string & reason) {
-    perf.success = success;
-    perf.failure_reason = success ? "NONE" : reason;
-    perf.duration_ms = std::chrono::duration<double, std::milli>(
-      std::chrono::steady_clock::now() - replan_start).count();
-    writeMincoPerfRow(perf);
+    if (perf) {
+      perf->success = success;
+      perf->failure_reason = success ? "NONE" : reason;
+      perf->total_replan_time_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - replan_start).count();
+      {
+        std::lock_guard<std::mutex> perf_lock(perf_mutex_);
+        if (last_minco_perf_stamp_ns_ > 0 && perf->stamp_steady_ns > last_minco_perf_stamp_ns_) {
+          const double dt_sec =
+            static_cast<double>(perf->stamp_steady_ns - last_minco_perf_stamp_ns_) * 1.0e-9;
+          if (dt_sec > 1.0e-9) {
+            perf->planner_hz = 1.0 / dt_sec;
+          }
+        }
+        last_minco_perf_stamp_ns_ = perf->stamp_steady_ns;
+      }
+      writeMincoPerfRow(*perf);
+    }
     return success;
   };
 
@@ -1219,7 +1145,6 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
       return finish(false, "OPTIMIZER_FAILED");
     }
     global_path_snapshot = latest_global_path_;
-    perf.global_path_point_count = global_path_snapshot.size();
     global_goal.x() = latest_global_path_.back().pose.position.x;
     global_goal.y() = latest_global_path_.back().pose.position.y;
     global_goal.z() = 0.0;
@@ -1231,11 +1156,8 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   if (!seed.valid) {
     return finish(false, "COLLISION");
   }
-  perf.local_dense_point_count = seed.dense_path.size();
-  perf.sparse_point_count = seed.sparse_waypoints.size();
   std::vector<Eigen::Vector3d> sparse_path = seed.sparse_waypoints;
   const bool local_end_is_goal = seed.local_end_is_goal;
-  sampleSeedClearance(sparse_path, perf);
 
   std_msgs::msg::Header header_msg;
   header_msg.frame_id = output_frame_;
@@ -1257,10 +1179,8 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   }
 
   if (state == PlanningState::EMERGENCY_STOP) {
-    perf.recovery_triggered = true;
     return finish(false, "RECOVERY_TRIGGERED");
   }
-  perf.warm_start_used = state == PlanningState::HOT_START;
 
   // 5. Prepare start state.
   Eigen::Matrix3d start_state;
@@ -1375,15 +1295,19 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   }
 
   // 8. Optimize.
+  const auto opt_start_steady =
+    record_perf ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+  if (perf) {
+    perf->local_search_time_ms =
+      std::chrono::duration<double, std::milli>(opt_start_steady - replan_start).count();
+  }
   auto opt_start_time = rclcpp::Clock().now().seconds();
   double final_cost =
     minco_optimizer_->optimize(sparse_path, start_state, end_state, local_vmaxs, opt_traj);
-  perf.optimizer_iterations = static_cast<double>(minco_optimizer_->lastIterationCount());
-  perf.optimizer_return_code = static_cast<double>(minco_optimizer_->lastReturnCode());
-  perf.objective_total = std::isfinite(minco_optimizer_->lastObjectiveTotal())
-                           ? minco_optimizer_->lastObjectiveTotal()
-                           : final_cost;
-  perf.query_failed_count += static_cast<double>(minco_optimizer_->lastQueryFailureCount());
+  if (perf) {
+    perf->optimizer_time_ms =
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - opt_start_steady).count();
+  }
 
   const double max_allowed_cost = 3000.0;
   if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
@@ -1403,10 +1327,6 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
         std::cout << YELLOW
                   << "[MincoPlanner] Last trajectory is still valid and safe. Continuing to execute it."
                   << RESET << std::endl;
-        perf.old_traj_reused = true;
-        perf.piece_count = static_cast<size_t>(last_traj_snapshot.getPieceNum());
-        perf.trajectory_duration = last_traj_snapshot.getTotalDuration();
-        sampleTrajectoryMetrics(last_traj_snapshot, perf);
         return finish(true, "NONE");
       }
       return finish(false, "OPTIMIZER_FAILED");
@@ -1419,10 +1339,6 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   std::cout << GREEN << "[MincoPlanner] Minco optimization time: "
             << opt_duration << " seconds, "
             << "cost: " << final_cost << RESET << std::endl;
-
-  perf.piece_count = static_cast<size_t>(opt_traj.getPieceNum());
-  perf.trajectory_duration = opt_traj.getTotalDuration();
-  sampleTrajectoryMetrics(opt_traj, perf);
 
   // 8.5 Quality gating (hard validation) before publishing.
   if (!validateTrajectory(opt_traj, end_state.col(0))) {
