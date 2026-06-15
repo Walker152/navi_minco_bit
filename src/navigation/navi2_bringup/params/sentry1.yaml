@@ -334,7 +334,7 @@ planner_server:
           cloud_topic: /cloud_registered_full
           odom_topic: /aft_mapped_to_init
           odom_timeout: 0.08
-          update_period_ms: 50
+          update_period_ms: 20
 
         raycasting:
           enable: true
@@ -360,7 +360,7 @@ planner_server:
         decay:
           enable: true
           # [decay][s] 观测后保持时间；过短障碍闪烁，过长动态障碍残留。
-          keep_time: 1.0
+          keep_time: 1.5
           # [decay][s] 从 occupied 衰减到 free 的时间尺度；过短清除激进，过长 ESDF 障碍源残留。
           decay_time: 3.0
           # [decay][bool] 只维护活跃 cell 衰减列表；开启通常降低计算量，若列表维护异常会影响动态清除完整性。
@@ -389,7 +389,7 @@ planner_server:
           # 同一 XY 柱中最高与最低占据体素的垂直高度差 H。
           # 不超过该值时，分类为地面或坡面薄表面。
           # 这是差值，不是 ROGMap frame 中的绝对 Z 坐标。
-          surface_height_delta_max: 0.10
+          surface_height_delta_max: 0.05
 
           # [vertical height difference, m]
           # 判定竖直墙所需的最小单柱垂直高度差 H。
@@ -404,7 +404,7 @@ planner_server:
           # 可通行隧道所需的最小上下表面高度差。
           # 应包含机器人实际高度和安全余量。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_min: 0.28
+          tunnel_height_delta_min: 0.3
 
           # [vertical height difference, m]
           # 当前 RM 场景中允许识别为目标隧道的最大上下表面高度差。
@@ -427,7 +427,7 @@ planner_server:
 
           hole_fill_enable: true
           hole_fill_radius: 1
-          hole_fill_min_occupied_neighbors: 5
+          hole_fill_min_occupied_neighbors: 4
         field:
           enable: true
           inflation_radius: 0.0
@@ -438,12 +438,12 @@ planner_server:
           clamp_distance: true
           # [field][枚举] 插值方式 bilinear/quadratic；quadratic 梯度更平滑，边界邻域不足时会回退到 bilinear。
           interpolation: quadratic
-          update_rate: 20.0
+          update_rate: 50.0
 
         performance:
           enable: true
-          detailed_csv_enable: true
-          summary_csv_enable: true
+          detailed_csv_enable: false
+          summary_csv_enable: false
           detailed_csv_path: /tmp/rog_map_perf_detailed.csv
           summary_csv_path: /tmp/rog_map_perf_summary.csv
           minco_csv_path: /tmp/minco_perf_detailed.csv
@@ -505,7 +505,7 @@ planner_server:
         penalty_weight_pos: 50000.0
         penalty_weight_vel: 1500.0
         penalty_weight_acc: 1500.0
-        penalty_weight_att: 500.0
+        penalty_weight_att: 50.0
         penalty_weight_time_barrier: 50.0
       recovery_server:
         fail_threshold: 5
