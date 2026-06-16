@@ -389,7 +389,7 @@ planner_server:
           # 同一 XY 柱中最高与最低占据体素的垂直高度差 H。
           # 不超过该值时，分类为地面或坡面薄表面。
           # 这是差值，不是 ROGMap frame 中的绝对 Z 坐标。
-          surface_height_delta_max: 0.05
+          surface_height_delta_max: 0.1
 
           # [vertical height difference, m]
           # 判定竖直墙所需的最小单柱垂直高度差 H。
@@ -413,7 +413,7 @@ planner_server:
 
           # [dimensionless ratio, 0~1]
           # 隧道上下表面之间的最大垂直占据率。
-          tunnel_occupancy_ratio_max: 0.55
+          tunnel_occupancy_ratio_max: 0.3
 
           # PASSABLE 在 value layer 中的代价值。
           passable_cost: 50
@@ -442,8 +442,8 @@ planner_server:
 
         performance:
           enable: true
-          detailed_csv_enable: false
-          summary_csv_enable: false
+          detailed_csv_enable: true
+          summary_csv_enable: true
           detailed_csv_path: /tmp/rog_map_perf_detailed.csv
           summary_csv_path: /tmp/rog_map_perf_summary.csv
           minco_csv_path: /tmp/minco_perf_detailed.csv
