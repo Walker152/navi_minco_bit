@@ -138,7 +138,7 @@ controller_server:
 
       performance:
         enable: true
-        detailed_csv_enable: false
+        detailed_csv_enable: true
         mpc_csv_path: /tmp/mpc_perf_detailed.csv
         run_id: ""
         scenario: ""
@@ -505,7 +505,7 @@ planner_server:
         penalty_weight_pos: 50000.0
         penalty_weight_vel: 1500.0
         penalty_weight_acc: 1500.0
-        penalty_weight_att: 50.0
+        penalty_weight_att: 10.0
         penalty_weight_time_barrier: 50.0
       recovery_server:
         fail_threshold: 5

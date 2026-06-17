@@ -993,7 +993,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
 {
   static auto last_time = std::chrono::steady_clock::now();
   auto current_time = std::chrono::steady_clock::now();
-  if (current_time - last_time < std::chrono::milliseconds(1)) {
+  if (current_time - last_time < std::chrono::milliseconds(5)) {
     return;
   }
   last_time = current_time;
