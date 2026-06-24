@@ -327,7 +327,7 @@ planner_server:
         map_sliding:
           enable: true
           # [map_sliding][m] 触发地图滑动的位移阈值；过小会频繁滑动并带来计算抖动，过大可能让机器人靠近局部地图边缘。
-          threshold: 0.5
+          threshold: 0.2
 
         ros_callback:
           enable: true
@@ -442,8 +442,8 @@ planner_server:
 
         performance:
           enable: true
-          detailed_csv_enable: true
-          summary_csv_enable: true
+          detailed_csv_enable: false
+          summary_csv_enable: false
           detailed_csv_path: /tmp/rog_map_perf_detailed.csv
           summary_csv_path: /tmp/rog_map_perf_summary.csv
           minco_csv_path: /tmp/minco_perf_detailed.csv
@@ -455,7 +455,7 @@ planner_server:
           variant: ""
           # [performance][行] CSV flush 间隔；避免每行强制 flush 变成新瓶颈，节点退出时仍会关闭文件。
           csv_flush_every_n: 30
-          print_enable: true
+          print_enable: false
           # [performance][Hz] 性能摘要和 summary CSV 频率。
           summary_rate: 1.0
           # [performance][bool] 是否启用 dirty column 增量刷新；开启可减少 projection/field 全量刷新计算量。
@@ -512,6 +512,7 @@ planner_server:
         cooldown_sec: 1.0
         recovery_window_sec: 3.0
         escape_speed: 0.5
+      # 已弃用
       static_esdf:
         esdf_pcd_path: "src/utils/pcd2esdf/maps/rmuc2026_esdf.pcd"
         # esdf_pcd_path: "src/utils/pcd2esdf/maps/rmul2026_esdf.pcd"
