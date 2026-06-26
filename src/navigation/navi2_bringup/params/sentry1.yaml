@@ -139,7 +139,7 @@ controller_server:
       performance:
         enable: true
         print_enable: true
-        detailed_csv_enable: true
+        detailed_csv_enable: false
         odom_sub_debug_enable: true
         mpc_csv_path: /tmp/mpc_perf_detailed.csv
         print_period_sec: 1.0
@@ -323,7 +323,7 @@ planner_server:
       performance:
         enable: true
         print_enable: true
-        detailed_csv_enable: true
+        detailed_csv_enable: false
         odom_sub_debug_enable: true
         minco_csv_path: /tmp/minco_perf_detailed.csv
         print_period_sec: 1.0
