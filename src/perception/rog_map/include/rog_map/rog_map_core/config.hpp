@@ -321,7 +321,7 @@ public:
 
     decay_en = true;
     keep_time = 0.4;
-    decay_time = 1.2;
+    decay_clear_time = 0.0;
     decay_active_list_en = true;
     dirty_column_en = false;
     dirty_full_ratio = 0.30;
@@ -341,7 +341,10 @@ public:
     debug_pub_rate = 5.0;
     load("decay.enable", decay_en);
     load("decay.keep_time", keep_time);
-    load("decay.decay_time", decay_time);
+    load("decay.clear_time", decay_clear_time);
+    if (decay_clear_time <= keep_time) {
+      throw std::runtime_error("[ROGMap] decay.clear_time must be greater than decay.keep_time");
+    }
     load("decay.active_list_enable", decay_active_list_en);
     load("performance.dirty_column_enable", dirty_column_en);
     load("performance.dirty_full_ratio", dirty_full_ratio);
@@ -389,8 +392,6 @@ public:
     l_max = logit(p_max);
     l_occ = logit(p_occ);
     l_free = logit(p_free);
-    decay_rate = (l_occ - l_free) / std::max(0.1, decay_time);
-
     inf_spherical_neighbor.clear();
     unk_inf_spherical_neighbor.clear();
     spherical_neighbor.clear();
@@ -494,8 +495,7 @@ public:
 
   bool decay_en{true};
   double keep_time{0.4};
-  double decay_time{1.2};
-  double decay_rate{0.0};
+  double decay_clear_time{0.0};
   bool decay_active_list_en{true};
 
   bool parallel_raycast_en{true};

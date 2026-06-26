@@ -374,10 +374,10 @@ planner_server:
 
         decay:
           enable: true
-          # [decay][s] 观测后保持时间；过短障碍闪烁，过长动态障碍残留。
-          keep_time: 1.0
-          # [decay][s] 从 occupied 衰减到 free 的时间尺度；过短清除激进，过长 ESDF 障碍源残留。
-          decay_time: 2.0
+          # [decay][s] 最后一次 hit 后保持 occupied 的最小时间；过短障碍闪烁，过长动态障碍残留。
+          keep_time: 1.5
+          # [decay][s] 最后一次 hit 后强制衰减到 free 的最大时间；必须大于 keep_time。
+          clear_time: 4.5
           # [decay][bool] 只维护活跃 cell 衰减列表；开启通常降低计算量，若列表维护异常会影响动态清除完整性。
           active_list_enable: false
 
