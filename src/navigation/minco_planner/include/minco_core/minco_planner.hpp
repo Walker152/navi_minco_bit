@@ -2,8 +2,8 @@
 #define MINCO_PLANNER__MINCO_PLANNER_HPP_
 
 #include "minco_core/header.hpp"
+#include "minco_core/performance/planner_performance_monitor.hpp"
 
-#include <fstream>
 #include <limits>
 
 namespace rog_map {
@@ -90,20 +90,6 @@ private:
     EMERGENCY_STOP  // Immediate backup braking with safety priority.
   };
 
-  struct MincoPerfSample
-  {
-    std::string planner_mode{"UNKNOWN"};
-    std::string failure_reason{"NONE"};
-    double stamp_ros{0.0};
-    long long stamp_steady_ns{0};
-    bool success{false};
-    double global_search_time_ms{std::numeric_limits<double>::quiet_NaN()};
-    double local_search_time_ms{std::numeric_limits<double>::quiet_NaN()};
-    double optimizer_time_ms{std::numeric_limits<double>::quiet_NaN()};
-    double total_replan_time_ms{std::numeric_limits<double>::quiet_NaN()};
-    double planner_hz{std::numeric_limits<double>::quiet_NaN()};
-  };
-
   // === Utility & Helper Functions ===
   PlanningState determinePlanningState(
     const geometry_msgs::msg::Pose & start_pose, const std::vector<Eigen::Vector3d> & new_path);
@@ -143,8 +129,6 @@ private:
   bool ensureMapAvailable();
   void rebuildModeDependentQueries();
   void configureMincoPerfLogging(const nav2_util::LifecycleNode::SharedPtr & node, const std::string & prefix);
-  void writeMincoPerfHeader();
-  void writeMincoPerfRow(const MincoPerfSample & sample);
 
   void initPlannerMode(
     const std::string & planner_mode_param, const std::string & map_frame, const std::string & rog_frame);
@@ -190,11 +174,7 @@ private:
   double traj_goal_tolerance_{0.5};
   MincoOptimizer::Config minco_config;
   RecoverServer::Config recovery_server_config_{};
-  bool minco_perf_csv_enable_{false};
-  std::string award_run_id_{};
-  std::string award_scenario_{};
-  std::string award_variant_{};
-  std::string minco_perf_csv_path_{"/tmp/minco_perf_detailed.csv"};
+  PlannerPerformanceMonitor planner_perf_monitor_;
 
   // === Core Modules (Pointers to FSM, Optimizers, etc.) ===
   std::unique_ptr<Astar> astar_planner_;
@@ -234,8 +214,6 @@ private:
 
   std::unique_ptr<Visualizer> visualizer_;
   rclcpp::Logger logger_{rclcpp::get_logger("MincoPlanner")};
-  std::ofstream minco_perf_csv_;
-  int minco_perf_csv_rows_{0};
   double last_global_search_time_ms_{std::numeric_limits<double>::quiet_NaN()};
   bool has_fresh_global_search_time_{false};
   long long last_minco_perf_stamp_ns_{0};
