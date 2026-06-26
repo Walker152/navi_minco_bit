@@ -6,16 +6,13 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <iomanip>
 #include <limits>
 #include <optional>
-#include <sstream>
 
 #include <Eigen/Geometry>
 
 #ifdef MINCO_DEBUG
 #include <chrono>
-#include <iomanip>
 #include <iostream>
 #endif
 
@@ -36,43 +33,9 @@ void log_info_line(std::string_view text)
 
 namespace minco_controller {
 
-namespace {
-
-std::string csvNum(double value)
-{
-  if (!std::isfinite(value)) {
-    return "NaN";
-  }
-  std::ostringstream ss;
-  ss << std::fixed << std::setprecision(6) << value;
-  return ss.str();
-}
-
-std::string csvBool(bool value)
-{
-  return value ? "1" : "0";
-}
-
-std::string csvText(std::string value)
-{
-  std::replace(value.begin(), value.end(), ',', '_');
-  return value;
-}
-
-long long steadyNowNs()
-{
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(
-    std::chrono::steady_clock::now().time_since_epoch()).count();
-}
-
-}  // namespace
-
 MincoMpcController::~MincoMpcController()
 {
-  if (mpc_perf_csv_.is_open()) {
-    mpc_perf_csv_.flush();
-    mpc_perf_csv_.close();
-  }
+  mpc_perf_monitor_.close();
 }
 
 double MincoMpcController::normalizeYaw(double yaw)
@@ -83,12 +46,22 @@ double MincoMpcController::normalizeYaw(double yaw)
 void MincoMpcController::configureMpcPerfLogging(
   const rclcpp_lifecycle::LifecycleNode::SharedPtr & node)
 {
+  const std::string default_mpc_csv_path = "/tmp/mpc_perf_detailed.csv";
+
   nav2_util::declare_parameter_if_not_declared(
     node, name_ + ".performance.enable", rclcpp::ParameterValue(true));
   nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".performance.print_enable", rclcpp::ParameterValue(true));
+  nav2_util::declare_parameter_if_not_declared(
     node, name_ + ".performance.detailed_csv_enable", rclcpp::ParameterValue(false));
   nav2_util::declare_parameter_if_not_declared(
-    node, name_ + ".performance.mpc_csv_path", rclcpp::ParameterValue(mpc_perf_csv_path_));
+    node, name_ + ".performance.odom_sub_debug_enable", rclcpp::ParameterValue(true));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".performance.print_period_sec", rclcpp::ParameterValue(1.0));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".performance.csv_flush_every_n", rclcpp::ParameterValue(30));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".performance.mpc_csv_path", rclcpp::ParameterValue(default_mpc_csv_path));
   nav2_util::declare_parameter_if_not_declared(
     node, name_ + ".performance.run_id", rclcpp::ParameterValue(""));
   nav2_util::declare_parameter_if_not_declared(
@@ -97,52 +70,39 @@ void MincoMpcController::configureMpcPerfLogging(
     node, name_ + ".performance.variant", rclcpp::ParameterValue(""));
 
   bool performance_enable = true;
+  bool print_enable = true;
   bool detailed_csv_enable = false;
+  bool odom_sub_debug_enable = true;
+  double print_period_sec = 1.0;
+  int csv_flush_every_n = 30;
+  std::string mpc_csv_path = default_mpc_csv_path;
+  std::string run_id;
+  std::string scenario;
+  std::string variant;
   node->get_parameter(name_ + ".performance.enable", performance_enable);
+  node->get_parameter(name_ + ".performance.print_enable", print_enable);
   node->get_parameter(name_ + ".performance.detailed_csv_enable", detailed_csv_enable);
-  node->get_parameter(name_ + ".performance.mpc_csv_path", mpc_perf_csv_path_);
-  node->get_parameter(name_ + ".performance.run_id", award_run_id_);
-  node->get_parameter(name_ + ".performance.scenario", award_scenario_);
-  node->get_parameter(name_ + ".performance.variant", award_variant_);
-  mpc_perf_csv_enable_ = performance_enable && detailed_csv_enable;
-  if (!mpc_perf_csv_enable_) {
-    return;
-  }
+  node->get_parameter(name_ + ".performance.odom_sub_debug_enable", odom_sub_debug_enable);
+  node->get_parameter(name_ + ".performance.print_period_sec", print_period_sec);
+  node->get_parameter(name_ + ".performance.csv_flush_every_n", csv_flush_every_n);
+  node->get_parameter(name_ + ".performance.mpc_csv_path", mpc_csv_path);
+  node->get_parameter(name_ + ".performance.run_id", run_id);
+  node->get_parameter(name_ + ".performance.scenario", scenario);
+  node->get_parameter(name_ + ".performance.variant", variant);
 
-  mpc_perf_csv_.open(mpc_perf_csv_path_, std::ios::out | std::ios::trunc);
-  if (!mpc_perf_csv_.is_open()) {
-    RCLCPP_ERROR(logger_, "[MincoMpc] Failed to open MPC perf CSV: %s", mpc_perf_csv_path_.c_str());
-    mpc_perf_csv_enable_ = false;
-    return;
-  }
-  writeMpcPerfHeader();
-}
+  MpcPerformanceConfig perf_cfg;
+  perf_cfg.enable = performance_enable;
+  perf_cfg.print_enable = print_enable;
+  perf_cfg.detailed_csv_enable = detailed_csv_enable;
+  perf_cfg.odom_sub_debug_enable = odom_sub_debug_enable;
+  perf_cfg.detailed_csv_path = mpc_csv_path;
+  perf_cfg.run_id = run_id;
+  perf_cfg.scenario = scenario;
+  perf_cfg.variant = variant;
+  perf_cfg.print_period_sec = print_period_sec;
+  perf_cfg.csv_flush_every_n = csv_flush_every_n;
 
-void MincoMpcController::writeMpcPerfHeader()
-{
-  if (!mpc_perf_csv_.is_open()) {
-    return;
-  }
-  mpc_perf_csv_
-    << "run_id,scenario,variant,stamp_ros,stamp_steady_ns,success,solve_time_ms,cycle_time_ms,"
-       "controller_hz,cmd_vx,cmd_vy,cmd_wz,ref_vx,ref_vy,ref_wz\n";
-}
-
-void MincoMpcController::writeMpcPerfRow(const MpcPerfSample & sample)
-{
-  if (!mpc_perf_csv_enable_ || !mpc_perf_csv_.is_open()) {
-    return;
-  }
-  mpc_perf_csv_ << csvText(award_run_id_) << ',' << csvText(award_scenario_) << ','
-                << csvText(award_variant_) << ',' << csvNum(sample.stamp_ros) << ','
-                << sample.stamp_steady_ns << ',' << csvBool(sample.success) << ','
-                << csvNum(sample.solve_time_ms) << ',' << csvNum(sample.cycle_time_ms) << ','
-                << csvNum(sample.controller_hz) << ',' << csvNum(sample.cmd_vx) << ','
-                << csvNum(sample.cmd_vy) << ',' << csvNum(sample.cmd_wz) << ',' << csvNum(sample.ref_vx) << ','
-                << csvNum(sample.ref_vy) << ',' << csvNum(sample.ref_wz) << '\n';
-  if (++mpc_perf_csv_rows_ % 30 == 0) {
-    mpc_perf_csv_.flush();
-  }
+  mpc_perf_monitor_.configure(perf_cfg, logger_);
 }
 
 void MincoMpcController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
@@ -255,8 +215,9 @@ void MincoMpcController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPt
     std::bind(&MincoMpcController::onOptPath, this, std::placeholders::_1));
 
   // 订阅里程计：用于延迟补偿和mpc输入状态
+  auto odom_qos = rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().durability_volatile();
   odom_sub_ = node->create_subscription<nav_msgs::msg::Odometry>("/aft_mapped_to_init",
-    rclcpp::SystemDefaultsQoS(),
+    odom_qos,
     std::bind(&MincoMpcController::onOdom, this, std::placeholders::_1));
 
   mpc_predict_path_pub_ = node->create_publisher<nav_msgs::msg::Path>("/mpc_predict_path", 1);
@@ -335,10 +296,7 @@ void MincoMpcController::extractGlobalVelocityAndYaw(const nav_msgs::msg::Odomet
 
 void MincoMpcController::cleanup()
 {
-  if (mpc_perf_csv_.is_open()) {
-    mpc_perf_csv_.flush();
-    mpc_perf_csv_.close();
-  }
+  mpc_perf_monitor_.close();
   opt_path_sub_.reset();
   odom_sub_.reset();
   mpc_predict_path_pub_.reset();
@@ -390,6 +348,11 @@ void MincoMpcController::onOptPath(const ros_interfaces::msg::MpcPositionCommand
 
 void MincoMpcController::onOdom(const nav_msgs::msg::Odometry::SharedPtr msg)
 {
+  auto node = node_.lock();
+  if (node && msg) {
+    mpc_perf_monitor_.recordOdomCallback(node->now(), msg->header.stamp);
+  }
+
   std::lock_guard<std::mutex> lk(data_mtx_);
   latest_odom_ = msg;
 }
@@ -690,7 +653,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   const geometry_msgs::msg::Twist & velocity,
   nav2_core::GoalChecker * goal_checker)
 {
-  const bool record_perf = mpc_perf_csv_enable_;
+  const bool record_perf = mpc_perf_monitor_.detailedCsvEnabled();
   const auto cycle_start = record_perf ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
   auto node = node_.lock();
 
@@ -699,7 +662,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
   if (record_perf) {
     perf.emplace();
     perf->stamp_ros = now.seconds();
-    perf->stamp_steady_ns = steadyNowNs();
+    perf->stamp_steady_ns = MpcPerformanceMonitor::steadyNowNs();
   }
   auto finish = [&](geometry_msgs::msg::TwistStamped out_cmd, bool success, const std::string &) {
     if (perf) {
@@ -716,7 +679,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
       perf->cmd_vx = out_cmd.twist.linear.x;
       perf->cmd_vy = out_cmd.twist.linear.y;
       perf->cmd_wz = out_cmd.twist.angular.z;
-      writeMpcPerfRow(*perf);
+      mpc_perf_monitor_.recordMpcSample(*perf);
     }
     return out_cmd;
   };
