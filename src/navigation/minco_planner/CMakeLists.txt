@@ -48,6 +48,7 @@ set(MINCO_CORE_SOURCES
   src/minco_core/minco_planner.cpp
   src/minco_core/minco_utils.cpp
   src/minco_core/visualizer.cpp
+  src/performance/planner_performance_monitor.cpp
 )
 file(GLOB TRAJ_OPT_SOURCES "src/traj_opt/*.cpp")
 
