@@ -627,8 +627,9 @@ void ROGMap::refreshLayers()
 
   static auto last_projection_log = std::chrono::steady_clock::time_point{};
   const auto projection_log_now = std::chrono::steady_clock::now();
-  if (last_projection_log.time_since_epoch().count() == 0 ||
-      std::chrono::duration<double>(projection_log_now - last_projection_log).count() >= 1.0) {
+  if (performance_monitor_ && performance_monitor_->printEnabled() &&
+      (last_projection_log.time_since_epoch().count() == 0 ||
+       std::chrono::duration<double>(projection_log_now - last_projection_log).count() >= 1.0)) {
     std::cout << "[ROGMapProjection] projection occupied_count=" << runtime_stats_.occupied_count
               << ", projection free_count=" << runtime_stats_.free_count
               << ", projection passable_count=" << runtime_stats_.passable_count
