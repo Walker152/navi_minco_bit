@@ -362,7 +362,7 @@ planner_server:
           # [raycasting][概率] unknown 判断阈值相关参数；影响 UNKNOWN/FREE/OCCUPIED 判定，进而影响 projection layer。
           unk_thresh: 0.70
           p_hit: 0.9
-          p_miss: 0.49
+          p_miss: 0.45
           p_min: 0.12
           p_max: 0.97
           p_occ: 0.85
@@ -375,11 +375,11 @@ planner_server:
         decay:
           enable: true
           # [decay][s] 观测后保持时间；过短障碍闪烁，过长动态障碍残留。
-          keep_time: 1.5
+          keep_time: 1.0
           # [decay][s] 从 occupied 衰减到 free 的时间尺度；过短清除激进，过长 ESDF 障碍源残留。
-          decay_time: 3.0
+          decay_time: 2.0
           # [decay][bool] 只维护活跃 cell 衰减列表；开启通常降低计算量，若列表维护异常会影响动态清除完整性。
-          active_list_enable: true
+          active_list_enable: false
 
         projection:
           enable: true
@@ -472,7 +472,7 @@ planner_server:
           # [performance][Hz] 性能摘要和 summary CSV 频率。
           summary_rate: 1.0
           # [performance][bool] 是否启用 dirty column 增量刷新；开启可减少 projection/field 全量刷新计算量。
-          dirty_column_enable: true
+          dirty_column_enable: false
           # [performance][比例] dirty column 超过地图总列数比例时转全量刷新；调低更常全量，调高更依赖增量更新。
           dirty_full_ratio: 0.30
           # [performance/raycasting][bool] 并行 raycast 开关；代码后加载该值，会覆盖 raycasting.parallel_enable。
