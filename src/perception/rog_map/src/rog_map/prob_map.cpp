@@ -732,7 +732,8 @@ void ProbMap::hitPointUpdate(const Vec3f & pos, const int & hash_id, const int &
   if (hash_id >= 0 && hash_id < static_cast<int>(last_hit_time_.size())) {
     last_hit_time_[hash_id] = current_update_time_;
     last_update_time_[hash_id] = current_update_time_;
-    if (!active_flags_[hash_id]) {
+    if (cfg_.decay_active_list_en && hash_id < static_cast<int>(active_flags_.size()) &&
+        !active_flags_[hash_id]) {
       active_flags_[hash_id] = 1U;
       active_ids_.push_back(hash_id);
     }
@@ -762,94 +763,114 @@ void ProbMap::missPointUpdate(const Vec3f & pos, const int & hash_id, const int 
 bool ProbMap::applyDecay(double now)
 {
   runtime_stats_.decayed_count = 0.0;
-  if (!cfg_.decay_en || cfg_.decay_time <= 1.0e-6) {
+  if (!cfg_.decay_en) {
     return false;
   }
 
-  const double rate = cfg_.decay_rate > 0.0
-                        ? cfg_.decay_rate
-                        : std::max(0.0,
-                            (static_cast<double>(cfg_.l_occ) - static_cast<double>(cfg_.l_free)) /
-                              std::max(1.0e-6, cfg_.decay_time));
+  const double keep_time = std::max(0.0, cfg_.keep_time);
+  const double clear_time = cfg_.decay_clear_time;
+  const double inv_decay_span = 1.0 / (clear_time - keep_time);
+  const double l_start = static_cast<double>(cfg_.l_max);
+  const double l_end = static_cast<double>(std::nextafter(cfg_.l_free, cfg_.l_min));
+
   bool changed = false;
   int decayed_count = 0;
-  std::vector<int> next_active;
-  next_active.reserve(active_ids_.size());
 
-  std::vector<int> scan_ids;
-  const std::vector<int> * ids = &active_ids_;
-  if (!cfg_.decay_active_list_en) {
-    scan_ids.reserve(occupancy_buffer_.size());
-    for (int hash_id = 0; hash_id < static_cast<int>(occupancy_buffer_.size()); ++hash_id) {
-      if (isOccupied(occupancy_buffer_[hash_id])) {
-        scan_ids.push_back(hash_id);
-      }
+  auto keepActive = [](const int hash_id, std::vector<int> * next_active) {
+    if (next_active != nullptr) {
+      next_active->push_back(hash_id);
     }
-    ids = &scan_ids;
-  } else if (active_ids_.empty()) {
-    return false;
-  }
+  };
 
-  for (const int hash_id : *ids) {
-    if (hash_id < 0 || hash_id >= static_cast<int>(occupancy_buffer_.size()) || !active_flags_[hash_id]) {
-      if (cfg_.decay_active_list_en) {
-        continue;
-      }
+  auto clearActive = [&](const int hash_id) {
+    if (cfg_.decay_active_list_en && hash_id >= 0 &&
+        hash_id < static_cast<int>(active_flags_.size())) {
+      active_flags_[hash_id] = 0U;
+    }
+  };
+
+  auto decayOne = [&](const int hash_id, std::vector<int> * next_active) {
+    if (hash_id < 0 || hash_id >= static_cast<int>(occupancy_buffer_.size()) ||
+        hash_id >= static_cast<int>(last_hit_time_.size()) ||
+        hash_id >= static_cast<int>(last_update_time_.size())) {
+      return;
     }
 
     float & prob = occupancy_buffer_[hash_id];
     const GridType from_type = classifyProb(prob);
     if (from_type != GridType::OCCUPIED) {
-      if (cfg_.decay_active_list_en) {
-        active_flags_[hash_id] = 0U;
-      }
-      continue;
+      clearActive(hash_id);
+      return;
     }
 
-    const double last_hit = last_hit_time_[hash_id];
-    const double last_update = last_update_time_[hash_id] > 0.0f ? last_update_time_[hash_id] : last_hit;
-    if (now - last_hit < cfg_.keep_time) {
-      next_active.push_back(hash_id);
-      continue;
+    const double last_hit = static_cast<double>(last_hit_time_[hash_id]);
+    if (!(last_hit > 0.0) || now <= last_hit) {
+      keepActive(hash_id, next_active);
+      return;
     }
 
-    const double dt = std::max(0.0, now - last_update);
-    if (dt <= 1.0e-6) {
-      next_active.push_back(hash_id);
-      continue;
+    const double age = now - last_hit;
+    if (age <= keep_time) {
+      keepActive(hash_id, next_active);
+      return;
     }
 
-    prob =
-      static_cast<float>(std::max(static_cast<double>(cfg_.l_min), static_cast<double>(prob) - rate * dt));
-    last_update_time_[hash_id] = now;
+    const double old_log = static_cast<double>(prob);
+    double new_log = old_log;
+    if (age >= clear_time) {
+      new_log = l_end;
+    } else {
+      const double ratio = std::clamp((age - keep_time) * inv_decay_span, 0.0, 1.0);
+      const double target_log = (1.0 - ratio) * l_start + ratio * l_end;
+      new_log = std::min(old_log, target_log);
+    }
+    new_log =
+      std::clamp(new_log, static_cast<double>(cfg_.l_min), static_cast<double>(cfg_.l_max));
 
-    const GridType to_type = classifyProb(prob);
-    if (from_type != to_type) {
+    if (new_log < old_log - 1.0e-6) {
+      prob = static_cast<float>(new_log);
+      last_update_time_[hash_id] = now;
+
+      const GridType to_type = classifyProb(prob);
       Vec3f pos;
       hashIdToPos(hash_id, pos);
       updateCellState(pos, from_type, to_type);
       Vec3i id_g;
       posToGlobalIndex(pos, id_g);
       markDirtyColumn(id_g);
+
       changed = true;
       ++decayed_count;
+
+      if (to_type == GridType::OCCUPIED) {
+        keepActive(hash_id, next_active);
+      } else {
+        clearActive(hash_id);
+      }
+      return;
     }
 
-    if (to_type == GridType::OCCUPIED) {
-      if (cfg_.decay_active_list_en) {
-        next_active.push_back(hash_id);
-      } else if (!active_flags_[hash_id]) {
-        active_flags_[hash_id] = 1U;
-        active_ids_.push_back(hash_id);
-      }
-    } else {
-      active_flags_[hash_id] = 0U;
-    }
-  }
+    keepActive(hash_id, next_active);
+  };
 
   if (cfg_.decay_active_list_en) {
+    std::vector<int> next_active;
+    next_active.reserve(active_ids_.size());
+    for (const int hash_id : active_ids_) {
+      if (hash_id < 0 || hash_id >= static_cast<int>(active_flags_.size()) || !active_flags_[hash_id]) {
+        continue;
+      }
+      decayOne(hash_id, &next_active);
+    }
     active_ids_.swap(next_active);
+  } else {
+    for (int hash_id = 0; hash_id < static_cast<int>(occupancy_buffer_.size()); ++hash_id) {
+      if (classifyProb(occupancy_buffer_[hash_id]) == GridType::OCCUPIED) {
+        decayOne(hash_id, nullptr);
+      }
+    }
   }
+
   runtime_stats_.decayed_count = decayed_count;
   return changed;
 }
