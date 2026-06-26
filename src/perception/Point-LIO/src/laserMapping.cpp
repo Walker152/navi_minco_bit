@@ -815,14 +815,16 @@ void publishAccumulatedFullCloudWorld(
   cloud_msg->header.frame_id = "camera_init";
   pub->publish(std::move(cloud_msg));
 
-  RCLCPP_INFO(LOGGER,
-    "[Point-LIO][FullCloud] enqueued=%llu published=%zu queue_remaining=%zu "
-    "dropped_old=%llu out_of_order=%llu",
-    static_cast<unsigned long long>(last_full_cloud_enqueued_points),
-    full_cloud_world->size(),
-    full_cloud_queue.size(),
-    static_cast<unsigned long long>(full_cloud_dropped_points_this_scan),
-    static_cast<unsigned long long>(last_full_cloud_out_of_order));
+  if (print_cloud_input_fps) {
+    RCLCPP_INFO(LOGGER,
+      "[Point-LIO][FullCloud] enqueued=%llu published=%zu queue_remaining=%zu "
+      "dropped_old=%llu out_of_order=%llu",
+      static_cast<unsigned long long>(last_full_cloud_enqueued_points),
+      full_cloud_world->size(),
+      full_cloud_queue.size(),
+      static_cast<unsigned long long>(full_cloud_dropped_points_this_scan),
+      static_cast<unsigned long long>(last_full_cloud_out_of_order));
+  }
 
   full_cloud_world->clear();
   full_cloud_dropped_points_this_scan = 0;
