@@ -25,8 +25,6 @@
 
 #include <Eigen/Core>
 
-#include "small_rog_map/hybrid_esdf_map.hpp"
-
 namespace minco_planner {
 namespace smac {
 
@@ -39,13 +37,6 @@ SmacPlanner2DSimple::SmacPlanner2DSimple()
 
 SmacPlanner2DSimple::~SmacPlanner2DSimple()
 {
-}
-
-void SmacPlanner2DSimple::setESDFMap(const std::shared_ptr<small_rog_map::HybridESDFMap> & esdf_map)
-{
-  esdf_map_ = esdf_map;
-  // Cache is stamped per planning id; invalidate by resetting the counter.
-  planning_id_ = 0u;
 }
 
 void SmacPlanner2DSimple::setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map)
@@ -76,7 +67,7 @@ void SmacPlanner2DSimple::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr n
   node_ = node;
   costmap_ros_ = costmap_ros;
 
-  // Optional ESDF biasing (default off). ESDF map instance is injected via setESDFMap().
+  // Optional distance-field biasing (default off), queried from MapQueryInterface.
   auto full_key = [&param_prefix](const std::string & key) {
     if (param_prefix.empty()) {
       return key;

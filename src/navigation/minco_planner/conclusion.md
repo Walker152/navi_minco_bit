@@ -43,7 +43,7 @@ output_frame   = map
 global search  = Nav2 global costmap / prior map
 sparsify       = Nav2 global costmap / prior map
 dynamic query  = FrameAwareRogQuery(raw ROGMap, map -> camera_init)
-static ESDF    = enabled
+distance field = ROGMap query
 /opt_path      = map
 ```
 
@@ -68,7 +68,7 @@ output_frame   = camera_init
 global search  = ROGMap reachable boundary search
 sparsify       = ROGMap
 dynamic query  = raw ROGMap
-static ESDF    = disabled
+distance field = ROGMap query
 /opt_path      = camera_init
 ```
 

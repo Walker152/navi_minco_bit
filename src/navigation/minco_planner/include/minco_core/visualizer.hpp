@@ -11,10 +11,7 @@ public:
   Visualizer() = default;
   ~Visualizer() = default;
 
-  void configure(const nav2_util::LifecycleNode::WeakPtr & parent,
-    const std::string & global_frame,
-    const small_rog_map::HybridESDFMap::Ptr & esdf_map,
-    bool enable_esdf_timer);
+  void configure(const nav2_util::LifecycleNode::WeakPtr & parent, const std::string & global_frame);
 
   void cleanup();
 
@@ -37,17 +34,8 @@ private:
     int steps,
     double t_step) const;
 
-  void publishEsdfCloud(const std_msgs::msg::Header & header);
-  void publishGlobalEsdfCloud(const std_msgs::msg::Header & header);
-
   nav2_util::LifecycleNode::WeakPtr node_;
   std::string global_frame_;
-
-  // ESDF
-  small_rog_map::HybridESDFMap::Ptr esdf_map_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr esdf_cloud_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr global_esdf_cloud_pub_;
-  rclcpp::TimerBase::SharedPtr esdf_timer_;
 
   // Visualization publishers
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr backup_path_vis_pub_;

@@ -166,23 +166,14 @@ sudo make install
 ros2 launch navi2 slam.launch.py
 ```
 
-建图完成后保存 PCD 格式文件。
+建图完成后保存先验地图文件，并生成 Nav2 `map_server` 可加载的地图 yaml。
 
-步骤二：生成全局 ESDF 图
-由于本系统导航依赖先验地图，需要提前生成 ESDF 地图：
+步骤二：配置导航地图
+当前 MINCO 规划、轨迹安全检查、走廊生成和 SMAC distance-field bias 都通过 ROGMap 查询接口获取距离场。
 
-1. 打开 `src/utils/pcd2esdf/config/pcd2esdf.yaml`，配置好刚扫描出的 PCD 输入文件路径和 ESDF 期望的输出文件路径。
-2. 运行 ESDF 生成节点：
-   ```bash
-   ros2 launch pcd2esdf pcd2esdf.launch.py
-   ```
-3. 得到生成的 ESDF PCD 文件（默认输出至 `src/utils/pcd2esdf/maps/`）。
-
-步骤三：配置导航参数
-将生成的 ESDF 点云文件路径填入导航参数文件中：
-
-1. 打开 `src/navigation/navi2_bringup/params/sentry1.yaml`（或 `sentry2.yaml`）。
-2. 在 `planner_server` → `MincoPlanner` 下的 `static_esdf` 配置项中，填入 `esdf_pcd_path`（生成的 ESDF 地图路径）与 `esdf_resolution`。
+1. 打开 `src/navigation/navi2_bringup/params/sentry1.yaml`（或对应机器人参数文件）。
+2. 配置 `map_server.yaml_filename` 指向新的 Nav2 地图 yaml。
+3. 按实际雷达话题和地图范围确认 `planner_server` → `MincoPlanner` 下的 `rog_map` 参数。
 
 ### 5.4 比赛一键运行
 
