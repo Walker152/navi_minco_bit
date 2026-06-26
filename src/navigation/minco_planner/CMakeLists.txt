@@ -23,11 +23,9 @@ find_package(rcl_interfaces REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
-find_package(sensor_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(ros_interfaces REQUIRED)
 find_package(rog_map REQUIRED)
-find_package(PCL REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(OpenMP REQUIRED)
 
@@ -36,7 +34,6 @@ nav2_package()
 set(library_name minco_planner)
 
 file(GLOB UTILS_SOURCES "src/utils/*.cpp")
-file(GLOB SMALL_ROG_MAP_SOURCES "src/small_rog_map/*.cpp")
 file(GLOB SMAC_SEARCH_SOURCES "src/smac_search/*.cpp")
 set(MINCO_CORE_SOURCES
   src/minco_core/astar.cpp
@@ -56,7 +53,6 @@ file(GLOB TRAJ_OPT_SOURCES "src/traj_opt/*.cpp")
 
 add_library(${library_name} SHARED
   ${UTILS_SOURCES}
-  ${SMALL_ROG_MAP_SOURCES}
   ${SMAC_SEARCH_SOURCES}
   ${MINCO_CORE_SOURCES}
   ${TRAJ_OPT_SOURCES}
@@ -82,7 +78,6 @@ PUBLIC
   $<INSTALL_INTERFACE:include>
 PRIVATE
   ${EIGEN3_INCLUDE_DIR}
-  ${PCL_INCLUDE_DIRS}
 )
 
 ament_target_dependencies(${library_name}
@@ -96,7 +91,6 @@ ament_target_dependencies(${library_name}
   rcl_interfaces
   rclcpp
   rclcpp_lifecycle
-  sensor_msgs
   tf2_ros
   ros_interfaces
   rog_map
@@ -104,7 +98,6 @@ ament_target_dependencies(${library_name}
 
 target_link_libraries(${library_name}
   OpenMP::OpenMP_CXX
-  ${PCL_LIBRARIES}
   yaml-cpp
 )
 
@@ -136,7 +129,6 @@ ament_export_dependencies(
   rclcpp
   rclcpp_lifecycle
   rcl_interfaces
-  sensor_msgs
   tf2_ros
   ros_interfaces
   rog_map

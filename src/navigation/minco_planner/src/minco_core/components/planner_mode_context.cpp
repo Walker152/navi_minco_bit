@@ -31,7 +31,6 @@ void PlannerModeContext::configure(const PlannerModeParams & params,
   if (mode_ == PlannerMode::PRIORMAP) {
     planning_frame_ = map_frame_;
     output_frame_ = map_frame_;
-    use_static_esdf_ = true;
     direct_odom_pose_ = false;
     if (!params_.priormap_use_nav2_global_search) {
       RCLCPP_WARN(logger,
@@ -41,7 +40,6 @@ void PlannerModeContext::configure(const PlannerModeParams & params,
   } else {
     planning_frame_ = rog_frame_;
     output_frame_ = rog_frame_;
-    use_static_esdf_ = false;
     direct_odom_pose_ = true;
   }
 

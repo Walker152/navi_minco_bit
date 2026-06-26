@@ -48,7 +48,6 @@ public:
   const std::string & mapFrame() const { return map_frame_; }
   const std::string & rogFrame() const { return rog_frame_; }
 
-  bool useStaticEsdf() const { return use_static_esdf_; }
   bool directOdomPose() const { return direct_odom_pose_; }
 
   bool clipSeedByRogBoundary() const { return params_.priormap_clip_seed_by_rog_boundary; }
@@ -71,7 +70,6 @@ private:
   std::string output_frame_{"map"};
   std::string map_frame_{"map"};
   std::string rog_frame_{"camera_init"};
-  bool use_static_esdf_{true};
   bool direct_odom_pose_{false};
 
   std::shared_ptr<rog_map::MapQueryInterface> global_query_;

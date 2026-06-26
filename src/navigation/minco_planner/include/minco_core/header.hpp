@@ -37,7 +37,6 @@
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
-#include "sensor_msgs/msg/point_cloud2.hpp"
 #include "tf2/LinearMath/Matrix3x3.h"
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2/exceptions.h"
@@ -53,7 +52,6 @@
 #include "data_structure/base/trajectory.h"
 #include "rog_map/map_query_interface.hpp"
 #include "smac_search/smac_planner_2d_simple.hpp"
-#include "small_rog_map/hybrid_esdf_map.hpp"
 #include "traj_opt/backup_traj_optimizer_s4.h"
 #include "traj_opt/minco_optimizer.hpp"
 #include "traj_opt/yaw_traj_opt.h"
@@ -70,7 +68,6 @@
 #include "minco_core/corridor_generator.hpp"
 #include "minco_core/minco_fsm.hpp"
 #include "minco_core/minco_utils.hpp"
-#include "minco_core/static_esdf_map.hpp"
 #include "minco_core/visualizer.hpp"
 
 #endif  // MINCO_PLANNER__UTILS__HEADER_HPP_

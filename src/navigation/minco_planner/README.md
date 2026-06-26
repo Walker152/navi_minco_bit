@@ -1,7 +1,7 @@
 # BIT minco_planner
 ## DreamChaser
 `minco_planner` 是一个面向 RoboMaster 高动态地面平台的 **Nav2 GlobalPlanner 插件**：
-- 前端全局引导支持 `SmacPlanner2DSimple`（Costmap + ESDF 势场偏置）与 A* 回退路径。
+- 前端全局引导支持 `SmacPlanner2DSimple`（Costmap + ROGMap distance-field 势场偏置）与 A* 回退路径。
 - 中层以固定频率执行局部前瞻裁剪、稀疏化、视线碰撞修复（角点插入）与走廊约束构建。
 - 后端调用 MINCO 优化器输出动态可行轨迹，并持续生成备份刹停/缓停轨迹。
 - 运行期由独立 FSM 管控重规划、急停、恢复与超时退避，适配对抗环境下的突发遮挡与路径失效。
@@ -16,7 +16,7 @@
 
 1) **全局路径生成（离散引导）**
 - 默认链路是 `MincoPlanner::makePlan()` -> A* 离散引导；当 `use_smac` 打开时，前端切换为 `SmacPlanner2DSimple::createPath()`。
-- `SmacPlanner2DSimple` 将 **Costmap 栅格代价** 与 **ESDF 势场代价** 融合：
+- `SmacPlanner2DSimple` 将 **Costmap 栅格代价** 与 **ROGMap distance-field 势场代价** 融合：
   - 栅格代价项：`tentative_g += step_cost * (1 + cost_penalty * normalized_cost)`；
   - ESDF 势场项：`tentative_g += getESDFPotentialCost(nx, ny)`，采用指数衰减势函数抑制贴障通行。
 - 工程层面保留“死锁逃离”策略位：在狭窄膨胀层通道中可放宽可通行阈值，实车模式下可配置为仅将 `LETHAL_OBSTACLE=254` 作为硬阻挡（用于脱困），而常规模式仍维持保守阈值。
@@ -27,7 +27,7 @@
 - 稀疏化采用 Greedy Line-of-Sight（`isLineFree`）逐段验证：
   - 若当前直连段碰撞，触发 **Corner Insertion**，在冲突区间插入最大偏离角点并继续验证；
   - 直到形成可直连的稀疏控制点序列，作为 MINCO 优化输入。
-- 走廊约束来自 `HybridESDFMap`：在线构建轴向对齐安全包围盒并转换为 `PolyhedronH` 半空间约束。
+- 走廊约束来自 `rog_map::MapQueryInterface`：在线构建轴向对齐安全包围盒并转换为 `PolyhedronH` 半空间约束。
   - 走廊半尺寸会严格扣除 `robot_radius_` 与 `extra_margin`；
   - 对退化场景设置几何下界 `kMinHalfSize=0.05m`，防止矩阵奇异或空走廊导致优化器数值崩溃。
 
@@ -60,7 +60,7 @@ FSM 关键触发条件（实车重点）：
 
 4) **运行期输出**
 - 控制输出：`/opt_path`（主轨迹）与 `/backup_path`（备份刹停/缓停）。
-- 调试输出：A* / SMAC 引导路径、控制点、优化轨迹、备份轨迹、ESDF 点云。
+- 调试输出：A* / SMAC 引导路径、控制点、优化轨迹、备份轨迹。
 - 所有输出遵循“主轨迹优先、备份轨迹兜底”的实车安全策略。
 
 
@@ -73,14 +73,14 @@ flowchart TD
   subgraph S["Search"]
     A["Nav2 createPlan(start, goal)"] --> 
     B["前端选路：SMAC(可选) / A* 回退"]
-    B --> C["代价构建：Costmap + ESDF Potential"]
+    B --> C["代价构建：Costmap + ROGMap Distance Potential"]
     C --> D["离散引导路径（latest_global_path_）"]
 end
   subgraph O["Optimize"]
     H["按 lookahead_dist 裁剪局部段"]
     H --> J["梯形/三角速度时间分配<br/>s(t) 采样"]
     J --> K["Line-of-Sight 检测<br/>Corner Insertion 修复"]
-    K --> K2["HybridESDFMap 走廊构建<br/>PolyhedronH + 安全余量"]
+    K --> K2["ROGMap 查询构建走廊<br/>PolyhedronH + 安全余量"]
     K --> L["确定规划状态<br/>COLD / HOT / EMERGENCY"]
     L --> M["生成备份轨迹<br/>ESDF 安全盒 + 前向减速五次多项式"]
     K2 --> N["MINCO 优化<br/>变量：时间 T + 中间控制点"]
@@ -109,7 +109,7 @@ end
 - 可选路径：`SmacPlanner2DSimple`（`smac_search/smac_planner_2d_simple.cpp`）进行 8 邻接 A* 风格搜索，并在 `g` 代价中叠加 `getESDFPotentialCost()`。
 - `getESDFPotentialCost()` 关键点：
   - 将栅格中心映射到 world 坐标；
-  - 查询 `HybridESDFMap::evaluate()` 获取距离；
+  - 查询 `MapQueryInterface::evaluate()` 获取距离；
   - 指数衰减势场 `w*exp(-dist/decay)`，靠障碍处代价更大。
 - 可通行判定与死锁逃离：
   - 常规模式依据 costmap 阈值拒绝高风险障碍单元；
@@ -160,7 +160,7 @@ end
 
 为了把几何可行域显式注入优化器，系统会在稀疏路径附近构建局部安全走廊：
 
-1) 以 `HybridESDFMap` 查询局部空间可用距离，生成轴向对齐包围盒（AABB）。
+1) 以 `rog_map::MapQueryInterface` 查询局部空间可用距离，生成轴向对齐包围盒（AABB）。
 2) 扣除机器人几何尺寸：
   - 半径项 `robot_radius_`；
   - 额外鲁棒余量 `extra_margin`（应对建图噪声与定位漂移）。
@@ -249,11 +249,9 @@ end
 - `/opt_path_vis`：优化轨迹采样成的 Path（nav_msgs/Path）。
 - `/backup_path_vis`：备份轨迹采样成的 Path（nav_msgs/Path）。
 - `/minco_control_points_vis`：控制点/稀疏节点（Marker，SPHERE_LIST，transient_local）。
-- `/esdf_cloud`：ESDF 点云（PointCloud2，仅在成功加载静态 ESDF 且订阅者存在时，按 1Hz 发布）。
 
 实现要点：
 - 高频路径可视化与指令发布解耦，避免 RViz 订阅阻塞控制链路；
-- ESDF 点云采用订阅触发发布，降低无效算力消耗。
 
 ---
 
@@ -268,19 +266,12 @@ end
 | `tolerance` | double | 0.5 | Nav2 目标容忍半径（当前实现主要用于 goal 校验逻辑）。 |
 | `use_astar` | bool | true | 预留开关（当前 `makePlan()` 仍固定走 A*）。 |
 | `allow_unknown` | bool | true | A* 是否允许 UNKNOWN 栅格（255）。 |
-| `use_smac` | bool | false | 是否启用 SmacPlanner2DSimple 前端（Costmap+ESDF 双代价）。 |
+| `use_smac` | bool | false | 是否启用 SmacPlanner2DSimple 前端（Costmap+ROGMap distance-field 双代价）。 |
 | `minco_optimizer.opt_freq` | double | 20.0 | 运行期优化定时器频率（Hz）。 |
 | `minco_optimizer.lookahead_dist` | double | 5.0 | 从机器人当前位置向前截取的前瞻距离（米）。 |
 | `minco_optimizer.traj_goal_tolerance` | double | 0.5 | 局部轨迹目标收敛容差。 |
 
-### 5.2 静态 ESDF(static_esdf)
-
-| 参数 | 类型 | 默认值 | 说明 |
-|---|---:|---:|---|
-| `esdf_pcd_path` | string | `src/utils/pcd2esdf/maps/2026_esdf.pcd` | 静态 ESDF PCD 文件路径。 |
-| `esdf_resolution` | double | 0.05 | ESDF 栅格分辨率（米）。 |
-
-### 5.3 MINCO 优化器(minco_optimizer)
+### 5.2 MINCO 优化器(minco_optimizer)
 
 | 参数 | 类型 | 默认值 | 说明 |
 |---|---:|---:|---|
@@ -298,7 +289,7 @@ end
 | `penalty_weight_acc` | double | 10000.0 | 加速度超限惩罚权重。 |
 | `penalty_weight_att` | double | 1000.0 | 吸引项（贴合引导路径）权重。 |
 
-### 5.4 SMAC 前端（可选）
+### 5.3 SMAC 前端（可选）
 
 | 参数 | 类型 | 默认值 | 说明 |
 |---|---:|---:|---|
@@ -307,7 +298,7 @@ end
 | `smac_2d.esdf_decay` | double | 0.5 | 势场距离衰减系数。 |
 | `smac_2d.esdf_max_cost` | double | 5.0 | 单栅格 ESDF 附加代价上限。 |
 
-### 5.5 走廊参数（corridor）
+### 5.4 走廊参数（corridor）
 
 | 参数 | 类型 | 默认值 | 说明 |
 |---|---:|---:|---|
@@ -321,9 +312,8 @@ end
 ### 6.1 主要依赖
 
 - ROS 2 + Nav2：`nav2_core`, `nav2_costmap_2d`, `nav2_util`, `pluginlib`, `tf2_ros` 等。
-- 点云库：PCL（用于包内相关模块链接）。
 - Eigen3。
-- 优化与搜索：`lbfgs`、SMAC 2D 简化实现、Hybrid ESDF（静态层+动态层融合）。
+- 优化与搜索：`lbfgs`、SMAC 2D 简化实现、ROGMap 查询接口。
 
 此外，本包在 `include/` 内部包含（或封装）了一些工具库/头文件（如 fmt/cereal/lbfgs 等），减少外部依赖。
 
@@ -364,9 +354,6 @@ planner_server:
         penalty_weight_vel: 1000.0
         penalty_weight_acc: 10000.0
         penalty_weight_att: 1000.0
-      static_esdf:
-        esdf_pcd_path: "src/utils/pcd2esdf/maps/2026_esdf.pcd"
-        esdf_resolution: 0.1
 ```
 
 
@@ -391,5 +378,4 @@ planner_server:
 
 使用注意：
 - 本包默认输出 `/opt_path` 与 `/backup_path` 的 `ros_interfaces::msg::MpcPositionCommand`，请确保下游控制器/桥接节点订阅并理解字段含义。
-- ESDF 静态地图加载失败时仍可运行，但安全相关能力会受限（例如备份轨迹安全盒、SMAC ESDF 势场偏置与可视化）。
 - 实车建议开启里程计与速度监测冗余链路，确保 `EMER_STOP` 的速度门控条件可靠触发。
