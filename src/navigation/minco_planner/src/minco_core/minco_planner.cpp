@@ -9,10 +9,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <iomanip>
 #include <iostream>
 #include <optional>
-#include <sstream>
 
 namespace minco_planner {
 
@@ -24,52 +22,28 @@ MincoPlanner::MincoPlanner() : tf_(nullptr)
 
 MincoPlanner::~MincoPlanner()
 {
-  if (minco_perf_csv_.is_open()) {
-    minco_perf_csv_.flush();
-    minco_perf_csv_.close();
-  }
+  planner_perf_monitor_.close();
 }
-
-namespace {
-
-std::string csvNum(double value)
-{
-  if (!std::isfinite(value)) {
-    return "NaN";
-  }
-  std::ostringstream ss;
-  ss << std::fixed << std::setprecision(6) << value;
-  return ss.str();
-}
-
-std::string csvBool(bool value)
-{
-  return value ? "1" : "0";
-}
-
-std::string csvText(std::string value)
-{
-  std::replace(value.begin(), value.end(), ',', '_');
-  return value;
-}
-
-long long steadyNowNs()
-{
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(
-    std::chrono::steady_clock::now().time_since_epoch()).count();
-}
-
-}  // namespace
 
 void MincoPlanner::configureMincoPerfLogging(
   const nav2_util::LifecycleNode::SharedPtr & node, const std::string & prefix)
 {
+  const std::string default_minco_csv_path = "/tmp/minco_perf_detailed.csv";
+
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "performance.enable", rclcpp::ParameterValue(true));
   nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "performance.print_enable", rclcpp::ParameterValue(true));
+  nav2_util::declare_parameter_if_not_declared(
     node, prefix + "performance.detailed_csv_enable", rclcpp::ParameterValue(false));
   nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "performance.minco_csv_path", rclcpp::ParameterValue(minco_perf_csv_path_));
+    node, prefix + "performance.odom_sub_debug_enable", rclcpp::ParameterValue(true));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "performance.print_period_sec", rclcpp::ParameterValue(1.0));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "performance.csv_flush_every_n", rclcpp::ParameterValue(30));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "performance.minco_csv_path", rclcpp::ParameterValue(default_minco_csv_path));
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "performance.run_id", rclcpp::ParameterValue(""));
   nav2_util::declare_parameter_if_not_declared(
@@ -81,7 +55,7 @@ void MincoPlanner::configureMincoPerfLogging(
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "rog_map.performance.detailed_csv_enable", rclcpp::ParameterValue(false));
   nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "rog_map.performance.minco_csv_path", rclcpp::ParameterValue(minco_perf_csv_path_));
+    node, prefix + "rog_map.performance.minco_csv_path", rclcpp::ParameterValue(default_minco_csv_path));
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "rog_map.performance.run_id", rclcpp::ParameterValue(""));
   nav2_util::declare_parameter_if_not_declared(
@@ -90,72 +64,57 @@ void MincoPlanner::configureMincoPerfLogging(
     node, prefix + "rog_map.performance.variant", rclcpp::ParameterValue(""));
 
   bool performance_enable = true;
+  bool print_enable = true;
   bool detailed_csv_enable = false;
+  bool odom_sub_debug_enable = true;
+  double print_period_sec = 1.0;
+  int csv_flush_every_n = 30;
+  std::string minco_csv_path = default_minco_csv_path;
+  std::string run_id;
+  std::string scenario;
+  std::string variant;
   node->get_parameter(prefix + "performance.enable", performance_enable);
+  node->get_parameter(prefix + "performance.print_enable", print_enable);
   node->get_parameter(prefix + "performance.detailed_csv_enable", detailed_csv_enable);
-  node->get_parameter(prefix + "performance.minco_csv_path", minco_perf_csv_path_);
-  node->get_parameter(prefix + "performance.run_id", award_run_id_);
-  node->get_parameter(prefix + "performance.scenario", award_scenario_);
-  node->get_parameter(prefix + "performance.variant", award_variant_);
+  node->get_parameter(prefix + "performance.odom_sub_debug_enable", odom_sub_debug_enable);
+  node->get_parameter(prefix + "performance.print_period_sec", print_period_sec);
+  node->get_parameter(prefix + "performance.csv_flush_every_n", csv_flush_every_n);
+  node->get_parameter(prefix + "performance.minco_csv_path", minco_csv_path);
+  node->get_parameter(prefix + "performance.run_id", run_id);
+  node->get_parameter(prefix + "performance.scenario", scenario);
+  node->get_parameter(prefix + "performance.variant", variant);
   if (!detailed_csv_enable) {
     node->get_parameter(prefix + "rog_map.performance.detailed_csv_enable", detailed_csv_enable);
   }
   if (performance_enable) {
     node->get_parameter(prefix + "rog_map.performance.enable", performance_enable);
   }
-  if (minco_perf_csv_path_ == "/tmp/minco_perf_detailed.csv") {
-    node->get_parameter(prefix + "rog_map.performance.minco_csv_path", minco_perf_csv_path_);
+  if (minco_csv_path == default_minco_csv_path) {
+    node->get_parameter(prefix + "rog_map.performance.minco_csv_path", minco_csv_path);
   }
-  if (award_run_id_.empty()) {
-    node->get_parameter(prefix + "rog_map.performance.run_id", award_run_id_);
+  if (run_id.empty()) {
+    node->get_parameter(prefix + "rog_map.performance.run_id", run_id);
   }
-  if (award_scenario_.empty()) {
-    node->get_parameter(prefix + "rog_map.performance.scenario", award_scenario_);
+  if (scenario.empty()) {
+    node->get_parameter(prefix + "rog_map.performance.scenario", scenario);
   }
-  if (award_variant_.empty()) {
-    node->get_parameter(prefix + "rog_map.performance.variant", award_variant_);
+  if (variant.empty()) {
+    node->get_parameter(prefix + "rog_map.performance.variant", variant);
   }
-  minco_perf_csv_enable_ = performance_enable && detailed_csv_enable;
 
-  if (!minco_perf_csv_enable_) {
-    return;
-  }
-  minco_perf_csv_.open(minco_perf_csv_path_, std::ios::out | std::ios::trunc);
-  if (!minco_perf_csv_.is_open()) {
-    RCLCPP_ERROR(logger_, "[MincoPlanner] Failed to open minco perf CSV: %s", minco_perf_csv_path_.c_str());
-    minco_perf_csv_enable_ = false;
-    return;
-  }
-  writeMincoPerfHeader();
-}
+  PlannerPerformanceConfig perf_cfg;
+  perf_cfg.enable = performance_enable;
+  perf_cfg.print_enable = print_enable;
+  perf_cfg.detailed_csv_enable = detailed_csv_enable;
+  perf_cfg.odom_sub_debug_enable = odom_sub_debug_enable;
+  perf_cfg.detailed_csv_path = minco_csv_path;
+  perf_cfg.run_id = run_id;
+  perf_cfg.scenario = scenario;
+  perf_cfg.variant = variant;
+  perf_cfg.print_period_sec = print_period_sec;
+  perf_cfg.csv_flush_every_n = csv_flush_every_n;
 
-void MincoPlanner::writeMincoPerfHeader()
-{
-  if (!minco_perf_csv_.is_open()) {
-    return;
-  }
-  minco_perf_csv_
-    << "run_id,scenario,variant,stamp_ros,stamp_steady_ns,planner_mode,success,failure_reason,"
-       "global_search_time_ms,local_search_time_ms,optimizer_time_ms,total_replan_time_ms,planner_hz\n";
-}
-
-void MincoPlanner::writeMincoPerfRow(const MincoPerfSample & sample)
-{
-  if (!minco_perf_csv_enable_ || !minco_perf_csv_.is_open()) {
-    return;
-  }
-  minco_perf_csv_ << csvText(award_run_id_) << ',' << csvText(award_scenario_) << ','
-                  << csvText(award_variant_) << ',' << csvNum(sample.stamp_ros) << ','
-                  << sample.stamp_steady_ns << ',' << csvText(sample.planner_mode) << ','
-                  << csvBool(sample.success) << ',' << csvText(sample.failure_reason) << ','
-                  << csvNum(sample.global_search_time_ms) << ','
-                  << csvNum(sample.local_search_time_ms) << ','
-                  << csvNum(sample.optimizer_time_ms) << ','
-                  << csvNum(sample.total_replan_time_ms) << ','
-                  << csvNum(sample.planner_hz) << '\n';
-  if (++minco_perf_csv_rows_ % 30 == 0) {
-    minco_perf_csv_.flush();
-  }
+  planner_perf_monitor_.configure(perf_cfg, logger_);
 }
 
 bool MincoPlanner::configureRogMap(
@@ -562,10 +521,16 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   backup_path_pub_ = node->create_publisher<ros_interfaces::msg::MpcPositionCommand>(
     "/backup_path", rclcpp::QoS(rclcpp::KeepLast(1)));
 
+  auto odom_qos = rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().durability_volatile();
   odom_sub_ = node->create_subscription<nav_msgs::msg::Odometry>(
-    odom_topic, rclcpp::QoS(rclcpp::KeepLast(10)), [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
+    odom_topic, odom_qos, [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
       if (!msg) {
         return;
+      }
+
+      auto node = node_.lock();
+      if (node) {
+        planner_perf_monitor_.recordOdomCallback(node->now(), msg->header.stamp);
       }
 
       {
@@ -634,6 +599,8 @@ void MincoPlanner::deactivate()
 
 void MincoPlanner::cleanup()
 {
+  planner_perf_monitor_.close();
+
   on_set_parameters_callback_handle_.reset();
 
   fsm_timer_.reset();
@@ -912,7 +879,7 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
 bool MincoPlanner::PlanGlobalPath(
   const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal)
 {
-  const bool record_perf = minco_perf_csv_enable_;
+  const bool record_perf = planner_perf_monitor_.detailedCsvEnabled();
   const auto search_start = record_perf ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
   auto record_search_time = [&]() {
     if (!record_perf) {
@@ -942,13 +909,13 @@ bool MincoPlanner::PlanGlobalPath(
 
 bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose)
 {
-  const bool record_perf = minco_perf_csv_enable_;
+  const bool record_perf = planner_perf_monitor_.detailedCsvEnabled();
   const auto replan_start = record_perf ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
   std::optional<MincoPerfSample> perf;
   if (record_perf) {
     perf.emplace();
     perf->stamp_ros = rclcpp::Clock().now().seconds();
-    perf->stamp_steady_ns = steadyNowNs();
+    perf->stamp_steady_ns = PlannerPerformanceMonitor::steadyNowNs();
     perf->planner_mode = mode_params_.planner_mode;
     std::lock_guard<std::mutex> perf_lock(perf_mutex_);
     if (has_fresh_global_search_time_) {
@@ -973,7 +940,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
         }
         last_minco_perf_stamp_ns_ = perf->stamp_steady_ns;
       }
-      writeMincoPerfRow(*perf);
+      planner_perf_monitor_.recordPlannerSample(*perf);
     }
     return success;
   };
