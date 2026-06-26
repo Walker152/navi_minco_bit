@@ -1123,7 +1123,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
       std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - opt_start_steady).count();
   }
 
-  const double max_allowed_cost = 5000.0;
+  const double max_allowed_cost = 6000.0;
   if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
     RCLCPP_WARN(logger_,
       "[MincoPlanner] Rejecting new trajectory! Cost (%.2f) exceeds limit (%.2f).",
