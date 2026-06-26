@@ -1,8 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <fstream>
-#include <limits>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -24,6 +22,7 @@
 
 #include "log.hpp"
 #include "minco_controller/mpc_solver.hpp"
+#include "minco_controller/performance/mpc_performance_monitor.hpp"
 
 namespace minco_controller {
 
@@ -60,25 +59,7 @@ private:
   void onOdom(const nav_msgs::msg::Odometry::SharedPtr msg);
 
   // === Utility & Helper Functions ===
-  struct MpcPerfSample
-  {
-    double stamp_ros{0.0};
-    long long stamp_steady_ns{0};
-    bool success{false};
-    double solve_time_ms{std::numeric_limits<double>::quiet_NaN()};
-    double cycle_time_ms{std::numeric_limits<double>::quiet_NaN()};
-    double controller_hz{std::numeric_limits<double>::quiet_NaN()};
-    double cmd_vx{0.0};
-    double cmd_vy{0.0};
-    double cmd_wz{0.0};
-    double ref_vx{std::numeric_limits<double>::quiet_NaN()};
-    double ref_vy{std::numeric_limits<double>::quiet_NaN()};
-    double ref_wz{std::numeric_limits<double>::quiet_NaN()};
-  };
-
   void configureMpcPerfLogging(const rclcpp_lifecycle::LifecycleNode::SharedPtr & node);
-  void writeMpcPerfHeader();
-  void writeMpcPerfRow(const MpcPerfSample & sample);
 
   // --- Reference and Path Processing ---
   // Find the nearest point on cached trajectory and build horizon reference sequence.
@@ -179,11 +160,7 @@ private:
   double lidar_offset_y_{0.0};
   double lidar_roll_offset_ = 0.0;
   bool use_small_gyro_mode_{true};
-  bool mpc_perf_csv_enable_{false};
-  std::string award_run_id_{};
-  std::string award_scenario_{};
-  std::string award_variant_{};
-  std::string mpc_perf_csv_path_{"/tmp/mpc_perf_detailed.csv"};
+  MpcPerformanceMonitor mpc_perf_monitor_;
   long long last_mpc_perf_stamp_ns_{0};
 
   // Low-pass filter for MPC output to prevent stick-slip oscillation on slopes.
@@ -196,8 +173,6 @@ private:
   double k_i_along_{1.5};  // integral gain: along-track (boost on slopes)
   double k_i_cross_{3.0};  // integral gain: cross-track (precision on curves)
   double integral_decay_{0.98};
-  std::ofstream mpc_perf_csv_;
-  int mpc_perf_csv_rows_{0};
 };
 
 }  // namespace minco_controller
