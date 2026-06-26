@@ -177,7 +177,6 @@ private:
   bool allow_unknown_;
   bool use_smac_;
   bool use_yaw_opt_{true};
-  bool use_static_esdf_{true};
   bool priormap_use_nav2_global_search_{true};
   bool priormap_clip_seed_by_rog_boundary_{true};
   bool exploration_unknown_as_occupied_{true};
@@ -189,8 +188,6 @@ private:
   double opt_freq_;
   double lookahead_dist_;
   double traj_goal_tolerance_{0.5};
-  std::string esdf_pcd_path_;
-  double esdf_resolution_;
   MincoOptimizer::Config minco_config;
   RecoverServer::Config recovery_server_config_{};
   bool minco_perf_csv_enable_{false};
@@ -210,7 +207,6 @@ private:
   std::unique_ptr<LocalPathProcessor> local_path_processor_;
   std::unique_ptr<TrajectorySafetyChecker> safety_checker_;
   std::unique_ptr<MincoFsm> fsm_;
-  small_rog_map::HybridESDFMap::Ptr esdf_map_;
   SimpleCorridorGenerator::Ptr corridor_gen_;
   RecoverServer::Ptr recovery_server_;
   Ptr planner_handle_;

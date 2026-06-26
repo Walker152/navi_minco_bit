@@ -5,11 +5,6 @@
 
 namespace minco_planner {
 
-SimpleCorridorGenerator::SimpleCorridorGenerator(small_rog_map::HybridESDFMap::Ptr esdf_map)
-: esdf_map_(esdf_map)
-{
-}
-
 void SimpleCorridorGenerator::setSafetyMargins(double robot_radius, double extra_margin)
 {
   if (std::isfinite(robot_radius) && robot_radius > 0.0) {
@@ -28,7 +23,7 @@ void SimpleCorridorGenerator::setMap(const std::shared_ptr<rog_map::MapQueryInte
 PolyhedronH SimpleCorridorGenerator::generateSafeBox(
   const Eigen::Vector3d & center, double max_radius) const
 {
-  // 1. Query ESDF distance at the box center
+  // 1. Query ROGMap distance field at the box center
   constexpr double kMinHalfSize = 0.05;  // meters
 
   double dist = 0.0;
@@ -41,7 +36,7 @@ PolyhedronH SimpleCorridorGenerator::generateSafeBox(
     dist = 0.0;
   }
 
-  // 2. Convert ESDF distance to a conservative box half-size
+  // 2. Convert distance field value to a conservative box half-size
   // Robot radius + extra clearance margin
   const double safe_dist = std::max(dist - robot_radius_ - extra_margin_, 0.0);
   double box_half_size = (safe_dist / 1.414) * 0.9;

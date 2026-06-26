@@ -29,10 +29,6 @@
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "rog_map/map_query_interface.hpp"
 
-namespace small_rog_map {
-class HybridESDFMap;
-}  // namespace small_rog_map
-
 namespace minco_planner {
 namespace smac {
 
@@ -88,12 +84,6 @@ public:
   void configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
     const std::string & param_prefix);
-
-  /**
-   * @brief Inject ESDF map used to bias search toward free-space center
-   * @param esdf_map Shared ESDF map (world-frame query)
-   */
-  void setESDFMap(const std::shared_ptr<small_rog_map::HybridESDFMap> & esdf_map);
 
   void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map);
 
@@ -165,8 +155,7 @@ private:
   uint32_t planning_id_{0u};
   uint64_t grid_size_{0u};
 
-  // Optional ESDF biasing
-  std::shared_ptr<small_rog_map::HybridESDFMap> esdf_map_{nullptr};
+  // Optional distance-field biasing queried through MapQueryInterface.
   bool use_esdf_cost_{false};
   float esdf_weight_{1.0f};
   float esdf_decay_{0.5f};

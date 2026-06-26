@@ -534,7 +534,6 @@ ChangeMapAction::ChangeMapAction(const std::string & name, const BT::NodeConfigu
 BT::PortsList ChangeMapAction::providedPorts()
 {
   return {BT::InputPort<std::string>("map_dir", "Directory containing map files"),
-    BT::InputPort<std::string>("pcd_dir", "Directory containing ESDF PCD files"),
     BT::InputPort<std::string>("map_name", "Base name of the map files (without extensions)")};
 }
 
@@ -556,21 +555,17 @@ BT::NodeStatus ChangeMapAction::tick()
     return BT::NodeStatus::SUCCESS;
   }
 
-  auto pcd_dir = getInput<std::string>("pcd_dir");
-  const std::string pcd_dir_value = pcd_dir ? pcd_dir.value() : map_dir.value();
-
   std::string yaml_path = map_dir.value() + "/" + map_name.value() + ".yaml";
-  std::string pcd_path = pcd_dir_value + "/" + map_name.value() + "_esdf.pcd";
 
   auto ros_iface = config().blackboard->get<std::shared_ptr<Sentry_BT::ros_interface>>("ros_interface");
   if (!ros_iface || !ros_iface->getParamManager()) {
     throw BT::RuntimeError("ros_interface or ParamManager is not available from blackboard");
   }
 
-  std::cout << CYAN << "Changing map to: " << map_name.value() << " (Paths: " << yaml_path << ", "
-            << pcd_path << ")" << RESET << std::endl;
+  std::cout << CYAN << "Changing map to: " << map_name.value() << " (Path: " << yaml_path << ")"
+            << RESET << std::endl;
 
-  ros_iface->getParamManager()->changeMapAndPcd(yaml_path, pcd_path);
+  ros_iface->getParamManager()->changeMap(yaml_path);
   last_map_name = map_name.value();
   return BT::NodeStatus::SUCCESS;
 }

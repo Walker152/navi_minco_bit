@@ -229,8 +229,12 @@ void MincoPlanner::rebuildModeDependentQueries()
 
   if (global_path_searcher_) {
     global_path_searcher_->setQuery(mode_context_->globalQuery());
-  } else if (astar_planner_) {
+  }
+  if (astar_planner_) {
     astar_planner_->setMap(mode_context_->globalQuery());
+  }
+  if (smac_planner_) {
+    smac_planner_->setMap(mode_context_->globalQuery());
   }
   if (minco_optimizer_) {
     minco_optimizer_->setMap(mode_context_->dynamicQuery());
@@ -268,7 +272,6 @@ void MincoPlanner::initPlannerMode(
   map_frame_ = mode_context_->mapFrame();
   rog_frame_ = mode_context_->rogFrame();
   global_frame_ = output_frame_;
-  use_static_esdf_ = mode_context_->useStaticEsdf();
   map_ = mode_context_->dynamicQuery();
 
   RCLCPP_INFO(logger_,
@@ -280,10 +283,9 @@ void MincoPlanner::initPlannerMode(
     output_frame_.c_str(),
     rog_frame_.c_str());
   RCLCPP_INFO(logger_,
-    "[MincoPlanner] global_search=%s dynamic_query=%s static_esdf=%s",
+    "[MincoPlanner] global_search=%s dynamic_query=%s",
     mode_context_->mode() == PlannerMode::PRIORMAP ? "Nav2Costmap" : "ROGMapBoundaryAstar",
-    mode_context_->mode() == PlannerMode::PRIORMAP ? "FrameAwareRogQuery" : "DirectRogQuery",
-    use_static_esdf_ ? "enabled" : "disabled");
+    mode_context_->mode() == PlannerMode::PRIORMAP ? "FrameAwareRogQuery" : "DirectRogQuery");
 }
 
 // -----------------------------------------------------------------------------
@@ -492,27 +494,6 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   minco_config.magnitudeBounds(1) = minco_config.max_vel;
   minco_config.magnitudeBounds(2) = minco_config.max_acc;
 
-  // --- Map / ESDF config -----------------------------------------------------
-
-  nav2_util::declare_parameter_if_not_declared(node,
-    prefix + "static_esdf.esdf_pcd_path",
-    rclcpp::ParameterValue("src/utils/pcd2esdf/maps/2026_esdf.pcd"));
-  node->get_parameter(prefix + "static_esdf.esdf_pcd_path", esdf_pcd_path_);
-
-  nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "static_esdf.esdf_resolution", rclcpp::ParameterValue(0.1));
-  node->get_parameter(prefix + "static_esdf.esdf_resolution", esdf_resolution_);
-
-  double dynamic_esdf_size = 10.0;
-  nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "static_esdf.dynamic_esdf_size", rclcpp::ParameterValue(10.0));
-  node->get_parameter(prefix + "static_esdf.dynamic_esdf_size", dynamic_esdf_size);
-
-  double dynamic_dilation_radius = 0.0;
-  nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "static_esdf.dynamic_dilation_radius", rclcpp::ParameterValue(0.0));
-  node->get_parameter(prefix + "static_esdf.dynamic_dilation_radius", dynamic_dilation_radius);
-
   // --- Corridor config -------------------------------------------------------
 
   double corridor_robot_radius = 0.4;
@@ -593,69 +574,21 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
         has_latest_odom_ = true;
       }
 
-      geometry_msgs::msg::PoseStamped odom_pose;
-      odom_pose.header = msg->header;
-      odom_pose.pose = msg->pose.pose;
-
-      try {
-        if (tf_) {
-          auto map_pose = tf_->transform(odom_pose, planning_frame_);
-          const double x = map_pose.pose.position.x;
-          const double y = map_pose.pose.position.y;
-          if (esdf_map_) {
-            esdf_map_->setRobotPosition(x, y);
-          }
-        }
-      } catch (const tf2::TransformException &) {
-      }
     });
 
-  (void)dynamic_esdf_size;
-  (void)dynamic_dilation_radius;
-  bool esdf_loaded = false;
-
-  if (use_static_esdf_) {
-    // Load Static ESDF map only for PRIORMAP mode.
-    esdf_map_ = std::make_shared<small_rog_map::HybridESDFMap>();
-
-    // Initialize ESDF window center once at startup so static validation works without odom.
-    geometry_msgs::msg::PoseStamped init_pose;
-    if (costmap_ros_ && costmap_ros_->getRobotPose(init_pose)) {
-      esdf_map_->setRobotPosition(init_pose.pose.position.x, init_pose.pose.position.y);
-    } else {
-      esdf_map_->setRobotPosition(0.0, 0.0);
-      RCLCPP_WARN(logger_,
-        "[MincoPlanner] Failed to get initial robot pose from costmap, fallback ESDF center to (0, 0).");
-    }
-
-    esdf_loaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
-    if (!esdf_loaded) {
-      std::cout << RED << "[MincoPlanner] "
-                << "Failed to load Static ESDF map from PCD: " << esdf_pcd_path_ << RESET << std::endl;
-    } else {
-      std::cout << MAGENTA << "[MincoPlanner] "
-                << "Successfully loaded Static ESDF map from PCD: " << esdf_pcd_path_ << RESET << std::endl;
-    }
-  } else {
-    esdf_map_.reset();
-    RCLCPP_INFO(logger_, "[MincoPlanner] Static ESDF disabled in EXPLORATION mode.");
-  }
-
   if (use_smac_ && smac_planner_) {
-    smac_planner_->setESDFMap(esdf_map_);
     if (mode_context_ && mode_context_->globalQuery()) {
       smac_planner_->setMap(mode_context_->globalQuery());
     }
   }
 
   visualizer_ = std::make_unique<Visualizer>();
-  visualizer_->configure(parent, output_frame_, esdf_map_, esdf_loaded);
+  visualizer_->configure(parent, output_frame_);
 
   minco_optimizer_ = std::make_unique<MincoOptimizer>(minco_config);
-  minco_optimizer_->setESDFMap(esdf_map_);
   minco_optimizer_->setMap(mode_context_ ? mode_context_->dynamicQuery() : nullptr);
 
-  corridor_gen_ = std::make_shared<SimpleCorridorGenerator>(esdf_map_);
+  corridor_gen_ = std::make_shared<SimpleCorridorGenerator>();
   corridor_gen_->setMap(mode_context_ ? mode_context_->dynamicQuery() : nullptr);
   corridor_gen_->setSafetyMargins(corridor_robot_radius, corridor_extra_margin);
 
@@ -740,10 +673,6 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
   rcl_interfaces::msg::SetParametersResult result;
   result.successful = true;
 
-  const std::string esdf_path_param = name_ + ".static_esdf.esdf_pcd_path";
-  const std::string esdf_resolution_param = name_ + ".static_esdf.esdf_resolution";
-  const std::string dynamic_size_param = name_ + ".static_esdf.dynamic_esdf_size";
-  const std::string dynamic_dilation_param = name_ + ".static_esdf.dynamic_dilation_radius";
   const std::string planner_mode_param = name_ + ".planner_mode";
   const auto is_configure_time_mode_param = [this, &planner_mode_param](const std::string & param_name) {
     return param_name == planner_mode_param || param_name == name_ + ".frames.map_frame" ||
@@ -764,10 +693,6 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
   const std::string penalty_acc_param = name_ + ".minco_optimizer.penalty_weight_acc";
   const std::string penalty_att_param = name_ + ".minco_optimizer.penalty_weight_att";
   const std::string penalty_time_barrier_param = name_ + ".minco_optimizer.penalty_weight_time_barrier";
-
-  std::string next_esdf_pcd_path = esdf_pcd_path_;
-  double next_esdf_resolution = esdf_resolution_;
-  bool need_reload_static_esdf = false;
 
   double next_max_vel = minco_config.max_vel;
   double next_max_acc = minco_config.max_acc;
@@ -798,55 +723,10 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
       return false;
     };
 
-    if (param_name == esdf_path_param) {
-      if (param.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
-        result.successful = false;
-        result.reason = "Parameter must be a string: " + esdf_path_param;
-        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
-        return result;
-      }
-
-      next_esdf_pcd_path = param.as_string();
-      need_reload_static_esdf = true;
-      continue;
-    }
-
     if (is_configure_time_mode_param(param_name)) {
       result.successful = false;
       result.reason =
         "Planner mode/frame parameters are configure-time only; restart planner_server to apply.";
-      RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
-      return result;
-    }
-
-    if (param_name == esdf_resolution_param) {
-      if (param.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE &&
-          param.get_type() != rclcpp::ParameterType::PARAMETER_INTEGER) {
-        result.successful = false;
-        result.reason = "Parameter must be a number: " + esdf_resolution_param;
-        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
-        return result;
-      }
-
-      const double candidate_resolution = (param.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE)
-                                            ? param.as_double()
-                                            : static_cast<double>(param.as_int());
-      if (!std::isfinite(candidate_resolution) || candidate_resolution <= 0.0) {
-        result.successful = false;
-        result.reason = "Parameter must be > 0: " + esdf_resolution_param;
-        RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
-        return result;
-      }
-
-      next_esdf_resolution = candidate_resolution;
-      need_reload_static_esdf = true;
-      continue;
-    }
-
-    if (param_name == dynamic_size_param || param_name == dynamic_dilation_param) {
-      result.successful = false;
-      result.reason =
-        "Dynamic ESDF layer params are not hot-reloadable, please restart node: " + param_name;
       RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
       return result;
     }
@@ -939,39 +819,6 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
       minco_config.penaltyWeights(4));
   }
 
-  if (!need_reload_static_esdf) {
-    return result;
-  }
-
-  if (!esdf_map_) {
-    result.successful = false;
-    result.reason = "ESDF map is not initialized";
-    RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
-    return result;
-  }
-
-  const std::string prev_esdf_pcd_path = esdf_pcd_path_;
-  const double prev_esdf_resolution = esdf_resolution_;
-
-  esdf_pcd_path_ = next_esdf_pcd_path;
-  esdf_resolution_ = next_esdf_resolution;
-
-  const bool reloaded = esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
-  if (reloaded) {
-    RCLCPP_INFO(logger_,
-      "[MincoPlanner] Reloaded static ESDF map from PCD: %s (resolution=%.3f)",
-      esdf_pcd_path_.c_str(),
-      esdf_resolution_);
-    return result;
-  }
-
-  esdf_pcd_path_ = prev_esdf_pcd_path;
-  esdf_resolution_ = prev_esdf_resolution;
-  esdf_map_->loadStaticMap(esdf_pcd_path_, esdf_resolution_);
-
-  result.successful = false;
-  result.reason = "Failed to reload static ESDF map from PCD: " + next_esdf_pcd_path;
-  RCLCPP_ERROR(logger_, "[MincoPlanner] %s", result.reason.c_str());
   return result;
 }
 
