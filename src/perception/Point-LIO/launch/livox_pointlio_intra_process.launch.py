@@ -65,7 +65,7 @@ def generate_launch_description():
                 "container_name",
                 default_value="livox_pointlio_container",
             ),
-            DeclareLaunchArgument("log_level", default_value="error"),
+            DeclareLaunchArgument("log_level", default_value="info"),
             container,
         ]
     )
