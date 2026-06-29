@@ -391,6 +391,12 @@ BT::NodeStatus CheckStanceRefreshRequired::tick()
         return "DEFEND";
       case SentryStance::MOVE:
         return "MOVE";
+      case SentryStance::ENHANCED_ATTACK:
+        return "ENHANCED_ATTACK";
+      case SentryStance::ENHANCED_DEFEND:
+        return "ENHANCED_DEFEND";
+      case SentryStance::ENHANCED_MOVE:
+        return "ENHANCED_MOVE";
       default:
         return "UNKNOWN(" + std::to_string(static_cast<int>(stance)) + ")";
       }

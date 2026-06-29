@@ -332,19 +332,19 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
   bool is_disengaged = (sentry_info_2 & 0x0001) != 0;
   blackboard_->set<bool>("is_disengaged", is_disengaged);
 
+  // bit 1-11：队伍17mm允许发弹量的剩余可兑换数
+  uint16_t remaining_ammo_exchange = (sentry_info_2 >> 1) & 0x7FF;
+  blackboard_->set<int>("remaining_ammo_exchange", static_cast<int>(remaining_ammo_exchange));
+
   // 提取bit 12-13：哨兵当前姿态
   uint8_t current_stance = (sentry_info_2 >> 12) & 0x3;
-  if (current_stance >= static_cast<uint8_t>(Sentry_BT::SentryStance::ATTACK) &&
-      current_stance <= static_cast<uint8_t>(Sentry_BT::SentryStance::MOVE)) {
-    blackboard_->set<Sentry_BT::SentryStance>(
-      "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
-  } else {
-    // RCLCPP_WARN_THROTTLE(this->get_logger(),
-    //   *this->get_clock(),
-    //   2000,
-    //   "23%u",
-    //   current_stance);
-  }
+  // 提取bit 15：哨兵当前姿态是否处于强化状态
+  bool current_stance_is_enhanced = ((sentry_info_2 >> 15) & 0x1) != 0;
+  if (current_stance_is_enhanced) {
+    current_stance += 3;  // 强化状态对应的姿态ID为4-6
+  } 
+  blackboard_->set<Sentry_BT::SentryStance>(
+    "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
 
   // 提取bit 14：己方能量机关是否能够进入正在激活状态
   bool can_activate_energy = ((sentry_info_2 >> 14) & 0x1) != 0;
@@ -377,9 +377,32 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
   uint16_t instant_resurrect_cost = (sentry_info_1 >> 21) & 0x3FF;
   blackboard_->set<int>("instant_resurrect_cost", static_cast<int>(instant_resurrect_cost));
 
-  // bit 1-11：队伍17mm允许发弹量的剩余可兑换数
-  uint16_t remaining_ammo_exchange = (sentry_info_2 >> 1) & 0x7FF;
-  blackboard_->set<int>("remaining_ammo_exchange", static_cast<int>(remaining_ammo_exchange));
+  // 解码sentry_info_3的时间信息
+  uint64_t sentry_info_3 = msg->sentry_info_3;
+  // bit 0-7：普通攻击剩余强化时间（单位：秒）
+  uint8_t normal_attack_remaining_time = sentry_info_3 & 0xFF;
+  blackboard_->set<int>("normal_attack_remaining_time", static_cast<int>(normal_attack_remaining_time));
+
+  // bit 8-15：普通防御剩余强化时间（单位：秒）
+  uint8_t normal_defend_remaining_time = (sentry_info_3 >> 8) & 0xFF;
+  blackboard_->set<int>("normal_defend_remaining_time", static_cast<int>(normal_defend_remaining_time));
+
+  // bit 16-23：普通移动剩余强化时间（单位：秒）
+  uint8_t normal_move_remaining_time = (sentry_info_3 >> 16) & 0xFF;
+  blackboard_->set<int>("normal_move_remaining_time", static_cast<int>(normal_move_remaining_time));
+
+  // bit 24-31：保留位
+  // bit 32-39：强化攻击剩余强化时间（单位：秒）
+  uint8_t enhanced_attack_remaining_time = (sentry_info_3 >> 32) & 0xFF;
+  blackboard_->set<int>("enhanced_attack_remaining_time", static_cast<int>(enhanced_attack_remaining_time));
+
+  // bit 40-47：强化防御剩余强化时间（单位：秒）
+  uint8_t enhanced_defend_remaining_time = (sentry_info_3 >> 40) & 0xFF;
+  blackboard_->set<int>("enhanced_defend_remaining_time", static_cast<int>(enhanced_defend_remaining_time));
+
+  // bit 48-55：强化移动剩余强化时间（单位：秒）
+  uint8_t enhanced_move_remaining_time = (sentry_info_3 >> 48) & 0xFF;
+  blackboard_->set<int>("enhanced_move_remaining_time", static_cast<int>(enhanced_move_remaining_time));
 }
 
 // 判断MPC轨迹是否穿过指定矩形区域
