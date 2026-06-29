@@ -107,6 +107,14 @@ public:
     blackboard_->set("remote_ammo_exchange_count", 0);    // 远程兑换次数
     blackboard_->set("remote_health_exchange_count", 0);  // 远程买血次数
     blackboard_->set("remaining_ammo_exchange", 0);       // 团队剩余可兑换弹药数量
+    blackboard_->set<int>("normal_attack_remaining_sec", 180);      // 普通攻击剩余强化时间
+    blackboard_->set<int>("normal_defend_remaining_sec", 180);      // 普通防御剩余强化时间
+    blackboard_->set<int>("normal_move_remaining_sec", 180);        // 普通移动剩余强化时间
+    blackboard_->set<int>("enhanced_attack_remaining_sec", 15);    // 强化攻击剩余强化时间
+    blackboard_->set<int>("enhanced_defend_remaining_sec", 15);    // 强化防御剩余强化时间
+    blackboard_->set<int>("enhanced_move_remaining_sec", 15);      // 强化移动剩余强化时间
+    blackboard_->set<bool>("current_stance_is_enhanced", false);  // 当前姿态是否处于强化状态
+    blackboard_->set<bool>("current_stance_is_weakened", false);  // 当前姿态是否处于削弱状态
     blackboard_->set<EnergyRatio>("energy_ratio", EnergyRatio::ABOVE_100);  // 底盘当前剩余能量
     blackboard_->set<SentryStance>("current_stance", SentryStance::MOVE);   // 当前姿态
   }

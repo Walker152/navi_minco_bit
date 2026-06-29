@@ -239,7 +239,10 @@ typedef enum _SentryStance
 {
   ATTACK = 1,
   DEFEND = 2,
-  MOVE = 3
+  MOVE = 3,
+  ENHANCED_ATTACK = 4,
+  ENHANCED_DEFEND = 5,
+  ENHANCED_MOVE = 6
 } SentryStance;
 
 typedef enum _ControlMode

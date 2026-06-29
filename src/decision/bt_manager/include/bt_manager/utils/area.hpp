@@ -423,7 +423,8 @@ inline const std::unordered_map<TacticalMode, std::vector<AreaPolygon<8, Point2D
 
 inline std::vector<std::string> current_nav_status = {"IDLE", "RUNNING", "SUCCESS", "FAILURE"};
 inline std::vector<std::string> mode_names = {"PATROL", "TRACING", "RETREAT", "RESPONSE", "MANUAL"};
-inline std::vector<std::string> stance_names = {"ATTACK", "DEFEND", "MOVE"};
+inline std::vector<std::string> stance_names = {
+  "ATTACK", "DEFEND", "MOVE", "ENHANCED_ATTACK", "ENHANCED_DEFEND", "ENHANCED_MOVE"};
 
 inline void appendTrackingAreaVizConfigs(std::vector<PolygonVizConfig> & configs)
 {

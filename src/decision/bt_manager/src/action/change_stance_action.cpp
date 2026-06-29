@@ -275,7 +275,8 @@ ChangeStance::ChangeStance(const std::string & name, const BT::NodeConfiguration
 
 BT::PortsList ChangeStance::providedPorts()
 {
-  return {BT::InputPort<std::string>("stance", "Target stance: ATTACK/DEFEND/MOVE")};
+  return {BT::InputPort<std::string>(
+    "stance", "Target stance: ATTACK/DEFEND/MOVE/ENHANCED_ATTACK/ENHANCED_DEFEND/ENHANCED_MOVE")};
 }
 
 BT::NodeStatus ChangeStance::onStart()
@@ -289,6 +290,21 @@ BT::NodeStatus ChangeStance::onStart()
     }
     if (value == "MOVE" || value == "move" || value == "3") {
       return SentryStance::MOVE;
+    }
+    if (
+      value == "ENHANCED_ATTACK" || value == "enhanced_attack" || value == "enhance_attack" ||
+      value == "POWER_ATTACK" || value == "4") {
+      return SentryStance::ENHANCED_ATTACK;
+    }
+    if (
+      value == "ENHANCED_DEFEND" || value == "enhanced_defend" || value == "enhance_defend" ||
+      value == "POWER_DEFEND" || value == "5") {
+      return SentryStance::ENHANCED_DEFEND;
+    }
+    if (
+      value == "ENHANCED_MOVE" || value == "enhanced_move" || value == "enhance_move" ||
+      value == "POWER_MOVE" || value == "6") {
+      return SentryStance::ENHANCED_MOVE;
     }
     return SentryStance::DEFEND;
   };
