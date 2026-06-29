@@ -14,6 +14,11 @@
         <ReactiveSequence name="Priority0ManualOverride">
           <CheckManualOverride name="CheckManualOverride" branch="Priority0ManualOverride" />
           <ReactiveFallback name="ManualGoalSelector">
+            <ReactiveSequence name="ManualAttackFortResponse">
+              <CheckTacticalModeCondition name="CheckManualAttackMode" mode="attack" branch="ManualAttackFortResponse" />
+              <SetCoordinate name="SetManualEnemyFortGoal" goal="4" />
+              <NavigateToPoseAction name="NavigateManualEnemyFort" />
+            </ReactiveSequence>
             <ReactiveSequence name="ManualPointResponse">
               <SetManualOverrideGoal name="SetManualOverrideGoal"
                                      wait_duration_s="10.0"
@@ -21,23 +26,14 @@
                                      fallback_timeout_s="60.0" />
               <NavigateToPoseAction name="NavigateManualOverrideGoal" />
             </ReactiveSequence>
-            <ReactiveSequence name="ManualAttackFortResponse">
-              <CheckTacticalModeCondition name="CheckManualAttackMode" mode="attack" branch="ManualAttackFortResponse" />
-              <SetCoordinate name="SetManualEnemyFortGoal" goal="4" />
-              <NavigateToPoseAction name="NavigateManualEnemyFort" />
-            </ReactiveSequence>
           </ReactiveFallback>
         </ReactiveSequence>
 
+        <!-- tactical_mode=attack is maintained by TacticalTree; NavTree only executes navigation. -->
         <ReactiveSequence name="Priority1AttackEnemyFortAfter2Min">
-          <CheckGameTimeWindow name="CheckAttackEnemyFortWindow"
-                               min_remaining="0"
-                               max_remaining="120"
-                               branch="Priority1AttackEnemyFortAfter2Min" />
-          <CheckBigEnergyActive name="CheckAttackEnemyFortBigEnergy"
-                                active_status="1"
-                                branch="Priority1AttackEnemyFortAfter2Min" />
-          <SetTacticalMode name="SetAttackEnemyFortTacticalMode" mode="attack" />
+          <CheckTacticalModeCondition name="CheckAttackEnemyFortTacticalMode"
+                                      mode="attack"
+                                      branch="Priority1AttackEnemyFortAfter2Min" />
           <SetNavMode name="SetAttackEnemyFortNavMode" mode="response" />
           <SetCoordinate name="SetAttackEnemyFortGoal" goal="4" />
           <NavigateToPoseAction name="NavigateAttackEnemyFort" />
@@ -94,7 +90,8 @@
               <NavigateToPoseAction name="NavigateGlobalHealthHome" />
             </ReactiveSequence>
 
-            <!-- <ReactiveSequence name="Priority1_5TunnelRecovery">
+            <!-- Step6: replace the inactive legacy TunnelRecoverySubTree before re-enabling it.
+            <ReactiveSequence name="Priority1_5TunnelRecovery">
               <CheckTimeInZone min_seconds="20.0" max_seconds="50.0" zone_name="transform_zone" />
               <SubTree ID="TunnelRecoverySubTree"
                        __shared_blackboard="true"

@@ -1,8 +1,21 @@
 <root main_tree_to_execute="TacticalTree">
   <BehaviorTree ID="TacticalTree">
+    <!-- TacticalTree is the sole behavior-tree writer of tactical_mode. -->
     <ReactiveFallback name="TacticalPrioritySelector">
       <Sequence name="AttackPriority">
-        <CheckAttackCondition name="CheckAttackCondition" branch="AttackPriority" />
+        <ReactiveFallback name="AttackConditionSelector">
+          <CheckAttackCondition name="CheckManualAttackCondition"
+                                branch="ManualAttackPriority" />
+          <Sequence name="AutoAttackFortCondition">
+            <CheckGameTimeWindow name="CheckAutoAttackFortWindow"
+                                 min_remaining="0"
+                                 max_remaining="120"
+                                 branch="AutoAttackFortCondition" />
+            <CheckBigEnergyActive name="CheckAutoAttackFortBigEnergy"
+                                  active_status="1"
+                                  branch="AutoAttackFortCondition" />
+          </Sequence>
+        </ReactiveFallback>
         <SetTacticalMode name="SetAttackMode" mode="attack" />
       </Sequence>
 

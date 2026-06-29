@@ -51,7 +51,7 @@
         <RequestRemoteAmmoExchangeAction />
       </ReactiveSequence> -->
 
-      <!-- P2: 普通补给点弹药兑换（到家 + 弹药&lt;100 + 金币&gt;=10） -->
+      <!-- P2: 普通补给点弹药兑换（到家 + 弹药&lt;100 + 金币&gt;=100） -->
       <ReactiveSequence name="NormalAmmoExchangeBranch">
         <ReactiveFallback name="NormalAmmoExchangeConditions">
           <CheckInZone zone_name="own_supply_zone" branch="NormalAmmoExchange" />
