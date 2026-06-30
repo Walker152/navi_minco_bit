@@ -11,6 +11,10 @@
           <NavigateToPoseAction name="NavigateEmergencyStop" />
         </ReactiveSequence> -->
 
+        <SubTree ID="TunnelRecoverySubTree"
+                 __shared_blackboard="true"
+                 __autoremap="true" />
+
         <ReactiveSequence name="Priority0ManualOverride">
           <CheckManualOverride name="CheckManualOverride" branch="Priority0ManualOverride" />
           <ReactiveFallback name="ManualGoalSelector">
@@ -89,14 +93,6 @@
               <SetCoordinate name="SetGlobalHealthHomeGoal" goal="0" />
               <NavigateToPoseAction name="NavigateGlobalHealthHome" />
             </ReactiveSequence>
-
-            <!-- Step6: replace the inactive legacy TunnelRecoverySubTree before re-enabling it.
-            <ReactiveSequence name="Priority1_5TunnelRecovery">
-              <CheckTimeInZone min_seconds="20.0" max_seconds="50.0" zone_name="transform_zone" />
-              <SubTree ID="TunnelRecoverySubTree"
-                       __shared_blackboard="true"
-                       __autoremap="true" />
-            </ReactiveSequence> -->
 
             <ReactiveSequence name="GlobalAmmoSupply">
               <CheckAmmoLow ammo_threshold="50" branch="GlobalAmmoSupply" />
