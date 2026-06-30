@@ -12,7 +12,6 @@
 #include "bt_manager/condition/auto_conditions.hpp"
 #include "bt_manager/condition/change_stance_condition.hpp"
 #include "bt_manager/condition/gimbal_condition.hpp"
-#include "bt_manager/condition/recovery_conditions.hpp"
 #include "bt_manager/condition/resource_conditions.hpp"
 #include "bt_manager/condition/tactical_condition.hpp"
 
@@ -80,10 +79,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<RequestRemoteAmmoExchangeAction>("RequestRemoteAmmoExchangeAction");
   factory_.registerNodeType<RequestRemoteHealthExchangeAction>("RequestRemoteHealthExchangeAction");
   factory_.registerNodeType<ControlThroughTunnel>("ControlThroughTunnel");
-  factory_.registerNodeType<CheckTimeInZone>("CheckTimeInZone");
-  factory_.registerNodeType<SetTunnelRecoveryAttemptPoint>("SetTunnelRecoveryAttemptPoint");
-  factory_.registerNodeType<SetTunnelRecoveryRetreatPoint>("SetTunnelRecoveryRetreatPoint");
-  factory_.registerNodeType<SetGlobalVelocity>("SetGlobalVelocity");
+  factory_.registerNodeType<TunnelTimeoutBackoutAction>("TunnelTimeoutBackoutAction");
   factory_.registerNodeType<CheckNormalExchangeCooldown>("CheckNormalExchangeCooldown");
 
   // stance
