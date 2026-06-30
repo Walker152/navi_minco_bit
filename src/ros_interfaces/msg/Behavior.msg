@@ -32,3 +32,8 @@ uint8 PITCH_BOTTOM=1
 
 bool not_aim_enemy
 bool use_capacitor
+
+bool tunnel_escape_active
+float32 tunnel_escape_vx
+float32 tunnel_escape_vy
+float32 tunnel_escape_wz

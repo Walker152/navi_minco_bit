@@ -81,6 +81,7 @@ public:
     msg.speed_monitor_angle = in.speed_monitor_angle;
     msg.sentry_info_1 = in.sentry_info_1;
     msg.sentry_info_2 = in.sentry_info_2;
+    msg.sentry_info_3 = in.sentry_info_3;
     msg.energy_ratio = in.energy_ratio;
     msg.header.stamp = now();
     online_info_pub_->publish(msg);
@@ -242,6 +243,9 @@ private:
     bool use_capacitor = false;
     bool use_gyro_mode = false;
     float gyro_vel = 0.0f;
+    bool tunnel_escape_active = false;
+    float tunnel_escape_vx = 0.0f;
+    float tunnel_escape_vy = 0.0f;
     geometry_msgs::msg::Quaternion odom_q;
     {
       // Snapshot shared state to avoid data races.
@@ -267,6 +271,9 @@ private:
       desire_lifter_pos = behavior_.desire_lifter_pos;
       use_gyro_mode = behavior_.use_gyro_mode;
       gyro_vel = behavior_.gyro_vel;
+      tunnel_escape_active = behavior_.tunnel_escape_active;
+      tunnel_escape_vx = behavior_.tunnel_escape_vx;
+      tunnel_escape_vy = behavior_.tunnel_escape_vy;
       scan_yaw_min_deg_ = behavior_.scan_yaw_min;
       scan_yaw_max_deg_ = behavior_.scan_yaw_max;
       ammo_purchase_request = behavior_.ammo_purchase_request;
@@ -280,6 +287,10 @@ private:
         vw_rpm = gyro_vel;
       }
       // vw_rpm = -80.0f;
+      if (tunnel_escape_active) {
+        vx_mps = tunnel_escape_vx;
+        vy_mps = tunnel_escape_vy;
+      }
     }
 
     tf2::Quaternion q;

@@ -44,8 +44,8 @@ BT::NodeStatus TunnelTimeoutBackoutAction::onRunning()
   const int tunnel_idx = findTunnelIndexByPose(current_pose);
 
   if (tunnel_idx < 0) {
+    clearCmdVel();
     if (active_backout_) {
-      clearCmdVel();
       geometry_msgs::msg::Twist stopped;
       logState(false, active_tunnel_idx_,
         std::chrono::duration<double>(now - entry_time_).count(), timeout_s, stopped,
@@ -60,9 +60,7 @@ BT::NodeStatus TunnelTimeoutBackoutAction::onRunning()
   }
 
   if (!was_in_tunnel_ || tunnel_idx != active_tunnel_idx_) {
-    if (active_backout_) {
-      clearCmdVel();
-    }
+    clearCmdVel();
     was_in_tunnel_ = true;
     active_backout_ = false;
     active_tunnel_idx_ = tunnel_idx;
@@ -75,6 +73,7 @@ BT::NodeStatus TunnelTimeoutBackoutAction::onRunning()
 
   const double duration = std::chrono::duration<double>(now - entry_time_).count();
   if (!active_backout_ && duration < timeout_s) {
+    clearCmdVel();
     geometry_msgs::msg::Twist stopped;
     logState(false, tunnel_idx, duration, timeout_s, stopped, "waiting_for_timeout", branch);
     return BT::NodeStatus::FAILURE;
@@ -96,7 +95,7 @@ BT::NodeStatus TunnelTimeoutBackoutAction::onRunning()
   }
 
   const auto cmd_vel = computeBackoutVelocity(tunnel_idx, speed, current_pose);
-  config().blackboard->set("cmd_vel", cmd_vel);
+  setTunnelEscapeCommand(true, cmd_vel);
   logState(true, tunnel_idx, duration, timeout_s, cmd_vel, "active_backout", branch);
   return BT::NodeStatus::RUNNING;
 }
@@ -150,9 +149,19 @@ geometry_msgs::msg::Twist TunnelTimeoutBackoutAction::computeBackoutVelocity(
   return cmd_vel;
 }
 
+void TunnelTimeoutBackoutAction::setTunnelEscapeCommand(
+  const bool active,
+  const geometry_msgs::msg::Twist & cmd_vel)
+{
+  config().blackboard->set("tunnel_escape_active", active);
+  config().blackboard->set("tunnel_escape_cmd_vel", cmd_vel);
+  config().blackboard->set("cmd_vel", cmd_vel);
+}
+
 void TunnelTimeoutBackoutAction::clearCmdVel()
 {
-  config().blackboard->set("cmd_vel", geometry_msgs::msg::Twist());
+  geometry_msgs::msg::Twist stopped;
+  setTunnelEscapeCommand(false, stopped);
 }
 
 void TunnelTimeoutBackoutAction::resetState()

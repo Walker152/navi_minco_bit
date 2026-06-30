@@ -23,6 +23,9 @@ private:
   geometry_msgs::msg::Twist computeBackoutVelocity(
     int tunnel_idx, double speed,
     const geometry_msgs::msg::Pose & current_pose) const;
+  void setTunnelEscapeCommand(
+    bool active,
+    const geometry_msgs::msg::Twist & cmd_vel);
   void clearCmdVel();
   void resetState();
   void logState(bool active, int tunnel_idx, double duration, double timeout_s,
