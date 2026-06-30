@@ -247,6 +247,7 @@ struct __attribute__((packed)) _SentryInfoOnline
   float speed_monitor_angle{};   // 测速模块朝向，单位为度，正北为0度
   uint32_t sentry_info_1{};      // 哨兵信息1，未解码，需接收后根据协议解码
   uint16_t sentry_info_2{};      // 哨兵信息2，未解码，需接收后根据协议解码
+  uint64_t sentry_info_3{};      // 哨兵信息3，未解码，需接收后根据协议解码
   uint8_t energy_ratio{};        // 底盘能量比例
 
   _SentryInfoOnline(uint16_t _self_health,
@@ -258,7 +259,8 @@ struct __attribute__((packed)) _SentryInfoOnline
     float _sentry_pos_y,
     float _speed_monitor_angle,
     uint32_t _sentry_info_1,
-    uint16_t _sentry_info_2)
+    uint16_t _sentry_info_2,
+    uint64_t _sentry_info_3)
   {
     self_health = _self_health;
     bullets_remaining = _bullets_remaining;
@@ -270,6 +272,7 @@ struct __attribute__((packed)) _SentryInfoOnline
     speed_monitor_angle = _speed_monitor_angle;
     sentry_info_1 = _sentry_info_1;
     sentry_info_2 = _sentry_info_2;
+    sentry_info_3 = _sentry_info_3;
   }
 };
 using SentryInfoOnline = struct _SentryInfoOnline;

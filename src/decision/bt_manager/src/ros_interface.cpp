@@ -96,6 +96,9 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto desired_lifter_pos = blackboard_->get<Sentry_BT::LifterPos>("desired_lifter_pos");
     const auto use_gyro_mode = blackboard_->get<bool>("use_gyro_mode");
     const auto gyro_vel = blackboard_->get<float>("gyro_vel");
+    const auto tunnel_escape_active = blackboard_->get<bool>("tunnel_escape_active");
+    const auto tunnel_escape_cmd_vel =
+      blackboard_->get<geometry_msgs::msg::Twist>("tunnel_escape_cmd_vel");
     const auto ammo_purchase_request = static_cast<uint16_t>(blackboard_->get<int>("ammo_purchase_total"));
     const auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
     const auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
@@ -114,6 +117,10 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.desired_stance = static_cast<uint8_t>(desired_stance);
     behavior_msg.use_gyro_mode = use_gyro_mode;
     behavior_msg.gyro_vel = gyro_vel;
+    behavior_msg.tunnel_escape_active = tunnel_escape_active;
+    behavior_msg.tunnel_escape_vx = static_cast<float>(tunnel_escape_cmd_vel.linear.x);
+    behavior_msg.tunnel_escape_vy = static_cast<float>(tunnel_escape_cmd_vel.linear.y);
+    behavior_msg.tunnel_escape_wz = static_cast<float>(tunnel_escape_cmd_vel.angular.z);
     behavior_msg.desire_lifter_pos = static_cast<uint8_t>(desired_lifter_pos);
     behavior_msg.scan_yaw_min = yaw_min_deg;
     behavior_msg.scan_yaw_max = yaw_max_deg;
