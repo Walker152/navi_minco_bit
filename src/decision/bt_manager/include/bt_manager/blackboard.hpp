@@ -40,6 +40,8 @@ public:
     blackboard_->set("in_transform_zone", false);                                 // 是否在变形区
     blackboard_->set("nearest_tunnel_idx", -1);                                   // 最近隧道索引
     blackboard_->set("cmd_vel", geometry_msgs::msg::Twist());                     // 速度指令
+    blackboard_->set("tunnel_escape_active", false);                              // 隧道逃逸速度接管
+    blackboard_->set("tunnel_escape_cmd_vel", geometry_msgs::msg::Twist());        // 隧道逃逸速度
     blackboard_->set("current_pose", geometry_msgs::msg::Pose());                 // 当前位姿缓存
     blackboard_->set("manual_override_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});  // 手动接管目标点
     blackboard_->set("outpost_safe_cooldown_active", false);  // 前哨站安全期是否生效
