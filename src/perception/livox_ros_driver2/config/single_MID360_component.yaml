@@ -1,0 +1,19 @@
+/**:
+  ros__parameters:
+    xfer_format: 1          # 0-Pointcloud2(PointXYZRTL), 1-customized pointcloud format
+    multi_topic: 0          # All LiDAR data uses the direct global topics
+    data_src: 0             # 0-lidar, others-Invalid data src
+    publish_freq: 20.0      # freqency of publish, 5.0, 10.0, 20.0, 50.0, etc.
+    output_data_type: 0
+    frame_id: livox_frame
+    lvx_file_path: /home/livox/livox_test.lvx
+    user_config_path: "$(find-pkg-share livox_ros_driver2)/config/MID360_config.json"
+    cmdline_input_bd_code: livox0000000001
+    enable_internal_lidar_merge: false
+    enable_merge_debug: false
+    merge_front_ip: 192.168.1.196
+    merge_back_ip: 192.168.1.122
+    merge_output_topic: livox/lidar
+    merge_frame_id: livox_frame
+    merge_max_interval_ms: 5.0
+    merge_extrinsic_back_to_front: [0.0, 0.4, 0.0, -0.35453, 0.0, 0.0]
