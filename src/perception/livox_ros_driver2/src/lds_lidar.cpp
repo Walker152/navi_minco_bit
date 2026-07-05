@@ -214,6 +214,10 @@ int LdsLidar::DeInitLdsLidar(void)
     printf("Livox Lidar SDK Deinit completely!\n");
   }
 
+  ResetLdsLidar();
+  CleanRequestExit();
+  is_initialized_ = false;
+
   return 0;
 }
 

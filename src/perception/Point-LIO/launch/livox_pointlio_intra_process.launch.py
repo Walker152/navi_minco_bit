@@ -13,6 +13,7 @@ def generate_launch_description():
     use_intra_process = LaunchConfiguration("use_intra_process")
     container_name = LaunchConfiguration("container_name")
     log_level = LaunchConfiguration("log_level")
+    pointlio_imu_topic = LaunchConfiguration("pointlio_imu_topic")
     intra_process_value = ParameterValue(use_intra_process, value_type=bool)
 
     container = ComposableNodeContainer(
@@ -34,7 +35,10 @@ def generate_launch_description():
                 package="point_lio",
                 plugin="point_lio::LaserMappingNode",
                 name="laserMapping",
-                parameters=[pointlio_params_file],
+                parameters=[
+                    pointlio_params_file,
+                    {"common.imu_topic": pointlio_imu_topic},
+                ],
                 extra_arguments=[{"use_intra_process_comms": intra_process_value}],
             ),
         ],
@@ -66,6 +70,10 @@ def generate_launch_description():
                 default_value="livox_pointlio_container",
             ),
             DeclareLaunchArgument("log_level", default_value="info"),
+            DeclareLaunchArgument(
+                "pointlio_imu_topic",
+                default_value="livox/imu_192_168_1_135",
+            ),
             container,
         ]
     )

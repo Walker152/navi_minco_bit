@@ -25,6 +25,8 @@
 #ifndef LIVOX_DRIVER_NODE_H
 #define LIVOX_DRIVER_NODE_H
 
+#include <atomic>
+
 #include "include/ros_headers.h"
 
 namespace livox_ros {
@@ -49,6 +51,7 @@ class DriverNode final : public ros::NodeHandle {
   std::shared_ptr<std::thread> imudata_poll_thread_;
   std::shared_future<void> future_;
   std::promise<void> exit_signal_;
+  std::atomic_bool stop_requested_{false};
 };
 
 #elif defined BUILDING_ROS2
@@ -70,6 +73,7 @@ class DriverNode final : public rclcpp::Node {
   std::shared_ptr<std::thread> imudata_poll_thread_;
   std::shared_future<void> future_;
   std::promise<void> exit_signal_;
+  std::atomic_bool stop_requested_{false};
 };
 #endif
 
