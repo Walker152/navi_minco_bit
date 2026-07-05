@@ -7,7 +7,8 @@ gnome-terminal -- bash -c "sudo ./scripts/ptp_sync.bash; exec bash"
 sleep 8
 
 # Driver + SLAM
-gnome-terminal -- bash -c "ros2 launch point_lio livox_pointlio_intra_process.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch point_lio mixed_livox_pointlio_intra_process.launch.py; exec bash"
+# gnome-terminal -- bash -c "ros2 launch point_lio single_livox_pointlio_intra_process.launch.py; exec bash"
 sleep 3
 
 # ICP
