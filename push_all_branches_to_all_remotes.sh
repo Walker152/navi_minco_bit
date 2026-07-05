@@ -2,23 +2,32 @@
 set -uo pipefail
 
 usage() {
-  echo "用法：$0 [--dry-run]"
+  echo "用法：$0 [--dry-run] [--exclude <remote>]..."
 }
 
 dry_run=false
-case ${1-} in
-  "") ;;
-  --dry-run) dry_run=true ;;
-  *)
-    usage >&2
-    exit 2
-    ;;
-esac
-
-if [ "$#" -gt 1 ]; then
-  usage >&2
-  exit 2
-fi
+excluded_remote_names=()
+while [ "$#" -gt 0 ]; do
+  case $1 in
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --exclude)
+      if [ "$#" -lt 2 ] || [[ $2 == --* ]]; then
+        echo "错误：--exclude 缺少远程仓库名称。" >&2
+        usage >&2
+        exit 2
+      fi
+      excluded_remote_names+=("$2")
+      shift 2
+      ;;
+    *)
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "错误：当前目录不属于 Git 仓库。" >&2
@@ -38,13 +47,53 @@ if [ "${#remotes[@]}" -eq 0 ]; then
   exit 1
 fi
 
+for excluded_name in "${excluded_remote_names[@]}"; do
+  found=false
+  for remote in "${remotes[@]}"; do
+    if [ "$remote" = "$excluded_name" ]; then
+      found=true
+      break
+    fi
+  done
+  if [ "$found" = false ]; then
+    echo "错误：未找到要排除的远程仓库：$excluded_name" >&2
+    exit 2
+  fi
+done
+
+selected_remotes=()
+excluded_remotes=()
+for remote in "${remotes[@]}"; do
+  excluded=false
+  for excluded_name in "${excluded_remote_names[@]}"; do
+    if [ "$remote" = "$excluded_name" ]; then
+      excluded=true
+      break
+    fi
+  done
+  if [ "$excluded" = true ]; then
+    excluded_remotes+=("$remote")
+  else
+    selected_remotes+=("$remote")
+  fi
+done
+
+if [ "${#selected_remotes[@]}" -eq 0 ]; then
+  echo "错误：所有远程仓库都已被排除。" >&2
+  exit 2
+fi
+
 echo "本地分支（${#branches[@]}）："
 printf '  - %s\n' "${branches[@]}"
-echo "远程仓库（${#remotes[@]}）："
-printf '  - %s\n' "${remotes[@]}"
+echo "将推送的远程仓库（${#selected_remotes[@]}）："
+printf '  - %s\n' "${selected_remotes[@]}"
+if [ "${#excluded_remotes[@]}" -gt 0 ]; then
+  echo "已排除的远程仓库（${#excluded_remotes[@]}）："
+  printf '  - %s\n' "${excluded_remotes[@]}"
+fi
 
 if [ "$dry_run" = false ]; then
-  printf '将所有本地分支推送到以上全部远程仓库，是否继续？[y/N] '
+  printf '将所有本地分支推送到以上待推送远程仓库，是否继续？[y/N] '
   read -r answer
   case ${answer-} in
     y|Y) ;;
@@ -63,7 +112,7 @@ fi
 
 successful_remotes=()
 failed_remotes=()
-for remote in "${remotes[@]}"; do
+for remote in "${selected_remotes[@]}"; do
   echo
   echo "==> 推送到 $remote"
   if git push "${push_options[@]}" "$remote" --all; then
@@ -83,4 +132,4 @@ if [ "${#failed_remotes[@]}" -gt 0 ]; then
   exit 1
 fi
 
-echo "全部远程仓库处理成功。"
+echo "全部待推送远程仓库处理成功。"
