@@ -85,39 +85,71 @@ Point-LIO 源码或其他导航模块。
 
 ### Files changed
 
-Explorer 阶段尚无实现文件变更。
+- `src/perception/livox_ros_driver2/src/livox_ros_driver2.cpp`
+- `src/perception/livox_ros_driver2/src/driver_node.h`
+- `src/perception/livox_ros_driver2/src/driver_node.cpp`
+- `src/perception/livox_ros_driver2/src/lddc.cpp`
+- `src/perception/livox_ros_driver2/src/lds.cpp`
+- `src/perception/livox_ros_driver2/src/lds_lidar.cpp`
+- `src/perception/livox_ros_driver2/src/comm/ldq.cpp`
+- `src/perception/livox_ros_driver2/config/single_MID360_component.yaml`
+- `src/perception/Point-LIO/launch/livox_pointlio_intra_process.launch.py`
+- `src/perception/Point-LIO/launch/single_livox_pointlio_intra_process.launch.py`
+- `src/perception/Point-LIO/launch/mixed_livox_pointlio_intra_process.launch.py`
+- `docs/ai_refactor_records/20260705_driver_pointlio_single_dual_adaptation.md`
 
 ### Key changes
 
-Explorer 阶段尚无实现变更。
+- 使用 `enable_internal_lidar_merge && multi_topic == 1` 作为唯一有效融合判定。
+- 单雷达错误开启融合时 warning 后继续直接链路，且不校验融合参数。
+- 有效融合模式补齐格式、外参长度、时间窗、front/back IP 和输出 topic 校验。
+- driver/data source 初始化失败时不创建 poll thread。
+- exit 请求唤醒点云和 IMU semaphore，析构安全设置 promise 并按 joinable 回收线程。
+- 融合成功后日志只使用弹出队列前保存的标量，不再访问已推进读指针的元素。
+- data source deinit 后恢复可重启状态，释放的队列指针明确置空。
+- 新增单/双 wrapper；通用 launch 按模式覆盖 Point-LIO IMU topic。
+- 新增单雷达 YAML，复用现有 `MID360_config.json`。
 
 ### Behavior preserved
 
-当前确认保持点云融合算法、固定容量队列、外参、频率、QoS 与 Point-LIO C++ 不变。
+- 点云融合坐标变换、时间匹配、CustomMsg/PointCloud2 构造与 unique_ptr 发布不变。
+- 固定容量环形队列、容量算法和满队列丢弃策略不变；仅补释放后置空。
+- 双雷达 YAML、雷达 JSON、外参、频率、frame、QoS、timer 和 callback group 不变。
+- Point-LIO C++、`mid360.yaml`、odom 和完整点云发布逻辑不变。
+- planner、controller、MPC、ROGMap 和比赛策略不变。
 
 ### Behavior intentionally adjusted
 
-当前确认将调整错误参数组合、初始化失败、线程退出及单/双 launch 选择行为。
+- `multi_topic=0 && enable_internal_lidar_merge=true` 改为 warning 后走单雷达直接链路。
+- 无效的有效融合配置在启动阶段抛出明确异常。
+- 初始化失败不再启动后台线程。
+- component unload 会唤醒并 join poll thread，后续重新加载可重新初始化 SDK。
+- 单雷达 Point-LIO 使用 `livox/imu`；双雷达继续使用 front 原始 IMU topic。
 
 ### Notes
 
-构建与真机测试未经许可，不在 Explorer 阶段执行。
+用户明确要求跳过所有测试并直接修改代码。未执行构建、gtest、ROS launch、真机、ASan
+或 valgrind；仅执行语法解析、配置语义、grep、diff 与范围静态检查。
 
 ## Auditor Review
 
 ### Checks performed
 
-- [ ] 关键路径检查
-- [ ] diff 检查
-- [ ] grep 检查
-- [ ] XML / launch / yaml 检查
-- [ ] 用户允许范围内的测试或静态检查
+- [x] 关键路径检查
+- [x] diff 检查
+- [x] grep 检查
+- [x] XML / launch / yaml 检查
+- [x] 用户允许范围内的测试或静态检查
 - [ ] 如需构建，已取得用户明确许可
 
 ### Issues found
 
-尚未进入 Modifier 与 Auditor 阶段。
+- 未发现越界修改；现有用户对 `AGENTS.md` 和旧推送脚本记录的改动保持不动。
+- launch Python AST 解析通过。
+- 单/双 YAML 和 MID360 JSON 解析、模式值及 front/back IP 交叉检查通过。
+- Point-LIO C++、`mid360.yaml`、双雷达 YAML、底层队列容量逻辑及其他导航模块无任务 diff。
+- 未执行编译和运行测试，无法静态证明真机数据频率、component unload 与断线恢复行为。
 
 ### Final result
 
-NEEDS_FIX
+PASS
