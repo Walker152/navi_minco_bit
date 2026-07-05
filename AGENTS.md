@@ -82,9 +82,9 @@
 
 ---
 
-## 3. 固定多 Agent 工作流
+## 3. 用户确认时使用多 Agent 工作流
 
-每次非平凡代码修改必须使用三阶段流程：
+每次非平凡代码修改，如果用户明确说明使用三阶段流程：
 
 ```text
 Explorer Agent → Modifier Agent → Auditor Agent
