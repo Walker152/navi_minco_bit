@@ -1136,11 +1136,21 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
     tf2::Quaternion q;
     q.setRPY(0, 0, yaw_pose);
     // tf2::Vector3 offset_vec(0.0, 0.15, 0.0);
-    tf2::Vector3 offset_vec(0.0, 0.20, 0.0);  // 变形哨
-    tf2::Vector3 base_pose = tf2::Vector3(odomAftMapped.pose.pose.position.x,
-                               odomAftMapped.pose.pose.position.y,
-                               odomAftMapped.pose.pose.position.z) +
-                             tf2::quatRotate(q, offset_vec);
+    tf2::Vector3 offset_vec(0.0, -0.20, 0.0);  // 变形哨
+    tf2::Vector3 base_pose =
+      tf2::Vector3(odomAftMapped.pose.pose.position.x, odomAftMapped.pose.pose.position.y, odomAftMapped.pose.pose.position.z) +
+      tf2::quatRotate(q, offset_vec);
+    // tf2::Quaternion q(
+    //   odomAftMapped.pose.pose.orientation.x,
+    //   odomAftMapped.pose.pose.orientation.y,
+    //   odomAftMapped.pose.pose.orientation.z,
+    //   odomAftMapped.pose.pose.orientation.w);
+    // tf2::Quaternion q_inv = q.inverse();
+
+    // transform_inverse.transform.rotation.w = q_inv.w();
+    // transform_inverse.transform.rotation.x = q_inv.x();
+    // transform_inverse.transform.rotation.y = q_inv.y();
+    // transform_inverse.transform.rotation.z = q_inv.z();
     transform_inverse.transform.translation.x = base_pose.x();
     transform_inverse.transform.translation.y = base_pose.y();
     transform_inverse.transform.translation.z = base_pose.z();
