@@ -173,6 +173,15 @@ DriverNode::DriverNode(const rclcpp::NodeOptions & node_options) : Node("livox_d
   this->get_parameter("merge_max_interval_ms", merge_max_interval_ms);
   this->get_parameter("merge_extrinsic_back_to_front", merge_extrinsic_back_to_front);
 
+  const bool effective_internal_merge =
+    enable_internal_lidar_merge && (multi_topic == 1);
+  if (enable_internal_lidar_merge && multi_topic == 0) {
+    RCLCPP_WARN(
+      get_logger(),
+      "[LivoxDriver] enable_internal_lidar_merge=true is ignored because multi_topic=0. "
+      "Use direct single-lidar path.");
+  }
+
   if (publish_freq > 100.0) {
     publish_freq = 100.0;
   } else if (publish_freq < 0.5) {
@@ -188,15 +197,28 @@ DriverNode::DriverNode(const rclcpp::NodeOptions & node_options) : Node("livox_d
     std::make_unique<Lddc>(xfer_format, multi_topic, data_src, output_type, publish_freq, frame_id);
   lddc_ptr_->SetRosNode(this);
 
-  if (enable_internal_lidar_merge) {
+  if (effective_internal_merge) {
     if (!IsInternalLidarMergeTransferFormatSupported(xfer_format)) {
-      throw std::invalid_argument("enable_internal_lidar_merge only supports xfer_format 0 or 1 in ROS2");
+      RCLCPP_ERROR(get_logger(), "Unsupported transfer format for internal lidar merge");
+      throw std::invalid_argument("unsupported transfer format for internal lidar merge");
     }
     if (merge_extrinsic_back_to_front.size() != 6) {
-      throw std::invalid_argument("merge_extrinsic_back_to_front must contain exactly 6 values");
+      RCLCPP_ERROR(get_logger(), "Invalid merge extrinsic size: %zu", merge_extrinsic_back_to_front.size());
+      throw std::invalid_argument("invalid merge extrinsic size");
     }
     if (merge_max_interval_ms <= 0.0) {
-      throw std::invalid_argument("merge_max_interval_ms must be > 0");
+      RCLCPP_ERROR(get_logger(), "Invalid merge max interval: %.3f ms", merge_max_interval_ms);
+      throw std::invalid_argument("invalid merge max interval");
+    }
+    if (merge_front_ip.empty() || merge_back_ip.empty() || merge_front_ip == merge_back_ip) {
+      RCLCPP_ERROR(
+        get_logger(), "Invalid merge lidar IP configuration: front='%s' back='%s'",
+        merge_front_ip.c_str(), merge_back_ip.c_str());
+      throw std::invalid_argument("invalid merge lidar ip configuration");
+    }
+    if (merge_output_topic.empty()) {
+      RCLCPP_ERROR(get_logger(), "Internal lidar merge output topic must not be empty");
+      throw std::invalid_argument("invalid merge output topic");
     }
     if (merge_frame_id.empty()) {
       merge_frame_id = frame_id;
@@ -216,27 +238,30 @@ DriverNode::DriverNode(const rclcpp::NodeOptions & node_options) : Node("livox_d
     lddc_ptr_->ConfigureInternalLidarMerge(merge_config);
   }
 
-  if (data_src == kSourceRawLidar) {
-    DRIVER_INFO(*this, "Data Source is raw lidar.");
-
-    std::string user_config_path;
-    this->get_parameter("user_config_path", user_config_path);
-    DRIVER_INFO(*this, "Config file : %s", user_config_path.c_str());
-
-    std::string cmdline_bd_code;
-    this->get_parameter("cmdline_input_bd_code", cmdline_bd_code);
-
-    LdsLidar * read_lidar = LdsLidar::GetInstance(publish_freq);
-    lddc_ptr_->RegisterLds(static_cast<Lds *>(read_lidar));
-
-    if ((read_lidar->InitLdsLidar(user_config_path))) {
-      DRIVER_INFO(*this, "Init lds lidar success!");
-    } else {
-      DRIVER_ERROR(*this, "Init lds lidar fail!");
-    }
-  } else {
+  if (data_src != kSourceRawLidar) {
     DRIVER_ERROR(*this, "Invalid data src (%d), please check the launch file", data_src);
+    throw std::invalid_argument("invalid lidar data source");
   }
+
+  DRIVER_INFO(*this, "Data Source is raw lidar.");
+
+  std::string user_config_path;
+  this->get_parameter("user_config_path", user_config_path);
+  DRIVER_INFO(*this, "Config file : %s", user_config_path.c_str());
+
+  std::string cmdline_bd_code;
+  this->get_parameter("cmdline_input_bd_code", cmdline_bd_code);
+
+  LdsLidar * read_lidar = LdsLidar::GetInstance(publish_freq);
+  if (!read_lidar || lddc_ptr_->RegisterLds(static_cast<Lds *>(read_lidar)) != 0) {
+    RCLCPP_ERROR(get_logger(), "Failed to register lidar data source");
+    throw std::runtime_error("failed to register lidar data source");
+  }
+  if (!read_lidar->InitLdsLidar(user_config_path)) {
+    RCLCPP_ERROR(get_logger(), "Init lds lidar failed");
+    throw std::runtime_error("failed to initialize lidar data source");
+  }
+  DRIVER_INFO(*this, "Init lds lidar success!");
 
   pointclouddata_poll_thread_ = std::make_shared<std::thread>(&DriverNode::PointCloudDataPollThread, this);
   imudata_poll_thread_ = std::make_shared<std::thread>(&DriverNode::ImuDataPollThread, this);
@@ -251,20 +276,62 @@ RCLCPP_COMPONENTS_REGISTER_NODE(livox_ros::DriverNode)
 
 void DriverNode::PointCloudDataPollThread()
 {
+#ifdef BUILDING_ROS1
   std::future_status status;
   std::this_thread::sleep_for(std::chrono::seconds(3));
   do {
     lddc_ptr_->DistributePointCloudData();
     status = future_.wait_for(std::chrono::microseconds(0));
   } while (status == std::future_status::timeout);
+#elif defined BUILDING_ROS2
+  if (future_.wait_for(std::chrono::seconds(3)) != std::future_status::timeout) {
+    return;
+  }
+  while (rclcpp::ok() && !stop_requested_.load()) {
+    Lddc * lddc = lddc_ptr_.get();
+    if (!lddc) {
+      return;
+    }
+    try {
+      lddc->DistributePointCloudData();
+    } catch (const std::exception & error) {
+      RCLCPP_ERROR(get_logger(), "Point cloud poll thread stopped: %s", error.what());
+      return;
+    }
+    if (future_.wait_for(std::chrono::microseconds(0)) != std::future_status::timeout) {
+      return;
+    }
+  }
+#endif
 }
 
 void DriverNode::ImuDataPollThread()
 {
+#ifdef BUILDING_ROS1
   std::future_status status;
   std::this_thread::sleep_for(std::chrono::seconds(3));
   do {
     lddc_ptr_->DistributeImuData();
     status = future_.wait_for(std::chrono::microseconds(0));
   } while (status == std::future_status::timeout);
+#elif defined BUILDING_ROS2
+  if (future_.wait_for(std::chrono::seconds(3)) != std::future_status::timeout) {
+    return;
+  }
+  while (rclcpp::ok() && !stop_requested_.load()) {
+    Lddc * lddc = lddc_ptr_.get();
+    if (!lddc) {
+      return;
+    }
+    try {
+      lddc->DistributeImuData();
+    } catch (const std::exception & error) {
+      RCLCPP_ERROR(get_logger(), "IMU poll thread stopped: %s", error.what());
+      return;
+    }
+    if (future_.wait_for(std::chrono::microseconds(0)) != std::future_status::timeout) {
+      return;
+    }
+  }
+#endif
 }

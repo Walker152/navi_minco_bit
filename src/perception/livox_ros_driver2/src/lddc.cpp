@@ -144,6 +144,9 @@ void Lddc::DistributePointCloudData(void)
   }
 
   lds_->pcd_semaphore_.Wait();
+  if (lds_->IsRequestExit()) {
+    return;
+  }
 #ifdef BUILDING_ROS2
   if (internal_lidar_merge_enabled_) {
     DistributeMergedPointCloudData();
@@ -174,6 +177,9 @@ void Lddc::DistributeImuData(void)
   }
 
   lds_->imu_semaphore_.Wait();
+  if (lds_->IsRequestExit()) {
+    return;
+  }
   for (uint32_t i = 0; i < lds_->lidar_count_; i++) {
     uint32_t lidar_id = i;
     LidarDevice * lidar = &lds_->lidars_[lidar_id];
@@ -190,8 +196,14 @@ void Lddc::DistributeMergedPointCloudData()
 {
   LidarDataQueue * front_queue = nullptr;
   LidarDataQueue * back_queue = nullptr;
-  if (!GetMergeQueue(internal_lidar_merger_.GetConfig().front_handle, &front_queue) ||
-      !GetMergeQueue(internal_lidar_merger_.GetConfig().back_handle, &back_queue)) {
+  const bool front_ready =
+    GetMergeQueue(internal_lidar_merger_.GetConfig().front_handle, &front_queue);
+  const bool back_ready =
+    GetMergeQueue(internal_lidar_merger_.GetConfig().back_handle, &back_queue);
+  if (!front_ready || !back_ready) {
+    if ((merge_drop_warn_count_++ % 30) == 0) {
+      DRIVER_WARN(*cur_node_, "Internal lidar merge is waiting for front/back lidar data");
+    }
     return;
   }
 
@@ -202,14 +214,21 @@ void Lddc::DistributeMergedPointCloudData()
       return;
     }
 
-    if (!internal_lidar_merger_.CanMerge(front->base_time, back->base_time)) {
-      const bool drop_front = internal_lidar_merger_.ShouldDropFront(front->base_time, back->base_time);
+    const uint64_t front_base_time = front->base_time;
+    const uint64_t back_base_time = back->base_time;
+    const uint64_t merged_base_time = std::min(front_base_time, back_base_time);
+    const uint32_t front_points_num = front->points_num;
+    const uint32_t back_points_num = back->points_num;
+
+    if (!internal_lidar_merger_.CanMerge(front_base_time, back_base_time)) {
+      const bool drop_front =
+        internal_lidar_merger_.ShouldDropFront(front_base_time, back_base_time);
       if ((merge_drop_warn_count_++ % 30) == 0) {
         DRIVER_WARN(*cur_node_,
           "Internal lidar merge dropped stale %s frame: front=%" PRIu64 " back=%" PRIu64,
           drop_front ? "front" : "back",
-          front->base_time,
-          back->base_time);
+          front_base_time,
+          back_base_time);
       }
       QueuePopUpdate(drop_front ? front_queue : back_queue);
       continue;
@@ -238,12 +257,11 @@ void Lddc::DistributeMergedPointCloudData()
       DRIVER_WARN(*cur_node_,
         "Internal lidar merge took %.3f ms for %" PRIu32 " + %" PRIu32 " points",
         duration_ms,
-        front->points_num,
-        back->points_num);
+        front_points_num,
+        back_points_num);
     }
 
     if (internal_lidar_merger_.GetConfig().enable_merge_debug) {
-      uint64_t merged_base_time = std::min(front->base_time, back->base_time);
       if (last_merged_base_time_ != 0 && merged_base_time > last_merged_base_time_) {
         uint64_t delta_ns = merged_base_time - last_merged_base_time_;
         if (delta_ns > max_merged_delta_ns_)
@@ -688,6 +706,11 @@ void Lddc::PublishImuData(LidarImuDataQueue & imu_data_queue, const uint8_t inde
   Publisher<ImuMsg>::SharedPtr publisher_ptr =
     std::dynamic_pointer_cast<Publisher<ImuMsg>>(GetCurrentImuPublisher(index));
 #endif
+
+  if (!publisher_ptr) {
+    DRIVER_ERROR(*cur_node_, "IMU publisher is not available for lidar index %u", index);
+    return;
+  }
 
   if (kOutputToRos == output_type_) {
     publisher_ptr->publish(imu_msg);
