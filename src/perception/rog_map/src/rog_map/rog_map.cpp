@@ -77,15 +77,13 @@ void ROGMap::init()
   robot_state_.p = cfg_.fix_map_origin;
 
   if (cfg_.map_sliding_en) {
-    mapSliding(Vec3f(0, 0, 0));
-    inf_map_->mapSliding(Vec3f(0, 0, 0));
+    slideAllMap(Vec3f(0, 0, 0));
   } else {
     /// if disable map sliding, fix map origin to (0,0,0)
     /// update the local map bound as
     local_map_bound_min_d_ = -cfg_.half_map_size_d + cfg_.fix_map_origin;
     local_map_bound_max_d_ = cfg_.half_map_size_d + cfg_.fix_map_origin;
-    mapSliding(cfg_.fix_map_origin);
-    inf_map_->mapSliding(cfg_.fix_map_origin);
+    slideAllMap(cfg_.fix_map_origin);
   }
 
   if (cfg_.load_pcd_en) {
@@ -557,10 +555,6 @@ void ROGMap::refreshLayers()
       runtime_stats_.layer_mask_free_count += 1.0;
     }
   }
-  if (mask_changed || force_full_refresh) {
-    field_dirty_ = true;
-  }
-
   const auto count_start = std::chrono::steady_clock::now();
   runtime_stats_.occupied_count = 0.0;
   runtime_stats_.unknown_count = 0.0;
@@ -645,18 +639,20 @@ void ROGMap::refreshLayers()
     last_projection_log = projection_log_now;
   }
 
-  const double field_period = cfg_.field_update_rate > 0.0 ? (1.0 / cfg_.field_update_rate) : 0.0;
-  const bool period_ready =
-    field_period <= 0.0 || current_update_time_ - last_field_update_time_ >= field_period;
-  const bool should_update_field = field_dirty_ && period_ready;
+  const bool field_geometry_changed =
+    !field_ ||
+    !field_->matchesGeometry(layer_->width(), layer_->height(), layer_->resolution(), layer_->origin());
+  const bool should_update_field = cfg_.field_en && field_ && !layer_->empty() &&
+                                   (layer_updated || field_geometry_changed || !field_->isValid());
   runtime_stats_.field_enabled = cfg_.field_en ? 1.0 : 0.0;
-  runtime_stats_.field_dirty_before = field_dirty_ ? 1.0 : 0.0;
-  runtime_stats_.field_period_ready = period_ready ? 1.0 : 0.0;
+  runtime_stats_.field_dirty_before = 0.0;
+  runtime_stats_.field_period_ready = 1.0;
   runtime_stats_.field_should_update = should_update_field ? 1.0 : 0.0;
-  if (cfg_.field_en && field_ && !layer_->empty() && should_update_field) {
-    // field 更新受 mask 变化和 field.update_rate 限制；inflation_radius 会整体减小 ESDF 距离。
+  if (should_update_field) {
+    // field 紧随 projection 更新；inflation_radius 会整体减小 ESDF 距离。
     const auto field_start = std::chrono::steady_clock::now();
     FieldBuildStats field_stats;
+    field_stale_ = true;
     field_->updateFromMask(layer_->width(),
       layer_->height(),
       layer_->resolution(),
@@ -672,7 +668,6 @@ void ROGMap::refreshLayers()
     last_field_update_time_ = current_update_time_;
     last_field_stamp_ = current_update_time_;
     ++field_sequence_;
-    field_dirty_ = false;
     field_stale_ = false;
     runtime_stats_.field_time = elapsedMs(field_start);
     runtime_stats_.field_update_from_mask_time = field_stats.total_time_ms;
@@ -700,21 +695,13 @@ void ROGMap::refreshLayers()
     } else if (layer_->empty()) {
       runtime_stats_.field_skip_reason = "layer_empty";
       runtime_stats_.field_skip_layer_empty_count = 1.0;
-    } else if (!field_dirty_) {
-      runtime_stats_.field_skip_reason = "not_dirty";
-    } else if (!period_ready) {
-      runtime_stats_.field_skip_reason = "period_not_ready";
+    } else if (!layer_updated && !field_geometry_changed && field_->isValid()) {
+      runtime_stats_.field_skip_reason = "layer_not_updated";
     } else {
       runtime_stats_.field_skip_reason = "unknown";
+      field_stale_ = true;
     }
     runtime_stats_.field_skipped_count = 1.0;
-    if (cfg_.field_en && field_dirty_) {
-      constexpr double kFieldStaleThresholdMs = 200.0;
-      const double field_age_ms =
-        last_field_stamp_ > 0.0 ? std::max(0.0, current_update_time_ - last_field_stamp_) * 1000.0
-                                : std::numeric_limits<double>::infinity();
-      field_stale_ = field_age_ms > kFieldStaleThresholdMs;
-    }
   }
   runtime_stats_.field_sequence = static_cast<double>(field_sequence_);
 }
@@ -751,15 +738,28 @@ void ROGMap::refreshQuery()
     snapshot->confidence[i] = layer_->cells()[i].confidence;
   }
   runtime_stats_.query_copy_types_height_delta_confidence_time = elapsedMs(meta_start);
-  if (field_) {
+  const bool field_valid =
+    field_ && field_->isValid() &&
+    field_->matchesGeometry(layer_->width(), layer_->height(), layer_->resolution(), layer_->origin()) &&
+    !field_stale_;
+  snapshot->field_sequence = field_sequence_;
+  snapshot->field_stamp = last_field_stamp_;
+  if (field_valid) {
     snapshot->distances = field_->distances();
-    snapshot->field_sequence = field_sequence_;
-    snapshot->field_stamp = last_field_stamp_;
-    snapshot->field_stale = field_stale_;
+    snapshot->field_stale = false;
     snapshot->field_max_distance = field_->maxDistance();
     snapshot->field_min_distance = field_->minDistance();
     snapshot->field_clamp_distance = field_->clampDistanceEnabled();
     snapshot->interpolation = field_->interpolationMode();
+  } else {
+    snapshot->distances.clear();
+    snapshot->field_stale = true;
+    if (field_) {
+      snapshot->field_max_distance = field_->maxDistance();
+      snapshot->field_min_distance = field_->minDistance();
+      snapshot->field_clamp_distance = field_->clampDistanceEnabled();
+      snapshot->interpolation = field_->interpolationMode();
+    }
   }
   query_->update(snapshot, field_);
 }
