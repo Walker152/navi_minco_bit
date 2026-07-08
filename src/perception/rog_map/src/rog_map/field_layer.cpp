@@ -125,7 +125,19 @@ void DynamicLayer::rebuild(int width,
 bool DynamicLayer::isValid() const
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  return width_ > 1 && height_ > 1 && resolution_ > 0.0 && !dist_m_.empty();
+  const size_t expected =
+    static_cast<size_t>(std::max(0, width_)) * static_cast<size_t>(std::max(0, height_));
+  return width_ > 1 && height_ > 1 && resolution_ > 0.0 && !dist_m_.empty() && dist_m_.size() == expected;
+}
+
+bool DynamicLayer::matchesGeometry(
+  int width, int height, double resolution, const Eigen::Vector2d & origin) const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  const size_t expected =
+    static_cast<size_t>(std::max(0, width)) * static_cast<size_t>(std::max(0, height));
+  return width_ == width && height_ == height && dist_m_.size() == expected &&
+         std::abs(resolution_ - resolution) <= 1.0e-9 && (origin_ - origin).norm() <= 1.0e-9;
 }
 
 int DynamicLayer::width() const
