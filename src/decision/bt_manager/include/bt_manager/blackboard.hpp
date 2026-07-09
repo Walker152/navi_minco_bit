@@ -29,9 +29,9 @@ public:
     blackboard_->set("use_gyro_mode", false);                                // 小陀螺开关
     blackboard_->set("gyro_vel", 80.0f);                                     // 小陀螺转速(rpm)
     blackboard_->set("current_in_tunnel", false);                            // 当前是否在隧道中
-    blackboard_->set("attack_accumulated_time", 0.0);  // ATTACK累计强化时间(秒)
-    blackboard_->set("defend_accumulated_time", 0.0);  // DEFEND累计强化时间(秒)
-    blackboard_->set("move_accumulated_time", 0.0);    // MOVE累计强化时间(秒)
+    blackboard_->set("attack_accumulated_time", 0.0);  // ATTACK累计停留时长(秒),用于效果下降判定
+    blackboard_->set("defend_accumulated_time", 0.0);  // DEFEND累计停留时长(秒),用于效果下降判定
+    blackboard_->set("move_accumulated_time", 0.0);    // MOVE累计停留时长(秒),用于效果下降判定
     // --- Navigation Tree ---
     blackboard_->set<NavMode>("current_mode", NavMode::PATROL);                   // 当前模式
     blackboard_->set("nav_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});              // 当前导航目标
@@ -112,9 +112,9 @@ public:
     blackboard_->set<int>("normal_attack_remaining_sec", 180);      // 普通攻击剩余强化时间
     blackboard_->set<int>("normal_defend_remaining_sec", 180);      // 普通防御剩余强化时间
     blackboard_->set<int>("normal_move_remaining_sec", 180);        // 普通移动剩余强化时间
-    blackboard_->set<int>("enhanced_attack_remaining_sec", 15);    // 强化攻击剩余强化时间
-    blackboard_->set<int>("enhanced_defend_remaining_sec", 15);    // 强化防御剩余强化时间
-    blackboard_->set<int>("enhanced_move_remaining_sec", 15);      // 强化移动剩余强化时间
+    blackboard_->set<int>("enhanced_attack_remaining_sec", 15);    // 强化攻击剩余可用时间(秒),每局上限15s
+    blackboard_->set<int>("enhanced_defend_remaining_sec", 15);    // 强化防御剩余可用时间(秒),每局上限15s
+    blackboard_->set<int>("enhanced_move_remaining_sec", 15);      // 强化移动剩余可用时间(秒),每局上限15s
     blackboard_->set<bool>("current_stance_is_enhanced", false);  // 当前姿态是否处于强化状态
     blackboard_->set<bool>("current_stance_is_weakened", false);  // 当前姿态是否处于削弱状态
     blackboard_->set<EnergyRatio>("energy_ratio", EnergyRatio::ABOVE_100);  // 底盘当前剩余能量

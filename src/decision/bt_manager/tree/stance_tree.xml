@@ -2,7 +2,7 @@
   <BehaviorTree ID="StanceTree">
     <ReactiveSequence name="StanceTreeRoot">
       <CheckTunnelDeformation />
-      <UpdateEnhanceTime />
+      <UpdateStanceDuration />
       
       <ReactiveFallback name="StancePriorityRoot">
         <ReactiveSequence name="ManualAttackTunnelDefendAlignBranch">
@@ -56,9 +56,9 @@
             <CheckHeat threshold="200" mode="greater" branch="AbsoluteAttackBranch" />
             <CheckOutpostTarget goal_distance_threshold="0.5" branch="AbsoluteAttackBranch" />
           </Fallback>
-          <!-- <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" /> -->
-          <SetGyroState use_gyro="true" 
-                        gyro_vel="40.0" 
+          <!-- <CheckStanceEffectLimit target_stance="ATTACK" max_time_sec="180" /> -->
+          <SetGyroState use_gyro="true"
+                        gyro_vel="40.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="AbsoluteAttackBranch" /> -->
           <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
@@ -67,9 +67,9 @@
         <Sequence name="CombatAttackBranch">
           <CheckEngagedStatus expected="true" branch="CombatAttackBranch" />
           <CheckHealth threshold="50" mode="greater" branch="CombatAttackBranch" />
-          <!-- <CheckEnhanceLimit target_stance="ATTACK" max_time_sec="180" /> -->
-          <SetGyroState use_gyro="true" 
-                        gyro_vel="80.0" 
+          <!-- <CheckStanceEffectLimit target_stance="ATTACK" max_time_sec="180" /> -->
+          <SetGyroState use_gyro="true"
+                        gyro_vel="80.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
           <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
@@ -78,7 +78,7 @@
         <Sequence name="DefendStanceBranch">
           <CheckEngagedStatus expected="true" branch="DefendStanceBranch" />
           <CheckHealth threshold="50" mode="less" branch="DefendStanceBranch" />
-          <!-- <CheckEnhanceLimit target_stance="DEFEND" max_time_sec="180" /> -->
+          <!-- <CheckStanceEffectLimit target_stance="DEFEND" max_time_sec="180" /> -->
           <SetGyroState use_gyro="true" 
                         gyro_vel="80.0" 
                         random_speed="false" />
