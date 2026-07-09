@@ -92,10 +92,10 @@ public:
   BT::NodeStatus tick() override;
 };
 
-class CheckEnhanceLimit : public BT::ConditionNode
+class CheckStanceEffectLimit : public BT::ConditionNode
 {
 public:
-  CheckEnhanceLimit(const std::string & name, const BT::NodeConfiguration & config);
+  CheckStanceEffectLimit(const std::string & name, const BT::NodeConfiguration & config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;

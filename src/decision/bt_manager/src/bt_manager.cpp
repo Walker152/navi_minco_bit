@@ -91,12 +91,12 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckCrossZoneTransition>("CheckCrossZoneTransition");
   factory_.registerNodeType<CheckCapacitorCapacity>("CheckCapacitorCapacity");
   factory_.registerNodeType<CheckStanceCooldown>("CheckStanceCooldown");
-  factory_.registerNodeType<CheckEnhanceLimit>("CheckEnhanceLimit");
+  factory_.registerNodeType<CheckStanceEffectLimit>("CheckStanceEffectLimit");
   factory_.registerNodeType<CheckStanceRefreshRequired>("CheckStanceRefreshRequired");
   factory_.registerNodeType<SetGyroState>("SetGyroState");
   factory_.registerNodeType<TunnelGyroAlignAction>("TunnelGyroAlignAction");
   factory_.registerNodeType<ChangeStance>("ChangeStance");
-  factory_.registerNodeType<UpdateEnhanceTime>("UpdateEnhanceTime");
+  factory_.registerNodeType<UpdateStanceDuration>("UpdateStanceDuration");
   factory_.registerNodeType<CheckTunnelDeformation>("CheckTunnelDeformation");
   factory_.registerNodeType<CheckInEnemyFortZone>("CheckInEnemyFortZone");
 
