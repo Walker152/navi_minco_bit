@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ~/2027-sentry-navi
+cd ~/2025-sentry-navi
 source ./install/setup.bash
 
 # PTP Sync
