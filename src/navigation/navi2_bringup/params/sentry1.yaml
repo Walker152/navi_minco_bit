@@ -357,7 +357,7 @@ planner_server:
           # [raycasting][帧] 每批处理点云帧数；调大可攒批减少调度开销，但会增加地图更新延迟。
           batch_update_size: 1
           # [raycasting][m,m] 射线有效距离 [min,max]；min 过大会忽略近处点，max 过大会增加计算量并可能引入远处噪声。
-          ray_range: [0.10, 10.0]
+          ray_range: [0.03, 10.0]
           # [raycasting][m,m,m] 每次局部更新盒尺寸；调大覆盖更多点但 raycasting 和 dirty column 数量上升。
           local_update_box: [10.0, 10.0, 2.5]
           # [raycasting][概率] unknown 判断阈值相关参数；影响 UNKNOWN/FREE/OCCUPIED 判定，进而影响 projection layer。
@@ -441,7 +441,7 @@ planner_server:
           hysteresis_enable: true
           hysteresis_count: 2
 
-          hole_fill_enable: false
+          hole_fill_enable: true
           hole_fill_radius: 1
           hole_fill_min_occupied_neighbors: 4
         field:
@@ -495,13 +495,12 @@ planner_server:
         use_esdf_cost: true
         esdf_weight: 0.5
         esdf_decay: 0.5
-        esdf_max_cost: 0.8
-
+        esdf_max_cost: 1.0
       minco_optimizer:
         opt_freq: 20.0
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
-        safe_dist: 0.25
+        safe_dist: 0.35
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
         max_acceleration: 2.0
@@ -519,7 +518,7 @@ planner_server:
         penalty_weight_pos: 50000.0
         penalty_weight_vel: 1500.0
         penalty_weight_acc: 1500.0
-        penalty_weight_att: 30.0
+        penalty_weight_att: 20.0
         penalty_weight_time_barrier: 50.0
       recovery_server:
         fail_threshold: 5
