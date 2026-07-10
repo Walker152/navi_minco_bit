@@ -40,12 +40,13 @@ BT::NodeStatus TrackTargetAction::onRunning()
                        target_pose.position.x - current_pose.position.x) *
                      180.0f / static_cast<float>(M_PI);
   float gimbal_aim_yaw = 0.0f;
-  auto transform_utils = blackboard->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-  if (transform_utils) {
-    transform_utils->transformYaw(target_yaw, gimbal_aim_yaw, "body", "map");
-  } else {
-    gimbal_aim_yaw = target_yaw;
-  }
+  // auto transform_utils = blackboard->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+  // if (transform_utils) {
+  //   transform_utils->transformYaw(target_yaw, gimbal_aim_yaw, "body", "map");
+  // } else {
+  //   gimbal_aim_yaw = target_yaw;
+  // }
+  gimbal_aim_yaw = target_yaw;
   blackboard->set<float>("scan_yaw_min_deg", gimbal_aim_yaw - 15.0f);
   blackboard->set<float>("scan_yaw_max_deg", gimbal_aim_yaw + 15.0f);
   return BT::NodeStatus::RUNNING;
@@ -124,31 +125,32 @@ BT::NodeStatus SetGimbalPoseByAreaAction::tick()
     }
   }
 
+  float scan_yaw_min = -180.0f;
+  float scan_yaw_max = 180.0f;
   if (is_in_zone) {
-    auto config = tactical_area_gimbal_map[mode][target_zone];
-    auto tf_utils = blackboard->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
-    float transformed_yaw = 0.0f;
-    if (tf_utils) {
-      tf_utils->transformYaw(config.scan_yaw_min, transformed_yaw, "body", "map");
-      config.scan_yaw_min = transformed_yaw;
-      tf_utils->transformYaw(config.scan_yaw_max, transformed_yaw, "body", "map");
-      config.scan_yaw_max = transformed_yaw;
-    }
-    blackboard->set<float>("scan_yaw_min_deg", config.scan_yaw_min);
-    blackboard->set<float>("scan_yaw_max_deg", config.scan_yaw_max);
+    auto zone_cfg = tactical_area_gimbal_map.at(mode).at(target_zone);
+    // auto tf_utils = blackboard->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
+    // float transformed_yaw = 0.0f;
+    // if (tf_utils) {
+    //   tf_utils->transformYaw(zone_cfg.scan_yaw_min, transformed_yaw, "body", "map");
+    //   zone_cfg.scan_yaw_min = transformed_yaw;
+    //   tf_utils->transformYaw(zone_cfg.scan_yaw_max, transformed_yaw, "body", "map");
+    //   zone_cfg.scan_yaw_max = transformed_yaw;
+    // }
+    scan_yaw_min = zone_cfg.scan_yaw_min;
+    scan_yaw_max = zone_cfg.scan_yaw_max;
+    blackboard->set<float>("scan_yaw_min_deg", scan_yaw_min);
+    blackboard->set<float>("scan_yaw_max_deg", scan_yaw_max);
     blackboard->set<bool>("use_limited_scan", true);
   } else {
-    blackboard->set<float>("scan_yaw_min_deg", -180.0f);
-    blackboard->set<float>("scan_yaw_max_deg", 180.0f);
+    blackboard->set<float>("scan_yaw_min_deg", scan_yaw_min);
+    blackboard->set<float>("scan_yaw_max_deg", scan_yaw_max);
     blackboard->set<bool>("use_limited_scan", false);
   }
 
   blackboard->set<PitchPos>("pitch_mode", PitchPos::DOWN);
   std::ostringstream oss;
-  oss << "scan_yaw_range=["
-      << (is_in_zone ? std::to_string(tactical_area_gimbal_map[mode][target_zone].scan_yaw_min) : "-180.0")
-      << ", "
-      << (is_in_zone ? std::to_string(tactical_area_gimbal_map[mode][target_zone].scan_yaw_max) : "180.0")
+  oss << "scan_yaw_range=[" << std::to_string(scan_yaw_min) << ", " << std::to_string(scan_yaw_max)
       << "]";
   detail::logTransition(detail::TreeKind::GIMBAL, "SetGimbalPoseByAreaAction", is_in_zone, oss.str(), "");
   return BT::NodeStatus::SUCCESS;
