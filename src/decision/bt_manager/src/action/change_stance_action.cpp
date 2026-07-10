@@ -363,18 +363,18 @@ BT::NodeStatus ChangeStance::applyStanceChange()
   return BT::NodeStatus::SUCCESS;
 }
 
-// ------------------- UpdateEnhanceTime -------------------
-UpdateEnhanceTime::UpdateEnhanceTime(const std::string & name, const BT::NodeConfiguration & config)
+// ------------------- UpdateStanceDuration -------------------
+UpdateStanceDuration::UpdateStanceDuration(const std::string & name, const BT::NodeConfiguration & config)
 : BT::SyncActionNode(name, config)
 {
 }
 
-BT::PortsList UpdateEnhanceTime::providedPorts()
+BT::PortsList UpdateStanceDuration::providedPorts()
 {
   return {};
 }
 
-BT::NodeStatus UpdateEnhanceTime::tick()
+BT::NodeStatus UpdateStanceDuration::tick()
 {
   auto blackboard = config().blackboard;
   const int current_time = blackboard->get<int>("game_time_remaining");
@@ -402,20 +402,48 @@ BT::NodeStatus UpdateEnhanceTime::tick()
   }
 
   const double delta = static_cast<double>(raw_delta);
+  const int int_delta = raw_delta;
   const auto current_stance = blackboard->get<SentryStance>("current_stance");
 
+  // 强化姿态下递减对应强化姿态的剩余可用时间(每局各 15s 上限)。
+  // 仅统计剩余时间
   switch (current_stance) {
-  case SentryStance::ATTACK: {
+  case SentryStance::ENHANCED_ATTACK: {
+    const int remaining = blackboard->get<int>("enhanced_attack_remaining_sec");
+    blackboard->set("enhanced_attack_remaining_sec", std::max(0, remaining - int_delta));
+    break;
+  }
+  case SentryStance::ENHANCED_DEFEND: {
+    const int remaining = blackboard->get<int>("enhanced_defend_remaining_sec");
+    blackboard->set("enhanced_defend_remaining_sec", std::max(0, remaining - int_delta));
+    break;
+  }
+  case SentryStance::ENHANCED_MOVE: {
+    const int remaining = blackboard->get<int>("enhanced_move_remaining_sec");
+    blackboard->set("enhanced_move_remaining_sec", std::max(0, remaining - int_delta));
+    break;
+  }
+  default:
+    break;
+  }
+
+  // 累计各姿态停留时长(用于效果下降判定)。强化态也计入对应的普通姿态桶,
+  // 因为效果下降按"处于某姿态"累计,不区分是否强化。
+  switch (current_stance) {
+  case SentryStance::ATTACK:
+  case SentryStance::ENHANCED_ATTACK: {
     const double value = blackboard->get<double>("attack_accumulated_time");
     blackboard->set("attack_accumulated_time", value + delta);
     break;
   }
-  case SentryStance::DEFEND: {
+  case SentryStance::DEFEND:
+  case SentryStance::ENHANCED_DEFEND: {
     const double value = blackboard->get<double>("defend_accumulated_time");
     blackboard->set("defend_accumulated_time", value + delta);
     break;
   }
-  case SentryStance::MOVE: {
+  case SentryStance::MOVE:
+  case SentryStance::ENHANCED_MOVE: {
     const double value = blackboard->get<double>("move_accumulated_time");
     blackboard->set("move_accumulated_time", value + delta);
     break;

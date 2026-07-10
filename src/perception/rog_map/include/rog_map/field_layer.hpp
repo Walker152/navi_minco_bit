@@ -56,6 +56,7 @@ public:
   void evaluate(const Eigen::Vector3d & pos, double & dist, Eigen::Vector3d & grad) const;
 
   bool isValid() const;
+  bool matchesGeometry(int width, int height, double resolution, const Eigen::Vector2d & origin) const;
   int width() const;
   int height() const;
   double resolution() const;
