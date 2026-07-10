@@ -27,6 +27,17 @@ public:
 
   void clearRecoveryDebug();
 
+  void updateLocalEndPoint(const Eigen::Vector3d & point, bool local_end_is_goal);
+
+  void clearLocalEndPoint();
+
+  void updateCandidateTrajectory(const traj_opt::Trajectory & trajectory,
+    double opt_time,
+    bool validation_ok,
+    const std::string & validation_reason);
+
+  void clearCandidateTrajectory(const std::string & failure_reason);
+
 private:
   void visualTimerCallback();
   nav_msgs::msg::Path convertTrajectoryToPath(const traj_opt::Trajectory & traj,
@@ -40,6 +51,7 @@ private:
   // Visualization publishers
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr backup_path_vis_pub_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr opt_path_vis_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr candidate_path_vis_pub_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr astar_path_vis_pub_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr recover_path_vis_pub_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr recover_goal_vis_pub_;
@@ -56,6 +68,14 @@ private:
   double vis_opt_time_ = -1.0;
   bool has_vis_opt_traj_ = false;
   bool has_vis_backup_traj_ = false;
+  Eigen::Vector3d vis_local_end_;
+  bool has_vis_local_end_{false};
+  bool vis_local_end_is_goal_{false};
+  traj_opt::Trajectory vis_candidate_traj_;
+  bool has_vis_candidate_traj_{false};
+  bool vis_candidate_valid_{false};
+  std::string vis_candidate_reason_;
+  double vis_candidate_opt_time_{-1.0};
 };
 
 }  // namespace minco_planner
