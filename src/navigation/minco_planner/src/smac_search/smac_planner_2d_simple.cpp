@@ -54,6 +54,13 @@ void SmacPlanner2DSimple::setMap(const std::shared_ptr<rog_map::MapQueryInterfac
   ensureSearchBuffers();
 }
 
+void SmacPlanner2DSimple::setESDFQuery(
+  const std::shared_ptr<rog_map::MapQueryInterface> & query)
+{
+  esdf_query_ = query;
+  planning_id_ = 0u;
+}
+
 void SmacPlanner2DSimple::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node,
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
 {
@@ -153,7 +160,7 @@ void SmacPlanner2DSimple::logFailure(const std::string & reason,
 
 float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my)
 {
-  if (!use_esdf_cost_ || !map_) {
+  if (!use_esdf_cost_ || !map_ || !esdf_query_) {
     return 0.0f;
   }
 
@@ -169,24 +176,22 @@ float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my
     return esdf_cost_cache_[idx];
   }
 
-  // Compute world coordinates directly (avoid mapToWorld overhead).
-  // Use cell center (mx+0.5, my+0.5) for smoother bias.
+  // Convert through the prior search map; dynamicQuery handles any further frame conversion.
   double wx = 0.0;
   double wy = 0.0;
   map_->mapToWorld(mx, my, wx, wy);
 
-  double dist = 0.0;
-  Eigen::Vector3d grad(0.0, 0.0, 0.0);
-  map_->evaluate(Eigen::Vector3d(wx, wy, 0.0), dist, grad);
-
-  if (!std::isfinite(dist) || dist < 0.0) {
-    dist = 0.0;
+  const auto result = esdf_query_->query(Eigen::Vector3d(wx, wy, 0.0));
+  if (!result.ok || !std::isfinite(result.distance)) {
+    return 0.0f;
   }
+
+  const double dist = std::max(0.0, result.distance);
 
   // Potential field: higher cost near obstacles, decays with distance.
   float cost = static_cast<float>(esdf_weight_ * std::exp(-dist / static_cast<double>(esdf_decay_)));
-  if (esdf_max_cost_ > 0.0f && cost > esdf_max_cost_) {
-    cost = esdf_max_cost_;
+  if (esdf_max_cost_ > 0.0f) {
+    cost = std::min(cost, esdf_max_cost_);
   }
 
   esdf_cost_cache_[idx] = cost;

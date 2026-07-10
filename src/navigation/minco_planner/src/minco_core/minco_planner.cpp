@@ -194,6 +194,7 @@ void MincoPlanner::rebuildModeDependentQueries()
   }
   if (smac_planner_) {
     smac_planner_->setMap(mode_context_->globalQuery());
+    smac_planner_->setESDFQuery(mode_context_->dynamicQuery());
   }
   if (minco_optimizer_) {
     minco_optimizer_->setMap(mode_context_->dynamicQuery());
@@ -497,9 +498,8 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     smac_planner_ = std::make_unique<minco_planner::smac::SmacPlanner2DSimple>();
     smac_planner_->configure(node, costmap_ros_, prefix);
     smac_planner_->setParameters(allow_unknown_, 1000000, tolerance_);
-    if (global_query) {
-      smac_planner_->setMap(global_query);
-    }
+    smac_planner_->setMap(global_query);
+    smac_planner_->setESDFQuery(dynamic_query);
   }
 
   global_path_searcher_ = std::make_unique<GlobalPathSearcher>();

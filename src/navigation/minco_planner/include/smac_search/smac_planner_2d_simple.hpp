@@ -86,6 +86,7 @@ public:
     const std::string & param_prefix);
 
   void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map);
+  void setESDFQuery(const std::shared_ptr<rog_map::MapQueryInterface> & query);
 
   /**
    * @brief Create a path from start to goal
@@ -138,6 +139,7 @@ private:
 
   // Costmap
   std::shared_ptr<rog_map::MapQueryInterface> map_;
+  std::shared_ptr<rog_map::MapQueryInterface> esdf_query_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   unsigned int size_x_;
   unsigned int size_y_;
