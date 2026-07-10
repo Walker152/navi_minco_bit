@@ -455,4 +455,60 @@ BT::NodeStatus UpdateStanceDuration::tick()
   return BT::NodeStatus::SUCCESS;
 }
 
+// ------------------- ApplyManualStanceOverride -------------------
+ApplyManualStanceOverride::ApplyManualStanceOverride(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
+
+BT::PortsList ApplyManualStanceOverride::providedPorts()
+{
+  return {};
+}
+
+BT::NodeStatus ApplyManualStanceOverride::tick()
+{
+  auto blackboard = config().blackboard;
+
+  const bool override_active = blackboard->get<bool>("manual_stance_override_active");
+  if (!override_active) {
+    return BT::NodeStatus::SUCCESS;  // 无手动覆盖,保持自动决策结果
+  }
+
+  const auto override_stance = blackboard->get<SentryStance>("manual_override_stance");
+
+  // 注:过隧道让位的判断已上移到行为树(Inverter + CheckCrossZoneTransition),此处不再处理。
+
+  // 能量不足时无法真正进入强化姿态,保持自动决策结果(可能已被降级为 MOVE)。
+  const auto energy_ratio = blackboard->get<EnergyRatio>("energy_ratio");
+  if (energy_ratio == EnergyRatio::BELOW_1) {
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  // 该强化姿态每局累计 15s 上限,超时(剩余为 0)后不再升级,走回自动决策。
+  int remaining_sec = 0;
+  switch (override_stance) {
+  case SentryStance::ENHANCED_ATTACK:
+    remaining_sec = blackboard->get<int>("enhanced_attack_remaining_sec");
+    break;
+  case SentryStance::ENHANCED_DEFEND:
+    remaining_sec = blackboard->get<int>("enhanced_defend_remaining_sec");
+    break;
+  case SentryStance::ENHANCED_MOVE:
+    remaining_sec = blackboard->get<int>("enhanced_move_remaining_sec");
+    break;
+  default:
+    // 覆盖姿态不是强化姿态,保持自动结果。
+    return BT::NodeStatus::SUCCESS;
+  }
+  if (remaining_sec <= 0) {
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  // 升级 stance
+  blackboard->set<SentryStance>("desired_stance", override_stance);
+  return BT::NodeStatus::SUCCESS;
+}
+
 }  // namespace Sentry_BT
