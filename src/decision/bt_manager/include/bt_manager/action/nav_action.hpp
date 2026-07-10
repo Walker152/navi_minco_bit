@@ -21,7 +21,7 @@ public:
 
   static BT::PortsList providedPorts()
   {
-    return providedBasicPorts({BT::InputPort<Sentry_BT::PatrolPoint>("nav_goal")});
+    return providedBasicPorts({BT::InputPort<Sentry_BT::Point2D>("nav_goal")});
   }
 
   bool readGoalFromBlackboard(Sentry_BT::Point2D & nav_goal)
