@@ -491,7 +491,7 @@ planner_server:
         extra_margin: 0.05
 
       smac_2d:
-        use_esdf_cost: false
+        use_esdf_cost: true
         esdf_weight: 0.2
         esdf_decay: 0.5
         esdf_max_cost: 0.5
