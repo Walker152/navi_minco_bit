@@ -967,6 +967,13 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   const LocalPathSeed seed =
     local_path_processor_->buildSeed(global_path_snapshot, current_pose, *mode_context_);
+  if (visualizer_) {
+    if (!seed.dense_path.empty()) {
+      visualizer_->updateLocalEndPoint(seed.dense_path.back(), seed.local_end_is_goal);
+    } else {
+      visualizer_->clearLocalEndPoint();
+    }
+  }
   if (!seed.valid) {
     return finish(false, "COLLISION");
   }
@@ -1123,12 +1130,17 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
       std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - opt_start_steady).count();
   }
 
-  const double max_allowed_cost = 6000.0;
-  if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
-    RCLCPP_WARN(logger_,
-      "[MincoPlanner] Rejecting new trajectory! Cost (%.2f) exceeds limit (%.2f).",
-      final_cost,
-      max_allowed_cost);
+  // const double max_allowed_cost = 6000.0;
+  // if (!std::isfinite(final_cost) || final_cost > max_allowed_cost) {
+  if (!std::isfinite(final_cost)) {
+    // RCLCPP_WARN(logger_,
+    //   "[MincoPlanner] Rejecting new trajectory! Cost (%.2f) exceeds limit (%.2f).",
+    //   final_cost,
+    //   max_allowed_cost);
+
+    if (visualizer_) {
+      visualizer_->clearCandidateTrajectory("OPTIMIZER_FAILED");
+    }
 
     bool has_last_traj = false;
     {
@@ -1155,7 +1167,15 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
             << "cost: " << final_cost << RESET << std::endl;
 
   // 8.5 Quality gating (hard validation) before publishing.
-  if (!validateTrajectory(opt_traj, end_state.col(0))) {
+  const bool validation_ok = validateTrajectory(opt_traj, end_state.col(0));
+  if (visualizer_) {
+    visualizer_->updateCandidateTrajectory(opt_traj,
+      opt_duration,
+      validation_ok,
+      validation_ok ? "NONE" : last_validation_failure_reason_);
+  }
+
+  if (!validation_ok) {
     std::cout << RED << "[MincoPlanner] Trajectory validation failed! Rejecting." << RESET << std::endl;
     is_traj_safe_.store(false);
     return finish(false, last_validation_failure_reason_);

@@ -3,12 +3,12 @@ cd ~/2025-sentry-navi
 source ./install/setup.bash
 
 # PTP Sync
-gnome-terminal -- bash -c "sudo ./scripts/ptp_sync.bash; exec bash"
-sleep 8
+# gnome-terminal -- bash -c "sudo ./scripts/ptp_sync.bash; exec bash"
+# sleep 8
 
 # Driver + SLAM
-gnome-terminal -- bash -c "ros2 launch point_lio mixed_livox_pointlio_intra_process.launch.py; exec bash"
-# gnome-terminal -- bash -c "ros2 launch point_lio single_livox_pointlio_intra_process.launch.py; exec bash"
+# gnome-terminal -- bash -c "ros2 launch point_lio mixed_livox_pointlio_intra_process.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch point_lio single_livox_pointlio_intra_process.launch.py; exec bash"
 sleep 3
 
 # ICP
@@ -25,7 +25,7 @@ gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"
 sleep 5
 
 # Decision
-# gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
+gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
 # sleep 3
 
 # Communication

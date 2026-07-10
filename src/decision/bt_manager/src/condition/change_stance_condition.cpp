@@ -297,19 +297,20 @@ BT::NodeStatus CheckStanceCooldown::tick()
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
-// ------------------- CheckEnhanceLimit -------------------
-CheckEnhanceLimit::CheckEnhanceLimit(const std::string & name, const BT::NodeConfiguration & config)
+// ------------------- CheckStanceEffectLimit -------------------
+CheckStanceEffectLimit::CheckStanceEffectLimit(
+  const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
 {
 }
 
-BT::PortsList CheckEnhanceLimit::providedPorts()
+BT::PortsList CheckStanceEffectLimit::providedPorts()
 {
   return {BT::InputPort<std::string>("target_stance", "ATTACK", "Target stance to check"),
     BT::InputPort<int>("max_time_sec", 180, "Max accumulated seconds")};
 }
 
-BT::NodeStatus CheckEnhanceLimit::tick()
+BT::NodeStatus CheckStanceEffectLimit::tick()
 {
   const auto blackboard = config().blackboard;
   std::string target = getInput<std::string>("target_stance").value_or("ATTACK");
@@ -332,14 +333,15 @@ BT::NodeStatus CheckEnhanceLimit::tick()
   }
 
   if (!recognized) {
-    detail::logTransition(detail::TreeKind::STANCE, "CheckEnhanceLimit", true, "unknown target_stance", "");
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckStanceEffectLimit", true, "unknown target_stance", "");
     return BT::NodeStatus::SUCCESS;
   }
 
   const bool active = accumulated < static_cast<double>(max_time);
   std::ostringstream oss;
   oss << "target=" << target << ", accumulated=" << accumulated << ", max=" << max_time;
-  detail::logTransition(detail::TreeKind::STANCE, "CheckEnhanceLimit", active, oss.str(), "");
+  detail::logTransition(detail::TreeKind::STANCE, "CheckStanceEffectLimit", active, oss.str(), "");
 
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
