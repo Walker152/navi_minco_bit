@@ -107,14 +107,25 @@
         </Sequence>
         
         <Sequence name="DefaultDefendBranch">
-          <SetGyroState use_gyro="true" 
-                        gyro_vel="80.0" 
+          <SetGyroState use_gyro="true"
+                        gyro_vel="80.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefaultDefendBranch" /> -->
           <ChangeStance name="DefaultDefendStance" stance="DEFEND" />
         </Sequence>
 
       </ReactiveFallback>
+
+      <!-- 后处理:自动分支已算出 gyro 与基础姿态。仅在"非过隧道"时才应用操作手的强化姿态覆盖
+          能量/超时等其余条件仍在 ApplyManualStanceOverride 内部判断。-->
+      <ForceSuccess>
+        <Sequence name="ManualStanceOverridePostProcess">
+          <Inverter>
+            <CheckCrossZoneTransition branch="ManualStanceOverridePostProcess" />
+          </Inverter>
+          <ApplyManualStanceOverride name="ApplyManualStanceOverride" />
+        </Sequence>
+      </ForceSuccess>
     </ReactiveSequence>
   </BehaviorTree>
 </root>
