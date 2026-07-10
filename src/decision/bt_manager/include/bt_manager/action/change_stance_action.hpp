@@ -94,4 +94,17 @@ private:
   int last_game_time_{-1};
 };
 
+// 后处理节点:在自动姿态决策(gyro + 基础姿态)之后运行。
+// 若操作手请求了强化姿态覆盖,且未在过隧道、能量达标、该强化姿态未超时,
+// 则仅把 desired_stance 升级为对应的强化姿态
+// 恒返回 SUCCESS。
+class ApplyManualStanceOverride : public BT::SyncActionNode
+{
+public:
+  ApplyManualStanceOverride(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 }  // namespace Sentry_BT
