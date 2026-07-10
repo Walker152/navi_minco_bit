@@ -24,6 +24,8 @@ public:
 
     // --- Stance Tree ---
     blackboard_->set<SentryStance>("desired_stance", SentryStance::DEFEND);  // 期望姿态
+    blackboard_->set<bool>("manual_stance_override_active", false);          // 云台手强化姿态覆盖是否激活
+    blackboard_->set<SentryStance>("manual_override_stance", SentryStance::ENHANCED_ATTACK);  // 云台手请求的强化姿态
     blackboard_->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);       // 目标升降位置
     blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);        // 控制模式
     blackboard_->set("use_gyro_mode", false);                                // 小陀螺开关
