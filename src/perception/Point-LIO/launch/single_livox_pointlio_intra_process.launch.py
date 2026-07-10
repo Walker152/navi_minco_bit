@@ -31,7 +31,7 @@ def generate_launch_description():
                     ),
                     "pointlio_imu_topic": "livox/imu",
                     "use_intra_process": "true",
-                    "container_name": "single_livox_pointlio_container",
+                    "container_name": "livox_pointlio_container",
                     "log_level": "info",
                 }.items(),
             )
