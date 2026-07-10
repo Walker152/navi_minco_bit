@@ -29,6 +29,9 @@ void Visualizer::configure(const nav2_util::LifecycleNode::WeakPtr & parent, con
   opt_path_vis_pub_ =
     node->create_publisher<nav_msgs::msg::Path>("/opt_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)));
 
+  candidate_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
+    "/minco_candidate_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
+
   // A* guide path
   astar_path_vis_pub_ = node->create_publisher<nav_msgs::msg::Path>(
     "/astar_path_vis", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
@@ -52,8 +55,31 @@ void Visualizer::cleanup()
 {
   visual_timer_.reset();
 
+  auto node = node_.lock();
+  if (node && control_points_vis_pub_) {
+    visualization_msgs::msg::Marker marker;
+    marker.header.stamp = node->now();
+    marker.header.frame_id = global_frame_;
+    marker.action = visualization_msgs::msg::Marker::DELETE;
+    marker.ns = "minco_local_end";
+    marker.id = 0;
+    control_points_vis_pub_->publish(marker);
+    marker.id = 1;
+    control_points_vis_pub_->publish(marker);
+    marker.ns = "minco_candidate_status";
+    marker.id = 0;
+    control_points_vis_pub_->publish(marker);
+  }
+  if (node && candidate_path_vis_pub_) {
+    nav_msgs::msg::Path path;
+    path.header.stamp = node->now();
+    path.header.frame_id = global_frame_;
+    candidate_path_vis_pub_->publish(path);
+  }
+
   backup_path_vis_pub_.reset();
   opt_path_vis_pub_.reset();
+  candidate_path_vis_pub_.reset();
   astar_path_vis_pub_.reset();
   recover_path_vis_pub_.reset();
   recover_goal_vis_pub_.reset();
@@ -65,6 +91,12 @@ void Visualizer::cleanup()
   vis_opt_time_ = -1.0;
   has_vis_opt_traj_ = false;
   has_vis_backup_traj_ = false;
+  has_vis_local_end_ = false;
+  vis_local_end_is_goal_ = false;
+  has_vis_candidate_traj_ = false;
+  vis_candidate_valid_ = false;
+  vis_candidate_reason_.clear();
+  vis_candidate_opt_time_ = -1.0;
 }
 
 void Visualizer::publishRecoveryDebug(const geometry_msgs::msg::PoseStamped & current_pose,
@@ -141,6 +173,43 @@ void Visualizer::clearRecoveryDebug()
   nav_msgs::msg::Path path_msg;
   path_msg.header = goal_mk.header;
   recover_path_vis_pub_->publish(path_msg);
+}
+
+void Visualizer::updateLocalEndPoint(const Eigen::Vector3d & point, bool local_end_is_goal)
+{
+  std::lock_guard<std::mutex> lock(vis_mutex_);
+  vis_local_end_ = point;
+  has_vis_local_end_ = point.allFinite();
+  vis_local_end_is_goal_ = local_end_is_goal;
+}
+
+void Visualizer::clearLocalEndPoint()
+{
+  std::lock_guard<std::mutex> lock(vis_mutex_);
+  has_vis_local_end_ = false;
+  vis_local_end_is_goal_ = false;
+}
+
+void Visualizer::updateCandidateTrajectory(const traj_opt::Trajectory & trajectory,
+  double opt_time,
+  bool validation_ok,
+  const std::string & validation_reason)
+{
+  std::lock_guard<std::mutex> lock(vis_mutex_);
+  vis_candidate_traj_ = trajectory;
+  has_vis_candidate_traj_ = trajectory.getTotalDuration() > 1e-3;
+  vis_candidate_valid_ = validation_ok;
+  vis_candidate_reason_ = validation_reason;
+  vis_candidate_opt_time_ = opt_time;
+}
+
+void Visualizer::clearCandidateTrajectory(const std::string & failure_reason)
+{
+  std::lock_guard<std::mutex> lock(vis_mutex_);
+  has_vis_candidate_traj_ = false;
+  vis_candidate_valid_ = false;
+  vis_candidate_reason_ = failure_reason;
+  vis_candidate_opt_time_ = -1.0;
 }
 
 void Visualizer::update(const std::vector<Eigen::Vector3d> & control_points,
@@ -309,6 +378,94 @@ void Visualizer::visualTimerCallback()
     ss << std::fixed << std::setprecision(2) << (vis_opt_time_ * 1000.0) << " ms";
     mk.text = ss.str();
     control_points_vis_pub_->publish(mk);
+  }
+
+  // 6. Local path clipping endpoint (independent of accepted trajectory state).
+  if (control_points_vis_pub_) {
+    visualization_msgs::msg::Marker mk;
+    mk.header = header;
+    mk.ns = "minco_local_end";
+    mk.pose.orientation.w = 1.0;
+    if (has_vis_local_end_) {
+      mk.id = 0;
+      mk.type = visualization_msgs::msg::Marker::SPHERE;
+      mk.action = visualization_msgs::msg::Marker::ADD;
+      mk.pose.position.x = vis_local_end_.x();
+      mk.pose.position.y = vis_local_end_.y();
+      mk.pose.position.z = vis_local_end_.z() + 0.15;
+      mk.scale.x = 0.28;
+      mk.scale.y = 0.28;
+      mk.scale.z = 0.28;
+      mk.color.r = vis_local_end_is_goal_ ? 0.0f : 0.65f;
+      mk.color.g = vis_local_end_is_goal_ ? 1.0f : 0.0f;
+      mk.color.b = vis_local_end_is_goal_ ? 0.0f : 1.0f;
+      mk.color.a = 1.0f;
+      control_points_vis_pub_->publish(mk);
+
+      mk.id = 1;
+      mk.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+      mk.pose.position.z = vis_local_end_.z() + 0.55;
+      mk.scale.z = 0.25;
+      mk.text = vis_local_end_is_goal_ ? "GLOBAL GOAL" : "LOCAL END";
+      control_points_vis_pub_->publish(mk);
+    } else {
+      mk.action = visualization_msgs::msg::Marker::DELETE;
+      mk.id = 0;
+      control_points_vis_pub_->publish(mk);
+      mk.id = 1;
+      control_points_vis_pub_->publish(mk);
+    }
+  }
+
+  // 7. Pre-validation optimizer candidate path.
+  if (candidate_path_vis_pub_) {
+    nav_msgs::msg::Path path_msg;
+    path_msg.header = header;
+    if (has_vis_candidate_traj_ && vis_candidate_traj_.getTotalDuration() > 1e-3) {
+      const double t_step = 0.05;
+      const int steps =
+        static_cast<int>(std::ceil(vis_candidate_traj_.getTotalDuration() / t_step)) + 1;
+      path_msg = convertTrajectoryToPath(vis_candidate_traj_, header, steps, t_step);
+    }
+    candidate_path_vis_pub_->publish(path_msg);
+  }
+
+  // 8. Candidate validation status.
+  if (control_points_vis_pub_) {
+    visualization_msgs::msg::Marker mk;
+    mk.header = header;
+    mk.ns = "minco_candidate_status";
+    mk.id = 0;
+    mk.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+    mk.pose.orientation.w = 1.0;
+    if (has_vis_candidate_traj_ || (!vis_candidate_reason_.empty() && has_vis_local_end_)) {
+      const Eigen::Vector3d anchor =
+        has_vis_candidate_traj_ ? vis_candidate_traj_.getPos(0.0) : vis_local_end_;
+      mk.action = visualization_msgs::msg::Marker::ADD;
+      mk.pose.position.x = anchor.x();
+      mk.pose.position.y = anchor.y();
+      mk.pose.position.z = anchor.z() + 1.0;
+      mk.scale.z = 0.3;
+      mk.color.a = 1.0f;
+
+      const std::string status = vis_candidate_valid_ ? "VALID" : vis_candidate_reason_;
+      mk.text = "CANDIDATE: " + status;
+      if (status == "VALID") {
+        mk.color.g = 1.0f;
+      } else if (status == "COLLISION") {
+        mk.color.r = 1.0f;
+      } else if (status == "KINEMATIC_VIOLATION") {
+        mk.color.r = 1.0f;
+        mk.color.g = 1.0f;
+      } else {
+        mk.color.r = 1.0f;
+        mk.color.g = 0.5f;
+      }
+      control_points_vis_pub_->publish(mk);
+    } else {
+      mk.action = visualization_msgs::msg::Marker::DELETE;
+      control_points_vis_pub_->publish(mk);
+    }
   }
 }
 
