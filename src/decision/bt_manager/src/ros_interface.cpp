@@ -199,9 +199,20 @@ void ros_interface::teamInfoCallback(const ros_interfaces::msg::TeamInformation:
 void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::SharedPtr msg)
 {
   // 存储比赛基本信息
+  const int game_status = static_cast<int>(msg->game_status);
   blackboard_->set<int>("game_time_remaining", static_cast<int>(msg->game_time_remaining));
   blackboard_->set<int>("coin_remaining", static_cast<int>(msg->coin_remaining));
-  blackboard_->set<int>("game_status", static_cast<int>(msg->game_status));
+  blackboard_->set<int>("game_status", game_status);
+
+  // 检测"非比赛 -> 比赛开始"的边沿(game_status 变为 4),重置每局的强化姿态剩余时间。
+  // 多局时每局开始都会刷新回 15s 上限
+  static int last_game_status = -1;
+  if (game_status == 4 && last_game_status != 4) {
+    blackboard_->set<int>("enhanced_attack_remaining_sec", 15);
+    blackboard_->set<int>("enhanced_defend_remaining_sec", 15);
+    blackboard_->set<int>("enhanced_move_remaining_sec", 15);
+  }
+  last_game_status = game_status;
 
   // 解码event_code字段
   uint32_t event_code = msg->event_code;
@@ -245,8 +256,21 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
     blackboard_->set<bool>("enemy_outpost_destroyed", !enemy_outpost_destroyed);
     break;
   }
-  case 0:  // '0'键切换回自动模式
+  case 67:  // 'C'键进入强化攻击姿态,同时切入手动控制(保持到操作手切换其他姿态)
+    blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
+    blackboard_->set<Sentry_BT::SentryStance>(
+      "manual_override_stance", Sentry_BT::SentryStance::ENHANCED_ATTACK);
+    blackboard_->set<bool>("manual_stance_override_active", true);
+    break;
+  case 68:  // 'D'键进入强化防御姿态,同时切入手动控制(保持到操作手切换其他姿态)
+    blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
+    blackboard_->set<Sentry_BT::SentryStance>(
+      "manual_override_stance", Sentry_BT::SentryStance::ENHANCED_DEFEND);
+    blackboard_->set<bool>("manual_stance_override_active", true);
+    break;
+  case 0:  // '0'键切换回自动模式,同时解除强化姿态覆盖
     blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);
+    blackboard_->set<bool>("manual_stance_override_active", false);
     break;
   default:
     break;
@@ -357,9 +381,10 @@ void ros_interface::sentryOnlineCallback(const ros_interfaces::msg::SentryInfoOn
   uint8_t current_stance = (sentry_info_2 >> 12) & 0x3;
   // 提取bit 15：哨兵当前姿态是否处于强化状态
   bool current_stance_is_enhanced = ((sentry_info_2 >> 15) & 0x1) != 0;
+  blackboard_->set<bool>("current_stance_is_enhanced", current_stance_is_enhanced);
   if (current_stance_is_enhanced) {
     current_stance += 3;  // 强化状态对应的姿态ID为4-6
-  } 
+  }
   blackboard_->set<Sentry_BT::SentryStance>(
     "current_stance", static_cast<Sentry_BT::SentryStance>(current_stance));
 
