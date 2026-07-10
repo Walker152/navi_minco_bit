@@ -183,18 +183,21 @@ float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my
 
   const auto result = esdf_query_->query(Eigen::Vector3d(wx, wy, 0.0));
   if (!result.ok || !std::isfinite(result.distance)) {
+    esdf_cost_cache_[idx] = 0.0f;
+    esdf_cost_cache_id_[idx] = planning_id_;
     return 0.0f;
   }
 
   const double dist = std::max(0.0, result.distance);
 
-  // Potential field: higher cost near obstacles, decays with distance.
-  float cost = static_cast<float>(esdf_weight_ * std::exp(-dist / static_cast<double>(esdf_decay_)));
+  const float normalized_potential =
+    static_cast<float>(std::exp(-dist / static_cast<double>(esdf_decay_)));
+  float weighted_potential = esdf_weight_ * normalized_potential;
   if (esdf_max_cost_ > 0.0f) {
-    cost = std::min(cost, esdf_max_cost_);
+    weighted_potential = std::min(weighted_potential, esdf_max_cost_);
   }
 
-  esdf_cost_cache_[idx] = cost;
+  esdf_cost_cache_[idx] = weighted_potential;
   esdf_cost_cache_id_[idx] = planning_id_;
   return esdf_cost_cache_[idx];
 }
@@ -393,7 +396,7 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
 
       float tentative_g = g_current + step_cost * traversal_factor;
       if (use_esdf_cost_) {
-        tentative_g += getESDFPotentialCost(nx, ny);
+        tentative_g += step_cost * getESDFPotentialCost(nx, ny);
       }
 
       if (visited_[neighbor_i] != planning_id_ || tentative_g < g_score_[neighbor_i]) {

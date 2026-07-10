@@ -541,12 +541,6 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
 
     });
 
-  if (use_smac_ && smac_planner_) {
-    if (mode_context_ && mode_context_->globalQuery()) {
-      smac_planner_->setMap(mode_context_->globalQuery());
-    }
-  }
-
   visualizer_ = std::make_unique<Visualizer>();
   visualizer_->configure(parent, output_frame_);
 
