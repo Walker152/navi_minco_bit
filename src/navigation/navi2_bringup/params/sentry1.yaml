@@ -493,9 +493,9 @@ planner_server:
 
       smac_2d:
         use_esdf_cost: true
-        esdf_weight: 0.8
-        esdf_decay: 0.5
-        esdf_max_cost: 2.0
+        esdf_weight: 1.0
+        esdf_decay: 0.8
+        esdf_max_cost: 0.5
 
       minco_optimizer:
         opt_freq: 20.0
