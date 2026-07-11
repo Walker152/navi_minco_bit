@@ -377,6 +377,7 @@ void ROGMap::refreshLayers()
   layer_cfg.passable_as_free = cfg_.passable_as_free;
   layer_cfg.hysteresis_en = cfg_.layer_hysteresis_en;
   layer_cfg.hysteresis_count = cfg_.layer_hysteresis_count;
+  layer_cfg.obstacle_hold_time = cfg_.layer_obstacle_hold_time;
   layer_cfg.hole_fill_en = cfg_.layer_hole_fill_en;
   layer_cfg.hole_fill_radius = cfg_.layer_hole_fill_radius;
   layer_cfg.hole_fill_min_occupied_neighbors = cfg_.layer_hole_fill_min_occupied_neighbors;
@@ -478,7 +479,8 @@ void ROGMap::refreshLayers()
   ProjectionUpdateStats projection_stats;
   if (force_full_refresh || !cfg_.dirty_column_en) {
     const auto full_start = std::chrono::steady_clock::now();
-    layer_->updateFull(width, height, res, origin, layer_cfg, scanner, &projection_stats);
+    layer_->updateFull(
+      width, height, res, origin, current_update_time_, layer_cfg, scanner, &projection_stats);
     runtime_stats_.projection_update_full_time = elapsedMs(full_start);
     runtime_stats_.full_layer_refresh_count += 1.0;
     if (geometry_changed) {
@@ -495,7 +497,16 @@ void ROGMap::refreshLayers()
   } else if (has_dirty_update) {
     const auto dirty_start = std::chrono::steady_clock::now();
     layer_->updateDirty(
-      width, height, res, origin, layer_cfg, scanner, projection_dirty_columns, false, &projection_stats);
+      width,
+      height,
+      res,
+      origin,
+      current_update_time_,
+      layer_cfg,
+      scanner,
+      projection_dirty_columns,
+      false,
+      &projection_stats);
     runtime_stats_.projection_update_dirty_time = elapsedMs(dirty_start);
     runtime_stats_.dirty_layer_update_count += 1.0;
     runtime_stats_.projection_refresh_reason = "dirty_update";
@@ -534,10 +545,18 @@ void ROGMap::refreshLayers()
   runtime_stats_.projection_scanned_voxel_estimate =
     runtime_stats_.dirty_expanded_column_count * runtime_stats_.projection_z_layers;
 
-  const bool layer_updated = force_full_refresh || has_dirty_update;
+  const bool projection_scanned = force_full_refresh || has_dirty_update;
+  const bool time_clear_changed =
+    layer_->advanceObstacleClearance(current_update_time_, layer_cfg);
+  const bool layer_updated = projection_scanned || time_clear_changed;
   if (layer_updated) {
     ++projection_sequence_;
+  }
+  if (projection_scanned) {
     clearDirtyColumns();
+  }
+  if (!projection_scanned && time_clear_changed) {
+    runtime_stats_.projection_refresh_reason = "time_clear";
   }
 
   const auto & new_mask = layer_->mask();

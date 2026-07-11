@@ -168,17 +168,19 @@ void ProjectionLayer::update(int width,
   int height,
   double resolution,
   const Eigen::Vector2d & origin,
+  double now,
   const ProjectionLayerConfig & config,
   const ColumnScanner & scanner,
   ProjectionUpdateStats * stats)
 {
-  updateFull(width, height, resolution, origin, config, scanner, stats);
+  updateFull(width, height, resolution, origin, now, config, scanner, stats);
 }
 
 void ProjectionLayer::updateFull(int width,
   int height,
   double resolution,
   const Eigen::Vector2d & origin,
+  double now,
   const ProjectionLayerConfig & config,
   const ColumnScanner & scanner,
   ProjectionUpdateStats * stats)
@@ -209,7 +211,7 @@ void ProjectionLayer::updateFull(int width,
 
   for (int y = 0; y < height_; ++y) {
     for (int x = 0; x < width_; ++x) {
-      updateOneCell(x, y, config, scanner);
+      updateOneCell(x, y, now, config, scanner);
     }
   }
 
@@ -234,6 +236,7 @@ void ProjectionLayer::updateDirty(int width,
   int height,
   double resolution,
   const Eigen::Vector2d & origin,
+  double now,
   const ProjectionLayerConfig & config,
   const ColumnScanner & scanner,
   const std::vector<int> & dirty_columns,
@@ -243,7 +246,7 @@ void ProjectionLayer::updateDirty(int width,
   const auto dirty_start = std::chrono::steady_clock::now();
   const bool geometry_changed = !matchesGeometry(width, height, resolution, origin);
   if (force_full_refresh || geometry_changed || cells_.empty()) {
-    updateFull(width, height, resolution, origin, config, scanner, stats);
+    updateFull(width, height, resolution, origin, now, config, scanner, stats);
     return;
   }
 
@@ -285,7 +288,7 @@ void ProjectionLayer::updateDirty(int width,
   }
 
   for (const int idx_int : expanded) {
-    updateOneCell(idx_int % width_, idx_int / width_, config, scanner);
+    updateOneCell(idx_int % width_, idx_int / width_, now, config, scanner);
   }
 
   rebuildViews(config);
@@ -373,7 +376,7 @@ void ProjectionLayer::collectClassificationStats(
 }
 
 void ProjectionLayer::updateOneCell(
-  int x, int y, const ProjectionLayerConfig & config, const ColumnScanner & scanner)
+  int x, int y, double now, const ProjectionLayerConfig & config, const ColumnScanner & scanner)
 {
   const ColumnStats stats = scanner(x, y);
   const int hash_id = hashIndexFromLocal(x, y);
@@ -388,9 +391,64 @@ void ProjectionLayer::updateOneCell(
   cell.pending_type = previous.pending_type;
   cell.pending_count = previous.pending_count;
   cell.stable_count = previous.stable_count;
-  cell.type = applyHysteresis(cell, raw_type, config);
+  cell.occupied_clear_deadline = previous.occupied_clear_deadline;
+
+  const bool hold_active = previous.occupied_clear_deadline > 0.0;
+  if (raw_type == CellType::OCCUPIED) {
+    cell.type = CellType::OCCUPIED;
+    cell.occupied_clear_deadline = 0.0;
+    cell.pending_type = CellType::OCCUPIED;
+    cell.pending_count = 0U;
+    cell.stable_count = static_cast<uint8_t>(std::min<int>(255, previous.stable_count + 1));
+  } else if (config.obstacle_hold_time > 0.0 &&
+             (previous.raw_type == CellType::OCCUPIED || hold_active)) {
+    if (!hold_active) {
+      cell.occupied_clear_deadline = now + config.obstacle_hold_time;
+    }
+    if (now < cell.occupied_clear_deadline) {
+      cell.type = CellType::OCCUPIED;
+      cell.pending_type = raw_type;
+      cell.pending_count = 0U;
+    } else {
+      cell.type = raw_type;
+      cell.occupied_clear_deadline = 0.0;
+      cell.pending_type = raw_type;
+      cell.pending_count = 0U;
+      cell.stable_count = 0U;
+      cell.hole_filled = false;
+    }
+  } else {
+    cell.occupied_clear_deadline = 0.0;
+    cell.type = applyHysteresis(cell, raw_type, config);
+  }
   applyValueAndMask(cell, config);
   cell_buffer_[static_cast<size_t>(hash_id)] = cell;
+}
+
+bool ProjectionLayer::advanceObstacleClearance(
+  double now, const ProjectionLayerConfig & config)
+{
+  bool changed = false;
+  for (auto & cell : cell_buffer_) {
+    if (cell.occupied_clear_deadline <= 0.0 || now < cell.occupied_clear_deadline) {
+      continue;
+    }
+    cell.occupied_clear_deadline = 0.0;
+    if (cell.raw_type == CellType::OCCUPIED || cell.type != CellType::OCCUPIED) {
+      continue;
+    }
+    cell.type = cell.raw_type;
+    cell.pending_type = cell.raw_type;
+    cell.pending_count = 0U;
+    cell.stable_count = 0U;
+    cell.hole_filled = false;
+    applyValueAndMask(cell, config);
+    changed = true;
+  }
+  if (changed) {
+    rebuildViews(config);
+  }
+  return changed;
 }
 
 CellType ProjectionLayer::applyHysteresis(

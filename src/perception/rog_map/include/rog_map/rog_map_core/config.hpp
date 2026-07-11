@@ -235,6 +235,7 @@ public:
     passable_as_free = true;
     layer_hysteresis_en = true;
     layer_hysteresis_count = 2;
+    layer_obstacle_hold_time = 0.0;
     layer_hole_fill_en = true;
     layer_hole_fill_radius = 1;
     layer_hole_fill_min_occupied_neighbors = 5;
@@ -253,6 +254,8 @@ public:
     load("projection.passable_as_free", passable_as_free);
     load("projection.hysteresis_enable", layer_hysteresis_en);
     load("projection.hysteresis_count", layer_hysteresis_count);
+    load("projection.obstacle_hold_time", layer_obstacle_hold_time);
+    layer_obstacle_hold_time = std::max(0.0, layer_obstacle_hold_time);
     load("projection.hole_fill_enable", layer_hole_fill_en);
     load("projection.hole_fill_radius", layer_hole_fill_radius);
     load("projection.hole_fill_min_occupied_neighbors", layer_hole_fill_min_occupied_neighbors);
@@ -481,6 +484,7 @@ public:
   int passable_cost{50};
   bool layer_hysteresis_en{true};
   int layer_hysteresis_count{2};
+  double layer_obstacle_hold_time{0.0};
   bool layer_hole_fill_en{true};
   int layer_hole_fill_radius{1};
   int layer_hole_fill_min_occupied_neighbors{5};
