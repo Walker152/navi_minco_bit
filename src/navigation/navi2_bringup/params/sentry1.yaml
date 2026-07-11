@@ -475,7 +475,7 @@ planner_server:
           # [performance][Hz] 性能摘要和 summary CSV 频率。
           summary_rate: 1.0
           # [performance][bool] 是否启用 dirty column 增量刷新；开启可减少 projection/field 全量刷新计算量。
-          dirty_column_enable: false
+          dirty_column_enable: true
           # [performance][比例] dirty column 超过地图总列数比例时转全量刷新；调低更常全量，调高更依赖增量更新。
           dirty_full_ratio: 0.30
           # [performance/raycasting][bool] 并行 raycast 开关；代码后加载该值，会覆盖 raycasting.parallel_enable。
