@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <stdexcept>
 
 namespace rog_map {
 
@@ -79,6 +80,90 @@ CellType classifyCell(
 
 }  // namespace
 
+ProjectionSlideResult ProjectionLayer::syncSlidingWindow(int width,
+  int height,
+  double resolution,
+  const Eigen::Vector2i & min_id,
+  const Eigen::Vector2d & origin,
+  const ProjectionLayerConfig & config)
+{
+  if (width <= 0 || height <= 0 || resolution <= 0.0 || width % 2 == 0 || height % 2 == 0) {
+    throw std::invalid_argument(
+      "ProjectionLayer sliding window requires positive odd dimensions and resolution");
+  }
+
+  ProjectionSlideResult result;
+  current_config_ = config;
+  const Vec3i half_size(width / 2, height / 2, 0);
+  const Vec3i center_id(min_id.x() + half_size.x(), min_id.y() + half_size.y(), 0);
+  Vec3f center_pos;
+
+  if (!initialized_) {
+    width_ = width;
+    height_ = height;
+    resolution_ = resolution;
+    origin_ = origin;
+    cell_buffer_.assign(static_cast<size_t>(width_) * static_cast<size_t>(height_), CellData{});
+    cells_.assign(cell_buffer_.size(), CellData{});
+    values_.assign(cell_buffer_.size(), 255U);
+    mask_.assign(cell_buffer_.size(), config.unknown_as_occupied ? 0U : 1U);
+    initSlidingMap(half_size, resolution, true, 0.0, Vec3f::Zero());
+    globalIndexToPos(center_id, center_pos);
+    updateLocalMapOriginAndBound(center_pos, center_id);
+    initialized_ = true;
+    resetLocalMap();
+    result.full_refresh_required = true;
+    result.dirty_columns.resize(cell_buffer_.size());
+    for (size_t i = 0; i < result.dirty_columns.size(); ++i) {
+      result.dirty_columns[i] = static_cast<int>(i);
+    }
+    rebuildViews(config);
+    return result;
+  }
+
+  if (width_ != width || height_ != height || std::abs(resolution_ - resolution) > 1.0e-9 ||
+      (sc_.map_size_i - Vec3i(width, height, 1)).cwiseAbs().maxCoeff() != 0 ||
+      cell_buffer_.size() != static_cast<size_t>(width) * static_cast<size_t>(height)) {
+    throw std::invalid_argument(
+      "ProjectionLayer sliding storage geometry cannot change after initialization");
+  }
+
+  const Vec3i shift = center_id - local_map_origin_i_;
+  result.window_moved = shift.x() != 0 || shift.y() != 0;
+  result.full_refresh_required = std::abs(shift.x()) >= width_ || std::abs(shift.y()) >= height_;
+  slide_dirty_hash_ids_.clear();
+  globalIndexToPos(center_id, center_pos);
+  SlidingMap::mapSliding(center_pos);
+  origin_ = origin;
+
+  std::vector<uint8_t> dirty_flags(cell_buffer_.size(), 0U);
+  for (const int hash_id : slide_dirty_hash_ids_) {
+    if (hash_id < 0 || hash_id >= static_cast<int>(cell_buffer_.size())) {
+      continue;
+    }
+    Vec3i global_id;
+    hashIdToGlobalIndex(hash_id, global_id);
+    const int x = global_id.x() - local_map_bound_min_i_.x();
+    const int y = global_id.y() - local_map_bound_min_i_.y();
+    if (x < 0 || y < 0 || x >= width_ || y >= height_) {
+      continue;
+    }
+    const int view_id = y * width_ + x;
+    if (!dirty_flags[static_cast<size_t>(view_id)]) {
+      dirty_flags[static_cast<size_t>(view_id)] = 1U;
+      result.dirty_columns.push_back(view_id);
+    }
+  }
+  if (result.full_refresh_required && result.dirty_columns.size() != cell_buffer_.size()) {
+    result.dirty_columns.resize(cell_buffer_.size());
+    for (size_t i = 0; i < result.dirty_columns.size(); ++i) {
+      result.dirty_columns[i] = static_cast<int>(i);
+    }
+  }
+  rebuildViews(config);
+  return result;
+}
+
 void ProjectionLayer::update(int width,
   int height,
   double resolution,
@@ -112,31 +197,23 @@ void ProjectionLayer::updateFull(int width,
     return;
   }
 
-  const size_t expected = static_cast<size_t>(width) * static_cast<size_t>(height);
-  const bool geometry_changed = width_ != width || height_ != height ||
-                                std::abs(resolution_ - resolution) > 1.0e-9 ||
-                                (origin_ - origin).norm() > 1.0e-9 || cells_.size() != expected;
-
-  width_ = width;
-  height_ = height;
-  resolution_ = resolution;
-  origin_ = origin;
-
-  std::vector<CellData> previous;
-  if (!geometry_changed) {
-    previous = cells_;
+  if (!initialized_) {
+    const Eigen::Vector2i min_id(static_cast<int>(std::llround(origin.x() / resolution)),
+      static_cast<int>(std::llround(origin.y() / resolution)));
+    syncSlidingWindow(width, height, resolution, min_id, origin, config);
   }
-
-  cells_.assign(expected, CellData{});
-  values_.assign(expected, 255U);
-  mask_.assign(expected, config.unknown_as_occupied ? 0U : 1U);
+  if (!matchesGeometry(width, height, resolution, origin)) {
+    throw std::invalid_argument("ProjectionLayer::updateFull called with unsynchronized geometry");
+  }
+  current_config_ = config;
 
   for (int y = 0; y < height_; ++y) {
     for (int x = 0; x < width_; ++x) {
-      const size_t idx = static_cast<size_t>(y) * static_cast<size_t>(width_) + static_cast<size_t>(x);
-      updateOneCell(idx, x, y, config, scanner, previous);
+      updateOneCell(x, y, config, scanner);
     }
   }
+
+  rebuildViews(config);
 
   const auto hole_start = std::chrono::steady_clock::now();
   applyHoleFill(config, nullptr);
@@ -145,11 +222,7 @@ void ProjectionLayer::updateFull(int width,
   }
 
   const auto value_start = std::chrono::steady_clock::now();
-  for (size_t idx = 0; idx < cells_.size(); ++idx) {
-    applyValueAndMask(cells_[idx], config);
-    values_[idx] = cells_[idx].value;
-    mask_[idx] = cells_[idx].mask;
-  }
+  rebuildViews(config);
   if (stats) {
     stats->value_mask_time_ms += elapsedMs(value_start);
     stats->update_full_time_ms += elapsedMs(full_start);
@@ -173,6 +246,8 @@ void ProjectionLayer::updateDirty(int width,
     updateFull(width, height, resolution, origin, config, scanner, stats);
     return;
   }
+
+  current_config_ = config;
   if (dirty_columns.empty()) {
     if (stats) {
       stats->update_dirty_time_ms += elapsedMs(dirty_start);
@@ -209,11 +284,11 @@ void ProjectionLayer::updateDirty(int width,
     }
   }
 
-  const auto previous = cells_;
   for (const int idx_int : expanded) {
-    const size_t idx = static_cast<size_t>(idx_int);
-    updateOneCell(idx, idx_int % width_, idx_int / width_, config, scanner, previous);
+    updateOneCell(idx_int % width_, idx_int / width_, config, scanner);
   }
+
+  rebuildViews(config);
 
   const auto hole_start = std::chrono::steady_clock::now();
   applyHoleFill(config, &update_mask);
@@ -222,12 +297,7 @@ void ProjectionLayer::updateDirty(int width,
   }
 
   const auto value_start = std::chrono::steady_clock::now();
-  for (const int idx_int : expanded) {
-    const size_t idx = static_cast<size_t>(idx_int);
-    applyValueAndMask(cells_[idx], config);
-    values_[idx] = cells_[idx].value;
-    mask_[idx] = cells_[idx].mask;
-  }
+  rebuildViews(config);
   if (stats) {
     stats->value_mask_time_ms += elapsedMs(value_start);
     stats->update_dirty_time_ms += elapsedMs(dirty_start);
@@ -302,41 +372,31 @@ void ProjectionLayer::collectClassificationStats(
   }
 }
 
-void ProjectionLayer::updateOneCell(size_t idx,
-  int x,
-  int y,
-  const ProjectionLayerConfig & config,
-  const ColumnScanner & scanner,
-  const std::vector<CellData> & previous)
+void ProjectionLayer::updateOneCell(
+  int x, int y, const ProjectionLayerConfig & config, const ColumnScanner & scanner)
 {
   const ColumnStats stats = scanner(x, y);
+  const int hash_id = hashIndexFromLocal(x, y);
+  const CellData previous = cell_buffer_[static_cast<size_t>(hash_id)];
 
   CellData cell;
   cell.last_hit_time = static_cast<float>(stats.last_hit_time);
   cell.last_update_time = static_cast<float>(stats.last_update_time);
   const CellType raw_type = classifyCell(stats, cell, config, resolution_);
   cell.raw_type = raw_type;
-  if (!previous.empty() && idx < previous.size()) {
-    cell.type = previous[idx].type;
-    cell.pending_type = previous[idx].pending_type;
-    cell.pending_count = previous[idx].pending_count;
-    cell.stable_count = previous[idx].stable_count;
-  } else {
-    cell.type = raw_type;
-    cell.pending_type = raw_type;
-  }
-  cells_[idx] = cell;
-  cells_[idx].type = applyHysteresis(idx, raw_type, config);
-  applyValueAndMask(cells_[idx], config);
-  values_[idx] = cells_[idx].value;
-  mask_[idx] = cells_[idx].mask;
+  cell.type = previous.type;
+  cell.pending_type = previous.pending_type;
+  cell.pending_count = previous.pending_count;
+  cell.stable_count = previous.stable_count;
+  cell.type = applyHysteresis(cell, raw_type, config);
+  applyValueAndMask(cell, config);
+  cell_buffer_[static_cast<size_t>(hash_id)] = cell;
 }
 
 CellType ProjectionLayer::applyHysteresis(
-  size_t idx, CellType raw_type, const ProjectionLayerConfig & config)
+  CellData & cell, CellType raw_type, const ProjectionLayerConfig & config)
 {
   // OCCUPIED enters immediately; clearing to FREE/PASSABLE waits for repeated confirmation.
-  CellData & cell = cells_[idx];
   if (!config.hysteresis_en || config.hysteresis_count <= 0 || cell.type == CellType::UNKNOWN ||
       raw_type == CellType::OCCUPIED) {
     cell.type = raw_type;
@@ -415,12 +475,62 @@ void ProjectionLayer::applyHoleFill(
         }
       }
       if (occupied_neighbors >= config.hole_fill_min_occupied_neighbors) {
-        cells_[idx].type = CellType::OCCUPIED;
-        cells_[idx].hole_filled = true;
-        cells_[idx].traversable = 0U;
+        const int hash_id = hashIndexFromLocal(x, y);
+        CellData & cell = cell_buffer_[static_cast<size_t>(hash_id)];
+        cell.type = CellType::OCCUPIED;
+        cell.hole_filled = true;
+        cell.traversable = 0U;
+        applyValueAndMask(cell, config);
       }
     }
   }
+}
+
+void ProjectionLayer::rebuildViews(const ProjectionLayerConfig & config)
+{
+  const size_t expected =
+    static_cast<size_t>(std::max(0, width_)) * static_cast<size_t>(std::max(0, height_));
+  cells_.resize(expected);
+  values_.resize(expected);
+  mask_.resize(expected);
+  for (int y = 0; y < height_; ++y) {
+    for (int x = 0; x < width_; ++x) {
+      const size_t view_id = static_cast<size_t>(y) * static_cast<size_t>(width_) + static_cast<size_t>(x);
+      CellData & stored = cell_buffer_[static_cast<size_t>(hashIndexFromLocal(x, y))];
+      applyValueAndMask(stored, config);
+      cells_[view_id] = stored;
+      values_[view_id] = stored.value;
+      mask_[view_id] = stored.mask;
+    }
+  }
+}
+
+int ProjectionLayer::hashIndexFromLocal(int x, int y) const
+{
+  const Vec3i global_id(local_map_bound_min_i_.x() + x, local_map_bound_min_i_.y() + y, 0);
+  return SlidingMap::getHashIndexFromGlobalIndex(global_id);
+}
+
+void ProjectionLayer::resetLocalMap()
+{
+  slide_dirty_hash_ids_.clear();
+  for (size_t i = 0; i < cell_buffer_.size(); ++i) {
+    CellData cell;
+    applyValueAndMask(cell, current_config_);
+    cell_buffer_[i] = cell;
+    slide_dirty_hash_ids_.push_back(static_cast<int>(i));
+  }
+}
+
+void ProjectionLayer::resetCell(const int & hash_id)
+{
+  if (hash_id < 0 || hash_id >= static_cast<int>(cell_buffer_.size())) {
+    return;
+  }
+  CellData cell;
+  applyValueAndMask(cell, current_config_);
+  cell_buffer_[static_cast<size_t>(hash_id)] = cell;
+  slide_dirty_hash_ids_.push_back(hash_id);
 }
 
 }  // namespace rog_map

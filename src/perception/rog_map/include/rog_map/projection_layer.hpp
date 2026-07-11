@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <rog_map/rog_map_core/common_lib.hpp>
+#include <rog_map/rog_map_core/sliding_map.h>
 
 namespace rog_map {
 
@@ -95,10 +96,24 @@ struct ProjectionUpdateStats
   double insufficient_observation_count{0.0};
 };
 
-class ProjectionLayer
+struct ProjectionSlideResult
+{
+  bool window_moved{false};
+  bool full_refresh_required{false};
+  std::vector<int> dirty_columns;
+};
+
+class ProjectionLayer : protected SlidingMap
 {
 public:
   using ColumnScanner = std::function<ColumnStats(int gx, int gy)>;
+
+  ProjectionSlideResult syncSlidingWindow(int width,
+    int height,
+    double resolution,
+    const Eigen::Vector2i & min_id,
+    const Eigen::Vector2d & origin,
+    const ProjectionLayerConfig & config);
 
   void update(int width,
     int height,
@@ -137,19 +152,19 @@ public:
   const std::vector<uint8_t> & values() const { return values_; }
   const std::vector<uint8_t> & mask() const { return mask_; }
   bool empty() const { return values_.empty(); }
+  size_t storageCapacity() const { return cell_buffer_.size(); }
 
 private:
   static void applyValueAndMask(CellData & cell, const ProjectionLayerConfig & config);
   static void collectClassificationStats(
     const std::vector<CellData> & cells, ProjectionUpdateStats * stats);
-  CellType applyHysteresis(size_t idx, CellType raw_type, const ProjectionLayerConfig & config);
-  void updateOneCell(size_t idx,
-    int x,
-    int y,
-    const ProjectionLayerConfig & config,
-    const ColumnScanner & scanner,
-    const std::vector<CellData> & previous);
+  CellType applyHysteresis(CellData & cell, CellType raw_type, const ProjectionLayerConfig & config);
+  void updateOneCell(int x, int y, const ProjectionLayerConfig & config, const ColumnScanner & scanner);
   void applyHoleFill(const ProjectionLayerConfig & config, const std::vector<uint8_t> * update_mask);
+  void rebuildViews(const ProjectionLayerConfig & config);
+  int hashIndexFromLocal(int x, int y) const;
+  void resetLocalMap() override;
+  void resetCell(const int & hash_id) override;
 
   int width_{0};
   int height_{0};
@@ -158,6 +173,10 @@ private:
   std::vector<CellData> cells_;
   std::vector<uint8_t> values_;
   std::vector<uint8_t> mask_;
+  std::vector<CellData> cell_buffer_;
+  std::vector<int> slide_dirty_hash_ids_;
+  ProjectionLayerConfig current_config_;
+  bool initialized_{false};
 };
 
 }  // namespace rog_map
