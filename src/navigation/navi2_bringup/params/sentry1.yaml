@@ -321,6 +321,8 @@ planner_server:
       use_smac: true
       allow_unknown: false
       odom_topic: /aft_mapped_to_init
+      lidar_offset_x: 0.0
+      lidar_offset_y: -0.20
       performance:
         enable: true
         print_enable: true
