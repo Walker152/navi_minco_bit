@@ -336,6 +336,13 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     node, prefix + "allow_unknown", rclcpp::ParameterValue(true));
   node->get_parameter(prefix + "allow_unknown", allow_unknown_);
 
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "lidar_offset_x", rclcpp::ParameterValue(0.0));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "lidar_offset_y", rclcpp::ParameterValue(-0.2));
+  node->get_parameter(prefix + "lidar_offset_x", lidar_offset_x_);
+  node->get_parameter(prefix + "lidar_offset_y", lidar_offset_y_);
+
   // Odometry topic
   std::string odom_topic = "/odom";
   nav2_util::declare_parameter_if_not_declared(
@@ -1933,7 +1940,15 @@ Eigen::Vector3d MincoPlanner::getCurrentSpeed() const
     double vy_global = 0.0;
     double omega_global = 0.0;
     utils::compensateLeverArm(
-      twist.linear.x, twist.linear.y, twist.angular.z, yaw, vx_global, vy_global, omega_global);
+      twist.linear.x,
+      twist.linear.y,
+      twist.angular.z,
+      yaw,
+      lidar_offset_x_,
+      lidar_offset_y_,
+      vx_global,
+      vy_global,
+      omega_global);
 
     // std::cout << "[MincoPlanner] Lever-arm compensation: raw_v=(" << twist.linear.x << ", "
     //           << twist.linear.y << ") wz=" << twist.angular.z << " yaw=" << yaw << " -> v=("

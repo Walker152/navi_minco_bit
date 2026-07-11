@@ -104,6 +104,8 @@ void compensateLeverArm(double v_lidar_x,
   double v_lidar_y,
   double omega_z,
   double yaw,
+  double lidar_offset_x,
+  double lidar_offset_y,
   double & vx_global,
   double & vy_global,
   double & omega_global);
