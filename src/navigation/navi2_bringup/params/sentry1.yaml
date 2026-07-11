@@ -442,6 +442,8 @@ planner_server:
 
           hysteresis_enable: true
           hysteresis_count: 2
+          # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
+          obstacle_hold_time: 3.0
 
           hole_fill_enable: false
           hole_fill_radius: 1
