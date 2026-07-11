@@ -114,9 +114,11 @@ public:
     blackboard_->set<int>("normal_attack_remaining_sec", 180);      // 普通攻击剩余强化时间
     blackboard_->set<int>("normal_defend_remaining_sec", 180);      // 普通防御剩余强化时间
     blackboard_->set<int>("normal_move_remaining_sec", 180);        // 普通移动剩余强化时间
-    blackboard_->set<int>("enhanced_attack_remaining_sec", 15);    // 强化攻击剩余可用时间(秒),每局上限15s
-    blackboard_->set<int>("enhanced_defend_remaining_sec", 15);    // 强化防御剩余可用时间(秒),每局上限15s
-    blackboard_->set<int>("enhanced_move_remaining_sec", 15);      // 强化移动剩余可用时间(秒),每局上限15s
+    // 强化姿态剩余可用时间:由裁判系统 SentryInfoOnline(sentry_info_3)实时下发真值,
+    // 此处仅给开局(首帧消息到达前)的安全初值,避免读取未初始化键;真值到达后即被覆盖。
+    blackboard_->set<int>("enhanced_attack_remaining_time", 15);   // 强化攻击剩余可用时间(秒)
+    blackboard_->set<int>("enhanced_defend_remaining_time", 15);   // 强化防御剩余可用时间(秒)
+    blackboard_->set<int>("enhanced_move_remaining_time", 15);     // 强化移动剩余可用时间(秒)
     blackboard_->set<bool>("current_stance_is_enhanced", false);  // 当前姿态是否处于强化状态
     blackboard_->set<bool>("current_stance_is_weakened", false);  // 当前姿态是否处于削弱状态
     blackboard_->set<EnergyRatio>("energy_ratio", EnergyRatio::ABOVE_100);  // 底盘当前剩余能量

@@ -5,6 +5,42 @@
 
 using namespace color_text;
 namespace Sentry_BT {
+namespace {
+std::string stanceToString(SentryStance stance)
+{
+  const auto index = static_cast<size_t>(stance);
+  if (index >= 1 && index <= stance_names.size()) {
+    return stance_names[index - 1];
+  }
+  return "UNKNOWN(" + std::to_string(static_cast<int>(stance)) + ")";
+}
+
+bool isLegalStance(SentryStance stance)
+{
+  const int value = static_cast<int>(stance);
+  return value >= 1 && value <= 6;
+}
+
+// 统一的 ChangeStance 状态日志:
+// - 非法 current_stance:借 logTransition 的 active 去重实现边沿日志(进入/退出各一条,中间沉默)。
+// - 合法时:打"到位(reached)"或"切换中(from->to)",同样靠 active 去重仅在翻转时输出。
+// node_name 用节点实例名,使各 ChangeStance 分支独立去重、互不干扰。
+void logStanceState(const std::string & node_name, SentryStance current, SentryStance desired)
+{
+  const bool illegal = !isLegalStance(current);
+  detail::logTransition(detail::TreeKind::STANCE, node_name + " illegal_current_stance", illegal,
+    "current=" + stanceToString(current), "");
+  if (illegal) {
+    return;  // 非法期间不打正常到位/切换日志,避免 UNKNOWN 噪声
+  }
+  const bool reached = (current == desired);
+  detail::logTransition(detail::TreeKind::STANCE, node_name, reached,
+    reached ? ("stance=" + stanceToString(desired) + ", reached")
+            : ("from=" + stanceToString(current) + " to=" + stanceToString(desired)),
+    "");
+}
+}  // namespace
+
 std::chrono::time_point<std::chrono::system_clock> ChangeStance::last_change_time_ =
   std::chrono::time_point<std::chrono::system_clock>::min();
 
@@ -319,6 +355,7 @@ BT::NodeStatus ChangeStance::onStart()
   current_stance_ = blackboard->get<SentryStance>("current_stance");
 
   if (current_stance_ == desired_stance_) {
+    logStanceState(name(), current_stance_, desired_stance_);
     blackboard->set<SentryStance>("desired_stance", desired_stance_);
     return BT::NodeStatus::SUCCESS;
   }
@@ -336,14 +373,6 @@ void ChangeStance::onHalted()
 
 BT::NodeStatus ChangeStance::applyStanceChange()
 {
-  auto stance_to_string = [](SentryStance stance) -> std::string {
-    const auto index = static_cast<size_t>(stance);
-    if (index >= 1 && index <= stance_names.size()) {
-      return stance_names[index - 1];
-    }
-    return "UNKNOWN(" + std::to_string(static_cast<int>(stance)) + ")";
-  };
-
   auto blackboard = config().blackboard;
   const auto energy_ratio = blackboard->get<EnergyRatio>("energy_ratio");
   if (energy_ratio == EnergyRatio::BELOW_1) {
@@ -351,14 +380,11 @@ BT::NodeStatus ChangeStance::applyStanceChange()
   }
   current_stance_ = blackboard->get<SentryStance>("current_stance");
   blackboard->set<SentryStance>("desired_stance", desired_stance_);
+  logStanceState(name(), current_stance_, desired_stance_);
   if (current_stance_ == desired_stance_) {
     return BT::NodeStatus::SUCCESS;
   }
 
-  // blackboard->set<SentryStance>("current_stance", desired_stance_);
-  // std::cout << MAGENTA << "[STANCE_TREE]" << GREEN << "Change from stance "
-  //           << stance_to_string(current_stance_) << " to stance " << stance_to_string(desired_stance_)
-  //           << RESET << std::endl;
   last_change_time_ = std::chrono::system_clock::now();
   return BT::NodeStatus::SUCCESS;
 }
@@ -402,30 +428,10 @@ BT::NodeStatus UpdateStanceDuration::tick()
   }
 
   const double delta = static_cast<double>(raw_delta);
-  const int int_delta = raw_delta;
   const auto current_stance = blackboard->get<SentryStance>("current_stance");
 
-  // 强化姿态下递减对应强化姿态的剩余可用时间(每局各 15s 上限)。
-  // 仅统计剩余时间
-  switch (current_stance) {
-  case SentryStance::ENHANCED_ATTACK: {
-    const int remaining = blackboard->get<int>("enhanced_attack_remaining_sec");
-    blackboard->set("enhanced_attack_remaining_sec", std::max(0, remaining - int_delta));
-    break;
-  }
-  case SentryStance::ENHANCED_DEFEND: {
-    const int remaining = blackboard->get<int>("enhanced_defend_remaining_sec");
-    blackboard->set("enhanced_defend_remaining_sec", std::max(0, remaining - int_delta));
-    break;
-  }
-  case SentryStance::ENHANCED_MOVE: {
-    const int remaining = blackboard->get<int>("enhanced_move_remaining_sec");
-    blackboard->set("enhanced_move_remaining_sec", std::max(0, remaining - int_delta));
-    break;
-  }
-  default:
-    break;
-  }
+  // 注:强化姿态剩余可用时间已改用裁判系统下发真值(enhanced_*_remaining_time,见 ros_interface),
+  // 不再在此本地递减估算。
 
   // 累计各姿态停留时长(用于效果下降判定)。强化态也计入对应的普通姿态桶,
   // 因为效果下降按"处于某姿态"累计,不区分是否强化。
@@ -478,9 +484,8 @@ BT::NodeStatus ApplyManualStanceOverride::tick()
 
   const auto override_stance = blackboard->get<SentryStance>("manual_override_stance");
 
-  // 注:过隧道让位的判断已上移到行为树(Inverter + CheckCrossZoneTransition),此处不再处理。
 
-  // 能量不足时无法真正进入强化姿态,保持自动决策结果(可能已被降级为 MOVE)。
+  // 能量不足时无法真正进入强化姿态,保持为 MOVE
   const auto energy_ratio = blackboard->get<EnergyRatio>("energy_ratio");
   if (energy_ratio == EnergyRatio::BELOW_1) {
     return BT::NodeStatus::SUCCESS;
@@ -490,13 +495,13 @@ BT::NodeStatus ApplyManualStanceOverride::tick()
   int remaining_sec = 0;
   switch (override_stance) {
   case SentryStance::ENHANCED_ATTACK:
-    remaining_sec = blackboard->get<int>("enhanced_attack_remaining_sec");
+    remaining_sec = blackboard->get<int>("enhanced_attack_remaining_time");
     break;
   case SentryStance::ENHANCED_DEFEND:
-    remaining_sec = blackboard->get<int>("enhanced_defend_remaining_sec");
+    remaining_sec = blackboard->get<int>("enhanced_defend_remaining_time");
     break;
   case SentryStance::ENHANCED_MOVE:
-    remaining_sec = blackboard->get<int>("enhanced_move_remaining_sec");
+    remaining_sec = blackboard->get<int>("enhanced_move_remaining_time");
     break;
   default:
     // 覆盖姿态不是强化姿态,保持自动结果。
