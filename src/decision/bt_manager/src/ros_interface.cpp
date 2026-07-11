@@ -264,7 +264,6 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   default:
     break;
   }
-  std::cout << "Received manual_key: " << static_cast<int>(msg->manual_key) << std::endl;
 }
 
 // 新增：雷达信息回调函数
