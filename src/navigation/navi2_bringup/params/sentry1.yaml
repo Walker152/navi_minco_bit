@@ -321,6 +321,8 @@ planner_server:
       use_smac: true
       allow_unknown: false
       odom_topic: /aft_mapped_to_init
+      lidar_offset_x: 0.0
+      lidar_offset_y: -0.20
       performance:
         enable: true
         print_enable: true
@@ -440,6 +442,8 @@ planner_server:
 
           hysteresis_enable: true
           hysteresis_count: 2
+          # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
+          obstacle_hold_time: 3.0
 
           hole_fill_enable: true
           hole_fill_radius: 1
@@ -473,7 +477,7 @@ planner_server:
           # [performance][Hz] 性能摘要和 summary CSV 频率。
           summary_rate: 1.0
           # [performance][bool] 是否启用 dirty column 增量刷新；开启可减少 projection/field 全量刷新计算量。
-          dirty_column_enable: false
+          dirty_column_enable: true
           # [performance][比例] dirty column 超过地图总列数比例时转全量刷新；调低更常全量，调高更依赖增量更新。
           dirty_full_ratio: 0.30
           # [performance/raycasting][bool] 并行 raycast 开关；代码后加载该值，会覆盖 raycasting.parallel_enable。
@@ -493,9 +497,10 @@ planner_server:
 
       smac_2d:
         use_esdf_cost: true
-        esdf_weight: 0.5
-        esdf_decay: 0.5
-        esdf_max_cost: 1.0
+        esdf_weight: 1.0
+        esdf_decay: 0.8
+        esdf_max_cost: 0.5
+
       minco_optimizer:
         opt_freq: 20.0
         traj_goal_tolerance: 0.3

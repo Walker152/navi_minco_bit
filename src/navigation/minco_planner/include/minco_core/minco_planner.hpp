@@ -169,6 +169,8 @@ private:
   double priormap_rog_boundary_sample_step_{0.1};
   double exploration_boundary_margin_{0.8};
   double exploration_boundary_sample_step_{0.1};
+  double lidar_offset_x_{0.0};
+  double lidar_offset_y_{-0.2};
   double opt_freq_;
   double lookahead_dist_;
   double traj_goal_tolerance_{0.5};
