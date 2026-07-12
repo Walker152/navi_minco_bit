@@ -310,7 +310,7 @@ planner_server:
       priormap:
         use_nav2_global_search: true
         clip_seed_by_rog_boundary: true
-        rog_boundary_margin: 0.4
+        rog_boundary_margin: 0.2
         rog_boundary_sample_step: 0.1
       exploration:
         boundary_margin: 0.8
@@ -359,7 +359,7 @@ planner_server:
           # [raycasting][帧] 每批处理点云帧数；调大可攒批减少调度开销，但会增加地图更新延迟。
           batch_update_size: 1
           # [raycasting][m,m] 射线有效距离 [min,max]；min 过大会忽略近处点，max 过大会增加计算量并可能引入远处噪声。
-          ray_range: [0.30, 10.0]
+          ray_range: [0.03, 10.0]
           # [raycasting][m,m,m] 每次局部更新盒尺寸；调大覆盖更多点但 raycasting 和 dirty column 数量上升。
           local_update_box: [10.0, 10.0, 2.5]
           # [raycasting][概率] unknown 判断阈值相关参数；影响 UNKNOWN/FREE/OCCUPIED 判定，进而影响 projection layer。
@@ -412,7 +412,7 @@ planner_server:
           # [vertical height difference, m]
           # 判定竖直墙所需的最小单柱垂直高度差 H。
           # 这是差值，不是绝对 Z 坐标。
-          wall_height_delta_min: 0.40
+          wall_height_delta_min: 0.20
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
@@ -422,12 +422,12 @@ planner_server:
           # 可通行隧道所需的最小上下表面高度差。
           # 应包含机器人实际高度和安全余量。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_min: 0.2
+          tunnel_height_delta_min: 0.25
 
           # [vertical height difference, m]
           # 当前 RM 场景中允许识别为目标隧道的最大上下表面高度差。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_max: 0.50
+          tunnel_height_delta_max: 0.40
 
           # [dimensionless ratio, 0~1]
           # 隧道上下表面之间的最大垂直占据率。
@@ -443,16 +443,16 @@ planner_server:
           hysteresis_enable: true
           hysteresis_count: 2
           # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
-          obstacle_hold_time: 3.0
+          obstacle_hold_time: 1.0
 
-          hole_fill_enable: false
+          hole_fill_enable: true
           hole_fill_radius: 1
           hole_fill_min_occupied_neighbors: 4
         field:
           enable: true
           inflation_radius: 0.0
           # [field][m] ESDF 正向最大截断距离；调大提供更远梯度但代价有限，过小会让远离障碍区域梯度变少。
-          max_distance: 5.0
+          max_distance: 6.0
           # [field][m] ESDF 负向最小截断距离；控制障碍内部负距离下限，影响优化代价范围。
           min_distance: -3.0
           clamp_distance: true
@@ -523,7 +523,7 @@ planner_server:
         penalty_weight_pos: 50000.0
         penalty_weight_vel: 1500.0
         penalty_weight_acc: 1500.0
-        penalty_weight_att: 10.0
+        penalty_weight_att: 20.0
         penalty_weight_time_barrier: 50.0
       recovery_server:
         fail_threshold: 5
