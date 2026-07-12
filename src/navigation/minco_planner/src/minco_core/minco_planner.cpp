@@ -194,6 +194,7 @@ void MincoPlanner::rebuildModeDependentQueries()
   }
   if (smac_planner_) {
     smac_planner_->setMap(mode_context_->globalQuery());
+    smac_planner_->setESDFQuery(mode_context_->dynamicQuery());
   }
   if (minco_optimizer_) {
     minco_optimizer_->setMap(mode_context_->dynamicQuery());
@@ -334,6 +335,13 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "allow_unknown", rclcpp::ParameterValue(true));
   node->get_parameter(prefix + "allow_unknown", allow_unknown_);
+
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "lidar_offset_x", rclcpp::ParameterValue(0.0));
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "lidar_offset_y", rclcpp::ParameterValue(-0.2));
+  node->get_parameter(prefix + "lidar_offset_x", lidar_offset_x_);
+  node->get_parameter(prefix + "lidar_offset_y", lidar_offset_y_);
 
   // Odometry topic
   std::string odom_topic = "/odom";
@@ -497,9 +505,8 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     smac_planner_ = std::make_unique<minco_planner::smac::SmacPlanner2DSimple>();
     smac_planner_->configure(node, costmap_ros_, prefix);
     smac_planner_->setParameters(allow_unknown_, 1000000, tolerance_);
-    if (global_query) {
-      smac_planner_->setMap(global_query);
-    }
+    smac_planner_->setMap(global_query);
+    smac_planner_->setESDFQuery(dynamic_query);
   }
 
   global_path_searcher_ = std::make_unique<GlobalPathSearcher>();
@@ -540,12 +547,6 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
       }
 
     });
-
-  if (use_smac_ && smac_planner_) {
-    if (mode_context_ && mode_context_->globalQuery()) {
-      smac_planner_->setMap(mode_context_->globalQuery());
-    }
-  }
 
   visualizer_ = std::make_unique<Visualizer>();
   visualizer_->configure(parent, output_frame_);
@@ -1939,7 +1940,15 @@ Eigen::Vector3d MincoPlanner::getCurrentSpeed() const
     double vy_global = 0.0;
     double omega_global = 0.0;
     utils::compensateLeverArm(
-      twist.linear.x, twist.linear.y, twist.angular.z, yaw, vx_global, vy_global, omega_global);
+      twist.linear.x,
+      twist.linear.y,
+      twist.angular.z,
+      yaw,
+      lidar_offset_x_,
+      lidar_offset_y_,
+      vx_global,
+      vy_global,
+      omega_global);
 
     // std::cout << "[MincoPlanner] Lever-arm compensation: raw_v=(" << twist.linear.x << ", "
     //           << twist.linear.y << ") wz=" << twist.angular.z << " yaw=" << yaw << " -> v=("
