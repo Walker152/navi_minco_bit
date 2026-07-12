@@ -251,7 +251,7 @@ private:
       // Snapshot shared state to avoid data races.
       std::lock_guard<std::mutex> lk(state_mutex_);
       vx_mps = static_cast<float>(cmd_vel_.linear.x);
-      // vx_mps = 3.0f;
+      // vx_mps = 1.0f;
       vy_mps = static_cast<float>(cmd_vel_.linear.y);
       // vy_mps = 0.0f;
 
@@ -286,7 +286,7 @@ private:
       if (use_gyro_mode) {
         vw_rpm = gyro_vel;
       }
-      // vw_rpm = -80.0f;
+      // vw_rpm = 0.0f;
       if (tunnel_escape_active) {
         vx_mps = tunnel_escape_vx;
         vy_mps = tunnel_escape_vy;
