@@ -364,6 +364,13 @@ BT::NodeStatus CheckOutpostSafeResponse::tick()
   const bool outpost_remained = !blackboard->get<bool>("enemy_outpost_destroyed");
   const auto now = std::chrono::steady_clock::now();
 
+  // 首次 tick 仅记录基线血量，避免 last_health_(=FLT_MAX) 造成 health_dropped 恒为 true 的误触发。
+  if (!initialized_) {
+    initialized_ = true;
+    last_health_ = health;
+    last_health_change_time_ = now;
+  }
+
   const bool health_dropped = (last_health_ - health) > 1e-3;
   if (health_dropped) {
     last_health_change_time_ = now;
