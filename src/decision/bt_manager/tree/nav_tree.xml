@@ -47,6 +47,7 @@
           <CheckGameTimeWindow name="CheckMidSupplyWindow"
                                min_remaining="150"
                                max_remaining="180"
+                               require_game_started="false"
                                branch="Priority2MidSupplyWindow" />
           <ReactiveFallback name="MidSupplySelector">
             <ReactiveSequence name="MidHealthSupply">
@@ -130,6 +131,7 @@
               <CheckGameTimeWindow name="CheckEarlyGameSpecialWindow"
                                    min_remaining="0"
                                    max_remaining="420"
+                                   require_game_started="false"
                                    branch="EarlyGameSpecialResponse" />
               <!-- <ForceSuccess>
                 <ReactiveSequence name="AutoOutpostEnableOnce">
@@ -147,6 +149,7 @@
                   <CheckGameTimeWindow name="CheckAutoOutpostDisableWindow"
                                        min_remaining="360"
                                        max_remaining="365"
+                                       require_game_started="false"
                                        branch="AutoOutpostDisableOnce" />
                   <SetEnemyOutpostDestroyed name="SetAutoOutpostDestroyedOnce"
                                             enemy_outpost_destroyed="true"
@@ -187,6 +190,7 @@
               <CheckGameTimeWindow name="CheckPatrolNormalWindow"
                                    min_remaining="360"
                                    max_remaining="420"
+                                   require_game_started="false"
                                    branch="Priority5TrackPatrol" />
               <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
                                                           patrol_branch_balanced="0"
@@ -199,6 +203,7 @@
               <CheckGameTimeWindow name="CheckPatrolAttackWindow"
                                    min_remaining="0"
                                    max_remaining="360"
+                                   require_game_started="false"
                                    branch="Priority5TrackPatrol" />
               <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
                                                           patrol_branch_balanced="0"
