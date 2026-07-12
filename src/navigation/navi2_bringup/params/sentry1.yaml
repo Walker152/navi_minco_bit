@@ -443,7 +443,7 @@ planner_server:
           hysteresis_enable: true
           hysteresis_count: 2
           # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
-          obstacle_hold_time: 3.0
+          obstacle_hold_time: 1.0
 
           hole_fill_enable: true
           hole_fill_radius: 1
@@ -505,7 +505,7 @@ planner_server:
         opt_freq: 20.0
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
-        safe_dist: 0.35
+        safe_dist: 0.25
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
         max_acceleration: 2.0
