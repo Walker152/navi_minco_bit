@@ -313,7 +313,7 @@ planner_server:
         rog_boundary_margin: 0.2
         rog_boundary_sample_step: 0.1
       exploration:
-        boundary_margin: 0.8
+        boundary_margin: 0.2
         boundary_sample_step: 0.1
         unknown_as_occupied: true
         prefer_goal_direction: true
@@ -324,7 +324,7 @@ planner_server:
       lidar_offset_x: 0.0
       lidar_offset_y: -0.20
       performance:
-        enable: true
+        enable: false
         print_enable: true
         detailed_csv_enable: false
         odom_sub_debug_enable: true
@@ -507,7 +507,7 @@ planner_server:
         opt_freq: 20.0
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
-        safe_dist: 0.25
+        safe_dist: 0.3
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
         max_acceleration: 2.0
@@ -525,7 +525,7 @@ planner_server:
         penalty_weight_pos: 50000.0
         penalty_weight_vel: 1500.0
         penalty_weight_acc: 1500.0
-        penalty_weight_att: 20.0
+        penalty_weight_att: 100.0
         penalty_weight_time_barrier: 50.0
       recovery_server:
         fail_threshold: 5

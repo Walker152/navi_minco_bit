@@ -1,7 +1,7 @@
 <root main_tree_to_execute="TunnelRecoverySubTree">
   <BehaviorTree ID="TunnelRecoverySubTree">
     <TunnelTimeoutBackoutAction
-      timeout_s="6.0"
+      timeout_s="30.0"
       speed="0.5"
       max_backout_s="12.0"
       branch="TunnelBackout" />
