@@ -41,6 +41,8 @@ bool space_down_sample = true;    // 是否进行空间降采样
 bool publish_odometry_without_downsample = false;  // 是否发布未降采样的高频里程计
 bool print_cloud_input_fps = false;                // 是否打印运行频率
 bool debug_pose_update_detail = false;             // 是否打印位姿更新细粒度诊断
+bool blind_center_enable = false;                   // 是否将blind球心迁移到配置位置
+std::vector<double> blind_center{0.0, 0.20, 0.0};  // blind球心在输入点云坐标系中的位置
 // === 地图初始化参数 ===
 int init_map_size = 10;  // 初始化地图所需的最少特征点数量
 int con_frame_num = 1;   // 连接帧的数量
@@ -264,6 +266,13 @@ void readParameters(rclcpp::Node & nh)
 
     nh.declare_parameter<double>("preprocess.blind", 1.0);
     nh.get_parameter("preprocess.blind", p_pre->blind);
+
+    nh.declare_parameter<bool>("preprocess.blind_center_enable", false);
+    nh.get_parameter("preprocess.blind_center_enable", blind_center_enable);
+
+    nh.declare_parameter<std::vector<double>>(
+      "preprocess.blind_center", std::vector<double>{0.0, 0.20, 0.0});
+    nh.get_parameter("preprocess.blind_center", blind_center);
 
     nh.declare_parameter<int>("preprocess.lidar_type", 1);
     nh.get_parameter("preprocess.lidar_type", lidar_type);

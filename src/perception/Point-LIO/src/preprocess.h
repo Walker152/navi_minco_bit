@@ -266,6 +266,8 @@ class Preprocess
    */
   void set(bool feat_en, int lid_type, double bld, int pfilt_num);
 
+  void setBlindCenter(double x, double y, double z);
+
   // ================ 公共数据成员 ================
   
   // sensor_msgs::msg::PointCloud2::SharedPtr pointcloud;
@@ -284,6 +286,10 @@ class Preprocess
   bool given_offset_time;                   ///< 是否已给出时间偏移
 
   private:
+  double blind_center_x_ = 0.0;
+  double blind_center_y_ = 0.0;
+  double blind_center_z_ = 0.0;
+
   // ================ 私有成员函数 ================
   
   /**

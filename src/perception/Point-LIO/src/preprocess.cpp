@@ -94,6 +94,13 @@ void Preprocess::set(bool feat_en, int lid_type, double bld, int pfilt_num)
   point_filter_num = pfilt_num;  // 设置点过滤数量
 }
 
+void Preprocess::setBlindCenter(double x, double y, double z)
+{
+  blind_center_x_ = x;
+  blind_center_y_ = y;
+  blind_center_z_ = z;
+}
+
 /**
  * @brief Livox雷达数据处理主函数
  * @param msg Livox雷达数据消息
@@ -172,6 +179,8 @@ void Preprocess::process_cut_frame_livox(const livox_ros_driver2::msg::CustomMsg
   int scan_count)
 {
   int plsize = msg->point_num;  // 获取点云数量
+  const double blind_sq = blind * blind;
+  const double det_range_sq = det_range * det_range;
   pl_surf.clear();              // 清空面点云容器
   pl_surf.reserve(plsize);      // 预分配内存
   pl_full.clear();              // 清空全部点云容器
@@ -190,9 +199,13 @@ void Preprocess::process_cut_frame_livox(const livox_ros_driver2::msg::CustomMsg
         // use curvature as time of each laser points，unit: ms
         pl_full[i].curvature = msg->points[i].offset_time / float(1000000);
 
-        double dist =
+        const double lidar_dist_sq =
           pl_full[i].x * pl_full[i].x + pl_full[i].y * pl_full[i].y + pl_full[i].z * pl_full[i].z;
-        if (dist < blind * blind || dist > det_range * det_range)
+        const double dx = pl_full[i].x - blind_center_x_;
+        const double dy = pl_full[i].y - blind_center_y_;
+        const double dz = pl_full[i].z - blind_center_z_;
+        const double blind_dist_sq = dx * dx + dy * dy + dz * dz;
+        if (blind_dist_sq < blind_sq || lidar_dist_sq > det_range_sq)
           continue;
 
         if ((abs(pl_full[i].x - pl_full[i - 1].x) > 1e-7) ||
@@ -417,6 +430,8 @@ void Preprocess::avia_handler(const livox_ros_driver2::msg::CustomMsg::SharedPtr
   pl_full.clear();              // 清空全部点云
   double t1 = omp_get_wtime();  // 记录开始时间
   int plsize = msg->point_num;  // 获取点数
+  const double blind_sq = blind * blind;
+  const double det_range_sq = det_range * det_range;
 
   pl_corn.reserve(plsize);
   pl_surf.reserve(plsize);
@@ -440,9 +455,13 @@ void Preprocess::avia_handler(const livox_ros_driver2::msg::CustomMsg::SharedPtr
         pl_full[i].curvature =
           msg->points[i].offset_time /
           float(1000000);  // use curvature as time of each laser points, curvature unit: ms
-        double dist =
+        const double lidar_dist_sq =
           pl_full[i].x * pl_full[i].x + pl_full[i].y * pl_full[i].y + pl_full[i].z * pl_full[i].z;
-        if (dist < blind * blind || dist > det_range * det_range)
+        const double dx = pl_full[i].x - blind_center_x_;
+        const double dy = pl_full[i].y - blind_center_y_;
+        const double dz = pl_full[i].z - blind_center_z_;
+        const double blind_dist_sq = dx * dx + dy * dy + dz * dz;
+        if (blind_dist_sq < blind_sq || lidar_dist_sq > det_range_sq)
           continue;
         if (((abs(pl_full[i].x - pl_full[i - 1].x) > 1e-7) ||
               (abs(pl_full[i].y - pl_full[i - 1].y) > 1e-7) ||

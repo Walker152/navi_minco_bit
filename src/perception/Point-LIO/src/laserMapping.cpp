@@ -1225,6 +1225,19 @@ private:
     icp_client_ = create_client<std_srvs::srv::Trigger>("/gicp_recall");
 
     readParameters(*this);
+    if (blind_center_enable && blind_center.size() == 3U) {
+      p_pre->setBlindCenter(blind_center[0], blind_center[1], blind_center[2]);
+      RCLCPP_INFO(get_logger(), "[Point-LIO] Blind center enabled: [%.3f, %.3f, %.3f]",
+        blind_center[0], blind_center[1], blind_center[2]);
+    } else {
+      if (blind_center_enable) {
+        RCLCPP_WARN(get_logger(),
+          "[Point-LIO] Invalid blind_center size (%zu), fallback to LiDAR origin.",
+          blind_center.size());
+      }
+      p_pre->setBlindCenter(0.0, 0.0, 0.0);
+      RCLCPP_INFO(get_logger(), "[Point-LIO] Blind center disabled, using LiDAR origin.");
+    }
     std::cout << "lidar_type: " << lidar_type << '\n';
     ivox_ = std::make_shared<IVoxType>(ivox_options_);
 
