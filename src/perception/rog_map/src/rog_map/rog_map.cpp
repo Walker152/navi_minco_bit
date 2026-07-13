@@ -377,6 +377,7 @@ void ROGMap::refreshLayers()
   layer_cfg.passable_as_free = cfg_.passable_as_free;
   layer_cfg.hysteresis_en = cfg_.layer_hysteresis_en;
   layer_cfg.hysteresis_count = cfg_.layer_hysteresis_count;
+  layer_cfg.obstacle_hold_time = cfg_.layer_obstacle_hold_time;
   layer_cfg.hole_fill_en = cfg_.layer_hole_fill_en;
   layer_cfg.hole_fill_radius = cfg_.layer_hole_fill_radius;
   layer_cfg.hole_fill_min_occupied_neighbors = cfg_.layer_hole_fill_min_occupied_neighbors;
@@ -399,17 +400,28 @@ void ROGMap::refreshLayers()
   z_max = std::min(z_max, localMapMaxIndex().z());
 
   const std::vector<uint8_t> old_mask = layer_->mask();
-  const bool geometry_changed = !layer_->matchesGeometry(width, height, res, origin);
+  const ProjectionSlideResult slide_result = layer_->syncSlidingWindow(
+    width, height, res, Eigen::Vector2i(min_id.x(), min_id.y()), origin, layer_cfg);
+  const bool geometry_changed = slide_result.full_refresh_required;
   const size_t cell_count =
     static_cast<size_t>(std::max(0, width)) * static_cast<size_t>(std::max(0, height));
   const auto & dirty_columns = dirtyColumnIds();
+  std::vector<int> projection_dirty_columns = dirty_columns;
+  projection_dirty_columns.insert(
+    projection_dirty_columns.end(), slide_result.dirty_columns.begin(), slide_result.dirty_columns.end());
+  std::sort(projection_dirty_columns.begin(), projection_dirty_columns.end());
+  projection_dirty_columns.erase(
+    std::unique(projection_dirty_columns.begin(), projection_dirty_columns.end()),
+    projection_dirty_columns.end());
   const double dirty_ratio = std::clamp(cfg_.dirty_full_ratio, 0.0, 1.0);
   const bool dirty_over_ratio =
     cell_count > 0 &&
-    dirty_columns.size() > static_cast<size_t>(dirty_ratio * static_cast<double>(cell_count));
+    projection_dirty_columns.size() > static_cast<size_t>(dirty_ratio * static_cast<double>(cell_count));
+  const bool explicit_full_refresh = fullLayerRefreshRequired() && !slide_result.window_moved;
   const bool force_full_refresh =
-    geometry_changed || fullLayerRefreshRequired() || !cfg_.dirty_column_en || dirty_over_ratio;
-  const bool has_dirty_update = cfg_.dirty_column_en && !dirty_columns.empty() && !force_full_refresh;
+    geometry_changed || explicit_full_refresh || !cfg_.dirty_column_en || dirty_over_ratio;
+  const bool has_dirty_update =
+    cfg_.dirty_column_en && !projection_dirty_columns.empty() && !force_full_refresh;
   runtime_stats_.projection_config_time = elapsedMs(config_start);
   runtime_stats_.projection_cell_count = static_cast<double>(cell_count);
   runtime_stats_.projection_z_min_id = static_cast<double>(z_min);
@@ -467,12 +479,13 @@ void ROGMap::refreshLayers()
   ProjectionUpdateStats projection_stats;
   if (force_full_refresh || !cfg_.dirty_column_en) {
     const auto full_start = std::chrono::steady_clock::now();
-    layer_->updateFull(width, height, res, origin, layer_cfg, scanner, &projection_stats);
+    layer_->updateFull(
+      width, height, res, origin, current_update_time_, layer_cfg, scanner, &projection_stats);
     runtime_stats_.projection_update_full_time = elapsedMs(full_start);
     runtime_stats_.full_layer_refresh_count += 1.0;
     if (geometry_changed) {
       runtime_stats_.projection_refresh_reason = "full_geometry_changed";
-    } else if (fullLayerRefreshRequired()) {
+    } else if (explicit_full_refresh) {
       runtime_stats_.projection_refresh_reason = "full_required";
     } else if (!cfg_.dirty_column_en) {
       runtime_stats_.projection_refresh_reason = "full_dirty_disabled";
@@ -484,7 +497,16 @@ void ROGMap::refreshLayers()
   } else if (has_dirty_update) {
     const auto dirty_start = std::chrono::steady_clock::now();
     layer_->updateDirty(
-      width, height, res, origin, layer_cfg, scanner, dirty_columns, false, &projection_stats);
+      width,
+      height,
+      res,
+      origin,
+      current_update_time_,
+      layer_cfg,
+      scanner,
+      projection_dirty_columns,
+      false,
+      &projection_stats);
     runtime_stats_.projection_update_dirty_time = elapsedMs(dirty_start);
     runtime_stats_.dirty_layer_update_count += 1.0;
     runtime_stats_.projection_refresh_reason = "dirty_update";
@@ -509,37 +531,39 @@ void ROGMap::refreshLayers()
   runtime_stats_.projection_empty_column_count = projection_stats.empty_column_count;
   runtime_stats_.projection_insufficient_observation_count =
     projection_stats.insufficient_observation_count;
-  runtime_stats_.dirty_column_count = static_cast<double>(dirty_columns.size());
+  runtime_stats_.dirty_column_count = static_cast<double>(projection_dirty_columns.size());
   if (force_full_refresh) {
     runtime_stats_.dirty_expanded_column_count = static_cast<double>(cell_count);
   } else if (has_dirty_update) {
     const int dirty_radius = layer_cfg.hole_fill_en ? std::max(0, layer_cfg.hole_fill_radius) : 0;
     runtime_stats_.dirty_expanded_column_count = static_cast<double>(std::min(cell_count,
-      dirty_columns.size() * static_cast<size_t>((2 * dirty_radius + 1) * (2 * dirty_radius + 1))));
+      projection_dirty_columns.size() *
+        static_cast<size_t>((2 * dirty_radius + 1) * (2 * dirty_radius + 1))));
   } else {
     runtime_stats_.dirty_expanded_column_count = 0.0;
   }
   runtime_stats_.projection_scanned_voxel_estimate =
     runtime_stats_.dirty_expanded_column_count * runtime_stats_.projection_z_layers;
 
-  const bool layer_updated = force_full_refresh || has_dirty_update;
+  const bool projection_scanned = force_full_refresh || has_dirty_update;
+  const bool time_clear_changed =
+    layer_->advanceObstacleClearance(current_update_time_, layer_cfg);
+  const bool layer_updated = projection_scanned || time_clear_changed;
   if (layer_updated) {
     ++projection_sequence_;
+  }
+  if (projection_scanned) {
     clearDirtyColumns();
+  }
+  if (!projection_scanned && time_clear_changed) {
+    runtime_stats_.projection_refresh_reason = "time_clear";
   }
 
   const auto & new_mask = layer_->mask();
-  size_t mask_diff_count = 0;
-  if (old_mask.size() != new_mask.size()) {
-    mask_diff_count = new_mask.size();
-  } else {
-    for (size_t i = 0; i < new_mask.size(); ++i) {
-      if (old_mask[i] != new_mask[i]) {
-        ++mask_diff_count;
-      }
-    }
+  bool mask_changed = slide_result.window_moved || old_mask.size() != new_mask.size();
+  if (!mask_changed) {
+    mask_changed = !std::equal(old_mask.begin(), old_mask.end(), new_mask.begin());
   }
-  const bool mask_changed = mask_diff_count > 0;
   if (mask_changed) {
     ++mask_sequence_;
   }
