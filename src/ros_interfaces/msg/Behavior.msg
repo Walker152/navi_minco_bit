@@ -2,6 +2,9 @@ uint8 desired_stance
 uint8 STANCE_ATTACK=1
 uint8 STANCE_DEFEND=2
 uint8 STANCE_MOVE=3
+uint8 STANCE_ENHANCED_ATTACK = 4
+uint8 STANCE_ENHANCED_DEFEND = 5
+uint8 STANCE_ENHANCED_MOVE = 6
 
 uint8 control_mode
 uint8 CONTROL_AUTO=0
