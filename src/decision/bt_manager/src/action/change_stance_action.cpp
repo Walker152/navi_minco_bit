@@ -5,6 +5,42 @@
 
 using namespace color_text;
 namespace Sentry_BT {
+namespace {
+std::string stanceToString(SentryStance stance)
+{
+  const auto index = static_cast<size_t>(stance);
+  if (index >= 1 && index <= stance_names.size()) {
+    return stance_names[index - 1];
+  }
+  return "UNKNOWN(" + std::to_string(static_cast<int>(stance)) + ")";
+}
+
+bool isLegalStance(SentryStance stance)
+{
+  const int value = static_cast<int>(stance);
+  return value >= 1 && value <= 6;
+}
+
+// 统一的 ChangeStance 状态日志:
+// - 非法 current_stance:借 logTransition 的 active 去重实现边沿日志(进入/退出各一条,中间沉默)。
+// - 合法时:打"到位(reached)"或"切换中(from->to)",同样靠 active 去重仅在翻转时输出。
+// node_name 用节点实例名,使各 ChangeStance 分支独立去重、互不干扰。
+void logStanceState(const std::string & node_name, SentryStance current, SentryStance desired)
+{
+  const bool illegal = !isLegalStance(current);
+  detail::logTransition(detail::TreeKind::STANCE, node_name + " illegal_current_stance", illegal,
+    "current=" + stanceToString(current), "");
+  if (illegal) {
+    return;  // 非法期间不打正常到位/切换日志,避免 UNKNOWN 噪声
+  }
+  const bool reached = (current == desired);
+  detail::logTransition(detail::TreeKind::STANCE, node_name, reached,
+    reached ? ("stance=" + stanceToString(desired) + ", reached")
+            : ("from=" + stanceToString(current) + " to=" + stanceToString(desired)),
+    "");
+}
+}  // namespace
+
 std::chrono::time_point<std::chrono::system_clock> ChangeStance::last_change_time_ =
   std::chrono::time_point<std::chrono::system_clock>::min();
 
@@ -319,6 +355,7 @@ BT::NodeStatus ChangeStance::onStart()
   current_stance_ = blackboard->get<SentryStance>("current_stance");
 
   if (current_stance_ == desired_stance_) {
+    logStanceState(name(), current_stance_, desired_stance_);
     blackboard->set<SentryStance>("desired_stance", desired_stance_);
     return BT::NodeStatus::SUCCESS;
   }
@@ -336,14 +373,6 @@ void ChangeStance::onHalted()
 
 BT::NodeStatus ChangeStance::applyStanceChange()
 {
-  auto stance_to_string = [](SentryStance stance) -> std::string {
-    const auto index = static_cast<size_t>(stance);
-    if (index >= 1 && index <= stance_names.size()) {
-      return stance_names[index - 1];
-    }
-    return "UNKNOWN(" + std::to_string(static_cast<int>(stance)) + ")";
-  };
-
   auto blackboard = config().blackboard;
   const auto energy_ratio = blackboard->get<EnergyRatio>("energy_ratio");
   if (energy_ratio == EnergyRatio::BELOW_1) {
@@ -351,14 +380,11 @@ BT::NodeStatus ChangeStance::applyStanceChange()
   }
   current_stance_ = blackboard->get<SentryStance>("current_stance");
   blackboard->set<SentryStance>("desired_stance", desired_stance_);
+  logStanceState(name(), current_stance_, desired_stance_);
   if (current_stance_ == desired_stance_) {
     return BT::NodeStatus::SUCCESS;
   }
 
-  // blackboard->set<SentryStance>("current_stance", desired_stance_);
-  // std::cout << MAGENTA << "[STANCE_TREE]" << GREEN << "Change from stance "
-  //           << stance_to_string(current_stance_) << " to stance " << stance_to_string(desired_stance_)
-  //           << RESET << std::endl;
   last_change_time_ = std::chrono::system_clock::now();
   return BT::NodeStatus::SUCCESS;
 }
@@ -452,6 +478,29 @@ BT::NodeStatus UpdateStanceDuration::tick()
     break;
   }
 
+  return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- ApplyManualStanceOverride -------------------
+ApplyManualStanceOverride::ApplyManualStanceOverride(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::SyncActionNode(name, config)
+{
+}
+
+BT::PortsList ApplyManualStanceOverride::providedPorts()
+{
+  return {};
+}
+
+BT::NodeStatus ApplyManualStanceOverride::tick()
+{
+  auto blackboard = config().blackboard;
+
+  // 注:此节点应与 CheckManualStanceOverride 配合使用,CheckManualStanceOverride 已判断所有条件。
+  // 此处直接读取操作手指定的强化姿态并写入 desired_stance,不再重复判断。
+  const auto override_stance = blackboard->get<SentryStance>("manual_override_stance");
+  blackboard->set<SentryStance>("desired_stance", override_stance);
   return BT::NodeStatus::SUCCESS;
 }
 
