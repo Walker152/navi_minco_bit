@@ -30,3 +30,4 @@ latex_article_final/
 award/
 # AGENTS.md
 CLAUDE.md
+src/perception/Point-LIO/PCD/scans.pcd

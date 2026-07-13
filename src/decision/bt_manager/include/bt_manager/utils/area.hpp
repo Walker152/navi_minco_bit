@@ -196,7 +196,6 @@ inline std::vector<PatrolList> attack_patrol_branches = {
     //可继续加
 };
 #endif
-
 #ifdef TEST_AREA
 // for test
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
@@ -210,25 +209,25 @@ inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
     Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
     Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{6.9, 3.5}, Point2D{5.7, 2.7}, Point2D{3.3, 3.3},
+    Point2D{2.4, 3.3}, Point2D{2.4,1.4}, Point2D{6.9, 1.4}}, // TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
   Area_Square{Point2D{14.7, 11.0}, Point2D{15.7, 12.0}},
 };  // 假设这是奖励区域的坐标范围
 inline std::array<Area_Square, 4> tunnel_zone = {
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 4.3}},
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 4.3}},
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 4.3}},
-  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 4.3}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
+  Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
+  Area_Square{Point2D{5.7, 2.6}, Point2D{4.4, 1.4}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
   TunnelRecoveryConfig{1.57f},
   TunnelRecoveryConfig{1.57f},
   TunnelRecoveryConfig{1.57f},
-  TunnelRecoveryConfig{1.57f},
+  TunnelRecoveryConfig{0.0f},
 };
 inline std::array<Area_Square, 2> stairs_zone{
   Area_Square{Point2D{11.5, 7.1}, Point2D{10.3, 6.2}},
@@ -269,7 +268,7 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{12.7, 0.7},
 };
 inline Area_Square enemy_outpost_watch_zone{Point2D{10.1, 7.2}, Point2D{8.3, 6.2}};
-inline Area_Circle enemy_fort_zone{Point2D{11.0, 3.5}, 1.0};
+inline Area_Circle enemy_fort_zone{Point2D{12.9, 2.7}, 1.0};
 inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{12.0, 2.0},
   Point2D{11.0, 2.0},
@@ -336,26 +335,32 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 inline std::vector<Point2D> nav_points = {
 
   // for test
-  {8.5, 1.5, 0.0},  // HOME
+  {8.2, 2.2, 0.0},  // HOME
   // {13.5, 4.8, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
   // {9.1, 6.5, 0.0},  // OUTPOST
   {9.0, 3.1, 0.0},  // OUTPOST
-  {6.8, 3.5, 0.0},  // OWN_FORT
-  {13.7, 3.2, 0.0}   // ENEMY_FORT
+  {12.8, 2.6, 0.0},  // OWN_FORT
+  {12.7, 2.8, 0.0}   // ENEMY_FORT
 };
 
-inline std::vector<PatrolPoint> patrol_points_normal = {
+using PatrolList = std::vector<PatrolPoint>; 
+inline std::vector<PatrolList> normal_patrol_branches = {
   // for test
-  {{10.0, 2.3, 0.0}, 5000},
-  {{11.6, 2.0, 0.0}, 5000},
-  {{9.6, 2.6, 0.0}, 5000}
+  {
+    {{10.0, 2.5, 0.0}, 5000},
+    {{12.7, 2.8, 0.0}, 5000},
+    {{9.6, 2.6, 0.0}, 5000}
+  }
 };
 
-inline std::vector<PatrolPoint> patrol_points_attack = {
-  {{16.0, 12.0, 0.0}, 5000}, 
-  {{17.3, 7.9, 0.0}, 5000}, 
-  {{15.3, 11.0, 0.0}, 6000}
+inline std::vector<PatrolList> attack_patrol_branches = {
+  {
+    {{16.0, 12.0, 0.0}, 5000},
+    {{17.3, 7.9, 0.0}, 5000},
+
+    {{15.3, 11.0, 0.0}, 6000}
+  }
 };
 #endif
 // =============== 战略模式：巡逻点与云台巡检区域映射表 ===============
@@ -385,27 +390,51 @@ struct PatrolZoneTypeHash {
 };
 
 // 云台巡检区域映射表 (TacticalMode -> (PatrolZoneType -> GimbalPatrolConfig))
+// inline std::unordered_map<TacticalMode, std::unordered_map<PatrolZoneType, GimbalPatrolConfig, PatrolZoneTypeHash>> tactical_area_gimbal_map = {
+//   {TacticalMode::OFFENSIVE, {
+//     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
+//     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
+//     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
+//     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
+//     {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
+//   }},
+//   {TacticalMode::DEFENSIVE, {
+//     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
+//     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
+//     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
+//     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
+//     {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
+//   }},
+//   {TacticalMode::BALANCED, {
+//     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
+//     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
+//     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
+//     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
+//     {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
+//   }}
+// };
+
 inline std::unordered_map<TacticalMode, std::unordered_map<PatrolZoneType, GimbalPatrolConfig, PatrolZoneTypeHash>> tactical_area_gimbal_map = {
   {TacticalMode::OFFENSIVE, {
-    {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
-    {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
+    {PatrolZoneType::ENEMY_DEFENSE, {-180.0f, 180.0f}},
+    {PatrolZoneType::OWN_DEFENSE,   {-180.0f, 180.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-    {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
+    {PatrolZoneType::STAIRZONE,     {-180.0f, 180.0f}}
   }},
   {TacticalMode::DEFENSIVE, {
-    {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
-    {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
+    {PatrolZoneType::ENEMY_DEFENSE, {-180.0f, 180.0f}},
+    {PatrolZoneType::OWN_DEFENSE,   {-180.0f, 180.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-    {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
+    {PatrolZoneType::STAIRZONE,     {-180.0f, 180.0f}}
   }},
   {TacticalMode::BALANCED, {
-    {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
-    {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
+    {PatrolZoneType::ENEMY_DEFENSE, {-180.0f, 180.0f}},
+    {PatrolZoneType::OWN_DEFENSE,   {-180.0f, 180.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-    {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
+    {PatrolZoneType::STAIRZONE,     {-180.0f, 180.0f}}
   }}
 };
 
