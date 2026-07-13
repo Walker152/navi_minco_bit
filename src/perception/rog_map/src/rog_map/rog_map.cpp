@@ -303,6 +303,21 @@ void ROGMap::updateMap(const PointCloud & cloud, const Pose & pose)
 
 void ROGMap::updateMapInternal(const PointCloud & cloud, const Pose & pose)
 {
+  const Pose & sensor_pose = pose;
+  Vec3f map_center_pos = sensor_pose.first;
+  if (cfg_.map_center_offset_enable) {
+    const double yaw = get_yaw_from_quaternion<double>(sensor_pose.second);
+    const double c = std::cos(yaw);
+    const double s = std::sin(yaw);
+    Vec3f offset_world;
+    offset_world.x() = c * cfg_.map_center_offset.x() - s * cfg_.map_center_offset.y();
+    offset_world.y() = s * cfg_.map_center_offset.x() + c * cfg_.map_center_offset.y();
+    offset_world.z() = cfg_.map_center_offset.z();
+    map_center_pos += offset_world;
+  }
+  Pose map_center_pose = sensor_pose;
+  map_center_pose.first = map_center_pos;
+
   const auto total_start = std::chrono::steady_clock::now();
   const double update_stamp = getSystemWalltimeNow();
   static uint64_t update_sequence = 0;
@@ -310,11 +325,11 @@ void ROGMap::updateMapInternal(const PointCloud & cloud, const Pose & pose)
   const uint64_t projection_sequence_before = projection_sequence_;
   const uint64_t mask_sequence_before = mask_sequence_;
   const uint64_t field_sequence_before = field_sequence_;
-  updateRobotState(pose);
+  updateRobotState(map_center_pose);
   const double update_robot_state_ms = elapsedMs(total_start);
   const double now = getSystemWalltimeNow();
   setUpdateTime(now);
-  updateProbMap(cloud, pose);
+  updateProbMap(cloud, sensor_pose, map_center_pos);
   runtime_stats_.stamp = update_stamp;
   runtime_stats_.update_seq = static_cast<double>(this_update_sequence);
   runtime_stats_.update_robot_state_time = update_robot_state_ms;
