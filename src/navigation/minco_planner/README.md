@@ -275,7 +275,8 @@ end
 
 | 参数 | 类型 | 默认值 | 说明 |
 |---|---:|---:|---|
-| `.safe_dist` | double | 0.3 | ESDF 安全距离阈值（米）。 |
+| `.safe_dist` | double | 0.3 | MINCO 优化中 ESDF 距离惩罚阈值（米）。 |
+| `.collision_dist` | double | `safe_dist` | validation 与运行期轨迹碰撞检查的 ESDF 距离阈值（米）。 |
 | `max_vel` | double | 2.0 | 速度上界（m/s）。 |
 | `max_acc` | double | 4.0 | 加速度上界（m/s²）。 |
 | `time_allocation_iters` | int | 15 | 预留：时间分配迭代次数（当前实现中以 L-BFGS 优化为主）。 |
@@ -347,6 +348,7 @@ planner_server:
         opt_freq: 20.0
         lookahead_dist: 5.0
         safe_dist: 0.3
+        collision_dist: 0.3
         max_velocity: 2.0
         max_acceleration: 4.0
         penalty_weight_time: 0.01
