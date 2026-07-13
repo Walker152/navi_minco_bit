@@ -346,6 +346,8 @@ planner_server:
           enable: true
           # [map_sliding][m] 触发地图滑动的位移阈值；过小会频繁滑动并带来计算抖动，过大可能让机器人靠近局部地图边缘。
           threshold: 0.2
+          center_offset_enable: true
+          center_offset: [0.0, 0.20, 0.0]
 
         ros_callback:
           enable: true

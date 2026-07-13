@@ -97,7 +97,8 @@ namespace rog_map {
 
         void updateOccPointCloud(const PointCloud &input_cloud);
 
-        void updateProbMap(const PointCloud &cloud, const Pose &pose);
+        void updateProbMap(const PointCloud &cloud, const Pose &sensor_pose,
+                           const Vec3f &map_center_pos);
 
         void setUpdateTime(double now);
 
