@@ -130,8 +130,22 @@ public:
 
     map_sliding_en = true;
     map_sliding_thresh = -1.0;
+    map_center_offset_enable = false;
+    map_center_offset = Vec3f::Zero();
     load("map_sliding.enable", map_sliding_en);
     load("map_sliding.threshold", map_sliding_thresh);
+    load("map_sliding.center_offset_enable", map_center_offset_enable);
+    vector<double> map_center_offset_values{0.0, 0.0, 0.0};
+    load("map_sliding.center_offset", map_center_offset_values);
+    if (map_center_offset_values.size() == 3) {
+      map_center_offset = Vec3f(
+        map_center_offset_values[0], map_center_offset_values[1], map_center_offset_values[2]);
+    } else {
+      RCLCPP_WARN(node->get_logger(),
+        "[ROGMap Config] parameter '%s.map_sliding.center_offset' size is %zu, using zero offset.",
+        prefix.c_str(), map_center_offset_values.size());
+      map_center_offset = Vec3f::Zero();
+    }
     fix_map_origin = loadVec3("fix_map_origin", vector<double>{0.0, 0.0, 0.0});
     frontier_extraction_en = false;
     load("frontier_extraction_en", frontier_extraction_en);
@@ -552,6 +566,8 @@ public:
   /* aster properties */
   string frame_id{};
   bool map_sliding_en{true};
+  bool map_center_offset_enable{false};
+  Vec3f map_center_offset{Vec3f::Zero()};
   Vec3f fix_map_origin{};
   string odom_topic{}, cloud_topic{};
   int update_period_ms{1};

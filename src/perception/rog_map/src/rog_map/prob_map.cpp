@@ -344,39 +344,41 @@ void ProbMap::slideAllMap(const rog_map::Vec3f & pos)
   markAllDirtyColumns();
 }
 
-void ProbMap::updateProbMap(const PointCloud & cloud, const Pose & pose)
+void ProbMap::updateProbMap(
+  const PointCloud & cloud, const Pose & sensor_pose, const Vec3f & map_center_pos)
 {
   TimeConsuming tc("updateMap", false);
   runtime_stats_ = RuntimeStats{};
-  const Vec3f & pos = pose.first;
+  const Vec3f & sensor_pos = sensor_pose.first;
   runtime_stats_.input_point_count = cloud.size();
-  if (cfg_.map_sliding_en && !insideLocalMap(pos) && raycast_data_.batch_update_counter == 0) {
+  if (cfg_.map_sliding_en && !insideLocalMap(map_center_pos) &&
+      raycast_data_.batch_update_counter == 0) {
     std::cout << YELLOW << " -- [ROGMapCore] cur_pose out of map range, reset the map." << RESET
               << std::endl;
-    std::cout << YELLOW << " -- [ROGMapCore] Sliding to map center at: " << pos.transpose() << RESET
-              << std::endl;
-    slideAllMap(pos);
+    std::cout << YELLOW << " -- [ROGMapCore] Sliding to map center at: "
+              << map_center_pos.transpose() << RESET << std::endl;
+    slideAllMap(map_center_pos);
     return;
   }
 
-  if (pos.z() > cfg_.virtual_ceil_height) {
+  if (sensor_pos.z() > cfg_.virtual_ceil_height) {
     std::cout << YELLOW << " -- [ROGMapCore] Odom above virtual ceil, please check map parameter -- ."
               << RESET << std::endl;
     return;
-  } else if (pos.z() < cfg_.virtual_ground_height) {
+  } else if (sensor_pos.z() < cfg_.virtual_ground_height) {
     std::cout << YELLOW << " -- [ROGMapCore] Odom below virtual ground, please check map parameter -- ."
               << RESET << std::endl;
     return;
   }
 
   if (raycast_data_.batch_update_counter == 0 && cfg_.map_sliding_en &&
-      (map_empty_ || (pos - local_map_origin_d_).norm() > cfg_.map_sliding_thresh)) {
-    slideAllMap(pos);
+      (map_empty_ || (map_center_pos - local_map_origin_d_).norm() > cfg_.map_sliding_thresh)) {
+    slideAllMap(map_center_pos);
   }
 
-  updateLocalBox(pos);
+  updateLocalBox(map_center_pos);
   TimeConsuming t_raycast("raycast", false);
-  raycastProcess(cloud, pos);
+  raycastProcess(cloud, sensor_pos);
   runtime_stats_.raycast_time = t_raycast.stop();
   raycast_data_.batch_update_counter++;
   if (raycast_data_.batch_update_counter >= cfg_.batch_update_size) {
@@ -394,7 +396,7 @@ void ProbMap::updateProbMap(const PointCloud & cloud, const Pose & pose)
 
   /* Update ESDF map */
   if (cfg_.esdf_en) {
-    esdf_map_->updateESDF3D(pos);
+    esdf_map_->updateESDF3D(map_center_pos);
   }
 
   /* For the first frame, clear all unknown around the robot */
@@ -406,7 +408,7 @@ void ProbMap::updateProbMap(const PointCloud & cloud, const Pose & pose)
         for (double dz = -cfg_.raycast_range_min; dz <= cfg_.raycast_range_min; dz += cfg_.resolution) {
           Vec3f p(dx, dy, dz);
           if (p.norm() <= cfg_.raycast_range_min) {
-            Vec3f pp = pos + p;
+            Vec3f pp = sensor_pos + p;
             int hash_id = getHashIndexFromPos(pp);
             missPointUpdate(pp, hash_id, 999);
           }
