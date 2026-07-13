@@ -367,6 +367,11 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     node, prefix + "minco_optimizer.safe_dist", rclcpp::ParameterValue(0.3));
   node->get_parameter(prefix + "minco_optimizer.safe_dist", minco_config.safe_dist);
 
+  double collision_dist = minco_config.safe_dist;
+  nav2_util::declare_parameter_if_not_declared(
+    node, prefix + "minco_optimizer.collision_dist", rclcpp::ParameterValue(collision_dist));
+  node->get_parameter(prefix + "minco_optimizer.collision_dist", collision_dist);
+
   nav2_util::declare_parameter_if_not_declared(
     node, prefix + "minco_optimizer.max_velocity", rclcpp::ParameterValue(2.0));
   node->get_parameter(prefix + "minco_optimizer.max_velocity", minco_config.max_vel);
@@ -519,7 +524,7 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     lookahead_dist_, minco_config.max_vel, minco_config.max_acc, traj_goal_tolerance_, logger_);
 
   safety_checker_ = std::make_unique<TrajectorySafetyChecker>();
-  safety_checker_->configure(minco_config.safe_dist, 0.05, logger_);
+  safety_checker_->configure(collision_dist, 0.05, logger_);
   safety_checker_->setQuery(dynamic_query);
 
   opt_path_pub_ = node->create_publisher<ros_interfaces::msg::MpcPositionCommand>(
