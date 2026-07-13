@@ -30,6 +30,14 @@
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
         </ReactiveSequence>
 
+        <!-- 强化姿态专门分支:非隧道场景下,若操作手强化覆盖生效(override_active && 能量 && 未超时),
+             直接产出强化姿态并返回 SUCCESS,自动分支不会 tick。
+             优先级:高于自动分支,低于隧道分支。 -->
+        <Sequence name="ManualEnhancedStanceBranch">
+          <CheckManualStanceOverride branch="ManualEnhancedStanceBranch" />
+          <ApplyManualStanceOverride name="ApplyManualEnhancedStance" />
+        </Sequence>
+
         <ReactiveSequence name="AttackFortDefendGyroBranch">
           <CheckTacticalModeCondition mode="attack" branch="AttackFortDefendGyroBranch" />
           <ReactiveFallback name="EnemyFortGyroSelector">
@@ -48,7 +56,12 @@
                             random_speed="false" />
             </Sequence>
           </ReactiveFallback>
-          <ChangeStance name="ChangeStanceAttackFortDefend" stance="DEFEND" />
+          <Sequence name="AttackFortDefendChangeStanceGate">
+            <Inverter>
+              <CheckManualStanceOverride branch="AttackFortDefendGyroBranch" />
+            </Inverter>
+            <ChangeStance name="ChangeStanceAttackFortDefend" stance="DEFEND" />
+          </Sequence>
         </ReactiveSequence>
 
         <Sequence name="AbsoluteAttackBranch">
@@ -61,7 +74,12 @@
                         gyro_vel="40.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="AbsoluteAttackBranch" /> -->
-          <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
+          <Sequence name="AbsoluteAttackChangeStanceGate">
+            <Inverter>
+              <CheckManualStanceOverride branch="AbsoluteAttackBranch" />
+            </Inverter>
+            <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
+          </Sequence>
         </Sequence>
 
         <Sequence name="CombatAttackBranch">
@@ -72,7 +90,12 @@
                         gyro_vel="80.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
-          <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
+          <Sequence name="CombatAttackChangeStanceGate">
+            <Inverter>
+              <CheckManualStanceOverride branch="CombatAttackBranch" />
+            </Inverter>
+            <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
+          </Sequence>
         </Sequence>
 
         <Sequence name="DefendStanceBranch">
@@ -83,7 +106,12 @@
                         gyro_vel="80.0" 
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefendStanceBranch" /> -->
-          <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
+          <Sequence name="DefendChangeStanceGate">
+            <Inverter>
+              <CheckManualStanceOverride branch="DefendStanceBranch" />
+            </Inverter>
+            <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
+          </Sequence>
         </Sequence>
 
         <Sequence name="MoveStanceGyroBranch">
@@ -102,7 +130,12 @@
               </Inverter>
               <ChangeStance name="ChangeStanceDisengagedHighlandDefend" stance="DEFEND" />
             </Sequence> -->
-            <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
+            <Sequence name="MoveWithGyroChangeStanceGate">
+              <Inverter>
+                <CheckManualStanceOverride branch="MoveStanceGyroBranch" />
+              </Inverter>
+              <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
+            </Sequence>
           </Fallback>
         </Sequence>
         
@@ -115,17 +148,6 @@
         </Sequence>
 
       </ReactiveFallback>
-
-      <!-- 后处理:自动分支已算出 gyro 与基础姿态。仅在"非过隧道"时才应用操作手的强化姿态覆盖
-          能量/超时等其余条件仍在 ApplyManualStanceOverride 内部判断。-->
-      <ForceSuccess>
-        <Sequence name="ManualStanceOverridePostProcess">
-          <Inverter>
-            <CheckCrossZoneTransition branch="ManualStanceOverridePostProcess" />
-          </Inverter>
-          <ApplyManualStanceOverride name="ApplyManualStanceOverride" />
-        </Sequence>
-      </ForceSuccess>
     </ReactiveSequence>
   </BehaviorTree>
 </root>

@@ -497,41 +497,9 @@ BT::NodeStatus ApplyManualStanceOverride::tick()
 {
   auto blackboard = config().blackboard;
 
-  const bool override_active = blackboard->get<bool>("manual_stance_override_active");
-  if (!override_active) {
-    return BT::NodeStatus::SUCCESS;  // 无手动覆盖,保持自动决策结果
-  }
-
+  // 注:此节点应与 CheckManualStanceOverride 配合使用,CheckManualStanceOverride 已判断所有条件。
+  // 此处直接读取操作手指定的强化姿态并写入 desired_stance,不再重复判断。
   const auto override_stance = blackboard->get<SentryStance>("manual_override_stance");
-
-
-  // 能量不足时无法真正进入强化姿态,保持为 MOVE
-  const auto energy_ratio = blackboard->get<EnergyRatio>("energy_ratio");
-  if (energy_ratio == EnergyRatio::BELOW_1) {
-    return BT::NodeStatus::SUCCESS;
-  }
-
-  // 该强化姿态每局累计 15s 上限,超时(剩余为 0)后不再升级,走回自动决策。
-  int remaining_sec = 0;
-  switch (override_stance) {
-  case SentryStance::ENHANCED_ATTACK:
-    remaining_sec = blackboard->get<int>("enhanced_attack_remaining_time");
-    break;
-  case SentryStance::ENHANCED_DEFEND:
-    remaining_sec = blackboard->get<int>("enhanced_defend_remaining_time");
-    break;
-  case SentryStance::ENHANCED_MOVE:
-    remaining_sec = blackboard->get<int>("enhanced_move_remaining_time");
-    break;
-  default:
-    // 覆盖姿态不是强化姿态,保持自动结果。
-    return BT::NodeStatus::SUCCESS;
-  }
-  if (remaining_sec <= 0) {
-    return BT::NodeStatus::SUCCESS;
-  }
-
-  // 升级 stance
   blackboard->set<SentryStance>("desired_stance", override_stance);
   return BT::NodeStatus::SUCCESS;
 }
