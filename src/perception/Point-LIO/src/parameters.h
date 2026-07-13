@@ -89,6 +89,8 @@ extern bool extrinsic_est_en;             // 是否启用外参在线估计 (自
 extern bool publish_odometry_without_downsample; // 是否发布未降采样的高频里程计
 extern bool print_cloud_input_fps;        // 是否打印点云接收、里程计发布和位姿更新频率
 extern bool debug_pose_update_detail;     // 是否打印位姿更新细粒度诊断
+extern bool blind_center_enable;          // 是否将blind球心迁移到配置位置
+extern std::vector<double> blind_center;  // blind球心在输入点云坐标系中的位置
 // === 地图初始化参数 ===
 extern int init_map_size;                 // 初始化地图所需的最少特征点数量
 extern int con_frame_num;                 // 连接帧的数量 (当con_frame=true时)
