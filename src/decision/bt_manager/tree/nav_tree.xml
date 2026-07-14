@@ -33,14 +33,14 @@
           </ReactiveFallback>
         </ReactiveSequence>
 
-        <!-- <ReactiveSequence name="Priority1AttackEnemyFortAfter2Min">
+        <ReactiveSequence name="Priority1AttackEnemyFortAfter2Min">
           <CheckTacticalModeCondition name="CheckAttackEnemyFortTacticalMode"
                                       mode="attack"
                                       branch="Priority1AttackEnemyFortAfter2Min" />
           <SetNavMode name="SetAttackEnemyFortNavMode" mode="response" />
           <SetCoordinate name="SetAttackEnemyFortGoal" goal="4" />
           <NavigateToPoseAction name="NavigateAttackEnemyFort" />
-        </ReactiveSequence> -->
+        </ReactiveSequence>
 
         <ReactiveSequence name="Priority2MidSupplyWindow">
           <CheckGameTimeWindow name="CheckMidSupplyWindow"
@@ -207,7 +207,7 @@
               <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
                                                           patrol_branch_balanced="0"
                                                           patrol_branch_offensive="0"/> -->
-              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="1" />
+              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0" />
               <NavigateToPoseAction name="NavigatePatrolPoint" />
               <Wait name="WaitAtPatrolPoint" />
             </Sequence>

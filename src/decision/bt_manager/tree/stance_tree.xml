@@ -40,28 +40,24 @@
 
         <ReactiveSequence name="AttackFortDefendGyroBranch">
           <CheckTacticalModeCondition mode="attack" branch="AttackFortDefendGyroBranch" />
-          <ReactiveFallback name="EnemyFortGyroSelector">
-            <Sequence name="ArrivedEnemyFortRandomGyro">
-              <CheckInEnemyFortZone branch="ArrivedEnemyFortRandomGyro" />
+          <ReactiveFallback name="EnemyFortStanceSelector">
+            <Sequence name="ArrivedEnemyFortDefendGyro">
+              <CheckInEnemyFortZone branch="ArrivedEnemyFortDefendGyro" />
               <SetGyroState use_gyro="true"
                             gyro_vel="80.0"
                             random_speed="false" />
+              <ChangeStance name="ChangeStanceArrivedEnemyFortDefend" stance="DEFEND" />
             </Sequence>
-            <Sequence name="NotArriveEnemyFortNoGyro">
+            <Sequence name="ApproachEnemyFortMoveZeroGyro">
               <Inverter>
-                <CheckInEnemyFortZone branch="ArrivedEnemyFortRandomGyro" />
+                <CheckInEnemyFortZone branch="ApproachEnemyFortMoveZeroGyro" />
               </Inverter>
               <SetGyroState use_gyro="true"
                             gyro_vel="0.0"
                             random_speed="false" />
+              <ChangeStance name="ChangeStanceApproachEnemyFortMove" stance="MOVE" />
             </Sequence>
           </ReactiveFallback>
-          <Sequence name="AttackFortDefendChangeStanceGate">
-            <Inverter>
-              <CheckManualStanceOverride branch="AttackFortDefendGyroBranch" />
-            </Inverter>
-            <ChangeStance name="ChangeStanceAttackFortDefend" stance="DEFEND" />
-          </Sequence>
         </ReactiveSequence>
 
         <Sequence name="AbsoluteAttackBranch">
@@ -74,12 +70,7 @@
                         gyro_vel="40.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="AbsoluteAttackBranch" /> -->
-          <Sequence name="AbsoluteAttackChangeStanceGate">
-            <Inverter>
-              <CheckManualStanceOverride branch="AbsoluteAttackBranch" />
-            </Inverter>
-            <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
-          </Sequence>
+          <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
         </Sequence>
 
         <Sequence name="CombatAttackBranch">
@@ -90,12 +81,7 @@
                         gyro_vel="80.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
-          <Sequence name="CombatAttackChangeStanceGate">
-            <Inverter>
-              <CheckManualStanceOverride branch="CombatAttackBranch" />
-            </Inverter>
-            <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
-          </Sequence>
+          <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
         </Sequence>
 
         <Sequence name="DefendStanceBranch">
@@ -106,12 +92,7 @@
                         gyro_vel="80.0" 
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefendStanceBranch" /> -->
-          <Sequence name="DefendChangeStanceGate">
-            <Inverter>
-              <CheckManualStanceOverride branch="DefendStanceBranch" />
-            </Inverter>
-            <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
-          </Sequence>
+          <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
         </Sequence>
 
         <Sequence name="MoveStanceGyroBranch">
@@ -130,12 +111,7 @@
               </Inverter>
               <ChangeStance name="ChangeStanceDisengagedHighlandDefend" stance="DEFEND" />
             </Sequence> -->
-            <Sequence name="MoveWithGyroChangeStanceGate">
-              <Inverter>
-                <CheckManualStanceOverride branch="MoveStanceGyroBranch" />
-              </Inverter>
-              <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
-            </Sequence>
+            <ChangeStance name="ChangeStanceMoveWithGyro" stance="MOVE" />
           </Fallback>
         </Sequence>
         
