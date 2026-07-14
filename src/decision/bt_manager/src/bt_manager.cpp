@@ -92,6 +92,8 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckCapacitorCapacity>("CheckCapacitorCapacity");
   factory_.registerNodeType<CheckStanceCooldown>("CheckStanceCooldown");
   factory_.registerNodeType<CheckStanceEffectLimit>("CheckStanceEffectLimit");
+  factory_.registerNodeType<CheckManualStanceOverride>("CheckManualStanceOverride");
+  factory_.registerNodeType<ApplyManualStanceOverride>("ApplyManualStanceOverride");
   factory_.registerNodeType<CheckStanceRefreshRequired>("CheckStanceRefreshRequired");
   factory_.registerNodeType<SetGyroState>("SetGyroState");
   factory_.registerNodeType<TunnelGyroAlignAction>("TunnelGyroAlignAction");

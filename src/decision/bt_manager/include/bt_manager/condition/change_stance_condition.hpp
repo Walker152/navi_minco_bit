@@ -138,4 +138,15 @@ public:
   BT::NodeStatus tick() override;
 };
 
+// 检查操作手手动强化姿态覆盖是否应当生效。
+// 判断 3 个条件:override_active && 能量达标 && 该强化姿态未超时。
+// 隧道判断不在此,由树结构的优先级保证(隧道分支在前,短路后面分支)。
+class CheckManualStanceOverride : public BT::ConditionNode
+{
+public:
+  CheckManualStanceOverride(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 }  // namespace Sentry_BT
