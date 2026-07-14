@@ -56,10 +56,6 @@
                             random_speed="false" />
             </Sequence>
           </ReactiveFallback>
-<<<<<<< HEAD
-          <ChangeStance name="ChangeStanceAttackFortDefend" stance="DEFEND" />
-        </ReactiveSequence> -->
-=======
           <Sequence name="AttackFortDefendChangeStanceGate">
             <Inverter>
               <CheckManualStanceOverride branch="AttackFortDefendGyroBranch" />
@@ -67,7 +63,6 @@
             <ChangeStance name="ChangeStanceAttackFortDefend" stance="DEFEND" />
           </Sequence>
         </ReactiveSequence>
->>>>>>> e72104640c6ab4367ffd134631d31ac4a9033145
 
         <Sequence name="AbsoluteAttackBranch">
           <Fallback name="AbsoluteAttackConditions">
