@@ -100,7 +100,7 @@ CheckBigEnergyActive::CheckBigEnergyActive(const std::string & name, const BT::N
 
 BT::PortsList CheckBigEnergyActive::providedPorts()
 {
-  return {BT::InputPort<int>("active_status", 2, "Big energy active status value"),
+  return {BT::InputPort<int>("active_status", 1, "Big energy active status value"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
@@ -108,15 +108,28 @@ BT::NodeStatus CheckBigEnergyActive::tick()
 {
   auto blackboard = config().blackboard;
   const std::string branch = getInput<std::string>("branch").value_or("");
-  const int active_status = getInput<int>("active_status").value_or(2);
+  const int active_status = getInput<int>("active_status").value_or(1);
   const int big_energy_status = blackboard->get<int>("big_energy_status");
-  if (big_energy_status == 1) {
-    energy_activated = true;
+  const int game_status = blackboard->get<int>("game_status");
+  const int game_time_remaining = blackboard->get<int>("game_time_remaining");
+  const bool in_last_two_minutes =
+    game_status == 4 && game_time_remaining >= 0 && game_time_remaining <= 120;
+
+  bool active = false;
+  if (!in_last_two_minutes) {
+    energy_activated = false;
+  } else {
+    if (big_energy_status == active_status) {
+      energy_activated = true;
+    }
+    active = energy_activated;
   }
-  const bool active = energy_activated;
 
   std::ostringstream oss;
-  oss << "big_energy_status=" << big_energy_status << ", active_status=" << active_status;
+  oss << "game_status=" << game_status << ", game_time_remaining=" << game_time_remaining
+      << ", in_last_two_minutes=" << in_last_two_minutes
+      << ", big_energy_status=" << big_energy_status << ", active_status=" << active_status
+      << ", energy_activated=" << energy_activated;
   detail::logTransition(detail::TreeKind::NAV, "CheckBigEnergyActive", active, oss.str(), branch);
 
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;

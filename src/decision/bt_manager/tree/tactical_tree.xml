@@ -7,13 +7,13 @@
           <CheckAttackCondition name="CheckManualAttackCondition"
                                 branch="ManualAttackPriority" />
           <Sequence name="AutoAttackFortCondition">
+            <CheckBigEnergyActive name="CheckAutoAttackFortBigEnergy"
+                                  active_status="1"
+                                  branch="AutoAttackFortCondition" />
             <CheckGameTimeWindow name="CheckAutoAttackFortWindow"
                                  min_remaining="0"
                                  max_remaining="120"
                                  branch="AutoAttackFortCondition" />
-            <CheckBigEnergyActive name="CheckAutoAttackFortBigEnergy"
-                                  active_status="1"
-                                  branch="AutoAttackFortCondition" />
           </Sequence>
         </ReactiveFallback>
         <SetTacticalMode name="SetAttackMode" mode="attack" />
