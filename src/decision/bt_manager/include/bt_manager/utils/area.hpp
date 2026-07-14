@@ -220,7 +220,7 @@ inline std::array<Area_Square, 4> tunnel_zone = {
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
-  Area_Square{Point2D{5.7, 2.6}, Point2D{2.4, 1.4}},
+  Area_Square{Point2D{5.7, 3.6}, Point2D{2.4, 1.4}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
@@ -339,7 +339,7 @@ inline std::vector<Point2D> nav_points = {
   // {13.5, 4.8, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
   // {9.1, 6.5, 0.0},  // OUTPOST
-  {9.0, 3.1, 0.0},  // OUTPOST
+  {3.9, 5.9, 0.0},  // OUTPOST
   {12.8, 2.6, 0.0},  // OWN_FORT
   {12.7, 2.8, 0.0}   // ENEMY_FORT
 };
@@ -351,6 +351,14 @@ inline std::vector<PatrolList> normal_patrol_branches = {
     // {{10.0, 2.5, 0.0}, 5000},
     // {{12.7, 2.8, 0.0}, 5000},
     // {{9.6, 2.6, 0.0}, 5000},
+    {{3.9, 4.9, 0.0}, 5000},
+    {{10.0, 2.7, 0.0}, 5000}
+  },
+  {
+    {{3.9, 4.9, 0.0}, 5000},
+    {{10.0, 2.7, 0.0}, 5000}
+  },
+  {
     {{3.9, 4.9, 0.0}, 5000},
     {{10.0, 2.7, 0.0}, 5000}
   }

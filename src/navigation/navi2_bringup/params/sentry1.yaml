@@ -492,7 +492,7 @@ planner_server:
           frame_id: camera_init
           # [visualization][Hz] 可视化发布上限频率；实际每个 topic 仅在存在订阅者时构造并发布。
           rate: 10.0
-          range: [10.0, 10.0, 1.2]
+          range: [10.0, 10.0, 1.5]
       corridor:
         robot_radius: 0.25
         extra_margin: 0.05
@@ -516,7 +516,7 @@ planner_server:
         turn_angle_deadzone: 0.1
         turn_angle_saturation: 0.8
         min_turn_vel: 0.6
-        decay_power: 2.0
+        decay_power: 1.7
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
