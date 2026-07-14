@@ -10,7 +10,7 @@
           <CheckCrossZoneTransition branch="ManualAttackTunnelDefendAlignBranch" />
           <ChangeStance name="ChangeStanceManualAttackTunnelDefend" stance="DEFEND" />
           <TunnelGyroAlignAction branch="ManualAttackTunnelDefendAlignBranch"
-                                 kp="1.8"
+                                 kp="1.2"
                                  ki="0.2"
                                  kd="0.1"
                                  deadzone_rad="0.05"
@@ -22,7 +22,7 @@
           <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch" />
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
           <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch"
-                                 kp="1.8"
+                                 kp="1.2"
                                  ki="0.2"
                                  kd="0.1"
                                  deadzone_rad="0.05"
@@ -30,7 +30,7 @@
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
         </ReactiveSequence>
 
-        <ReactiveSequence name="AttackFortDefendGyroBranch">
+        <!-- <ReactiveSequence name="AttackFortDefendGyroBranch">
           <CheckTacticalModeCondition mode="attack" branch="AttackFortDefendGyroBranch" />
           <ReactiveFallback name="EnemyFortGyroSelector">
             <Sequence name="ArrivedEnemyFortRandomGyro">
@@ -49,7 +49,7 @@
             </Sequence>
           </ReactiveFallback>
           <ChangeStance name="ChangeStanceAttackFortDefend" stance="DEFEND" />
-        </ReactiveSequence>
+        </ReactiveSequence> -->
 
         <Sequence name="AbsoluteAttackBranch">
           <Fallback name="AbsoluteAttackConditions">
