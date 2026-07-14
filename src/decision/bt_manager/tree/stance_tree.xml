@@ -10,7 +10,7 @@
           <CheckCrossZoneTransition branch="ManualAttackTunnelDefendAlignBranch" />
           <ChangeStance name="ChangeStanceManualAttackTunnelDefend" stance="DEFEND" />
           <TunnelGyroAlignAction branch="ManualAttackTunnelDefendAlignBranch"
-                                 kp="1.2"
+                                 kp="1.5"
                                  ki="0.2"
                                  kd="0.1"
                                  deadzone_rad="0.05"
@@ -22,7 +22,7 @@
           <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch" />
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
           <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch"
-                                 kp="1.2"
+                                 kp="1.5"
                                  ki="0.2"
                                  kd="0.1"
                                  deadzone_rad="0.05"
