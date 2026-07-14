@@ -10,11 +10,12 @@
 int main(int argc, char const * argv[])
 {
   rclcpp::init(argc, argv);
+  Sentry_BT::BehaviorTreeLogSink behavior_tree_log_sink;
   auto blackboard = std::make_shared<Sentry_BT::Blackboard>();
   auto ros_interface_node = std::make_shared<Sentry_BT::ros_interface>(blackboard);
   auto transform_utils_node = std::make_shared<Sentry_BT::TransformUtils>();
 
-  const bool bt_debug_logs = ros_interface_node->declare_parameter<bool>("bt_debug_logs", false);
+  const bool bt_debug_logs = ros_interface_node->declare_parameter<bool>("bt_debug_logs", true);
   const bool bt_debug_log_to_file =
     ros_interface_node->declare_parameter<bool>("bt_debug_log_to_file", false);
   const std::string bt_debug_log_file =
