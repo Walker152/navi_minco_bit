@@ -33,7 +33,6 @@
           </ReactiveFallback>
         </ReactiveSequence>
 
-        <!-- tactical_mode=attack is maintained by TacticalTree; NavTree only executes navigation. -->
         <!-- <ReactiveSequence name="Priority1AttackEnemyFortAfter2Min">
           <CheckTacticalModeCondition name="CheckAttackEnemyFortTacticalMode"
                                       mode="attack"
