@@ -428,33 +428,10 @@ BT::NodeStatus UpdateStanceDuration::tick()
   }
 
   const double delta = static_cast<double>(raw_delta);
-  const int int_delta = raw_delta;
   const auto current_stance = blackboard->get<SentryStance>("current_stance");
 
-  // 强化姿态下递减对应强化姿态的剩余可用时间(每局各 15s 上限)。
-  // 仅统计剩余时间
-  switch (current_stance) {
-  case SentryStance::ENHANCED_ATTACK: {
-    const int remaining = blackboard->get<int>("enhanced_attack_remaining_sec");
-    blackboard->set("enhanced_attack_remaining_sec", std::max(0, remaining - int_delta));
-    break;
-  }
-  case SentryStance::ENHANCED_DEFEND: {
-    const int remaining = blackboard->get<int>("enhanced_defend_remaining_sec");
-    blackboard->set("enhanced_defend_remaining_sec", std::max(0, remaining - int_delta));
-    break;
-  }
-  case SentryStance::ENHANCED_MOVE: {
-    const int remaining = blackboard->get<int>("enhanced_move_remaining_sec");
-    blackboard->set("enhanced_move_remaining_sec", std::max(0, remaining - int_delta));
-    break;
-  }
-  default:
-    break;
-  }
-
-  // 累计各姿态停留时长(用于效果下降判定)。强化态也计入对应的普通姿态桶,
-  // 因为效果下降按"处于某姿态"累计,不区分是否强化。
+  // 仅根据裁判系统 game_time_remaining 的差值累计姿态停留时长。
+  // 强化姿态剩余时间完全由裁判系统反馈管理；强化态仍计入对应的普通姿态桶。
   switch (current_stance) {
   case SentryStance::ATTACK:
   case SentryStance::ENHANCED_ATTACK: {
