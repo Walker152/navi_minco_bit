@@ -8,6 +8,17 @@
 
 namespace Sentry_BT {
 
+namespace {
+std::string stanceName(SentryStance stance)
+{
+  const auto index = static_cast<size_t>(stance);
+  if (index >= 1 && index <= stance_names.size()) {
+    return stance_names[index - 1];
+  }
+  return "UNKNOWN(" + std::to_string(static_cast<int>(stance)) + ")";
+}
+}  // namespace
+
 // ------------------- CheckHeat -------------------
 CheckHeat::CheckHeat(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
@@ -489,6 +500,80 @@ BT::NodeStatus CheckInEnemyFortZone::tick()
   detail::logTransition(detail::TreeKind::STANCE, "CheckInEnemyFortZone", in_enemy_fort, oss.str(), branch);
 
   return in_enemy_fort ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckManualStanceOverride -------------------
+CheckManualStanceOverride::CheckManualStanceOverride(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckManualStanceOverride::providedPorts()
+{
+  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckManualStanceOverride::tick()
+{
+  const auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+
+  const bool override_active = blackboard->get<bool>("manual_stance_override_active");
+  if (!override_active) {
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckManualStanceOverride", false, "override not active", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  const auto override_stance = blackboard->get<SentryStance>("manual_override_stance");
+
+  // 只处理强化姿态覆盖。若覆盖意图是普通姿态,不拦截自动决策。
+  if (override_stance != SentryStance::ENHANCED_ATTACK &&
+      override_stance != SentryStance::ENHANCED_DEFEND &&
+      override_stance != SentryStance::ENHANCED_MOVE) {
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckManualStanceOverride", false,
+      "override_stance=" + stanceName(override_stance) + " (not enhanced)", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  // 能量不足时无法进入强化姿态。
+  const auto energy_ratio = blackboard->get<EnergyRatio>("energy_ratio");
+  if (energy_ratio == EnergyRatio::BELOW_1) {
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckManualStanceOverride", false, "energy insufficient", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  // 该强化姿态剩余时间用尽。
+  int remaining_sec = 0;
+  switch (override_stance) {
+  case SentryStance::ENHANCED_ATTACK:
+    remaining_sec = blackboard->get<int>("enhanced_attack_remaining_time");
+    break;
+  case SentryStance::ENHANCED_DEFEND:
+    remaining_sec = blackboard->get<int>("enhanced_defend_remaining_time");
+    break;
+  case SentryStance::ENHANCED_MOVE:
+    remaining_sec = blackboard->get<int>("enhanced_move_remaining_time");
+    break;
+  default:
+    break;
+  }
+  if (remaining_sec <= 0) {
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckManualStanceOverride", false,
+      "remaining_sec=" + std::to_string(remaining_sec) + " (timeout)", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  // 所有条件满足,强化覆盖生效。
+  std::ostringstream oss;
+  oss << "override_stance=" << stanceName(override_stance)
+      << ", remaining_sec=" << remaining_sec;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckManualStanceOverride", true, oss.str(), branch);
+  return BT::NodeStatus::SUCCESS;
 }
 
 }  // namespace Sentry_BT
