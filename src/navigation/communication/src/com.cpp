@@ -21,6 +21,7 @@ std::shared_ptr<ComInterfaceRos> Communication::ros_if_{nullptr};
 // 初始化通信模块
 void Communication::init()
 {
+  CsvRecorder::initialize();
   timer_manager.addTimer(1000, true, []() {
     Communication::__open(STM32_NAME, STM32_PORT, stm32_read_cb, 115200);
   });
