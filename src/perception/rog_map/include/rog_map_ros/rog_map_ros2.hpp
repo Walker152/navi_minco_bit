@@ -36,7 +36,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
-#include <tf2_ros/transform_broadcaster.h>
 #include <visualization_msgs/msg/marker_array.hpp>
 
 #include <rog_map/rog_map.h>
@@ -62,7 +61,6 @@ class ROGMapROS : public ROGMap
   rclcpp::node_interfaces::NodeClockInterface::SharedPtr node_clock_;
   rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr node_logging_;
   rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_;
-  std::shared_ptr<tf2_ros::TransformBroadcaster> br_map_ego_;
   std::unique_ptr<ROGMapVisualizer> visualizer_driver_;
 
   const double getSystemWalltimeNow() override { return now().seconds(); }
@@ -79,7 +77,6 @@ class ROGMapROS : public ROGMap
     node_clock_ = node->get_node_clock_interface();
     node_logging_ = node->get_node_logging_interface();
     node_parameters_ = node->get_node_parameters_interface();
-    br_map_ego_ = std::make_shared<tf2_ros::TransformBroadcaster>(node);
   }
 
   rclcpp::CallbackGroup::SharedPtr createCallbackGroup(rclcpp::CallbackGroupType type)
@@ -139,19 +136,6 @@ class ROGMapROS : public ROGMap
         odom_msg->pose.pose.orientation.x,
         odom_msg->pose.pose.orientation.y,
         odom_msg->pose.pose.orientation.z)));
-
-    geometry_msgs::msg::TransformStamped transformStamped;
-    transformStamped.header.stamp = now();
-    transformStamped.header.frame_id = cfg_.frame_id;
-    transformStamped.child_frame_id = "drone";
-    transformStamped.transform.translation.x = odom_msg->pose.pose.position.x;
-    transformStamped.transform.translation.y = odom_msg->pose.pose.position.y;
-    transformStamped.transform.translation.z = odom_msg->pose.pose.position.z;
-    transformStamped.transform.rotation.x = odom_msg->pose.pose.orientation.x;
-    transformStamped.transform.rotation.y = odom_msg->pose.pose.orientation.y;
-    transformStamped.transform.rotation.z = odom_msg->pose.pose.orientation.z;
-    transformStamped.transform.rotation.w = odom_msg->pose.pose.orientation.w;
-    br_map_ego_->sendTransform(transformStamped);
   }
 
   void cloudCallback(sensor_msgs::msg::PointCloud2::UniquePtr cloud_msg)
