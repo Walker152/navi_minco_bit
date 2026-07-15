@@ -42,6 +42,7 @@ include_directories(
 add_library(${PROJECT_NAME}_core
   src/com.cpp
   src/com_interface_ros.cpp
+  src/csv_recorder.cpp
 )
 
 ament_target_dependencies(${PROJECT_NAME}_core
