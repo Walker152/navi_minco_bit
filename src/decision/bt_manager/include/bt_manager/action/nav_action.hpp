@@ -132,7 +132,7 @@ public:
     if (isPatrolNavigationContext()) {
       const auto now = std::chrono::steady_clock::now();
       const double elapsed_sec = std::chrono::duration<double>(now - nav_start_time_).count();
-      if (elapsed_sec > 15.0) {
+      if (elapsed_sec > 30.0) {
         Point2D timeout_goal;
         if (selectNextPatrolGoalFromBlackboard(timeout_goal)) {
           setActionGoal(timeout_goal);

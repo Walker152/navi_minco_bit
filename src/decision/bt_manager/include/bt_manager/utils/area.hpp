@@ -238,14 +238,14 @@ inline std::array<Area_Square, 2> stairs_lower_safe_zone{
   Area_Square{Point2D{11.5, 6.2}, Point2D{10.3, 4.5}},
 };
 inline AreaPolygon<8, Point2D> highland_zone{
-  Point2D{4.9, 6.9}, 
-  Point2D{4.9, 5.9},
-  Point2D{4.9, 4.9},
-  Point2D{3.9, 4.9},
-  Point2D{2.9, 4.9},
-  Point2D{2.9, 5.9},
-  Point2D{2.9, 6.9},
-  Point2D{3.9, 6.9},
+  Point2D{6.4, 6.9}, 
+  Point2D{6.4, 5.3},
+  Point2D{6.4, 5.1},
+  Point2D{5.5, 5.1},
+  Point2D{2.4, 5.1},
+  Point2D{2.4, 5.3},
+  Point2D{2.4, 6.9},
+  Point2D{5.3, 6.9},
 };
 inline AreaPolygon<8, Point2D> own_defense_zone{
   Point2D{12.4, 4.5}, 
@@ -267,7 +267,7 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{12.7, 3.1},
   Point2D{12.7, 0.7},
 };
-inline Area_Square enemy_outpost_watch_zone{Point2D{10.1, 7.2}, Point2D{8.3, 6.2}};
+inline Area_Square enemy_outpost_watch_zone{Point2D{4.6, 6.6}, Point2D{3.2,5.2 }};
 inline Area_Circle enemy_fort_zone{Point2D{12.9, 2.7}, 1.0};
 inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{12.0, 2.0},
@@ -351,16 +351,16 @@ inline std::vector<PatrolList> normal_patrol_branches = {
     // {{10.0, 2.5, 0.0}, 5000},
     // {{12.7, 2.8, 0.0}, 5000},
     // {{9.6, 2.6, 0.0}, 5000},
-    {{3.9, 4.9, 0.0}, 5000},
-    {{10.0, 2.7, 0.0}, 5000}
+    {{3.9, 4.9, 0.0}, 10000},
+    {{10.0, 2.7, 0.0}, 10000}
   },
   {
-    {{3.9, 4.9, 0.0}, 5000},
-    {{10.0, 2.7, 0.0}, 5000}
+    {{3.9, 4.9, 0.0}, 10000},
+    {{10.0, 2.7, 0.0}, 10000}
   },
   {
-    {{3.9, 4.9, 0.0}, 5000},
-    {{10.0, 2.7, 0.0}, 5000}
+    {{3.9, 4.9, 0.0}, 10000},
+    {{10.0, 2.7, 0.0}, 10000}
   }
 };
 
