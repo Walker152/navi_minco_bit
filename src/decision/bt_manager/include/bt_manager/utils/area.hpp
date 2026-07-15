@@ -238,14 +238,14 @@ inline std::array<Area_Square, 2> stairs_lower_safe_zone{
   Area_Square{Point2D{11.5, 6.2}, Point2D{10.3, 4.5}},
 };
 inline AreaPolygon<8, Point2D> highland_zone{
-  Point2D{12.3, 7.3}, 
-  Point2D{10.3, 7.3},
-  Point2D{7.9, 7.3},
-  Point2D{5.5, 7.3},
-  Point2D{5.5, 6.2},
-  Point2D{7.9, 6.2},
-  Point2D{10.3, 6.2},
-  Point2D{12.3, 6.2},
+  Point2D{4.9, 6.9}, 
+  Point2D{4.9, 5.9},
+  Point2D{4.9, 4.9},
+  Point2D{3.9, 4.9},
+  Point2D{2.9, 4.9},
+  Point2D{2.9, 5.9},
+  Point2D{2.9, 6.9},
+  Point2D{3.9, 6.9},
 };
 inline AreaPolygon<8, Point2D> own_defense_zone{
   Point2D{12.4, 4.5}, 
