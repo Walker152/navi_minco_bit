@@ -2,6 +2,7 @@
 // #define COMMUNICATION_DEBUG
 #include "header.hpp"
 #include "thread"
+#include <cmath>
 #include <cstdlib>
 #include <deque>
 #include <limits>
@@ -202,7 +203,7 @@ private:
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
     com_timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(5), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
+      std::chrono::milliseconds(10), std::bind(&ComInterfaceRos::communicationLoop, this), comm_cb_group_);
     path_timer_ = this->create_wall_timer(std::chrono::milliseconds(1000),
       std::bind(&ComInterfaceRos::sendGlobalPathLoop, this),
       comm_cb_group_);
@@ -226,6 +227,7 @@ private:
     float fy_global = 0.0f;
     float fw_global = 0.0f;
     float delta_yaw = 0.0f;
+    bool delta_yaw_initialized = false;
 
     // Behavior-related variables
     uint8_t pitch_mode = 0;
@@ -265,6 +267,7 @@ private:
       fy_global = cmd_wrench_.force.y;
       fw_global = cmd_wrench_.torque.z;
       delta_yaw = delta_yaw_;
+      delta_yaw_initialized = delta_yaw_initialized_;
 
       pitch_mode = behavior_.pitch_mode;
       desire_stance = behavior_.desired_stance;
@@ -291,6 +294,17 @@ private:
         vx_mps = tunnel_escape_vx;
         vy_mps = tunnel_escape_vy;
       }
+    }
+
+    if (!delta_yaw_initialized) {
+      vx_mps = 0.0f;
+      vy_mps = 0.0f;
+      fx_global = 0.0f;
+      fy_global = 0.0f;
+      RCLCPP_WARN_THROTTLE(get_logger(),
+        *get_clock(),
+        1000,
+        "[COM] delta_yaw is not initialized; suppressing translational command.");
     }
 
     tf2::Quaternion q;
@@ -596,27 +610,41 @@ private:
       }
     }
 
-    float delta = 0.0f;
-    if (found) {
-      tf2::Quaternion q;
-      tf2::fromMsg(orientation, q);
-      double roll = 0.0;
-      double pitch = 0.0;
-      double yaw = 0.0;
-      tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-      const float odom_yaw_deg = static_cast<float>(yaw * 180.0 / M_PI);
-      delta = odom_yaw_deg - matched_imu_yaw;
-      while (delta > 180.0f) {
-        delta -= 360.0f;
-      }
-      while (delta < -180.0f) {
-        delta += 360.0f;
-      }
+    if (!found) {
+      RCLCPP_WARN_THROTTLE(get_logger(),
+        *get_clock(),
+        1000,
+        "[COM] No chassis IMU yaw matched odom stamp within %ld ms; keeping last valid delta_yaw.",
+        imu_yaw_window_ms_);
+      return;
+    }
+
+    tf2::Quaternion q;
+    tf2::fromMsg(orientation, q);
+    double roll = 0.0;
+    double pitch = 0.0;
+    double yaw = 0.0;
+    tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+    if (!std::isfinite(yaw) || !std::isfinite(matched_imu_yaw)) {
+      RCLCPP_WARN_THROTTLE(get_logger(),
+        *get_clock(),
+        1000,
+        "[COM] Invalid yaw value while calculating delta_yaw; keeping last valid delta_yaw.");
+      return;
+    }
+
+    float delta = static_cast<float>(yaw * 180.0 / M_PI) - matched_imu_yaw;
+    while (delta > 180.0f) {
+      delta -= 360.0f;
+    }
+    while (delta < -180.0f) {
+      delta += 360.0f;
     }
 
     {
       std::lock_guard<std::mutex> lk(state_mutex_);
       delta_yaw_ = delta;
+      delta_yaw_initialized_ = true;
       // std::cout << "Delta yaw updated: " << delta_yaw_ << " degrees (matched_imu_yaw=" << matched_imu_yaw
       //           << ", found=" << found << ")" << std::endl;
     }
@@ -674,6 +702,7 @@ private:
   std::chrono::steady_clock::time_point send_enable_time_{std::chrono::steady_clock::now()};
   float transform_state = 0.0f;
   float delta_yaw_{0.0f};
+  bool delta_yaw_initialized_{false};
 };
 
 }  // namespace ns_com
