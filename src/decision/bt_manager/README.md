@@ -1,157 +1,159 @@
-# bt_manager 🧠⚙️
+# 🌳 BT Manager
 
-> RoboMaster 哨兵机器人决策核心（ROS 2 + BehaviorTree.CPP v3）
->
-> 现代化控制流：**Reactive BT + Pure Blackboard + Debounce/Throttle**
+> RoboMaster 哨兵机器人自主决策中枢：基于 BehaviorTree.CPP，将裁判系统状态、导航目标、姿态控制、资源决策与恢复行为组织为可审计的响应式策略树。
 
----
+[返回项目主页](../../../README.md) · [MINCO Planner](../../navigation/minco_planner/README.md)
 
-## 1. 架构简介 (Introduction)
+## ✨ 模块定位
 
-`bt_manager` 是哨兵机器人的“**大脑节点**”，负责两条并行主链路：
+`bt_manager` 不直接实现轨迹规划或底盘闭环控制，而是决定机器人“当前应该做什么”：选择战术模式、生成导航目标、切换姿态、请求资源、处理人工接管，并将结果写入共享 blackboard 或发布到 ROS 2 接口。
 
-- 🧭 **导航决策**：在巡逻、追击、前哨响应、撤退等策略之间进行优先级抢占与目标分发。
-- 🎯 **姿态决策**：在 MOVE / ATTACK / DEFEND 间快速切换，驱动云台与底盘协同。
+模块使用 BehaviorTree.CPP v3。主程序以多线程执行器处理 ROS 回调，行为树以 **10 Hz** tick；多个子树共享同一 blackboard。
 
-本包采用了 **Pure Blackboard** 设计：
+## 🧠 决策架构
 
-- ✅ 摒弃繁琐的 XML 端口映射与复杂数据穿透。
-- ✅ 关键状态由 C++ 底层直接读写全局黑板。
-- ✅ 在响应式行为树中实现**低延迟、强可控、易调试**的数据驱动闭环。
-
-> 📌 设计目标：在极端对抗场景下，保持“可抢占、可回退、可恢复”的稳定决策行为。
-
----
-
-## 2. 核心导航策略与打断机制 (Navigation Strategies)
-
-主树导航部分采用 `ReactiveFallback`，具备严格的**高优先级抢占低优先级**能力。
-
-### 优先级总览（高 → 低）
-
-| 优先级 | 分支名 | 节点类型 | 触发条件 | 目标/行为特性 |
-|:--:|:--|:--|:--|:--|
-| 1 | `StairsEvacuation` | `Sequence` | `health < 50` 且位于台阶区域（`CheckInStairsZone`） | 不可逆物理动作链，避免“抽搐式”反复打断 |
-| 2 | `EmergencyRetreat` | `ReactiveSequence` | `health < 50` | 强制前往 `HOME`，高危场景优先保命 |
-| 3 | `TargetPursuit` | `ReactiveSequence` | `target_valid == true` | 动态追击目标点，支持视觉/空间防抖 |
-| 4 | `OutpostResponse` | `ReactiveSequence` | `enemy_outpost_destroyed == false` | 快速前往 `OUTPOST` 执行响应 |
-| 5 | `RegularPatrol` | `Sequence` | 兜底逻辑（默认） | 顺序巡逻并带状态记忆，避免高频切点 |
-
-### 工程亮点 ✨
-
-- 👁️ **视觉防抖 Debounce（1.0s）**：短时丢帧不立刻丢失追击态，避免“闪断-回退-再追击”振荡。
-- 📏 **空间限频 Throttle（0.5m）**：对追击目标刷新做位移门限，降低 Nav2 频繁重规划压力，提升稳定性。
-- 🔁 **Reactive 抢占机制**：高优条件一旦成立，可在当前 Tick 周期内打断低优任务。
-
-> 💡 `Sequence` 用于“必须完整执行”的动作链；`ReactiveSequence` 用于“可被更高优条件实时抢占”的行为链。
-
----
-
-## 3. 姿态切换逻辑 (Stance Switching)
-
-姿态链路位于主树顶层 `ForceSuccess` 中，与导航链路形成**双轨并行**：
-
-- 导航在抢占，姿态也在独立抢占。
-- 姿态判定采用绝对物理指标，不与导航模式做强耦合。
-
-### 姿态优先级（高 → 低）
-
-| 优先级 | 姿态 | 条件 | 说明 |
-|:--:|:--|:--|:--|
-| 1 | `DEFEND` | `health <= 30.0` | 强制防御（小陀螺/保命） |
-| 2 | `ATTACK` | `target_valid == true` 或 `outpost_msg == true` | 进入进攻姿态 |
-| 3 | `MOVE` | 其他条件均不满足 | 兜底移动姿态 |
-
-### `ChangeStance` 动作节点机制
-
-- ⏱️ 内置 **5 秒 CD**（物理冷却时间）。
-- ✅ CD 内直接返回 `SUCCESS`，避免阻塞主树 Tick。
-- 🔄 保证姿态切换有节律，降低频繁切换导致的执行器冲击。
-
----
-
-## 4. 核心全局黑板变量一览 (Blackboard Dictionary)
-
-| 变量名 | C++ 类型 | 用途 |
-|:--|:--|:--|
-| `health` | `float` | 当前血量（决策核心输入） |
-| `enemy_outpost_destroyed` | `bool` | 敌方前哨站是否被摧毁 |
-| `target_valid` | `bool` | 视觉锁敌标志（受 1s 防抖保护） |
-| `target_pose` | `geometry_msgs::msg::Pose` | 敌人实时坐标（用于追击目标） |
-| `nav_goal` | `Point2D` | 最终下发给 Nav2 的导航目标 |
-| `current_mode` | `int` | 当前导航模式枚举（PATROL/TRACING/RETREAT/RESPONSE） |
-| `current_stance` / `desired_stance` | `SentryStance` | 当前姿态 / 期望姿态 |
-| `patrol_index` | `int` | 巡逻点索引（配合标准 Sequence 稳态更新） |
-
-> ✅ 推荐实践：所有跨节点共享状态统一进入黑板，保持“单一事实源（Single Source of Truth）”。
-
----
-
-## 5. 坐标域与状态配置 (`nav_zone` Configuration)
-
-`bt_manager/utils/nav_zone.hpp` 与 `bt_manager/utils/nav_zone.cpp` 负责地图点位、巡逻序列及状态名称配置。
-
-### 5.1 如何修改点位
-
-直接修改 `Point2D` 的 `x`/`y` 即可：
-
-```cpp
-std::vector<Point2D> nav_points = {
-  {3.0, 3.0},   // HOME
-  {8.5, 8.5},   // BONUS
-  {15.7, 11.0}  // OUTPOST
-};
+```mermaid
+flowchart TD
+  J[裁判系统 / 雷达 / 手动指令] --> RI[ROS Interface]
+  O[Odometry / Path / cmd_vel] --> RI
+  RI --> B[(Shared Blackboard)]
+  B --> T[Tactical Tree]
+  B --> N[Navigation Tree]
+  B --> S[Stance Tree]
+  B --> R[Resource Tree]
+  B --> G[Gimbal Tree]
+  N --> RV[Recovery Tree]
+  T --> B
+  N --> B
+  S --> B
+  R --> B
+  G --> B
+  B --> P[导航目标 / 姿态 / 通信指令]
 ```
 
-- `nav_points`：固定全局目标点（`HOME/BONUS/OUTPOST`）。
-- `patrol_points_normal`：常规巡逻路径。
-- `patrol_points_attack`：进攻态巡逻路径（可用于前压/压制策略）。
+当前实际行为必须以 `tree/*.xml` 中**未注释的节点与顺序**为准。`ReactiveFallback` 从上到下表示优先级；高优先级条件重新满足时，会抢占低优先级分支。
 
-### 5.2 停留时间映射
+## 🗺️ 生效树文件
 
-`patrol_points_milliseconds` 与巡逻点数组按索引一一对应：
+| 文件 | 职责 | 当前重点 |
+|---|---|---|
+| `tactical_tree.xml` | 战术模式选择 | 人工/进攻条件优先，其余进入常规模式 |
+| `nav_tree.xml` | 主导航决策 | 人工覆盖、前哨站进攻、补给与全局资源等响应式分支 |
+| `stance_tree.xml` | 车体姿态 | 隧道对齐、人工增强姿态、进攻与移动姿态 |
+| `resource_tree.xml` | 资源请求 | 复活、血量与弹量兑换等生效分支 |
+| `recovery_tree.xml` | 导航恢复 | 当前包含隧道后退脱困动作 |
+| `gimbal_tree.xml` | 云台相关行为 | 根据共享状态执行云台策略 |
 
-- `patrol_points_normal[i]` ↔ `patrol_points_milliseconds[i]`
-- 行为树在每个点到达后，按该毫秒值执行 `Wait` 节点停留。
+> XML 中保留的注释分支属于历史或待验证方案，不代表运行能力，也不应仅因“看起来完整”而启用。
 
-> 📌 调参建议：先固定点位，再调停留时间；避免同时改两组参数导致定位问题难复现。
+## 🔑 Blackboard 契约
 
----
+Blackboard 是决策树与 ROS 接口间的状态契约。修改 key 名称、类型或写入优先级可能同时影响多个子树。
 
-## 6. 时间轴压测节点 (`event_status_pub_test`)
+| Key | 语义 | 典型生产者 / 消费者 |
+|---|---|---|
+| `tactical_mode` | 战术层模式 | tactical tree → navigation/stance/resource |
+| `current_mode` | 当前导航/行为模式 | mode 节点与 ROS 通信 |
+| `nav_goal` | 当前导航目标 | nav tree → Nav2 action 节点 |
+| `desired_stance` | 目标姿态 | stance tree → 通信接口 |
+| `current_stance` | 实际姿态反馈 | 裁判/下位机回调 → stance conditions |
+| `desired_lifter_pos` | 目标升降位置 | 姿态动作 → 通信接口 |
+| `cmd_vel` | 当前速度信息 | ROS 回调 → 恢复/状态判断 |
+| `use_gyro_mode`, `gyro_vel` | 小陀螺开关与角速度 | 决策节点 → 控制/通信 |
+| `target_valid`, `target_pose` | 目标有效性与位置 | 感知/裁判回调 → 导航决策 |
+| `outpost_safe_cooldown_active` | 前哨站安全冷却 | 条件节点与进攻逻辑 |
+| `enemy_outpost_destroyed` | 敌方前哨站状态 | 裁判信息 → 战术分支 |
 
-该测试节点用于执行“阶段化极限剧本”，验证 Reactive BT 在**导航优先级抢占**与**姿态优先级抢占**上的鲁棒性。
+新增或修改 key 前，应同时搜索 XML 端口、C++ `get/set` 和默认值，避免隐式类型不一致。
 
-### 压测流程时间轴（1Hz 发布）
+## 📡 ROS 接口
 
-- **[0-15s]**：兜底常规巡逻测试（RegularPatrol + MOVE）。
-- **[15-30s]**：视觉锁敌触发抢占（TargetPursuit + ATTACK）。
-- **[30-45s]**：视觉丢失防抖测试（1.0s 记忆后平滑回落）。
-- **[45-60s]**：前哨站响应打断测试（OutpostResponse 抢占巡逻）。
-- **[60-75s]**：大掉血触发紧急撤退（EmergencyRetreat 强制抢占）。
-- **[75-90s]**：濒死防御姿态测试（DEFEND 最高优先级姿态介入）。
-- **[90-105s]**：回血重置测试（撤退解除，恢复响应/常规策略）。
+`ros_interface` 汇总裁判系统与机器人状态。当前主要链路包括：
 
-### 运行示例
+### 输入
+
+- 队伍、比赛阶段、雷达、机器人在线/离线等裁判信息。
+- `/aft_mapped_to_init`：定位状态。
+- `/opt_path`：当前优化轨迹。
+- `/cmd_vel`：底盘速度状态。
+
+### 输出
+
+| Topic | 说明 |
+|---|---|
+| `/sentry/behaivor_send` | 哨兵行为、资源与姿态指令；名称沿用现有接口拼写 |
+| `/cmd_vel` | 明确恢复/接管场景中的速度指令链路 |
+| `/sentry/area_markers` | 战术区域可视化 |
+
+通信协议位段与下位机约定是跨模块接口，不能只修改发送端或单个枚举。
+
+## ⚙️ 配置与日志
+
+主程序声明以下调试参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---:|---|
+| `bt_debug_logs` | `true` | 输出节点状态转移日志 |
+| `bt_debug_log_to_file` | `false` | 是否将转移日志写入文件 |
+| `bt_debug_log_file` | `logs/bt_transition.log` | 文件日志路径 |
+
+比赛运行时不建议开启高频、逐 tick 的详细日志。调试优先使用“条件变化 + 节点转移”信息，以免影响回调调度。
+
+行为树内部还设置：
+
+```text
+bt_loop_duration       = 100 ms
+server_timeout         = 500 ms
+wait_for_service_timeout = 10 s
+```
+
+## 🚀 启动与检查
+
+模块通常由系统 launch 拉起。独立调试时，在工作空间完成环境加载后可运行：
 
 ```bash
-# 构建
-colcon build --packages-select bt_manager
-
-# 终端 1：启动决策节点
-ros2 launch bt_manager bt_manager.launch.py
-
-# 终端 2：启动时间轴压测发布器
-ros2 run bt_manager event_test
+ros2 run bt_manager bt_manager
 ```
 
----
+推荐检查：
 
-## 附：工程准则 🏆
+```bash
+ros2 node info /ros_interface
+ros2 topic echo /sentry/behaivor_send --once
+ros2 topic echo /sentry/area_markers --once
+```
 
-- 以响应式抢占保证战术实时性。
-- 以黑板直连保证链路低延迟。
-- 以防抖/限频保证复杂链路稳定运行。
-- 以阶段化压测保证可回归、可复现、可演进。
+节点实际名称以运行时 `ros2 node list` 为准。启动失败时首先确认包 share 目录内已安装 `tree/` XML 文件。
 
----
+## 🧩 修改行为树的安全准则
+
+1. 先确认当前被加载的 XML，而不是依据同名历史文件。
+2. 保持 `ReactiveFallback` 分支顺序，因为顺序就是优先级。
+3. 检查 Condition 是否具有 blackboard 写入副作用。
+4. 修改姿态、资源、复活、买弹/买血时同步核对裁判协议位段。
+5. 确认进入特殊模式后存在退出与参数恢复路径。
+6. 不把注释节点直接视作可复用的已验证功能。
+
+## 🛠️ 常见问题
+
+| 现象 | 优先检查 |
+|---|---|
+| 树初始化失败 | package share 路径、XML 安装、节点注册名和端口类型 |
+| 低优先级行为从不执行 | 更高优先级条件是否持续为真 |
+| 条件显示成功但后续不执行 | `ReactiveSequence` 中其他条件是否失败 |
+| 模式无法退出 | blackboard 状态是否刷新、退出分支是否恢复参数 |
+| 指令值与预期不符 | 裁判协议位段、枚举、打包与下位机约定 |
+| 日志过多影响运行 | 关闭文件日志，减少非状态变化类输出 |
+
+## 🗂️ 关键源码
+
+- `src/main.cpp`：节点、blackboard、执行器与 10 Hz tick 入口。
+- `src/bt_manager.cpp`：树注册、加载与执行管理。
+- `src/ros_interface.cpp` / `include/bt_manager/ros_interface.hpp`：ROS 与裁判系统接口。
+- `include/bt_manager/blackboard.hpp`：共享状态定义。
+- `tree/*.xml`：当前比赛策略的直接来源。
+- `include/bt_manager/plugins/`：Condition、Action 与 Decorator 节点。
+
+## 📚 延伸阅读
+
+完整系统拓扑、启动与比赛功能说明见[项目主 README](../../../README.md)。导航目标下发后的轨迹生成见 [MincoPlanner](../../navigation/minco_planner/README.md)。
