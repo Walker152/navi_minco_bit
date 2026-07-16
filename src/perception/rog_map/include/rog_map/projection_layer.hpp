@@ -34,11 +34,11 @@ struct CellData
 {
   CellType type{CellType::UNKNOWN};
   CellType raw_type{CellType::UNKNOWN};
+  CellType base_type{CellType::UNKNOWN};
   CellType pending_type{CellType::UNKNOWN};
   uint8_t value{255};
   uint8_t mask{1};
   uint8_t pending_count{0};
-  uint8_t stable_count{0};
   float confidence{0.0f};
   float occupied_z_min_abs{std::numeric_limits<float>::quiet_NaN()};
   float occupied_z_max_abs{std::numeric_limits<float>::quiet_NaN()};
@@ -67,9 +67,9 @@ struct ProjectionLayerConfig
   bool hysteresis_en{true};
   int hysteresis_count{2};
   double obstacle_hold_time{0.0};
-  bool hole_fill_en{true};
-  int hole_fill_radius{1};
-  int hole_fill_min_occupied_neighbors{5};
+  bool mask_filter_en{true};
+  int fill_occ_min{5};
+  int denoise_occ_max{0};
 };
 
 struct ColumnStats
@@ -88,7 +88,7 @@ struct ProjectionUpdateStats
 {
   double update_full_time_ms{0.0};
   double update_dirty_time_ms{0.0};
-  double hole_fill_time_ms{0.0};
+  double mask_filter_time_ms{0.0};
   double value_mask_time_ms{0.0};
   double thin_surface_count{0.0};
   double vertical_wall_count{0.0};
@@ -168,7 +168,15 @@ private:
   CellType applyHysteresis(CellData & cell, CellType raw_type, const ProjectionLayerConfig & config);
   void updateOneCell(
     int x, int y, double now, const ProjectionLayerConfig & config, const ColumnScanner & scanner);
-  void applyHoleFill(const ProjectionLayerConfig & config, const std::vector<uint8_t> * update_mask);
+  void filterMask(
+    const ProjectionLayerConfig & config,
+    const std::vector<int> * base_dirty_indices,
+    double * view_time_ms = nullptr);
+  void fillMask(
+    const ProjectionLayerConfig & config, const std::vector<int> & candidate_indices);
+  void denoiseMask(
+    const ProjectionLayerConfig & config, const std::vector<int> & candidate_indices);
+  void updateView(int view_id, const ProjectionLayerConfig & config);
   void rebuildViews(const ProjectionLayerConfig & config);
   int hashIndexFromLocal(int x, int y) const;
   void resetLocalMap() override;
@@ -185,6 +193,7 @@ private:
   std::vector<int> slide_dirty_hash_ids_;
   ProjectionLayerConfig current_config_;
   bool initialized_{false};
+  bool view_rebuild_required_{false};
 };
 
 }  // namespace rog_map

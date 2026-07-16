@@ -250,9 +250,9 @@ public:
     layer_hysteresis_en = true;
     layer_hysteresis_count = 2;
     layer_obstacle_hold_time = 0.0;
-    layer_hole_fill_en = true;
-    layer_hole_fill_radius = 1;
-    layer_hole_fill_min_occupied_neighbors = 5;
+    layer_mask_filter_en = true;
+    layer_fill_occ_min = 5;
+    layer_denoise_occ_max = 0;
     load("projection.enable", layer_en);
     load("projection.scan_z_min_abs", scan_z_min_abs);
     load("projection.scan_z_max_abs", scan_z_max_abs);
@@ -270,9 +270,16 @@ public:
     load("projection.hysteresis_count", layer_hysteresis_count);
     load("projection.obstacle_hold_time", layer_obstacle_hold_time);
     layer_obstacle_hold_time = std::max(0.0, layer_obstacle_hold_time);
-    load("projection.hole_fill_enable", layer_hole_fill_en);
-    load("projection.hole_fill_radius", layer_hole_fill_radius);
-    load("projection.hole_fill_min_occupied_neighbors", layer_hole_fill_min_occupied_neighbors);
+    load("projection.mask_filter_en", layer_mask_filter_en);
+    load("projection.fill_occ_min", layer_fill_occ_min);
+    load("projection.denoise_occ_max", layer_denoise_occ_max);
+    if (layer_fill_occ_min < 1 || layer_fill_occ_min > 8 ||
+        layer_denoise_occ_max < 0 || layer_denoise_occ_max > 7 ||
+        layer_denoise_occ_max >= layer_fill_occ_min) {
+      throw std::invalid_argument(
+        "projection mask filter requires fill_occ_min in [1, 8], "
+        "denoise_occ_max in [0, 7], and denoise_occ_max < fill_occ_min.");
+    }
     if (!std::isfinite(scan_z_min_abs) || !std::isfinite(scan_z_max_abs) ||
         scan_z_max_abs <= scan_z_min_abs) {
       throw std::invalid_argument(
@@ -499,9 +506,9 @@ public:
   bool layer_hysteresis_en{true};
   int layer_hysteresis_count{2};
   double layer_obstacle_hold_time{0.0};
-  bool layer_hole_fill_en{true};
-  int layer_hole_fill_radius{1};
-  int layer_hole_fill_min_occupied_neighbors{5};
+  bool layer_mask_filter_en{true};
+  int layer_fill_occ_min{5};
+  int layer_denoise_occ_max{0};
   bool passable_as_free{true};
 
   bool field_en{true};
