@@ -1,236 +1,165 @@
-# Point-LIO
+# 🛰️ Point-LIO ROS 2
 
-> ROS2 Fork repo maintainer: [LihanChen2004](https://github.com/LihanChen2004)
+> 面向 Livox MID-360 与高速旋转哨兵场景的高频激光惯性里程计组件，提供去畸变定位、稠密世界系点云和低开销进程内感知链路。
 
-## Point-LIO: Robust High-Bandwidth Lidar-Inertial Odometry
+[返回项目主页](../../../README.md) · [Livox Driver](../livox_ros_driver2/README.md) · [ROGMap](../rog_map/README.md)
 
-## Branch: RM25_SMBU_auto_sentry
+## ✨ 本仓库版本亮点
 
-- Feats: Prior pcd map input
+- ROS 2 Component 化，可与 Livox Driver、Planner/ROGMap 部署在同一多线程容器。
+- `CustomMsg::UniquePtr` 输入与 `PointCloud2::UniquePtr` 输出，为进程内零拷贝/少拷贝提供必要条件。
+- 原始点云、滤波定位点云与 `/cloud_registered_full` 稠密点云职责分离。
+- 稠密点云按点时间稳定排序，结合状态快照进行去畸变并变换到世界系。
+- “最新完整帧”发布采用 SensorData QoS `keep_last(1)`，减少旧大消息排队。
+- 支持双雷达融合输入，由驱动层完成时间窗聚合与外参变换。
+- 增加 `blind_center`，可将近场盲区中心对齐到实际底盘中心。
+- 独立工作线程分离 ROS 回调与主 LIO 处理，降低高频调度互相阻塞。
 
-## 1. Introduction
+> `UniquePtr + intra-process` 能显著减少同进程消息拷贝，但是否达到完全零拷贝还取决于 ROS 2 中间件、发布/订阅类型和容器部署方式。
 
-<div align="center">
-    <div align="center">
-        <img src="https://github.com/hku-mars/Point-LIO/raw/master/image/toc4.png" width = 75% >
-    </div>
-    <font color=#a0a0a0 size=2>The framework and key points of the Point-LIO.</font>
-</div>
+## 🔄 数据链路
 
-**New features:**
-
-1. would not fly under degeneration.
-
-2. high odometry output frequency, 4k-8kHz.
-
-3. robust to IMU saturation and severe vibration, and other aggressive motions (75 rad/s in our test).
-
-4. no motion distortion.
-
-5. computationally efficient, robust, versatile on public datasets with general motions.
-
-6. As an odometry, Point-LIO could be used in various autonomous tasks, such as trajectory planning, control, and perception, especially in cases involving very fast ego-motions (e.g., in the presence of severe vibration and high angular or linear velocity) or requiring high-rate odometry output and mapping (e.g., for high-rate feedback control and perception).
-
-**Important notes:**
-
-A. Please make sure the IMU and LiDAR are **Synchronized**, that's important.
-
-B. Please obtain the saturation values of your used IMU (i.e., accelerator and gyroscope), and the units of the accelerator of your used IMU, then modify the .yaml file according to those settings, including values of 'satu_acc', 'satu_gyro', 'acc_norm'. That's improtant.
-
-C. The warning message "Failed to find match for field 'time'." means the timestamps of each LiDAR points are missed in the rosbag file. That is important because Point-LIO processes at the sampling time of each LiDAR point.
-
-D. We recommend to set the **extrinsic_est_en** to false if the extrinsic is given. As for the extrinsic initiallization, please refer to our recent work: [**Robust and Online LiDAR-inertial Initialization**](https://github.com/hku-mars/LiDAR_IMU_Init).
-
-E. If you want to use Point-LIO without imu, set the "imu_en" as false, and provide a predefined value of gavity in "gravity_init" as true as possible in the yaml file, and keep the "use_imu_as_input" as 0.
-
-## **1.1. Developers:**
-
-The codes of this repo are contributed by:
-[Dongjiao He (贺东娇)](https://github.com/Joanna-HE) and [Wei Xu (徐威)](https://github.com/XW-HKU)
-
-## **1.2. Related paper**
-
-
-Our paper is published on Advanced Intelligent Systems(AIS). [Point-LIO](https://onlinelibrary.wiley.com/doi/epdf/10.1002/aisy.202200459), DOI: 10.1002/aisy.202200459
-
-## **1.3. Related video**
-
-Our accompany video is available on **YouTube**.
-
-
-<div align="center">
-    <a href="https://youtu.be/oS83xUs42Uw" target="_blank"><img src="https://github.com/hku-mars/Point-LIO/raw/master/image/final.png" width=60% /></a>
-</div>
-
-## 2. What can Point-LIO do?
-
-
-### 2.1 Simultaneous LiDAR localization and mapping (SLAM) without motion distortion
-
-### 2.2 Produce high odometry output frequence and high bandwidth
-
-### 2.3 SLAM with aggressive motions even the IMU is saturated
-
-## **3. Prerequisites**
-
-### **3.1 Ubuntu and [ROS2](https://www.ros.org/)**
-
-Ubuntu >= 20.04
-
-The default from apt PCL and Eigen is enough for FAST-LIO to work normally.
-
-ROS >= Foxy (Recommend to use ROS-Humble). [ROS Installation](https://docs.ros.org/en/humble/Installation.html)
-
-```sh
-sudo apt-get install ros-$ROS_DISTRO-pcl-conversions
+```mermaid
+flowchart LR
+  D[Livox CustomMsg] --> Q[回调队列]
+  I[Livox IMU] --> Q
+  Q --> P[预处理 / 时间排序]
+  P --> U[IMU 传播与点云去畸变]
+  U --> E[ESIKF 状态更新]
+  E --> O["/aft_mapped_to_init"]
+  E --> C["/cloud_registered"]
+  U --> F[稠密帧状态快照与世界系变换]
+  F --> CF["/cloud_registered_full"]
+  CF --> R[ROGMap]
 ```
 
-### **3.2 Eigen**
+定位主链路可以使用降采样点云控制计算量；`/cloud_registered_full` 则尽量保留当前扫描的完整有效点，为 ROGMap 的 raycast、占据更新与 ESDF 提供更充分的观测。
 
-### **3.2 Eigen**
+## 📡 ROS 接口
 
-Following the official [Eigen installation](eigen.tuxfamily.org/index.php?title=Main_Page), or directly install Eigen by:
+### 输入
 
-```sh
+| Topic | 类型 | 说明 |
+|---|---|---|
+| `livox/lidar` | `livox_ros_driver2/msg/CustomMsg` | 单雷达或驱动层融合后的点云 |
+| `livox/imu_192_168_1_135` | `sensor_msgs/msg/Imu` | 当前主雷达 IMU，名称取决于雷达 IP |
 
-```sh
-sudo apt-get install libeigen3-dev
+### 输出
+
+| Topic | Frame | 说明 |
+|---|---|---|
+| `/aft_mapped_to_init` | `camera_init` → `body` | 高频 LIO 里程计 |
+| `/cloud_registered` | `camera_init` | 定位/可视化注册点云 |
+| `/cloud_registered_full` | `camera_init` | 稠密、去畸变、世界系完整帧，ROGMap 主输入 |
+| `/cloud_registered_body` | `body` | 机体系注册点云 |
+| `/Laser_map` | `camera_init` | 累积地图 |
+| `/path` | `camera_init` | 里程计路径 |
+
+启用 TF 发布后，模块发布 `camera_init → body`，并按项目约定提供 `camera_init → base_link`、`camera_init → slambase`。这些变换含项目特定安装补偿，改变雷达位置时必须核对源码与下游 frame 约定。
+
+## ⚙️ 关键配置
+
+主配置：`config/mid360.yaml`。
+
+### 输入与 IMU
+
+```yaml
+common:
+  lid_topic: "livox/lidar"
+  imu_topic: "livox/imu_192_168_1_135"
+  use_imu_as_input: false
+  prop_at_freq_of_imu: true
 ```
 
-### **3.3 livox_ros_driver2**
+雷达 IP 改变后，驱动生成的逐雷达 IMU topic 也会改变；必须同步修改 `imu_topic`。
 
-Follow [livox_ros_driver Installation](https://github.com/Livox-SDK/livox_ros_driver2).
+### 🎯 Blind 中心
 
-*Remarks:*
-
-- Since the Point-LIO supports Livox serials LiDAR, so the **livox_ros_driver** must be installed and **sourced** before run any Point-LIO luanch file.
-- How to source? The easiest way is add the line ` source $Livox_ros_driver2_dir$/install/setup.bash ` to the end of file ` ~/.bashrc `, where ` $Livox_ros_driver2_dir$ ` is the directory of the livox ros driver workspace (should be the ` ws_livox ` directory if you completely followed the livox official document).
-
-## 4. Build
-
-
-Clone the repository and catkin_make:
-
-```sh
-```sh
-    cd ~/$A_ROS_DIR$/src
-    git clone https://github.com/LihanChen2004/Point-LIO.git
-    cd ..
-    rosdepc install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -
-    colcon build --symlink-install -DCMAKE_BUILD_TYPE=Release
-    source install/setup.bash # use setup.zsh if use zsh
+```yaml
+preprocess:
+  blind: 0.45
+  blind_center_enabled: true
+  blind_center: [0.0, 0.20, 0.0]
 ```
 
-- Remember to source the livox_ros_driver2 before build (follow 3.3 **livox_ros_driver**)
-- If you want to use a custom build of PCL, add the following line to ~/.bashrc
-`export PCL_ROOT={CUSTOM_PCL_PATH}`
+传统盲区以雷达原点为中心。本项目允许把盲区中心平移到底盘中心附近，避免安装偏置导致车体近场点在不同方向被不一致地保留。`blind_center` 是预处理距离判断中心，不是 TF，也不会替代正确外参。
 
-## 5. Directly run
+### 📐 Lidar–IMU 外参
 
-### 5.1 For Mid360
-
-Connect to your PC to Livox Mid360 LiDAR by following  [Livox-ros-driver2 installation](https://github.com/Livox-SDK/livox_ros_driver2), then
-
-```sh
-    cd ~/$Point_LIO_ROS_DIR$
-    source install/setup.bash
-    ros2 launch point_lio point_lio.launch.py
+```yaml
+mapping:
+  extrinsic_est_en: false
+  extrinsic_T: [-0.011, -0.02329, 0.04412]
+  extrinsic_R: [1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                0.0, 0.0, 1.0]
 ```
 
-- For livox serials, Point-LIO only support the data collected by the ` msg_mid360_launch.py.launch ` since only its ` livox_ros_driver2/msg/CustomMsg ` data structure produces the timestamp of each LiDAR point which is very important for Point-LIO. ` rviz_mid360_launch.py ` can not produce it right now.
+比赛配置关闭在线外参估计，依赖离线标定值。平移单位为米，旋转矩阵需保持正交。错误外参会表现为旋转时地图重影、墙面弯曲和 odom 漂移。
 
-- If you want to change the frame rate, please modify the **publish_freq** parameter in the [msg_mid360_launch.py.launch](https://github.com/Livox-SDK/livox_ros_driver2/blob/master/launch_ROS2/msg_MID360_launch.py) of [Livox-ros-driver2](https://github.com/Livox-SDK/livox_ros_driver2)
+### 发布与地图
 
-### 5.2 For Livox serials with external IMU
+| 参数 | 作用 |
+|---|---|
+| `publish.tf_send_en` | 发布 LIO TF |
+| `publish.scan_publish_en` | 发布注册点云 |
+| `publish.dense_publish_en` | 保留更稠密的输出 |
+| `publish.scan_bodyframe_pub_en` | 发布机体系点云 |
+| `publish_accumulated_map` | 发布累积地图 |
+| `publish.accumulated_map_publish_hz` | 限制大地图发布频率 |
+| `pcd_save.pcd_save_en` | 保存 PCD；会产生磁盘开销 |
 
-Need to setup some parameters befor run:
+## 🚀 推荐启动
 
-Edit ` config/mid360.yaml ` to set the below parameters:
+单/双 MID-360 与 Point-LIO 的推荐组合入口位于 Point-LIO launch 目录：
 
-1. LiDAR point cloud topic name: ` lid_topic `
-
-2. IMU topic name: ` imu_topic `
-
-3. Translational extrinsic: ` extrinsic_T `
-
-4. Rotational extrinsic: ` extrinsic_R ` (only support rotation matrix)
-
-    - The extrinsic parameters in Point-LIO is defined as the LiDAR's pose (position and rotation matrix) in IMU body frame (i.e. the IMU is the base frame). They can be found in the official manual.
-
-5. Saturation value of IMU's accelerator and gyroscope: `satu_acc`, `satu_gyro`
-
-6. The norm of IMU's acceleration according to unit of acceleration messages: ` acc_norm `
-
-### 5.3 For Velodyne or Ouster (Velodyne as an example)
-
-Step A: Setup before run
-
-Edit ` config/veoldy16.yaml ` to set the below parameters:
-
-1. LiDAR point cloud topic name: ` lid_topic `
-
-2. IMU topic name: ` imu_topic ` (both internal and external, 6-aixes or 9-axies are fine)
-
-3. Set the parameter `timestamp_unit` based on the unit of **time** (Velodyne) or **t** (Ouster) field in PoindCloud2 rostopic
-
-4. Line number (we tested 16, 32 and 64 line, but not tested 128 or above): ` scan_line `
-
-5. Translational extrinsic: ` extrinsic_T `
-
-6. Rotational extrinsic: ` extrinsic_R ` (only support rotation matrix)
-
-    - The extrinsic parameters in Point-LIO is defined as the LiDAR's pose (position and rotation matrix) in IMU body frame (i.e. the IMU is the base frame).
-
-7. Saturation value of IMU's accelerator and gyroscope: `satu_acc`, `satu_gyro`
-
-8. The norm of IMU's acceleration according to unit of acceleration messages: ` acc_norm `
-
-Step B: Run below
-
-```sh
-    cd ~/$Point_LIO_ROS_DIR$
-    source install/setup.bash
-    ros2 launch point_lio point_lio.launch.py rviz:=True point_lio_cfg_dir:=/path/to/Point-LIO/config/velody16.yaml
+```bash
+ros2 launch point_lio mixed_livox_pointlio_intra_process.launch.py
 ```
 
-Step C: Run LiDAR's ros driver or play rosbag.
+该 launch 将驱动与 Point-LIO 放入同一 `component_container_mt` 并开启 intra-process。若拆分到不同进程，功能仍可运行，但大点云将经过 DDS 序列化链路。
 
-### 5.4 PCD file save
+启动后检查：
 
-Set ` pcd_save_enable ` in launch file to ` 1 `. All the scans (in global frame) will be accumulated and saved to the file ` Point-LIO/PCD/scans.pcd ` after the Point-LIO is terminated. `pcl_viewer scans.pcd` can visualize the point clouds.
+```bash
+ros2 topic hz /aft_mapped_to_init
+ros2 topic hz /cloud_registered_full
+ros2 topic info /cloud_registered_full --verbose
+ros2 run tf2_ros tf2_echo camera_init body
+```
 
-*Tips for pcl_viewer:*
+## ⚡ 稠密点云性能设计
 
-- change what to visualize/color by pressing keyboard 1,2,3,4,5 when pcl_viewer is running.
+`/cloud_registered_full` 的处理重点不是简单“多发一份点云”，而是保证下游可用性：
 
-    `txt
-        1 is all random
-        2 is X values
-        3 is Y values
-        4 is Z values
-        5 is intensity
-    `
+1. 对帧内点按相对时间稳定排序。
+2. 保存与点云对应的滤波器状态快照。
+3. 将各点补偿到统一时刻并转换到 `camera_init`。
+4. 丢弃过旧、乱序和非有限点，避免污染地图。
+5. 以 `UniquePtr` 发布，QoS 仅保留最新帧。
 
-## **6. Examples**
+这条链路针对高速小陀螺运动尤其重要：点时间、去畸变和姿态传播任何一项错误，都会把静态墙面拉成动态障碍。
 
-The example datasets could be downloaded through [onedrive](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/hdj65822_connect_hku_hk/EmRJYy4ZfAlMiIJ786ogCPoBcGQ2BAchuXjE5oJQjrQu0Q?e=igu44W). Pay attention that if you want to test on racing_drone.bag, [0.0, 9.810, 0.0] should be input in 'mapping/gravity_init' in avia.yaml, and set the 'start_in_aggressive_motion' as true in the yaml. Because this bag start from a high speed motion. And for PULSAR.bag, we change the measuring range of the gyroscope of the built-in IMU to 17.5 rad/s. Therefore, when you test on this bag, please change 'satu_gyro' to 17.5 in avia.yaml.
+## 🛠️ 常见问题
 
-## **6.1. Example-1: SLAM on datasets with aggressive motions where IMU is saturated**
+| 现象 | 优先检查 |
+|---|---|
+| 收不到点云 | 雷达 IP、主机网卡、驱动 JSON、topic remap |
+| 收到雷达但无 IMU | `imu_topic` 是否与主雷达 IP 生成的 topic 一致 |
+| 原地转动地图重影 | 时间同步、IMU 外参、点时间单位与去畸变 |
+| `/cloud_registered_full` 延迟增长 | 是否跨进程、QoS 队列、下游订阅是否阻塞 |
+| 地图中心与车体错位 | 区分 `blind_center`、TF、Planner/Controller 杆臂参数 |
+| 地面/高障碍进入 ROGMap 异常 | Point-LIO frame 与 ROGMap 投影 Z 范围 |
+| CPU 占用过高 | 发布开关、降采样、累积地图/PCD、可视化订阅 |
 
-<div align="center">
-<img src="https://github.com/hku-mars/Point-LIO/raw/master/image/example1.gif"  width="40%" />
-<img src="https://github.com/hku-mars/Point-LIO/raw/master/image/example2.gif"  width="54%" />
-</div>
+## 🗂️ 关键源码
 
-## **6.2. Example-2: Application on FPV and PULSAR**
+- `src/laserMapping.cpp`：LIO 主流程、odom/TF 与点云发布。
+- `src/preprocess.cpp`：Livox 点云预处理、盲区与时间字段。
+- `src/IMU_Processing.hpp`：IMU 传播和运动补偿。
+- `config/mid360.yaml`：项目主参数。
+- `launch/`：Point-LIO 独立或组合启动入口。
 
-<div align="center">
-<img src="https://github.com/hku-mars/Point-LIO/raw/master/image/example3.gif"  width="58%" />
-<img src="https://github.com/hku-mars/Point-LIO/raw/master/image/example4.gif"  width="35%" />
-</div>
+## 📚 延伸阅读
 
-PULSAR is a self-rotating UAV actuated by only one motor, [PULSAR](https://github.com/hku-mars/PULSAR)
-
-## 7. Contact us
-
-If you have any questions about this work, please feel free to contact me <hdj65822ATconnect.hku.hk> and Dr. Fu Zhang <fuzhangAThku.hk> via email.
+驱动网络、双雷达融合与组件部署见 [Livox Driver 文档](../livox_ros_driver2/README.md)；点云如何进入占据地图和 ESDF 见 [ROGMap 文档](../rog_map/README.md)。
