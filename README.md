@@ -184,6 +184,8 @@ flowchart LR
 - [MincoMpcController](src/navigation/minco_controller/README.md)
 - [bt_manager](src/decision/bt_manager/README.md)
 - [Point-LIO](src/perception/Point-LIO/README.md)
+- [ROGMap / Projection / ESDF](src/perception/rog_map/README.md)
+- [Livox ROS Driver 2](src/perception/livox_ros_driver2/README.md)
 
 ## 🛠️ 安装与构建
 
