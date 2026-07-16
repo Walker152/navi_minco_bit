@@ -278,7 +278,20 @@ class ROGMapROS : public ROGMap
       if (vm_.layer_type_pub && vm_.layer_type_pub->get_subscription_count() >= 1) {
         std::vector<uint8_t> types(layer_->cells().size(), 0U);
         for (size_t i = 0; i < layer_->cells().size(); ++i) {
-          types[i] = static_cast<uint8_t>(layer_->cells()[i].type);
+          switch (layer_->cells()[i].type) {
+          case CellType::UNKNOWN:
+            types[i] = 0U;
+            break;
+          case CellType::FREE:
+            types[i] = 33U;
+            break;
+          case CellType::PASSABLE:
+            types[i] = 66U;
+            break;
+          case CellType::OCCUPIED:
+            types[i] = 100U;
+            break;
+          }
         }
         nav_msgs::msg::OccupancyGrid grid;
         fillLayerGrid(types, grid);
