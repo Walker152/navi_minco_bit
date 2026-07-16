@@ -198,7 +198,7 @@ private:
 
     map_frame_ = this->declare_parameter<std::string>("global_path.map_frame", "map");
     minimap_frame_ = this->declare_parameter<std::string>("global_path.minimap_frame", "minimap");
-    imu_yaw_window_ms_ = this->declare_parameter<int64_t>("communication.imu_yaw_window_ms", 20);
+    imu_yaw_window_ms_ = this->declare_parameter<int64_t>("communication.imu_yaw_window_ms", 40);
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
