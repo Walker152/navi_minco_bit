@@ -447,9 +447,9 @@ planner_server:
           # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
           obstacle_hold_time: 1.0
 
-          hole_fill_enable: true
-          hole_fill_radius: 1
-          hole_fill_min_occupied_neighbors: 4
+          mask_filter_en: true
+          fill_occ_min: 4
+          denoise_occ_max: 0
         field:
           enable: true
           inflation_radius: 0.0

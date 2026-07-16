@@ -393,9 +393,9 @@ void ROGMap::refreshLayers()
   layer_cfg.hysteresis_en = cfg_.layer_hysteresis_en;
   layer_cfg.hysteresis_count = cfg_.layer_hysteresis_count;
   layer_cfg.obstacle_hold_time = cfg_.layer_obstacle_hold_time;
-  layer_cfg.hole_fill_en = cfg_.layer_hole_fill_en;
-  layer_cfg.hole_fill_radius = cfg_.layer_hole_fill_radius;
-  layer_cfg.hole_fill_min_occupied_neighbors = cfg_.layer_hole_fill_min_occupied_neighbors;
+  layer_cfg.mask_filter_en = cfg_.layer_mask_filter_en;
+  layer_cfg.fill_occ_min = cfg_.layer_fill_occ_min;
+  layer_cfg.denoise_occ_max = cfg_.layer_denoise_occ_max;
 
   const int width = mapWidth();
   const int height = mapHeight();
@@ -537,7 +537,7 @@ void ROGMap::refreshLayers()
   if (projection_stats.update_dirty_time_ms > 0.0) {
     runtime_stats_.projection_update_dirty_time = projection_stats.update_dirty_time_ms;
   }
-  runtime_stats_.projection_hole_fill_time = projection_stats.hole_fill_time_ms;
+  runtime_stats_.projection_mask_filter_time = projection_stats.mask_filter_time_ms;
   runtime_stats_.projection_value_mask_time = projection_stats.value_mask_time_ms;
   runtime_stats_.projection_thin_surface_count = projection_stats.thin_surface_count;
   runtime_stats_.projection_vertical_wall_count = projection_stats.vertical_wall_count;
@@ -550,15 +550,19 @@ void ROGMap::refreshLayers()
   if (force_full_refresh) {
     runtime_stats_.dirty_expanded_column_count = static_cast<double>(cell_count);
   } else if (has_dirty_update) {
-    const int dirty_radius = layer_cfg.hole_fill_en ? std::max(0, layer_cfg.hole_fill_radius) : 0;
+    constexpr int kFilterInfluenceRadius = 2;
+    const int dirty_radius = layer_cfg.mask_filter_en ? kFilterInfluenceRadius : 0;
     runtime_stats_.dirty_expanded_column_count = static_cast<double>(std::min(cell_count,
       projection_dirty_columns.size() *
         static_cast<size_t>((2 * dirty_radius + 1) * (2 * dirty_radius + 1))));
   } else {
     runtime_stats_.dirty_expanded_column_count = 0.0;
   }
+  const double scanned_columns = force_full_refresh ?
+    static_cast<double>(cell_count) :
+    (has_dirty_update ? static_cast<double>(projection_dirty_columns.size()) : 0.0);
   runtime_stats_.projection_scanned_voxel_estimate =
-    runtime_stats_.dirty_expanded_column_count * runtime_stats_.projection_z_layers;
+    scanned_columns * runtime_stats_.projection_z_layers;
 
   const bool projection_scanned = force_full_refresh || has_dirty_update;
   const bool time_clear_changed =
@@ -692,7 +696,7 @@ void ROGMap::refreshLayers()
     const auto field_start = std::chrono::steady_clock::now();
     FieldBuildStats field_stats;
     field_stale_ = true;
-    field_->updateFromMask(layer_->width(),
+    field_->update(layer_->width(),
       layer_->height(),
       layer_->resolution(),
       layer_->origin(),

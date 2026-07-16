@@ -111,13 +111,13 @@ ProjectionSlideResult ProjectionLayer::syncSlidingWindow(int width,
     globalIndexToPos(center_id, center_pos);
     updateLocalMapOriginAndBound(center_pos, center_id);
     initialized_ = true;
+    view_rebuild_required_ = true;
     resetLocalMap();
     result.full_refresh_required = true;
     result.dirty_columns.resize(cell_buffer_.size());
     for (size_t i = 0; i < result.dirty_columns.size(); ++i) {
       result.dirty_columns[i] = static_cast<int>(i);
     }
-    rebuildViews(config);
     return result;
   }
 
@@ -130,6 +130,7 @@ ProjectionSlideResult ProjectionLayer::syncSlidingWindow(int width,
 
   const Vec3i shift = center_id - local_map_origin_i_;
   result.window_moved = shift.x() != 0 || shift.y() != 0;
+  view_rebuild_required_ = result.window_moved;
   result.full_refresh_required = std::abs(shift.x()) >= width_ || std::abs(shift.y()) >= height_;
   slide_dirty_hash_ids_.clear();
   globalIndexToPos(center_id, center_pos);
@@ -160,7 +161,6 @@ ProjectionSlideResult ProjectionLayer::syncSlidingWindow(int width,
       result.dirty_columns[i] = static_cast<int>(i);
     }
   }
-  rebuildViews(config);
   return result;
 }
 
@@ -215,18 +215,13 @@ void ProjectionLayer::updateFull(int width,
     }
   }
 
-  rebuildViews(config);
-
-  const auto hole_start = std::chrono::steady_clock::now();
-  applyHoleFill(config, nullptr);
+  const auto filter_start = std::chrono::steady_clock::now();
+  double view_time_ms = 0.0;
+  filterMask(config, nullptr, &view_time_ms);
+  view_rebuild_required_ = false;
   if (stats) {
-    stats->hole_fill_time_ms += elapsedMs(hole_start);
-  }
-
-  const auto value_start = std::chrono::steady_clock::now();
-  rebuildViews(config);
-  if (stats) {
-    stats->value_mask_time_ms += elapsedMs(value_start);
+    stats->mask_filter_time_ms += std::max(0.0, elapsedMs(filter_start) - view_time_ms);
+    stats->value_mask_time_ms += view_time_ms;
     stats->update_full_time_ms += elapsedMs(full_start);
     collectClassificationStats(cells_, stats);
   }
@@ -260,49 +255,30 @@ void ProjectionLayer::updateDirty(int width,
   }
 
   const size_t expected = static_cast<size_t>(width_) * static_cast<size_t>(height_);
-  std::vector<uint8_t> update_mask(expected, 0U);
-  const int dirty_radius = config.hole_fill_en ? std::max(0, config.hole_fill_radius) : 0;
-  std::vector<int> expanded;
-  expanded.reserve(
-    dirty_columns.size() * static_cast<size_t>((2 * dirty_radius + 1) * (2 * dirty_radius + 1)));
+  std::vector<int> base_dirty_indices;
+  base_dirty_indices.reserve(dirty_columns.size());
   for (const int column_id : dirty_columns) {
     if (column_id < 0 || column_id >= static_cast<int>(expected)) {
       continue;
     }
-    const int cx = column_id % width_;
-    const int cy = column_id / width_;
-    for (int dy = -dirty_radius; dy <= dirty_radius; ++dy) {
-      for (int dx = -dirty_radius; dx <= dirty_radius; ++dx) {
-        const int nx = cx + dx;
-        const int ny = cy + dy;
-        if (nx < 0 || ny < 0 || nx >= width_ || ny >= height_) {
-          continue;
-        }
-        const int nidx = ny * width_ + nx;
-        if (!update_mask[static_cast<size_t>(nidx)]) {
-          update_mask[static_cast<size_t>(nidx)] = 1U;
-          expanded.push_back(nidx);
-        }
-      }
-    }
+    base_dirty_indices.push_back(column_id);
   }
+  std::sort(base_dirty_indices.begin(), base_dirty_indices.end());
+  base_dirty_indices.erase(
+    std::unique(base_dirty_indices.begin(), base_dirty_indices.end()), base_dirty_indices.end());
 
-  for (const int idx_int : expanded) {
+  for (const int idx_int : base_dirty_indices) {
     updateOneCell(idx_int % width_, idx_int / width_, now, config, scanner);
   }
 
-  rebuildViews(config);
-
-  const auto hole_start = std::chrono::steady_clock::now();
-  applyHoleFill(config, &update_mask);
+  const auto filter_start = std::chrono::steady_clock::now();
+  double view_time_ms = 0.0;
+  filterMask(
+    config, view_rebuild_required_ ? nullptr : &base_dirty_indices, &view_time_ms);
+  view_rebuild_required_ = false;
   if (stats) {
-    stats->hole_fill_time_ms += elapsedMs(hole_start);
-  }
-
-  const auto value_start = std::chrono::steady_clock::now();
-  rebuildViews(config);
-  if (stats) {
-    stats->value_mask_time_ms += elapsedMs(value_start);
+    stats->mask_filter_time_ms += std::max(0.0, elapsedMs(filter_start) - view_time_ms);
+    stats->value_mask_time_ms += view_time_ms;
     stats->update_dirty_time_ms += elapsedMs(dirty_start);
     collectClassificationStats(cells_, stats);
   }
@@ -323,18 +299,22 @@ void ProjectionLayer::applyValueAndMask(CellData & cell, const ProjectionLayerCo
   case CellType::UNKNOWN:
     cell.value = config.unknown_as_occupied ? 254U : 255U;
     cell.mask = config.unknown_as_occupied ? 0U : 1U;
+    cell.traversable = config.unknown_as_occupied ? 0U : 1U;
     break;
   case CellType::FREE:
     cell.value = 0U;
     cell.mask = 1U;
+    cell.traversable = 1U;
     break;
   case CellType::PASSABLE:
     cell.value = config.passable_as_free ? 0U : config.passable_cost;
     cell.mask = 1U;
+    cell.traversable = 1U;
     break;
   case CellType::OCCUPIED:
     cell.value = 254U;
     cell.mask = 0U;
+    cell.traversable = 0U;
     break;
   }
 }
@@ -387,92 +367,91 @@ void ProjectionLayer::updateOneCell(
   cell.last_update_time = static_cast<float>(stats.last_update_time);
   const CellType raw_type = classifyCell(stats, cell, config, resolution_);
   cell.raw_type = raw_type;
-  cell.type = previous.type;
+  cell.base_type = previous.base_type;
   cell.pending_type = previous.pending_type;
   cell.pending_count = previous.pending_count;
-  cell.stable_count = previous.stable_count;
   cell.occupied_clear_deadline = previous.occupied_clear_deadline;
 
   const bool hold_active = previous.occupied_clear_deadline > 0.0;
   if (raw_type == CellType::OCCUPIED) {
-    cell.type = CellType::OCCUPIED;
+    cell.base_type = CellType::OCCUPIED;
     cell.occupied_clear_deadline = 0.0;
     cell.pending_type = CellType::OCCUPIED;
     cell.pending_count = 0U;
-    cell.stable_count = static_cast<uint8_t>(std::min<int>(255, previous.stable_count + 1));
   } else if (config.obstacle_hold_time > 0.0 &&
              (previous.raw_type == CellType::OCCUPIED || hold_active)) {
     if (!hold_active) {
       cell.occupied_clear_deadline = now + config.obstacle_hold_time;
     }
     if (now < cell.occupied_clear_deadline) {
-      cell.type = CellType::OCCUPIED;
+      cell.base_type = CellType::OCCUPIED;
       cell.pending_type = raw_type;
       cell.pending_count = 0U;
     } else {
-      cell.type = raw_type;
+      cell.base_type = raw_type;
       cell.occupied_clear_deadline = 0.0;
       cell.pending_type = raw_type;
       cell.pending_count = 0U;
-      cell.stable_count = 0U;
-      cell.hole_filled = false;
     }
   } else {
     cell.occupied_clear_deadline = 0.0;
-    cell.type = applyHysteresis(cell, raw_type, config);
+    cell.base_type = applyHysteresis(cell, raw_type, config);
   }
-  applyValueAndMask(cell, config);
+  cell.type = cell.base_type;
+  cell.hole_filled = false;
   cell_buffer_[static_cast<size_t>(hash_id)] = cell;
 }
 
 bool ProjectionLayer::advanceObstacleClearance(
   double now, const ProjectionLayerConfig & config)
 {
-  bool changed = false;
-  for (auto & cell : cell_buffer_) {
+  std::vector<int> changed_indices;
+  for (size_t hash_id = 0; hash_id < cell_buffer_.size(); ++hash_id) {
+    auto & cell = cell_buffer_[hash_id];
     if (cell.occupied_clear_deadline <= 0.0 || now < cell.occupied_clear_deadline) {
       continue;
     }
     cell.occupied_clear_deadline = 0.0;
-    if (cell.raw_type == CellType::OCCUPIED || cell.type != CellType::OCCUPIED) {
+    if (cell.raw_type == CellType::OCCUPIED || cell.base_type != CellType::OCCUPIED) {
       continue;
     }
-    cell.type = cell.raw_type;
+    cell.base_type = cell.raw_type;
     cell.pending_type = cell.raw_type;
     cell.pending_count = 0U;
-    cell.stable_count = 0U;
-    cell.hole_filled = false;
-    applyValueAndMask(cell, config);
-    changed = true;
+    Vec3i global_id;
+    hashIdToGlobalIndex(static_cast<int>(hash_id), global_id);
+    const int x = global_id.x() - local_map_bound_min_i_.x();
+    const int y = global_id.y() - local_map_bound_min_i_.y();
+    if (x >= 0 && y >= 0 && x < width_ && y < height_) {
+      changed_indices.push_back(y * width_ + x);
+    }
   }
-  if (changed) {
-    rebuildViews(config);
+  if (!changed_indices.empty()) {
+    filterMask(config, &changed_indices);
   }
-  return changed;
+  return !changed_indices.empty();
 }
 
 CellType ProjectionLayer::applyHysteresis(
   CellData & cell, CellType raw_type, const ProjectionLayerConfig & config)
 {
   // OCCUPIED enters immediately; clearing to FREE/PASSABLE waits for repeated confirmation.
-  if (!config.hysteresis_en || config.hysteresis_count <= 0 || cell.type == CellType::UNKNOWN ||
+  if (!config.hysteresis_en || config.hysteresis_count <= 0 ||
+      cell.base_type == CellType::UNKNOWN ||
       raw_type == CellType::OCCUPIED) {
-    cell.type = raw_type;
+    cell.base_type = raw_type;
     cell.pending_type = raw_type;
     cell.pending_count = 0U;
-    cell.stable_count =
-      raw_type == cell.type ? static_cast<uint8_t>(std::min<int>(255, cell.stable_count + 1)) : 0U;
-    return cell.type;
+    return cell.base_type;
   }
 
-  if (raw_type == cell.type) {
+  if (raw_type == cell.base_type) {
     cell.pending_type = raw_type;
     cell.pending_count = 0U;
-    cell.stable_count = static_cast<uint8_t>(std::min<int>(255, cell.stable_count + 1));
-    return cell.type;
+    return cell.base_type;
   }
 
-  if (cell.type == CellType::OCCUPIED && raw_type != CellType::OCCUPIED) {
+  if (cell.base_type == CellType::OCCUPIED && raw_type != CellType::OCCUPIED) {
     if (cell.pending_type != raw_type) {
       cell.pending_type = raw_type;
       cell.pending_count = 1U;
@@ -480,68 +459,163 @@ CellType ProjectionLayer::applyHysteresis(
       cell.pending_count = static_cast<uint8_t>(std::min<int>(255, cell.pending_count + 1));
     }
     if (cell.pending_count >= static_cast<uint8_t>(config.hysteresis_count)) {
-      cell.type = raw_type;
-      cell.stable_count = 0U;
+      cell.base_type = raw_type;
       cell.pending_count = 0U;
     }
-    return cell.type;
+    return cell.base_type;
   }
 
-  cell.type = raw_type;
+  cell.base_type = raw_type;
   cell.pending_type = raw_type;
   cell.pending_count = 0U;
-  cell.stable_count = 0U;
-  return cell.type;
+  return cell.base_type;
 }
 
-void ProjectionLayer::applyHoleFill(
-  const ProjectionLayerConfig & config, const std::vector<uint8_t> * update_mask)
+void ProjectionLayer::filterMask(
+  const ProjectionLayerConfig & config,
+  const std::vector<int> * base_dirty_indices,
+  double * view_time_ms)
 {
-  // Only UNKNOWN/FREE holes are filled. PASSABLE, including HOLLOW_TUNNEL, keeps its raw classification.
-  if (!config.hole_fill_en || config.hole_fill_radius <= 0 ||
-      config.hole_fill_min_occupied_neighbors <= 0 || width_ <= 0 || height_ <= 0 || cells_.empty()) {
+  if (width_ <= 0 || height_ <= 0 || cell_buffer_.empty()) {
     return;
   }
 
-  const auto before = cells_;
-  for (int y = 0; y < height_; ++y) {
-    for (int x = 0; x < width_; ++x) {
-      const size_t idx = static_cast<size_t>(y) * static_cast<size_t>(width_) + static_cast<size_t>(x);
-      if (update_mask && (idx >= update_mask->size() || (*update_mask)[idx] == 0U)) {
+  std::vector<int> affected;
+  if (base_dirty_indices) {
+    constexpr int kFilterInfluenceRadius = 2;
+    const size_t expected = static_cast<size_t>(width_) * static_cast<size_t>(height_);
+    std::vector<uint8_t> update_mask(expected, 0U);
+    affected.reserve(base_dirty_indices->size() * 25U);
+    for (const int view_id : *base_dirty_indices) {
+      if (view_id < 0 || view_id >= static_cast<int>(expected)) {
         continue;
       }
-      if (before[idx].type != CellType::UNKNOWN && before[idx].type != CellType::FREE) {
-        continue;
-      }
-
-      int occupied_neighbors = 0;
-      for (int dy = -config.hole_fill_radius; dy <= config.hole_fill_radius; ++dy) {
-        for (int dx = -config.hole_fill_radius; dx <= config.hole_fill_radius; ++dx) {
-          if (dx == 0 && dy == 0) {
-            continue;
-          }
-          const int nx = x + dx;
-          const int ny = y + dy;
+      const int cx = view_id % width_;
+      const int cy = view_id / width_;
+      for (int dy = -kFilterInfluenceRadius; dy <= kFilterInfluenceRadius; ++dy) {
+        for (int dx = -kFilterInfluenceRadius; dx <= kFilterInfluenceRadius; ++dx) {
+          const int nx = cx + dx;
+          const int ny = cy + dy;
           if (nx < 0 || ny < 0 || nx >= width_ || ny >= height_) {
             continue;
           }
-          const size_t nidx =
-            static_cast<size_t>(ny) * static_cast<size_t>(width_) + static_cast<size_t>(nx);
-          if (before[nidx].type == CellType::OCCUPIED) {
-            ++occupied_neighbors;
+          const int nidx = ny * width_ + nx;
+          if (update_mask[static_cast<size_t>(nidx)] == 0U) {
+            update_mask[static_cast<size_t>(nidx)] = 1U;
+            affected.push_back(nidx);
           }
         }
       }
-      if (occupied_neighbors >= config.hole_fill_min_occupied_neighbors) {
-        const int hash_id = hashIndexFromLocal(x, y);
-        CellData & cell = cell_buffer_[static_cast<size_t>(hash_id)];
-        cell.type = CellType::OCCUPIED;
-        cell.hole_filled = true;
-        cell.traversable = 0U;
-        applyValueAndMask(cell, config);
-      }
+    }
+  } else {
+    const int expected = width_ * height_;
+    affected.resize(static_cast<size_t>(expected));
+    for (int i = 0; i < expected; ++i) {
+      affected[static_cast<size_t>(i)] = i;
     }
   }
+
+  if (config.mask_filter_en) {
+    fillMask(config, affected);
+    denoiseMask(config, affected);
+  } else {
+    for (const int view_id : affected) {
+      const int x = view_id % width_;
+      const int y = view_id / width_;
+      CellData & cell =
+        cell_buffer_[static_cast<size_t>(hashIndexFromLocal(x, y))];
+      cell.hole_filled = false;
+      cell.type = cell.base_type;
+    }
+  }
+
+  const auto view_start = std::chrono::steady_clock::now();
+  if (base_dirty_indices) {
+    for (const int view_id : affected) {
+      updateView(view_id, config);
+    }
+  } else {
+    rebuildViews(config);
+  }
+  if (view_time_ms) {
+    *view_time_ms += elapsedMs(view_start);
+  }
+}
+
+void ProjectionLayer::fillMask(
+  const ProjectionLayerConfig & config, const std::vector<int> & candidate_indices)
+{
+  for (const int view_id : candidate_indices) {
+    const int x = view_id % width_;
+    const int y = view_id / width_;
+    CellData & cell = cell_buffer_[static_cast<size_t>(hashIndexFromLocal(x, y))];
+    cell.hole_filled = false;
+    if (x <= 0 || y <= 0 || x >= width_ - 1 || y >= height_ - 1 ||
+        (cell.base_type != CellType::UNKNOWN && cell.base_type != CellType::FREE)) {
+      continue;
+    }
+
+    int occupied_neighbors = 0;
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        if (dx == 0 && dy == 0) {
+          continue;
+        }
+        const CellData & neighbor = cell_buffer_[static_cast<size_t>(
+          hashIndexFromLocal(x + dx, y + dy))];
+        if (neighbor.base_type == CellType::OCCUPIED) {
+          ++occupied_neighbors;
+        }
+      }
+    }
+    cell.hole_filled = occupied_neighbors >= config.fill_occ_min;
+  }
+}
+
+void ProjectionLayer::denoiseMask(
+  const ProjectionLayerConfig & config, const std::vector<int> & candidate_indices)
+{
+  for (const int view_id : candidate_indices) {
+    const int x = view_id % width_;
+    const int y = view_id / width_;
+    CellData & cell = cell_buffer_[static_cast<size_t>(hashIndexFromLocal(x, y))];
+    const CellType filled_type =
+      cell.hole_filled ? CellType::OCCUPIED : cell.base_type;
+    cell.type = filled_type;
+    if (filled_type != CellType::OCCUPIED ||
+        x <= 0 || y <= 0 || x >= width_ - 1 || y >= height_ - 1) {
+      continue;
+    }
+
+    int occupied_neighbors = 0;
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        if (dx == 0 && dy == 0) {
+          continue;
+        }
+        const CellData & neighbor = cell_buffer_[static_cast<size_t>(
+          hashIndexFromLocal(x + dx, y + dy))];
+        if (neighbor.base_type == CellType::OCCUPIED || neighbor.hole_filled) {
+          ++occupied_neighbors;
+        }
+      }
+    }
+    if (occupied_neighbors <= config.denoise_occ_max) {
+      cell.type = CellType::UNKNOWN;
+    }
+  }
+}
+
+void ProjectionLayer::updateView(int view_id, const ProjectionLayerConfig & config)
+{
+  const int x = view_id % width_;
+  const int y = view_id / width_;
+  const size_t view_index = static_cast<size_t>(view_id);
+  CellData & stored = cell_buffer_[static_cast<size_t>(hashIndexFromLocal(x, y))];
+  applyValueAndMask(stored, config);
+  cells_[view_index] = stored;
+  values_[view_index] = stored.value;
+  mask_[view_index] = stored.mask;
 }
 
 void ProjectionLayer::rebuildViews(const ProjectionLayerConfig & config)
@@ -554,11 +628,7 @@ void ProjectionLayer::rebuildViews(const ProjectionLayerConfig & config)
   for (int y = 0; y < height_; ++y) {
     for (int x = 0; x < width_; ++x) {
       const size_t view_id = static_cast<size_t>(y) * static_cast<size_t>(width_) + static_cast<size_t>(x);
-      CellData & stored = cell_buffer_[static_cast<size_t>(hashIndexFromLocal(x, y))];
-      applyValueAndMask(stored, config);
-      cells_[view_id] = stored;
-      values_[view_id] = stored.value;
-      mask_[view_id] = stored.mask;
+      updateView(static_cast<int>(view_id), config);
     }
   }
 }
