@@ -23,10 +23,7 @@ build-*/
 .agents/
 .codex/
 .claude/
-docs/*
-!docs/ai_refactor_records/
-docs/ai_refactor_records/*
-!docs/ai_refactor_records/*.md
+docs/
 paper/
 paper_revision_outputs/
 latex_article_final/
