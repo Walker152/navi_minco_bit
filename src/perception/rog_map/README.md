@@ -148,7 +148,7 @@ projection:
 | `tunnel_height_delta_*`, `tunnel_occupancy_ratio_max` | 低矮/夹层地形分类判据 |
 | `passable_cost` | 可通行但有代价区域的规划代价 |
 | `hysteresis_count`, `obstacle_hold_time` | 分类迟滞与保持 |
-| `hole_fill_*` | 小孔洞补全策略 |
+| `mask_filter_en` / `fill_occ_min` / `denoise_occ_max` | 二维 8 邻域补洞与孤立障碍去噪 |
 
 ### ESDF 与性能
 

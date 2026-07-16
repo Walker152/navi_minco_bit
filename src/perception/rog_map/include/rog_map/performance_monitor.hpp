@@ -59,7 +59,7 @@ struct RuntimeStats
   double projection_scanner_time{0.0};
   double projection_update_full_time{0.0};
   double projection_update_dirty_time{0.0};
-  double projection_hole_fill_time{0.0};
+  double projection_mask_filter_time{0.0};
   double projection_value_mask_time{0.0};
   double projection_count_cells_time{0.0};
   double projection_cell_count{0.0};
