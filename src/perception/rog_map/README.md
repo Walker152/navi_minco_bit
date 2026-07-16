@@ -66,7 +66,7 @@ flowchart LR
 | `/rog_map/frontier` | 前沿区域 |
 | `/rog_map/esdf` | ESDF 可视化 |
 | `/rog_map/layer_value` | 投影层代价值 |
-| `/rog_map/layer_type` | 投影层分类 |
+| `/rog_map/layer_type` | 四类投影结果；RViz Map 使用 `costmap` 配色显示 UNKNOWN/FREE/PASSABLE/OCCUPIED |
 | `/rog_map/layer_confidence` | 分类置信度 |
 | `/rog_map/layer_height_delta` | 柱内高度变化 |
 | `/rog_map/field` | 势场/距离场诊断 |
