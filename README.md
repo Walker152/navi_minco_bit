@@ -1,201 +1,723 @@
-# RoboMaster 2026 哨兵导航与决策系统（北京理工大学，ROS 2 Humble）
+<div align="center">
 
-这是 **2026 赛季北京理工大学（BIT）哨兵导航系统代码仓库**，面向 RoboMaster 哨兵平台的 ROS 2 集成工程。系统覆盖 **感知（livox_ros_driver2 双雷达融合 + Point-LIO 进程内通信 + rog_map 三维占据地图）**、**重定位（Small_GICP）**、**导航（Nav2 + 自定义 MINCO 时空联合规划 + 动态 ESDF）**、**局部控制（MPC）** 与 **决策（BehaviorTree.CPP）**。
+# BIT RoboMaster Sentry Navigation
 
-> 一键启动入口：`bash start.bash`（Point-LIO → msg_convert 点云裁剪 → Nav2 + rog_map，可选 icp_relocalization / bt_manager / communication）
+### 面向 RoboMaster 哨兵的 ROS 2 感知 · 规划 · 控制 · 决策系统
 
----
+[![ROS 2](https://img.shields.io/badge/ROS%202-Humble-22314E?logo=ros)](https://docs.ros.org/en/humble/)
+[![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04-E95420?logo=ubuntu&logoColor=white)](https://releases.ubuntu.com/22.04/)
+[![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+[![RoboMaster](https://img.shields.io/badge/RoboMaster-2026-CB2E2E)](https://www.robomaster.com/)
+[![C++17](https://img.shields.io/badge/C++-17-00599C?logo=cplusplus)](https://isocpp.org/)
+[![ROGMap](https://img.shields.io/badge/Mapping-ROGMap-2E8B57)](src/perception/rog_map)
+[![ESDF](https://img.shields.io/badge/Distance_Field-Signed_ESDF-6A5ACD)](src/perception/rog_map)
+[![MINCO](https://img.shields.io/badge/Planner-MINCO-E67E22)](src/navigation/minco_planner)
+[![MPC](https://img.shields.io/badge/Controller-SE2_MPC-8E44AD)](src/navigation/minco_controller)
 
-## 1. 仓库简介
+**[系统架构](#系统架构) · [功能亮点](#功能亮点) · [安装](#安装与构建) · [硬件配置](#上车前关键配置) · [启动](#启动系统) · [参数索引](#关键参数索引)**
 
-本项目致力于打造一套高鲁棒性、高敏捷度的 RM 哨兵自主导航架构。针对比赛中复杂动态障碍与高频机动需求，采用基于 MINCO 的平滑轨迹优化与 MPC 局部跟踪，并结合离线 ESDF 先验地图与高频 LIO 里程计，实现哨兵在赛场中的高速巡逻、智能避障与交火决策。
+</div>
 
----
+> [!IMPORTANT]
+> 本仓库是北京理工大学追梦战队 2026 赛季哨兵导航工程。配置包含特定车辆的 IP、外参、地图原点和比赛参数，不能未经标定直接用于另一台机器人。首次上车前请完整阅读[上车前关键配置](#上车前关键配置)。
 
-## 2. 文件结构 (`src/`)
+## 🏠 项目简介
+
+本项目面向 RoboMaster 复杂地形、动态对抗和高速全向运动场景，在 ROS 2 Humble 上构建了从激光雷达输入到比赛决策的完整自主导航闭环：
 
 ```text
-src/
-├── decision
-│   └── bt_manager            # 决策模块 (BehaviorTree.CPP)
-├── navigation
-│   ├── communication         # 上下位机通信
-│   ├── minco_controller      # MPC 局部控制器
-│   ├── minco_planner         # MINCO 时空联合全局规划器
-│   └── navi2_bringup         # 参数文件与启动脚本配置包
-├── perception
-│   ├── dbscan_cluster        # 点云聚类跟踪（未启用）
-│   ├── icp_relocalization    # Small_GICP 重定位
-│   ├── livox_ros_driver2     # 雷达驱动节点（内置双雷达融合，与 Point-LIO 进程内通信）
-│   ├── msg_convert           # 点云格式转换、裁剪节点
-│   ├── Point-LIO             # 高频激光惯性里程计
-│   └── rog_map               # 滑动窗口三维占据地图与动态 ESDF
-├── ros_interfaces            # 自定义 ROS 2 消息
-│   ├── CMakeLists.txt
-│   ├── msg
-│   └── package.xml
-└── utils
-    ├── bt_editor             # 可视化行为树编辑器
-    ├── data_analyzer         # 数据分析 demo
-    ├── pcd2ele               # 高程图生成器
-    ├── pcd2esdf              # ESDF 先验地图生成器
-    ├── pcd2pgm               # PGM 栅格地图生成器
-    ├── pcd_trans             # 点云转换器
-    └── rotmat_cal            # 旋转矩阵计算器
+双 Livox MID-360 → Point-LIO → ROGMap → 全局搜索 / MINCO → SE(2) MPC → 底盘
+                                      ↑                         ↑
+                              Nav2 + 先验地图             行为树 + 裁判系统
 ```
 
----
+系统以 Point-LIO 高频里程计和稠密去畸变点云为感知基础，通过 ROGMap 维护滑动三维概率占据地图、地形语义投影和 Signed ESDF；规划端提供 `PRIORMAP` 与 `EXPLORATION` 双模式，将离散路径连续化为满足运动约束的 MINCO 轨迹；控制端使用速度层 SE(2) MPC 跟踪轨迹，并由 FSM、安全检查和 ESDF 梯度恢复构成异常闭环。比赛策略由 BehaviorTree.CPP 管理，通信节点连接裁判系统和底盘。
 
-## 3. 系统启动与整体架构（速览）
+### 当前实车基线
 
-推荐直接使用一键脚本启动：bash start.bash。
+| 项目 | 当前配置 |
+|---|---|
+| 操作系统 | Ubuntu 22.04 |
+| ROS | ROS 2 Humble |
+| 计算平台 | Intel NUC 13，Core i5-1340P，32 GB RAM |
+| 激光雷达 | 2 × Livox MID-360，驱动侧融合 |
+| 底盘 | 全向底盘；控制器输出世界坐标系速度 |
+| ROGMap | `0.05 m` 分辨率，`10 × 10 × 1.5 m` 滑动窗口 |
+| 规划 | `PRIORMAP`，20 Hz MINCO 优化配置 |
+| 控制 | 100 Hz Nav2 controller server，MPC 预测时域 0.5 s |
 
-系统链路可以概括为：
-
-1. livox_ros_driver2 驱动多台 Livox 雷达，内置双雷达融合，通过**进程内通信（Intra-Process）**零拷贝传递点云与 IMU 数据给 Point-LIO。
-2. Point-LIO 输出高频里程计 (`/aft_mapped_to_init`) 与去畸变点云 (`/cloud_registered`)。
-3. msg_convert 对点云做裁剪过滤，传递给 Nav2 的 rog_map 与 STVL costmap 层构建占据地图。
-4. rog_map 维护滑窗三维概率占据地图，实时生成二维投影 layer 与动态 ESDF 场。
-5. （可选）icp_relocalization 对齐离线 PCD 地图，发布 map → camera_init 的全局校准静态 TF。
-6. Nav2 调用 MincoPlanner（A* 前端 + MINCO 后端优化）与 MincoMpcController 完成避障规划与轨迹跟踪。
-7. bt_manager 提供比赛策略，communication 下发底盘控制指令。
-
-> **注意：** 默认启动脚本中 `icp_relocalization` 已注释，适用于无先验地图的赛场。若需全局重定位，请取消 start.bash 中对应行的注释。
-
-下图保留完整系统关系图：
+## 🧭 系统架构
 
 ```mermaid
-graph TD
-  %% Sensors
-  L[Livox LiDAR] -->|PointCloud2: livox/lidar| PLIO["point_lio<br/>点云-IMU里程计/建图"]
-  I[IMU] -->|sensor_msgs/Imu: livox/imu| PLIO
+flowchart LR
+  subgraph Sensors[传感器与驱动]
+    L1[前 MID-360]
+    L2[后 MID-360]
+    LD[livox_ros_driver2\n时间对齐 + 外参融合]
+    L1 --> LD
+    L2 --> LD
+  end
 
-  %% Point-LIO outputs
-  PLIO -->|Odometry: /aft_mapped_to_init| NAV2["Nav2 框架<br/>bt_navigator / planner_server / controller_server"]
-  PLIO -->|PointCloud2: /cloud_registered| MSGCONV["msg_convert<br/>点云裁剪过滤"]
+  subgraph Perception[定位与环境感知]
+    PL[Point-LIO\n高频 LIO + 稠密去畸变]
+    RM[ROGMap\n概率占据 + 衰减]
+    PJ[ProjectionLayer\nFREE / PASSABLE / OCCUPIED / UNKNOWN]
+    DF[Signed ESDF]
+    LD -->|/livox/lidar + IMU| PL
+    PL -->|/cloud_registered_full| RM
+    RM --> PJ --> DF
+  end
 
-  %% msg_convert feeds costmap layers
-  MSGCONV -->|PointCloud2| ROGMAP["rog_map costmap layer<br/>三维占据 + 二维投影 + 动态ESDF"]
-  MSGCONV -->|PointCloud2| STVL["Costmap STVL<br/>spatio_temporal_voxel_layer"]
+  subgraph Navigation[规划与控制]
+    N2[Nav2]
+    GS[先验地图 / ROGMap 搜索]
+    MO[MINCO 连续轨迹优化]
+    FSM[FSM + 安全检查 + 恢复]
+    MPC[SE2 MPC]
+    N2 --> GS
+    DF --> GS
+    GS --> MO --> FSM --> MPC
+    DF --> MO
+    DF --> FSM
+  end
 
-  %% ICP/GICP relocalization (optional)
-  MAPPCD["离线全局地图<br/>PCD"] -->|pcl::io::loadPCDFile| GICP["icp_relocalization<br/>gicp_relocalization_node<br/>(可选)"]
-  PLIO -->|PointCloud2: /livox/stdpc| GICP
-  GICP -->|TF 静态, 收敛后一次: map→camera_init| TFALIGN["Map-to-Odom 校准 TF"]
+  subgraph Decision[决策与执行]
+    BT[BehaviorTree.CPP]
+    COM[裁判系统 / 底盘通信]
+    MCU[底盘 MCU]
+    BT --> N2
+    BT <--> COM
+    MPC -->|/cmd_vel_mpc| COM --> MCU
+  end
 
-  %% TF chain used by Nav2
-  TFALIGN -->|TF: map→camera_init| NAV2
-  NAV2 -->|TF: camera_init→body→base_link, navi2 launch 静态发布| NAV2
-
-  %% Planning
-  NAV2 -->|nav2_core::GlobalPlanner| MINCO["MincoPlanner<br/>A* + MINCO 轨迹优化"]
-  MINCO -->|nav_msgs/Path: /plan| NAV2
-
-  %% Control
-  NAV2 -->|minco_mpc_controller 输出速度指令| CTRL["MincoMpcController<br/>MPC 局部跟踪控制"]
-  CTRL -->|/cmd_vel_mpc| ACT[底盘/电控]
-
-  %% Decision
-  BT["bt_manager<br/>BehaviorTree.CPP"] -->|action: navigate_to_pose 发送目标点| NAV2
-  BT <-->|/sentry/event_status 等| STATE[比赛状态/血量/前哨站信息]
-
-  %% Costmap layers feed into Nav2
-  ROGMAP -->|占据栅格 / ESDF 距离场| NAV2
-  STVL -->|障碍栅格/时空衰减| NAV2
+  PL -->|/aft_mapped_to_init| N2
 ```
 
----
+### 主要数据流
 
-## 4. 核心模块原理深度解析
+| 来源 | 输出 | 消费者 | 作用 |
+|---|---|---|---|
+| `livox_ros_driver2` | `/livox/lidar` | Point-LIO | 双雷达融合后的 CustomMsg 点云 |
+| `livox_ros_driver2` | `/livox/imu_<ip>` | Point-LIO | 选定主雷达的 IMU |
+| Point-LIO | `/aft_mapped_to_init` | Nav2、ROGMap、planner、controller | 位姿、体轴速度和角速度 |
+| Point-LIO | `/cloud_registered_full` | ROGMap | 世界系稠密去畸变点云 |
+| Point-LIO | `/cloud_registered` | Nav2 STVL | 常规配准点云 |
+| ROGMap | 进程内 `MapQueryInterface` | MincoPlanner | 占据、投影、ESDF 连续查询 |
+| MincoPlanner | `/opt_path` | MincoMpcController | 带 P/V/A/J/Yaw 前馈的连续轨迹 |
+| MincoMpcController | `/cmd_vel_mpc` | communication / 底盘 | 世界坐标系速度指令 |
+| bt_manager | Nav2 action / blackboard | Nav2、communication | 比赛策略和状态切换 |
 
-### A. 导航算法：MincoPlanner
+## ✨ 功能亮点
 
-它是 Nav2 GlobalPlanner 的自定义插件。前端在 costmap 网格上做 A* 搜索保证可行性（避障/连通），后端对前端路径做路标稀疏化后，使用 MINCO 优化一条分段多项式轨迹（满足速度/加速度约束，带有时间与吸引点惩罚）。本赛季结合 **rog_map 动态 ESDF** 与 **静态 ESDF 先验地图**（Euclidean Signed Distance Field）进一步增强了对静态/动态障碍物边界的平滑感知与安全距离约束。
+### ⚡ 1. 双雷达驱动侧融合与进程内传输
 
-### B. 局部控制器：MincoMpcController (Local Controller)
+- `livox_ros_driver2` 在驱动侧按雷达 IP 区分前后雷达，通过 `merge_extrinsic_back_to_front` 将后雷达点变换到前雷达坐标系并做时间窗口融合。
+- Livox driver 与 Point-LIO 运行在同一 `component_container_mt`，开启 `use_intra_process_comms`；Point-LIO 使用 `UniquePtr` 接收点云，稠密点云也以 `std::unique_ptr` 移交发布，减少大消息复制与跨进程序列化。
+- 支持单 MID-360 和双 MID-360 两套 launch；比赛默认使用双雷达入口。
 
-专为跟踪 Minco 轨迹设计的线性模型预测控制器（MPC）。基于高频里程计做延迟补偿外推，计算满足动态约束的速度矢量，输出 `/cmd_vel_mpc`。
-注意：该控制器输出世界坐标系下的速度指令，下位机底盘必须处于”绝对坐标系控制模式”或根据底盘 Yaw 角自行分解，以保证云台剧烈旋转时底盘依然平滑运动。
+### 🌐 2. Point-LIO 稠密去畸变与可迁移盲区中心
 
-### C. 感知与重定位：ICP Relocalization
+- 保留 Point-LIO 的高带宽点级 LIO，并输出按时间处理、去畸变并变换到 `camera_init` 的 `/cloud_registered_full`。
+- `preprocess.blind_center` 将盲区球心从雷达原点移动到机器人关注中心，避免双雷达融合后仍围绕单雷达原点裁剪近场点。
+- 稠密点按时间戳进入有序队列，结合前后状态快照做分段前向运动补偿；过期、乱序和非有限点会被丢弃并计数，输出前统一变换到 `camera_init`。
+- `/cloud_registered_full` 使用 `SensorDataQoS().keep_last(1)`，让 ROGMap 优先消费最新帧，避免高负载时旧点云排队累积延迟。
+- 雷达回调与 LIO 处理线程解耦；点云输入、odom 发布、位姿更新、队列丢弃等统计可按周期聚合输出，避免逐点高频日志。
+- `/Laser_map` 支持按 `accumulated_map_publish_hz` 低频发布累计地图。
 
-利用 small_gicp 读取离线 PCD 全局地图做配准。使用 Point-LIO 提供的高频里程计坐标系（camera_init）作为初始参照，SAC-IA 粗配准 + GICP 精对齐，收敛后发布一次静态 TF（map -> camera_init）修正里程计漂移。
+### 🗺️ 3. ROGMap 滑动中心、动态遗忘与地形语义
 
-### D. 决策系统：bt_manager
+- 三维概率占据通过 hit/miss 更新抑制瞬时噪声，并用 `keep_time → clear_time` 时间窗清除动态障碍残影。
+- `map_sliding.center_offset` 允许地图滑窗中心跟随机器人几何中心，而不是固定围绕 LIO 原点。
+- ProjectionLayer 根据单个 XY 柱内的占据高度跨度和垂直占据率，输出 `FREE / PASSABLE / OCCUPIED / UNKNOWN` 四类地形语义。
+- dirty-column 增量刷新、并行 Raycasting 和进程内地图查询减少全量遍历与 ROS 消息往返。
+- Signed ESDF 提供障碍外正距离、障碍内负距离和连续梯度，供搜索、优化和恢复共同使用。
 
-基于 BehaviorTree.CPP v3 构建。通过黑板状态（血量、敌方前哨站、目标锁定等）控制状态机流转。优先处理紧急撤退（受击/残血 回 HOME 点），其次为前哨站响应（防御），最后为常规巡逻与目标追击。
+### 🛤️ 4. PRIORMAP / EXPLORATION 双模式 MINCO 规划
 
----
+- `PRIORMAP`：利用 Nav2 先验地图完成全局引导，ROGMap 负责局部动态约束和 ESDF 代价。
+- `EXPLORATION`：不依赖先验地图，直接在 ROGMap 有效边界内搜索。
+- 前端支持 Costmap 与 ROGMap ESDF 势场融合的 SMAC 风格搜索；中间层完成局部裁剪、视线稀疏化和角点修复。
+- 后端联合优化 MINCO 控制点与段时间，约束位置安全、速度、加速度和路径吸引，并支持热启动和持续重规划。
 
-## 5. 如何使用 (Usage & Build)
+### 🎯 5. SE(2) MPC 与安全恢复闭环
 
-### 5.1 环境依赖与安装
+- 状态为 `[x, y, yaw]`，控制为 `[vx, vy, omega]`，使用 qpOASES 求解凝聚 QP。
+- 支持控制延迟补偿、杆臂补偿、速度/加速度边界、死区和 Nav2 speed limit。
+- 规划 FSM 管理初始化、待命、规划、跟踪、急停与恢复；ESDF 梯度为受困状态生成恢复方向。
+- 控制器输出为世界坐标系速度，适配战队底盘 MCU 的全局到本地二次映射。
 
-本系统依赖于 ROS 2 Humble，并且需要安装以下核心第三方库：
+### 🌳 6. 比赛行为树与通信
+
+- BehaviorTree.CPP XML 定义比赛策略，通过共享 blackboard 管理战术模式、目标点、姿态、小陀螺和裁判状态。
+- communication 节点负责串口/网络链路和底盘控制指令，保持导航、决策与电控边界清晰。
+- 提供行为树转移日志、区域 Marker 和比赛状态可视化。
+
+## 📦 仓库结构
+
+```text
+2025-sentry-navi/
+├── src/
+│   ├── decision/
+│   │   └── bt_manager/              # 行为树、比赛策略、blackboard
+│   ├── navigation/
+│   │   ├── communication/           # 裁判系统与底盘通信
+│   │   ├── minco_controller/        # Nav2 SE(2) MPC controller plugin
+│   │   ├── minco_planner/           # 搜索、MINCO、FSM、安全恢复
+│   │   └── navi2_bringup/           # Nav2 launch、地图、参数、RViz
+│   ├── perception/
+│   │   ├── Point-LIO/               # ROS 2 Point-LIO 与稠密点云输出
+│   │   ├── livox_ros_driver2/       # Livox SDK2 驱动与双雷达融合
+│   │   ├── rog_map/                 # 三维概率地图、投影、Signed ESDF
+│   │   └── dbscan_cluster/          # 实验性点云聚类（默认未启用）
+│   ├── ros_interfaces/              # 自定义消息
+│   └── utils/                       # PCD / PGM / ESDF / 高程等工具
+├── scripts/                         # PTP、环境、存图辅助脚本
+├── build.bash                       # 受内存预算约束的分阶段构建脚本
+├── start.bash                       # 实车完整启动入口
+├── play.bash                        # rosbag回放可视化启动脚本
+└── CONTRIBUTING.md                  # 贡献规范
+```
+
+更深入的模块文档：
+
+- [MincoPlanner](src/navigation/minco_planner/README.md)
+- [MincoMpcController](src/navigation/minco_controller/README.md)
+- [bt_manager](src/decision/bt_manager/README.md)
+- [Point-LIO](src/perception/Point-LIO/README.md)
+
+## 🛠️ 安装与构建
+
+### 1. 环境要求
+
+- Ubuntu 22.04
+- ROS 2 Humble Desktop
+- GCC / G++ 与 C++17
+- Livox-SDK2
+- Nav2、BehaviorTree.CPP v3、PCL、Eigen3、OpenMP、yaml-cpp、glog、fmt
+- 可选：OpenCV（地图工具）、STVL（Nav2 动态体素层）
+
+> [!NOTE]
+> 仓库已经包含 qpOASES third-party 回退实现。部分包的 `package.xml` 仍未覆盖所有系统依赖，`rosdep` 之后可能仍需按报错安装系统库。
+
+### 2. 安装 ROS 依赖
 
 ```bash
-# 1. 安装基础工具与 ROS 2 依赖
+source /opt/ros/humble/setup.bash
 sudo apt update
-sudo apt install libeigen3-dev libpcl-dev libceres-dev
-sudo apt install ros-humble-nav2-* ros-humble-spatio-temporal-voxel-layer ros-humble-openvdb-vendor
+sudo apt install -y \
+  python3-colcon-common-extensions python3-rosdep \
+  libeigen3-dev libpcl-dev libyaml-cpp-dev libgoogle-glog-dev \
+  libunwind-dev libfmt-dev libopencv-dev \
+  ros-humble-navigation2 ros-humble-nav2-bringup \
+  ros-humble-behaviortree-cpp-v3 \
+  ros-humble-spatio-temporal-voxel-layer
 
-# 2. 安装 Livox-SDK2
+sudo rosdep init  # 仅首次安装 rosdep 时执行
+rosdep update
+rosdep install --from-paths src --ignore-src -r -y
+```
+
+若 `sudo rosdep init` 提示已初始化，直接继续 `rosdep update`。
+
+### 3. 安装 Livox-SDK2
+
+按照 [Livox-SDK2 官方说明](https://github.com/Livox-SDK/Livox-SDK2) 安装。典型流程如下：
+
+```bash
 git clone https://github.com/Livox-SDK/Livox-SDK2.git
-cd Livox-SDK2 && mkdir build && cd build
-cmake .. && make -j
+cd Livox-SDK2
+mkdir build && cd build
+cmake ..
+make -j"$(nproc)"
 sudo make install
-
-# 3. gcopter 等其它数学库请参考官方文档通过源码编译安装
 ```
 
-### 5.2 编译构建
-
-由于部分导航和建图包对内存消耗极大，强烈推荐使用仓库内提供的全量编译脚本。该脚本会优先编译大内存功能包，避免内存爆炸导致编译卡死，同时附带了符号链接（方便改参）与详细的终端输出：
+### 4. 获取仓库并构建
 
 ```bash
-# 在工作空间根目录下运行
+git clone --branch rog_map_work --single-branch \
+  https://github.com/Walker152/navi_minco_bit.git ~/2025-sentry-navi
+cd ~/2025-sentry-navi
+source /opt/ros/humble/setup.bash
 ./build.bash
+source install/setup.bash
 ```
 
-### 5.3 建图与先验地图导航流程
-
-步骤一：构建点云地图 (SLAM)
-如果你需要扫描新场地的地图，开启雷达与里程计后运行以下命令启动建图：
+`build.bash` 会在 `MEM_LIMIT_GB` 内先串行构建高内存关键包，再并行构建其余包。可按机器内存调整：
 
 ```bash
-ros2 launch navi2 slam.launch.py
+MEM_LIMIT_GB=24 MEM_PER_WORKER_GB=2 ./build.bash
 ```
 
-建图完成后保存先验地图文件，并生成 Nav2 `map_server` 可加载的地图 yaml。
+> [!WARNING]
+> `start.bash` 当前固定执行 `cd ~/2025-sentry-navi`，若工作空间位于其他目录，请先修改该行。脚本还会打开多个 GNOME Terminal、启动 PTP sudo 命令并自动录制 rosbag，更适合实车桌面环境，不适合无界面服务器。
 
-步骤二：配置导航地图
-当前 MINCO 规划、轨迹安全检查、走廊生成和 SMAC distance-field bias 都通过 ROGMap 查询接口获取距离场。
+## ⚙️ 上车前关键配置
 
-1. 打开 `src/navigation/navi2_bringup/params/sentry1.yaml`（或对应机器人参数文件）。
-2. 配置 `map_server.yaml_filename` 指向新的 Nav2 地图 yaml。
-3. 按实际雷达话题和地图范围确认 `planner_server` → `MincoPlanner` 下的 `rog_map` 参数。
+以下四组配置存在耦合。建议按“网络 → 双雷达外参 → LIO/TF → 规划控制/ROGMap”的顺序标定。
 
-### 5.4 比赛一键运行
+### 1. Livox 主机 IP、雷达 IP 与双雷达融合
 
-系统所有硬件挂载、TF 发布、重定位和导航规划统一封装在 start.bash 中：
+关键文件：
+
+- `src/perception/livox_ros_driver2/config/mixed_MID360_config.json`
+- `src/perception/livox_ros_driver2/config/mixed_MID360_component.yaml`
+- 单雷达对应 `MID360_config.json` 与 `single_MID360_component.yaml`
+
+当前双雷达基线：
+
+```yaml
+# mixed_MID360_config.json
+host_net_info: 192.168.1.47       # NUC 有线网卡地址
+lidar_configs:
+  - 192.168.1.122                 # 后雷达
+  - 192.168.1.135                 # 前雷达 / IMU 来源
+
+# mixed_MID360_component.yaml
+enable_internal_lidar_merge: true
+merge_front_ip: 192.168.1.135
+merge_back_ip: 192.168.1.122
+merge_output_topic: livox/lidar
+merge_max_interval_ms: 5.0
+merge_extrinsic_back_to_front: [0.0, 0.4, 0.0, -0.35453, 0.0, 0.0]
+```
+
+配置原则：
+
+1. 将 NUC 网卡设置为与雷达同网段的静态地址，并同步修改 JSON 中所有 `host_net_info.*_ip`。
+2. `lidar_configs[].ip` 必须与雷达实际 IP 一致；`merge_front_ip`、`merge_back_ip` 必须引用其中两台雷达。
+3. `merge_extrinsic_back_to_front` 表示“后雷达坐标系 → 前雷达坐标系”的刚体外参，数组的具体顺序以驱动实现和当前配置注释为准，重新安装雷达后必须实测标定，不能只修改 IP。
+4. Point-LIO 当前订阅 `livox/imu_192_168_1_135`。若更换主雷达 IP，应同步修改 launch 的 `pointlio_imu_topic` 和 `mid360.yaml` 的 `common.imu_topic`。
+
+可先单独检查雷达：
+
+```bash
+source install/setup.bash
+ros2 launch livox_ros_driver2 msg_mixed_MID360.launch.py
+ros2 topic list | grep livox
+ros2 topic hz /livox/lidar
+```
+
+### 2. Point-LIO 外参、blind 中心与坐标系发布
+
+关键文件：
+
+- `src/perception/Point-LIO/config/mid360.yaml`
+- `src/perception/Point-LIO/src/laserMapping.cpp`
+
+当前相关参数：
+
+```yaml
+preprocess:
+  blind: 0.45
+  blind_center_enable: true
+  blind_center: [0.0, 0.20, 0.0]
+
+mapping:
+  extrinsic_est_en: false
+  extrinsic_T: [-0.011, -0.02329, 0.04412]
+  extrinsic_R: [1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0,
+                0.0, 0.0, 1.0]
+
+publish:
+  tf_send_en: true
+```
+
+`blind_center` 位于输入点云坐标系。启用后，近场裁剪使用点到该中心的距离，而不是点到雷达原点的距离。当前 `[0, 0.20, 0]` 与车辆几何中心偏置配套；更换雷达参考原点或车体定义时应一起重算。
+
+当前 `laserMapping.cpp` 的坐标系发布是源码固定逻辑：
+
+| 输出 | parent / frame | child | 说明 |
+|---|---|---|---|
+| `/aft_mapped_to_init` | `camera_init` | `body` | LIO odometry |
+| `/cloud_registered[_full]` | `camera_init` | — | 世界系配准点云 |
+| TF | `camera_init` | `body` | 完整 LIO 姿态 |
+| TF | `camera_init` | `base_link` | 当前只发布 yaw 平面姿态，并加 `[0, 0.20, 0]` 平移偏置 |
+| TF | `camera_init` | `slambase` | 平面 yaw 参考 |
+
+> [!CAUTION]
+> `camera_init → base_link` 的 `offset_vec(0.0, 0.20, 0.0)` 当前硬编码在 `laserMapping.cpp`，不是 `mid360.yaml` 参数。修改车辆几何时，必须同步检查它与 `blind_center`、ROGMap `center_offset`、planner/controller `lidar_offset_*` 的定义；不要额外启动同名静态 TF，否则会产生重复 TF 发布者。
+
+### 3. Planner 与 Controller 杆臂补偿
+
+关键文件：`src/navigation/navi2_bringup/params/sentry1.yaml`。
+
+```yaml
+planner_server:
+  ros__parameters:
+    MincoPlanner:
+      lidar_offset_x: 0.0
+      lidar_offset_y: -0.20
+
+controller_server:
+  ros__parameters:
+    FollowPath:
+      lidar_offset_x: 0.0
+      lidar_offset_y: -0.20
+      lidar_roll_offset: 0.1745
+```
+
+`lidar_offset_x/y` 表示杆臂向量，参与 `v_body = v_lidar + ω × r` 的速度补偿。当前 planner 与 controller 都配置为 `[0, -0.20]`，两处必须保持一致，否则规划初始速度与控制状态会来自不同参考点。符号不能仅凭机械图猜测，应结合源码公式、坐标轴方向和旋转实测确认：原地旋转时，补偿后的底盘旋转中心平移速度应接近零。
+
+`lidar_roll_offset` 仅在 controller 中用于安装滚转相关处理；它不是二维杆臂长度，也不应与 Point-LIO 的 `mapping.extrinsic_R` 混为一谈。
+
+推荐检查：
+
+```bash
+ros2 param get /planner_server MincoPlanner.lidar_offset_x
+ros2 param get /planner_server MincoPlanner.lidar_offset_y
+ros2 param get /controller_server FollowPath.lidar_offset_x
+ros2 param get /controller_server FollowPath.lidar_offset_y
+```
+
+### 4. ROGMap 中心、Z 窗口与雷达安装高度
+
+关键文件：`src/navigation/navi2_bringup/params/sentry1.yaml` 的 `planner_server.ros__parameters.MincoPlanner.rog_map`。
+
+```yaml
+rog_map:
+  frame_id: camera_init
+  resolution: 0.05
+  map_size: [10.0, 10.0, 1.5]
+
+  map_sliding:
+    center_offset_enable: true
+    center_offset: [0.0, 0.20, 0.0]
+
+  projection:
+    scan_z_min_abs: -0.20
+    scan_z_max_abs: 1.50
+    surface_height_delta_max: 0.10
+    wall_height_delta_min: 0.20
+    tunnel_height_delta_min: 0.25
+    tunnel_height_delta_max: 0.40
+```
+
+`center_offset` 是 ROGMap frame 中的滑动窗口中心偏置。它控制地图窗口围绕哪里滑动，不会自动修改传感器原点、点云坐标或 planner 杆臂参数。当前值与 `base_link` 相对 LIO 原点的正向偏置一致。
+
+`scan_z_min_abs` 与 `scan_z_max_abs` 是 `camera_init` 中的**绝对 Z 坐标**，不是离地高度。若初始化后 `camera_init` 的 Z 原点近似位于雷达高度，雷达离地高度为 `h_lidar`，希望扫描地面以上 `[h_min, h_max]` 的空间，则可用：
+
+```text
+scan_z_min_abs ≈ h_min - h_lidar
+scan_z_max_abs ≈ h_max - h_lidar
+```
+
+例如雷达离地 `0.45 m`，希望覆盖离地 `0.05–1.50 m`，初值可设为 `[-0.40, 1.05]`。这只是几何初值；最终必须在 RViz 中用 `/rog_map/occupied`、`/rog_map/layer_height_delta` 和 `/rog_map/layer_type` 验证。
+
+同时满足以下关系：
+
+- `map_size.z` 应覆盖 `[scan_z_min_abs, scan_z_max_abs]` 及车辆运动、坡道和定位波动余量；窗口不足会截断投影输入。
+- `surface_height_delta_max < wall_height_delta_min`。
+- `tunnel_height_delta_min` 应大于机器人实际高度加安全余量，且不大于 `tunnel_height_delta_max`。
+- 调整雷达安装高度时，优先重新推导绝对 Z 扫描上下界；不要用改 hit/miss 概率补偿错误的高度窗口。
+
+> [!WARNING]
+> 当前基线的投影请求跨度为 `1.50 - (-0.20) = 1.70 m`，大于配置的 `map_size.z = 1.50 m`。源码会把投影 Z 索引裁剪到当前滑动地图边界，因此实际参与投影的是二者交集，而不是完整的 `[-0.20, 1.50]`。更换雷达高度或希望完整覆盖该区间时，应同时调整 Z 窗口尺寸/中心与扫描上下界，并评估额外内存和计算量。
+
+### 配置一致性清单
+
+| 物理量 | 配置位置 | 当前值 | 一致性要求 |
+|---|---|---:|---|
+| 前雷达 IP | Livox JSON/YAML、Point-LIO IMU topic | `192.168.1.135` | 三处同步 |
+| 后雷达 IP | Livox JSON/YAML | `192.168.1.122` | 两处同步 |
+| 近场关注中心 | `Point-LIO preprocess.blind_center` | `[0, 0.20, 0]` | 与参考中心定义一致 |
+| LIO 到底盘中心 TF | `laserMapping.cpp offset_vec` | `[0, 0.20, 0]` | 与实际安装一致 |
+| ROGMap 滑窗中心 | `rog_map.map_sliding.center_offset` | `[0, 0.20, 0]` | 与希望覆盖的车体中心一致 |
+| 速度杆臂 | planner/controller `lidar_offset_*` | `[0, -0.20]` | 两插件同值；符号按公式验证 |
+
+## 🚀 启动系统
+
+### 1. 分模块启动（推荐首次上车）
+
+每个终端都先执行：
+
+```bash
+cd ~/2025-sentry-navi
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+```
+
+启动双雷达与 Point-LIO：
+
+```bash
+ros2 launch point_lio mixed_livox_pointlio_intra_process.launch.py
+```
+
+启动 Nav2、ROGMap、MINCO 与 MPC：
+
+```bash
+ros2 launch navi2 navigation2.launch.py
+```
+
+启动比赛决策和通信：
+
+```bash
+ros2 launch bt_manager bt_manager.launch.py
+ros2 launch communication com.launch.py
+```
+
+### 2. 一键实车启动
+
+完成所有标定并确认急停链路后：
 
 ```bash
 bash start.bash
 ```
 
----
+脚本依次启动：
 
-## 6. 参考文献与开源项目
+1. PTP 时间同步；
+2. 双雷达 + Point-LIO component container；
+3. Nav2 + ROGMap + MincoPlanner + MincoMpcController；
+4. bt_manager；
+5. communication；
+6. 指定 topics 的 rosbag 记录。
 
-- [BehaviorTree.CPP](https://github.com/BehaviorTree/BehaviorTree.CPP)
-- [GCOPTER](https://github.com/ZJU-FAST-Lab/GCOPTER)
-- [Livox-SDK2](https://github.com/Livox-SDK/Livox-SDK2)
+`start.bash` 会请求 sudo 并向底盘链路发送控制数据，上车前应架空轮组或保证机械急停可用。
+
+### 3. 单雷达模式
+
+```bash
+ros2 launch point_lio single_livox_pointlio_intra_process.launch.py
+```
+
+使用前同步检查 `single_MID360_component.yaml`、`MID360_config.json` 和 Point-LIO IMU topic。
+
+### 4. 建图与先验地图导航
+
+1. 启动雷达与 Point-LIO，确认 `/aft_mapped_to_init` 和 `/cloud_registered_full` 正常。
+2. 根据需要运行 SLAM：
+
+   ```bash
+   ros2 launch navi2 slam.launch.py
+   ```
+
+3. 保存 PCD / 栅格地图，并用 `pcd2pgm`、`pcd2esdf` 等工具生成所需先验数据。
+4. 修改 `src/navigation/navi2_bringup/launch/navigation2.launch.py` 中默认 map，或运行时覆盖：
+
+   ```bash
+   ros2 launch navi2 navigation2.launch.py map:=/absolute/path/to/map.yaml
+   ```
+
+5. `PRIORMAP` 模式确认 `map → camera_init` 初始变换。当前 launch 中存在赛场相关硬编码静态 TF，应按地图原点修改，并确保该 TF 只有一个发布者。
+6. 无先验地图时将 `MincoPlanner.planner_mode` 改为 `EXPLORATION`，并重新核对 unknown 策略与 ROGMap 边界。
+
+## 🧩 关键参数索引
+
+所有数值均为当前 `sentry1.yaml` / `mid360.yaml` 基线，不是通用推荐值。
+
+### Point-LIO
+
+| 参数 | 当前值 | 作用 |
+|---|---:|---|
+| `preprocess.blind` | `0.45 m` | 近场盲区半径 |
+| `preprocess.blind_center_enable` | `true` | 使用迁移后的盲区中心 |
+| `preprocess.blind_center` | `[0, 0.20, 0]` | 输入点云系中的盲区球心 |
+| `mapping.extrinsic_est_en` | `false` | 关闭在线外参估计 |
+| `publish.tf_send_en` | `true` | 发布 LIO TF |
+| `odometry.publish_odometry_without_downsample` | `true` | 高频状态发布 |
+| `pcd_save.accumulated_map_publish_hz` | `1.0` | `/Laser_map` 发布频率 |
+
+### ROGMap
+
+| 参数 | 当前值 | 作用 / 调参影响 |
+|---|---:|---|
+| `resolution` | `0.05 m` | 基础体素；更小更细但增加内存和计算 |
+| `map_size` | `[10,10,1.5] m` | 三维滑动窗口尺寸 |
+| `map_sliding.threshold` | `0.2 m` | 触发窗口滑动的位移 |
+| `map_sliding.center_offset` | `[0,0.20,0] m` | 滑窗中心相对 LIO 原点偏置 |
+| `ros_callback.update_period_ms` | `20 ms` | 地图消费循环周期 |
+| `raycasting.ray_range` | `[0.03,10.0] m` | 有效射线范围 |
+| `decay.keep_time` | `0.8 s` | hit 后保持占据的最短时间 |
+| `decay.clear_time` | `1.2 s` | hit 后强制衰减到 free 的最长时间 |
+| `projection.scan_z_min_abs/max_abs` | `-0.20 / 1.50 m` | ROGMap frame 中绝对 Z 扫描区间 |
+| `field.max_distance/min_distance` | `6.0 / -3.0 m` | Signed ESDF 截断范围 |
+| `performance.dirty_column_enable` | `true` | 增量刷新 Projection/Field |
+
+### MincoPlanner
+
+| 参数 | 当前值 | 作用 |
+|---|---:|---|
+| `planner_mode` | `PRIORMAP` | 先验地图 / 探索模式 |
+| `lidar_offset_x/y` | `0.0 / -0.20 m` | LIO 速度到车体中心杆臂补偿 |
+| `minco_optimizer.opt_freq` | `20 Hz` | 优化目标频率 |
+| `lookahead_dist` | `6.0 m` | 局部优化前视距离 |
+| `max_velocity` | `3.0 m/s` | 轨迹速度上界 |
+| `max_acceleration` | `2.0 m/s²` | 轨迹加速度上界 |
+| `safe_dist / collision_dist` | `0.35 / 0.25 m` | 优化安全距离 / 碰撞阈值 |
+
+### MincoMpcController
+
+| 参数 | 当前值 | 作用 |
+|---|---:|---|
+| `controller_frequency` | `100 Hz` | Nav2 控制服务器频率 |
+| `FollowPath.dt` | `0.05 s` | MPC 模型离散周期 |
+| `FollowPath.lookahead_time` | `0.5 s` | 预测时域 |
+| `FollowPath.control_delay_compensation` | `0.15 s` | 控制链路延迟前推 |
+| `FollowPath.lidar_offset_x/y` | `0.0 / -0.20 m` | 控制状态杆臂补偿 |
+| `FollowPath.lidar_roll_offset` | `0.1745 rad` | 安装滚转补偿 |
+| `FollowPath.vx/vy_min/max` | `±3.0 m/s` | 平移速度约束 |
+| `FollowPath.omega_min/max` | `±5.0 rad/s` | 角速度约束 |
+| `FollowPath.use_acc_constraints` | `true` | 启用差分加速度约束 |
+
+## 🧱 TF 与坐标系
+
+典型 TF 关系：
+
+```text
+map
+└── camera_init              # 当前 launch 中配置的全局初始变换
+    ├── body                 # Point-LIO 完整姿态
+    ├── base_link            # 平面导航参考点
+    └── slambase             # 平面 yaw 参考
+```
+
+- `map`：先验全局地图坐标系。
+- `camera_init`：Point-LIO 初始化世界坐标系，也是 ROGMap 工作坐标系。
+- `body`：LIO/IMU 机体参考。
+- `base_link`：Nav2 机器人基座参考。
+- `minimap`：裁判系统小地图坐标系；红蓝方变换在 launch 中配置。
+
+如果运行 `tf2_tools view_frames` 或 Foxglove 后发现跳变，优先检查 `map → camera_init` 和 `camera_init → base_link` 是否存在重复发布者，以及时间同步是否正常。
+
+## 📊 点云链路性能改造
+
+点云链路不是简单地“提高发布频率”，而是围绕复制次数、队列时延、去畸变完整性和下游消费方式做端到端优化：
+
+```text
+双 MID-360 驱动侧融合
+  → 同进程 UniquePtr 传入 Point-LIO
+  → 时间有序队列 + 状态快照分段去畸变
+  → unique_ptr 发布 /cloud_registered_full（keep_last=1）
+  → ROGMap latest-state 消费
+  → dirty-column 增量投影 / ESDF 刷新
+  → MapQueryInterface 进程内查询 MINCO
+```
+
+| 改造点 | 实现 | 主要收益 |
+|---|---|---|
+| 驱动侧双雷达融合 | 按 IP 和时间窗口完成矩阵变换与合并 | 避免下游重复同步、转换两路点云 |
+| ROS 2 component container | Livox driver 与 Point-LIO 同进程，启用 intra-process | 减少大点云序列化与内存搬运 |
+| 所有权传递 | Point-LIO 订阅使用 `UniquePtr`，稠密点云用 `std::unique_ptr` 发布 | 为进程内零拷贝/少拷贝路径提供必要条件 |
+| 稠密去畸变 | 时间有序队列、状态快照、分段前向补偿、异常点丢弃 | 保留高速与小陀螺场景的完整点云时序 |
+| Latest-state QoS | `/cloud_registered_full` 使用 SensorDataQoS、深度 1 | 下游过载时丢旧帧而非积累感知延迟 |
+| 发布限频 | `/Laser_map` 与可视化独立低频发布 | 避免累计地图和可视化挤占实时链路 |
+| ROGMap 增量更新 | dirty column 只刷新受影响的 Projection/Field 区域 | 减少每帧全图扫描 |
+| 进程内地图查询 | planner 直接使用 `MapQueryInterface` | 避免 ESDF/占据栅格通过 ROS 消息复制后再查询 |
+| 性能可观测性 | Point-LIO、ROGMap、MINCO、MPC 分层计时与可选 CSV | 定位瓶颈时区分输入、地图、规划和控制耗时 |
+
+> [!NOTE]
+> 开启 intra-process 并不自动保证所有路径零拷贝；发布/订阅消息所有权、QoS 兼容性和组件是否处于同一容器同样关键。当前实现通过 UniquePtr 和同容器组合尽量减少点云复制。
+
+## 🔭 可视化与运行诊断
+
+### 建议观察的 topics
+
+```bash
+ros2 topic hz /aft_mapped_to_init
+ros2 topic hz /cloud_registered_full
+ros2 topic hz /opt_path
+ros2 topic hz /cmd_vel_mpc
+```
+
+| Topic | 用途 |
+|---|---|
+| `/rog_map/occupied` | 三维占据体素 |
+| `/rog_map/layer_value` | 二维语义代价值 |
+| `/rog_map/layer_type` | 地形类型 |
+| `/rog_map/layer_height_delta` | 单柱占据高度跨度 |
+| `/rog_map/field` | Signed ESDF 可视化 |
+| `/astar_path_vis` | 搜索路径 |
+| `/minco_control_points_vis` | MINCO 控制点 |
+| `/opt_path_vis` | 优化轨迹 |
+| `/mpc_predict_path` | MPC 预测轨迹 |
+| `/recover_goal` | ESDF 恢复目标 |
+
+性能统计开关位于 `sentry1.yaml` 的 `performance` 子树。比赛运行时建议只开启必要统计，避免详细 CSV 和高频终端输出影响实时性。
+
+## 🩺 常见问题
+
+<details>
+<summary><b>收不到 Livox 点云或 IMU</b></summary>
+
+检查主机静态 IP、雷达 IP、网卡路由与防火墙；确认 JSON 中 host IP 和 lidar IP；再检查 `pointlio_imu_topic` 是否包含当前主雷达 IP。双雷达模式还需确认 `multi_topic: 1` 和 merge 前后 IP。
+
+</details>
+
+<details>
+<summary><b>原地旋转时估计出明显平移速度</b></summary>
+
+优先检查时间同步、双雷达外参和 Point-LIO 外参，再检查 planner/controller 的 `lidar_offset_x/y` 是否一致且符号正确。用架空轮组的低速原地旋转数据验证，不要直接在高速小陀螺状态试错。
+
+</details>
+
+<details>
+<summary><b>ROGMap 看不到地面、墙体被截断或地形分类异常</b></summary>
+
+检查 `/cloud_registered_full` 的 frame 和 Z 范围；按雷达安装高度重新计算 `scan_z_min_abs/max_abs`；确认 `map_size.z` 能覆盖扫描窗口。高度窗口正确后再调整地形差值和占据率阈值。
+
+</details>
+
+<details>
+<summary><b>Nav2 报 TF 重复或轨迹跳变</b></summary>
+
+检查 `navigation2.launch.py` 的静态 `map → camera_init`、Point-LIO 的 `tf_send_en`，并确认没有额外发布 `camera_init → body/base_link` 的静态节点。
+
+</details>
+
+<details>
+<summary><b>启动脚本找不到工作空间或无法在 SSH 中运行</b></summary>
+
+`start.bash` 固定进入 `~/2025-sentry-navi` 并依赖 `gnome-terminal`。修改工作空间路径，或按“分模块启动”在当前 shell / tmux 中运行各 launch。
+
+</details>
+
+## ⚠️ 当前限制
+
+- 当前配置与 launch 包含实车 IP、雷达外参、地图路径、红蓝方小地图 TF 和赛场初始位姿，尚未抽象成通用硬件 profile。
+- `camera_init → base_link` 平移偏置仍在 Point-LIO 源码中硬编码，车辆几何参数尚未完全统一到 YAML。
+- `start.bash` 假设 GNOME 桌面、固定工作空间路径和可用 sudo，不是通用服务管理器。
+- 仓库包含比赛验证逻辑和实验性模块；`dbscan_cluster`、部分恢复/裁剪分支默认未启用。
+
+## 🤝 安全与贡献
+
+这是会控制真实竞赛机器人的软件。修改速度、加速度、TF、外参、QoS、控制频率或恢复策略后，请依次完成静态检查、离线回放、架空轮测试、低速空场测试，再进入对抗环境。
+
+提交 issue 或修改前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [AGENTS.md](AGENTS.md)。不要在未验证的情况下改变比赛参数、topic、frame、blackboard key 或行为树优先级。
+
+## 🙏 致谢与参考
+
+本项目建立在以下优秀开源工作之上：
+
+- [ROS 2](https://docs.ros.org/en/humble/) 与 [Navigation2](https://github.com/ros-navigation/navigation2)
 - [Point-LIO](https://github.com/hku-mars/Point-LIO)
-- [small_gicp](https://github.com/koide3/small_gicp)
+- [Livox-SDK2](https://github.com/Livox-SDK/Livox-SDK2) 与 [livox_ros_driver2](https://github.com/Livox-SDK/livox_ros_driver2)
+- [ROG-Map / SUPER](https://github.com/hku-mars/SUPER)
+- [中国科学技术大学《2025 赛季哨兵技术报告》](https://bbs.robomaster.com/article/803727?source=1)：本项目整体感知—规划—控制架构的重要开源参考
+- [GCOPTER](https://github.com/ZJU-FAST-Lab/GCOPTER)
+- [MINCO：Geometrically Constrained Trajectory Optimization](https://arxiv.org/abs/2103.00190)
+- [BehaviorTree.CPP](https://github.com/BehaviorTree/BehaviorTree.CPP)
+- [qpOASES](https://github.com/coin-or/qpOASES)
 
----
+本仓库对上述项目进行了 ROS 2 集成及面向 RoboMaster 哨兵场景的工程扩展。请同时遵守各 third-party 目录和上游项目的原始许可证与署名要求。
 
-## 7. 联系方式
+## 📄 License 与学术诚信
 
+仓库根目录采用 [Apache License 2.0](LICENSE)。在遵守该许可证的前提下，允许使用、修改和分发本项目；第三方代码、内嵌库和派生模块可能采用各自许可证，使用前必须逐项核对对应目录和上游许可。
+
+> [!IMPORTANT]
+> **禁止抄袭、冒充原创或删除归属信息。** 任何课程作业、技术报告、论文、比赛材料、奖项申报或衍生项目若使用本仓库内容，应清晰标注本项目与相关上游来源，并遵守各自许可证。Apache-2.0 允许合规的商业及其他用途，因此本声明不额外限制许可证已经授予的权利；它强调的是法定署名义务、来源透明和学术诚信。
+
+## 📮 联系方式
+
+- 北京理工大学追梦战队导航组
 - 联系人：喻衡
-- QQ：2914335251
+- Email：`15207309998@163.com`
+- QQ：`2914335251`
+
+<div align="right">
+
+[回到顶部](#bit-robomaster-sentry-navigation)
+
+</div>
