@@ -15,9 +15,9 @@
         <CheckInStairsZone branch="Priority2StairZoneScan" />
         <SetGimbalPoseByAreaAction name="SetStairZoneGimbal" />
       </ReactiveSequence> -->
-      <ReactiveSequence name="Priority3NormalScan">
+      <!-- <ReactiveSequence name="Priority3NormalScan">
         <SetGimbalPose name="SetNormalInspectPose" mode="1" />
-          <!-- <ReactiveFallback name="GimbalScanStrategy">
+          <ReactiveFallback name="GimbalScanStrategy">
             <ReactiveSequence name="EnergyGimbalScan">
               <CheckEnergyActive branch="EnergyGimbalScan" />
               <SetGimbalPoseByAreaAction name="SetEnergyGimbal" />
@@ -31,8 +31,8 @@
               <SetGimbalPoseByAreaAction name="SetAttackGimbal" />
             </ReactiveSequence>
             <SetGimbalPoseByAreaAction name="SetNormalGimbal" />
-          </ReactiveFallback> -->
-      </ReactiveSequence>
+          </ReactiveFallback>
+      </ReactiveSequence> -->
       
     </ReactiveFallback>
   </BehaviorTree>

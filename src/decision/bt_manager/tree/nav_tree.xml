@@ -132,7 +132,7 @@
                                    max_remaining="420"
                                    require_game_started="false"
                                    branch="EarlyGameSpecialResponse" />
-              <!-- <ForceSuccess>
+              <ForceSuccess>
                 <ReactiveSequence name="AutoOutpostEnableOnce">
                   <CheckGameTimeWindow name="CheckAutoOutpostEnableWindow"
                                        min_remaining="400"
@@ -155,7 +155,7 @@
                                             exit_outpost_mode="true"
                                             branch="AutoOutpostDisableOnce" />
                 </ReactiveSequence>
-              </ForceSuccess> -->
+              </ForceSuccess>
               <ReactiveFallback name="EarlyGameSpecialSelector">
                 <ReactiveSequence name="AutoNormalOutpostResponse">
                   <CheckTacticalModeCondition name="CheckAutoOutpostNormalMode" mode="normal" branch="AutoNormalOutpostResponse" />
