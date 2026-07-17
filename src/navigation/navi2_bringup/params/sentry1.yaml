@@ -442,7 +442,7 @@ planner_server:
           # PASSABLE 的 ESDF mask 始终为 1。
           passable_as_free: true
 
-          hysteresis_enable: true
+          hysteresis_enable: false
           hysteresis_count: 2
           # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
           obstacle_hold_time: 1.0
