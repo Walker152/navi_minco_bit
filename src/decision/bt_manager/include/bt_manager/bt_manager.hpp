@@ -2,12 +2,9 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include <behaviortree_cpp_v3/behavior_tree.h>
 #include <behaviortree_cpp_v3/bt_factory.h>
-
-#include "bt_manager/behavior_tree_logger.hpp"
 
 namespace Sentry_BT {
 
@@ -37,9 +34,6 @@ private:
   BT::Tree gimbal_tree_;
   BT::Tree stance_tree_;
   BT::Tree tactical_tree_;
-
-  // Declared after the trees so subscriptions are destroyed before their nodes.
-  std::vector<std::unique_ptr<BehaviorTreeLogger>> tree_loggers_;
 
   // Default main tree can be adjusted later if needed.
   BT::Tree * main_tree_ = nullptr;

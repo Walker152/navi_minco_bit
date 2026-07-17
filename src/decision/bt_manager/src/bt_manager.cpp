@@ -131,13 +131,6 @@ bool SentryBTManager::loadTrees(const std::shared_ptr<BT::Blackboard> & blackboa
     stance_tree_ = factory_.createTreeFromFile(stance_tree_xml, blackboard);
     tactical_tree_ = factory_.createTreeFromFile(tactical_tree_xml, blackboard);
 
-    tree_loggers_.clear();
-    tree_loggers_.emplace_back(std::make_unique<BehaviorTreeLogger>(resource_tree_, "RESOURCE_TREE"));
-    tree_loggers_.emplace_back(std::make_unique<BehaviorTreeLogger>(tactical_tree_, "TACTICAL_TREE"));
-    tree_loggers_.emplace_back(std::make_unique<BehaviorTreeLogger>(nav_tree_, "NAV_TREE"));
-    tree_loggers_.emplace_back(std::make_unique<BehaviorTreeLogger>(stance_tree_, "STANCE_TREE"));
-    tree_loggers_.emplace_back(std::make_unique<BehaviorTreeLogger>(gimbal_tree_, "GIMBAL_TREE"));
-
     // Framework default: use nav tree as main tree.
     main_tree_ = &nav_tree_;
   } catch (const std::exception & e) {

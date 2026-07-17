@@ -99,6 +99,8 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto tunnel_escape_active = blackboard_->get<bool>("tunnel_escape_active");
     const auto tunnel_escape_cmd_vel =
       blackboard_->get<geometry_msgs::msg::Twist>("tunnel_escape_cmd_vel");
+    const auto tunnel_prepare_active = blackboard_->get<bool>("tunnel_prepare_active");
+    const auto tunnel_ready = blackboard_->get<bool>("tunnel_ready");
     const auto ammo_purchase_request = static_cast<uint16_t>(blackboard_->get<int>("ammo_purchase_total"));
     const auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
     const auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
@@ -121,6 +123,8 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.tunnel_escape_vx = static_cast<float>(tunnel_escape_cmd_vel.linear.x);
     behavior_msg.tunnel_escape_vy = static_cast<float>(tunnel_escape_cmd_vel.linear.y);
     behavior_msg.tunnel_escape_wz = static_cast<float>(tunnel_escape_cmd_vel.angular.z);
+    behavior_msg.tunnel_prepare_active = tunnel_prepare_active;
+    behavior_msg.tunnel_ready = tunnel_ready;
     behavior_msg.desire_lifter_pos = static_cast<uint8_t>(desired_lifter_pos);
     behavior_msg.scan_yaw_min = yaw_min_deg;
     behavior_msg.scan_yaw_max = yaw_max_deg;

@@ -449,6 +449,13 @@ BT::NodeStatus CheckTunnelDeformation::tick()
   const bool current_in_tunnel = blackboard->get<bool>("current_in_tunnel");
   const bool is_disengaged = blackboard->get<bool>("is_disengaged");
   const bool in_transform_zone = blackboard->get<bool>("in_transform_zone");
+  const auto lifter_current_pos = blackboard->get<LifterPos>("lifter_current_pos");
+  const bool tunnel_yaw_aligned = blackboard->get<bool>("tunnel_yaw_aligned");
+  const bool tunnel_prepare_active =
+    current_in_tunnel || (in_transform_zone && through_tunnel);
+  const bool tunnel_ready =
+    tunnel_prepare_active &&
+    lifter_current_pos == LifterPos::BOTTOM && tunnel_yaw_aligned;
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   LifterPos desired_pos = LifterPos::TOP;
 
@@ -463,12 +470,18 @@ BT::NodeStatus CheckTunnelDeformation::tick()
   // std::cout << " in_transform_zone=" << in_transform_zone << "current_pose= ("
   // << current_pose.position.x << ", " << current_pose.position.y << ")" << std::endl;
   blackboard->set<LifterPos>("desired_lifter_pos", desired_pos);
+  blackboard->set("tunnel_prepare_active", tunnel_prepare_active);
+  blackboard->set("tunnel_ready", tunnel_ready);
+  if (!tunnel_prepare_active) {
+    blackboard->set("tunnel_yaw_aligned", false);
+  }
   detail::logTransition(detail::TreeKind::STANCE,
     "CheckTunnelDeformation",
     true,
     "through_tunnel=" + std::to_string(through_tunnel) + ", current_in_tunnel=" +
       std::to_string(current_in_tunnel) + ", is_disengaged=" + std::to_string(is_disengaged) +
-      ", desired_pos=" + std::to_string(static_cast<int>(desired_pos)),
+      ", desired_pos=" + std::to_string(static_cast<int>(desired_pos)) +
+      ", tunnel_ready=" + std::to_string(tunnel_ready),
     "");
   return BT::NodeStatus::SUCCESS;
 }
