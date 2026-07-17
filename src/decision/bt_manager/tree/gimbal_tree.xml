@@ -11,6 +11,7 @@
                             branch="Priority1SpecialResponseScan" />
         <SetGimbalPose name="SetOutpostInspectPose" mode="0"/>
       </ReactiveSequence>
+      <SetGimbalPose name="SetDefaultInspectPose" mode="1"/>
       <!-- <ReactiveSequence name="Priority2StairZoneScan">
         <CheckInStairsZone branch="Priority2StairZoneScan" />
         <SetGimbalPoseByAreaAction name="SetStairZoneGimbal" />

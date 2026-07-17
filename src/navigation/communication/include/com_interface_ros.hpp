@@ -248,6 +248,8 @@ private:
     bool tunnel_escape_active = false;
     float tunnel_escape_vx = 0.0f;
     float tunnel_escape_vy = 0.0f;
+    bool tunnel_prepare_active = false;
+    bool tunnel_ready = false;
     geometry_msgs::msg::Quaternion odom_q;
     {
       // Snapshot shared state to avoid data races.
@@ -277,6 +279,8 @@ private:
       tunnel_escape_active = behavior_.tunnel_escape_active;
       tunnel_escape_vx = behavior_.tunnel_escape_vx;
       tunnel_escape_vy = behavior_.tunnel_escape_vy;
+      tunnel_prepare_active = behavior_.tunnel_prepare_active;
+      tunnel_ready = behavior_.tunnel_ready;
       scan_yaw_min_deg_ = behavior_.scan_yaw_min;
       scan_yaw_max_deg_ = behavior_.scan_yaw_max;
       ammo_purchase_request = behavior_.ammo_purchase_request;
@@ -293,6 +297,10 @@ private:
       if (tunnel_escape_active) {
         vx_mps = tunnel_escape_vx;
         vy_mps = tunnel_escape_vy;
+      }
+      if (tunnel_prepare_active && !tunnel_ready) {
+        vx_mps = 0.0f;
+        vy_mps = 0.0f;
       }
     }
 
