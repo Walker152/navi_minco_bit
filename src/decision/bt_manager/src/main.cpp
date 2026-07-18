@@ -10,7 +10,6 @@
 int main(int argc, char const * argv[])
 {
   rclcpp::init(argc, argv);
-  Sentry_BT::BehaviorTreeLogSink behavior_tree_log_sink;
   auto blackboard = std::make_shared<Sentry_BT::Blackboard>();
   auto ros_interface_node = std::make_shared<Sentry_BT::ros_interface>(blackboard);
   auto transform_utils_node = std::make_shared<Sentry_BT::TransformUtils>();

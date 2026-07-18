@@ -31,6 +31,9 @@ public:
     blackboard_->set("use_gyro_mode", false);                                // 小陀螺开关
     blackboard_->set("gyro_vel", 80.0f);                                     // 小陀螺转速(rpm)
     blackboard_->set("current_in_tunnel", false);                            // 当前是否在隧道中
+    blackboard_->set("tunnel_prepare_active", false);                        // 当前是否处于过洞准备场景
+    blackboard_->set("tunnel_yaw_aligned", false);                           // 过洞航向是否已对齐
+    blackboard_->set("tunnel_ready", false);                                 // 航向和升降机构是否均已就绪
     blackboard_->set("attack_accumulated_time", 0.0);  // ATTACK累计停留时长(秒),用于效果下降判定
     blackboard_->set("defend_accumulated_time", 0.0);  // DEFEND累计停留时长(秒),用于效果下降判定
     blackboard_->set("move_accumulated_time", 0.0);    // MOVE累计停留时长(秒),用于效果下降判定

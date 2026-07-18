@@ -40,3 +40,6 @@ bool tunnel_escape_active
 float32 tunnel_escape_vx
 float32 tunnel_escape_vy
 float32 tunnel_escape_wz
+
+bool tunnel_prepare_active
+bool tunnel_ready

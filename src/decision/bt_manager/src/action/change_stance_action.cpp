@@ -141,6 +141,8 @@ BT::PortsList TunnelGyroAlignAction::providedPorts()
     BT::InputPort<float>("ki", 0.5f, "PID Ki for tunnel gyro control"),
     BT::InputPort<float>("kd", 5.0f, "PID Kd for tunnel gyro control"),
     BT::InputPort<float>("deadzone_rad", 0.03f, "Yaw deadzone in radians (~1.7 deg)"),
+    BT::InputPort<float>(
+      "yaw_alignment_threshold_rad", 0.03f, "Yaw error threshold for tunnel readiness"),
     BT::InputPort<float>("max_abs_gyro_vel", 120.0f, "Max absolute gyro velocity in rpm"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
     BT::OutputPort<bool>("use_gyro", "Enable gyro output"),
@@ -231,12 +233,15 @@ BT::NodeStatus TunnelGyroAlignAction::tick()
   const float ki = getInput<float>("ki").value_or(0.5f);
   const float kd = getInput<float>("kd").value_or(5.0f);
   const float deadzone = getInput<float>("deadzone_rad").value_or(0.03f);
+  const float yaw_alignment_threshold =
+    getInput<float>("yaw_alignment_threshold_rad").value_or(0.03f);
   const float max_abs_gyro_vel = getInput<float>("max_abs_gyro_vel").value_or(120.0f);
 
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const int active_tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
   if (active_tunnel_idx < 0) {
     resetPidState();
+    blackboard->set("tunnel_yaw_aligned", false);
     detail::logTransition(
       detail::TreeKind::STANCE, "TunnelGyroAlignAction", false, "invalid tunnel_idx", branch);
     return BT::NodeStatus::FAILURE;
@@ -255,6 +260,9 @@ BT::NodeStatus TunnelGyroAlignAction::tick()
   const double base_target_yaw = selected_target_yaw_;
   const double current_yaw = yawFromQuaternion(current_pose.orientation);
   const double yaw_error = wrapAngle(base_target_yaw - current_yaw);
+  blackboard->set(
+    "tunnel_yaw_aligned",
+    std::fabs(yaw_error) <= static_cast<double>(yaw_alignment_threshold));
   // std::cout << CYAN << "[STANCE_TREE]" << GREEN << "TunnelGyroAlignAction: tunnel_idx=" <<
   // active_tunnel_idx << ", current_yaw=" << current_yaw << ", target_yaw=" << base_target_yaw << ",
   // yaw_error=" <<
@@ -301,6 +309,7 @@ BT::NodeStatus TunnelGyroAlignAction::tick()
 void TunnelGyroAlignAction::halt()
 {
   resetPidState();
+  config().blackboard->set("tunnel_yaw_aligned", false);
 }
 
 // ------------------- ChangeStance -------------------
