@@ -410,7 +410,7 @@ planner_server:
           # 同一 XY 柱中最高与最低占据体素的垂直高度差 H。
           # 不超过该值时，分类为地面或坡面薄表面。
           # 这是差值，不是 ROGMap frame 中的绝对 Z 坐标。
-          surface_height_delta_max: 0.1
+          surface_height_delta_max: 0.2
 
           # [vertical height difference, m]
           # 判定竖直墙所需的最小单柱垂直高度差 H。
@@ -419,7 +419,7 @@ planner_server:
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
-          wall_occupancy_ratio_min: 0.60
+          wall_occupancy_ratio_min: 0.40
 
           # [vertical height difference, m]
           # 可通行隧道所需的最小上下表面高度差。
@@ -443,7 +443,7 @@ planner_server:
           # PASSABLE 的 ESDF mask 始终为 1。
           passable_as_free: true
 
-          hysteresis_enable: true
+          hysteresis_enable: false
           hysteresis_count: 2
           # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
           obstacle_hold_time: 1.0
