@@ -379,7 +379,7 @@ private:
 
     BehaviorData behavior_data(pitch_mode,
       desire_stance,
-      desire_lifter_pos,
+      1,
       scan_yaw_min_deg_,
       scan_yaw_max_deg_,
       ammo_purchase_request,
