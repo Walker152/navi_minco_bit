@@ -8,6 +8,9 @@ def generate_launch_description():
             executable='communication',
             name='communication_sentry',
             output='screen',
-            respawn=True
+            respawn=True,
+            parameters=[{
+                'communication.enable_performance_diagnostics': False,
+            }]
         )
     ])
