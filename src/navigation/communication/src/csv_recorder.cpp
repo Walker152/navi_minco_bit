@@ -22,19 +22,9 @@ std::string makeTimestamp(const std::chrono::system_clock::time_point & time, co
   return out.str();
 }
 
-const char * packetTypeName(PacketTypeEnum packet_type)
-{
-  switch (packet_type) {
-    case ENUM_PACKET_NAV_DATA:
-      return "NAV_DATA";
-    case ENUM_PACKET_BEHAVIOR_DATA:
-      return "BEHAVIOR_DATA";
-    default:
-      return "UNKNOWN";
-  }
-}
-
 }  // namespace
+
+std::atomic<bool> CsvRecorder::enabled_{false};
 
 CsvRecorder::CsvRecorder() noexcept : start_time_(std::chrono::steady_clock::now())
 {
@@ -56,12 +46,15 @@ CsvRecorder::CsvRecorder() noexcept : start_time_(std::chrono::steady_clock::now
       return;
     }
 
-    stream_ << "system_time,elapsed_ms,packet_type,send_result,send_success,"
+    stream_ << "system_time,elapsed_ms,send_result,send_success,"
                "vx_mps,vy_mps,vw_rpm,current_yaw,current_vx,current_vy,current_vw,"
                "fx_global,fy_global,fw_global,use_speed_control,delta_yaw,"
-               "pitch_mode,desire_stance,desire_lifter_pos,scan_yaw_min_deg,scan_yaw_max_deg,"
-               "ammo_purchase_request,revive_request,remote_revive_request,remote_ammo_request,"
-               "remote_health_request,use_limited_scan,not_aim_enemy,use_capacitor\n";
+               "odom_stamp_sec,odom_receive_stamp_sec,odom_age_ms,"
+               "chassis_sample_stamp_sec,chassis_imu_yaw,history_size,history_span_ms,"
+               "odom_minus_oldest_ms,odom_minus_newest_ms,best_signed_dt_ms,match_found,"
+               "delta_candidate,delta_yaw_initialized,delta_last_update_age_ms,"
+               "consecutive_match_failures,self_packet_count,self_packet_age_ms,"
+               "offline_publish_cost_us\n";
     stream_.flush();
   } catch (const std::exception & error) {
     std::cerr << "[COM] Failed to initialize CSV recorder: " << error.what() << std::endl;
@@ -74,74 +67,58 @@ CsvRecorder & CsvRecorder::instance() noexcept
   return recorder;
 }
 
-void CsvRecorder::initialize() noexcept
+void CsvRecorder::initialize(bool enabled) noexcept
 {
-  (void)instance();
-}
-
-void CsvRecorder::record(
-  const ChassisTarget & data, PacketTypeEnum packet_type, int send_result) noexcept
-{
-  instance().recordChassis(data, packet_type, send_result);
-}
-
-void CsvRecorder::record(
-  const BehaviorData & data, PacketTypeEnum packet_type, int send_result) noexcept
-{
-  instance().recordBehavior(data, packet_type, send_result);
-}
-
-void CsvRecorder::writePrefix(PacketTypeEnum packet_type, int send_result)
-{
-  const auto system_now = std::chrono::system_clock::now();
-  const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-    std::chrono::steady_clock::now() - start_time_);
-  stream_ << makeTimestamp(system_now, "%Y-%m-%d %H:%M:%S") << ',' << elapsed.count() << ','
-          << packetTypeName(packet_type) << ',' << send_result << ',' << (send_result == 0 ? 1 : 0)
-          << ',';
-}
-
-void CsvRecorder::recordChassis(
-  const ChassisTarget & data, PacketTypeEnum packet_type, int send_result) noexcept
-{
-  try {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!stream_.is_open()) {
-      return;
-    }
-    writePrefix(packet_type, send_result);
-    stream_ << std::setprecision(9) << data.vx_mps << ',' << data.vy_mps << ',' << data.vw_rpm << ','
-            << data.current_yaw << ',' << data.current_vx << ',' << data.current_vy << ','
-            << data.current_vw << ',' << data.fx_global << ',' << data.fy_global << ','
-            << data.fw_global << ',' << static_cast<int>(data.use_speed_control) << ',' << data.delta_yaw
-            << ",,,,,,,,,,,,,\n";
-    stream_.flush();
-  } catch (const std::exception & error) {
-    std::cerr << "[COM] Failed to record chassis CSV row: " << error.what() << std::endl;
+  enabled_.store(enabled, std::memory_order_relaxed);
+  if (enabled) {
+    (void)instance();
   }
 }
 
-void CsvRecorder::recordBehavior(
-  const BehaviorData & data, PacketTypeEnum packet_type, int send_result) noexcept
+void CsvRecorder::record(
+  const ChassisTarget & data, int send_result, const DeltaYawDiagnostics & diagnostics) noexcept
+{
+  if (!enabled_.load(std::memory_order_relaxed)) {
+    return;
+  }
+  instance().recordChassis(data, send_result, diagnostics);
+}
+
+void CsvRecorder::writePrefix(int send_result)
+{
+  const auto system_now = std::chrono::system_clock::now();
+  const auto elapsed =
+    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time_);
+  stream_ << makeTimestamp(system_now, "%Y-%m-%d %H:%M:%S") << ',' << elapsed.count() << ',' << send_result
+          << ',' << (send_result == 0 ? 1 : 0) << ',';
+}
+
+void CsvRecorder::recordChassis(
+  const ChassisTarget & data, int send_result, const DeltaYawDiagnostics & diagnostics) noexcept
 {
   try {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!stream_.is_open()) {
       return;
     }
-    writePrefix(packet_type, send_result);
-    stream_ << ",,,,,,,,,,,," << static_cast<int>(data.pitch_mode) << ','
-            << static_cast<int>(data.desire_stance) << ',' << static_cast<int>(data.desire_lifter_pos) << ','
-            << std::setprecision(9) << data.scan_yaw_min_deg << ',' << data.scan_yaw_max_deg << ','
-            << data.ammo_purchase_request << ',' << static_cast<int>(data.revive_request) << ','
-            << static_cast<int>(data.remote_revive_request) << ','
-            << static_cast<int>(data.remote_ammo_request) << ','
-            << static_cast<int>(data.remote_health_request) << ','
-            << static_cast<int>(data.use_limited_scan) << ',' << static_cast<int>(data.not_aim_enemy) << ','
-            << static_cast<int>(data.use_capacitor) << '\n';
+    writePrefix(send_result);
+    stream_ << std::setprecision(9) << data.vx_mps << ',' << data.vy_mps << ',' << data.vw_rpm << ','
+            << data.current_yaw << ',' << data.current_vx << ',' << data.current_vy << ','
+            << data.current_vw << ',' << data.fx_global << ',' << data.fy_global << ',' << data.fw_global
+            << ',' << static_cast<int>(data.use_speed_control) << ',' << data.delta_yaw << ','
+            << diagnostics.odom_stamp_sec << ',' << diagnostics.odom_receive_stamp_sec << ','
+            << diagnostics.odom_age_ms << ',' << diagnostics.chassis_sample_stamp_sec << ','
+            << diagnostics.chassis_imu_yaw << ',' << diagnostics.history_size << ','
+            << diagnostics.history_span_ms << ',' << diagnostics.odom_minus_oldest_ms << ','
+            << diagnostics.odom_minus_newest_ms << ',' << diagnostics.best_signed_dt_ms << ','
+            << static_cast<int>(diagnostics.match_found) << ',' << diagnostics.delta_candidate << ','
+            << static_cast<int>(diagnostics.delta_yaw_initialized) << ','
+            << diagnostics.delta_last_update_age_ms << ',' << diagnostics.consecutive_match_failures << ','
+            << diagnostics.self_packet_count << ',' << diagnostics.self_packet_age_ms << ','
+            << diagnostics.offline_publish_cost_us << '\n';
     stream_.flush();
   } catch (const std::exception & error) {
-    std::cerr << "[COM] Failed to record behavior CSV row: " << error.what() << std::endl;
+    std::cerr << "[COM] Failed to record chassis CSV row: " << error.what() << std::endl;
   }
 }
 
