@@ -1,7 +1,9 @@
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -61,7 +63,7 @@ class Communication
 {
 public:
   // 初始化通信模块
-  static void init();
+  static void init(bool performance_diagnostics_enabled);
 
   // 发送底盘目标数据包到STM32
   template <typename T> static int send2stm32(const T & data_packet, const PacketTypeEnum packet_type)
@@ -74,13 +76,19 @@ public:
     header.setDataLen(sizeof(T));
 
     const int send_result = __send2stm32(header, &data_packet);
-    CsvRecorder::record(data_packet, packet_type, send_result);
+    if (diagnostics_enabled_.load(std::memory_order_relaxed)) {
+      recordTxPacket(packet_type, send_result);
+    }
     return send_result;
   }
+  static void printPacketRates();
+
   // 设置 ROS 接口（由上层注入），使本模块不直接依赖 rclcpp 细节
   static void setRosInterface(const std::shared_ptr<ComInterfaceRos> & iface);
 
 private:
+  static constexpr size_t kPacketTypeCount = static_cast<size_t>(ENUM_PACKET_BEHAVIOR_DATA) + 1;
+
   // fd管理器
   static MyUtils::Net::FdManager fd_manager;
   static std::atomic<uint16_t> arm_seq_num;
@@ -101,9 +109,16 @@ private:
 
   // STM32串口数据读取回调
   static void stm32_read_cb(ByteArray arr);
+  static void recordTxPacket(PacketTypeEnum packet_type, int send_result);
+  static void recordRxPacket(PacketTypeEnum packet_type);
 
   // ROS 接口指针
   static std::shared_ptr<ComInterfaceRos> ros_if_;
+  static std::atomic<bool> diagnostics_enabled_;
+  static std::array<std::atomic<uint64_t>, kPacketTypeCount> tx_packet_counts_;
+  static std::array<std::atomic<uint64_t>, kPacketTypeCount> tx_success_counts_;
+  static std::array<std::atomic<uint64_t>, kPacketTypeCount> rx_packet_counts_;
+  static std::chrono::steady_clock::time_point last_rate_print_time_;
 };
 
 }  // namespace ns_com
