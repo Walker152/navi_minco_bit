@@ -54,7 +54,7 @@
               <Inverter>
                 <CheckInEnemyFortZone branch="ApproachEnemyFortMoveZeroGyro" />
               </Inverter>
-              <SetGyroState use_gyro="true"
+              <SetGyroState use_gyro="false"
                             gyro_vel="0.0"
                             random_speed="false" />
               <ChangeStance name="ChangeStanceApproachEnemyFortMove" stance="MOVE" />

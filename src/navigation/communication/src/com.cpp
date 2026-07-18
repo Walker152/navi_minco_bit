@@ -224,7 +224,7 @@ void Communication::stm32_read_cb(ByteArray arr)
     }
     if (check(buf, full_len)) {
       if (diagnostics_enabled_.load(std::memory_order_relaxed)) {
-        recordRxPacket(header->packet_type);
+        recordRxPacket(static_cast<PacketTypeEnum>(header->packet_type));
       }
       // std::cout << static_cast<int>(header->packet_type) << std::endl;
       switch (header->packet_type) {
