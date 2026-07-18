@@ -18,7 +18,7 @@ double elapsedMs(const std::chrono::steady_clock::time_point & start)
 
 }  // namespace
 
-void DynamicLayer::updateFromMask(int width,
+void DynamicLayer::update(int width,
   int height,
   double resolution,
   const Eigen::Vector2d & origin,

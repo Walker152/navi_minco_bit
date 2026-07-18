@@ -66,7 +66,7 @@ flowchart LR
 | `/rog_map/frontier` | 前沿区域 |
 | `/rog_map/esdf` | ESDF 可视化 |
 | `/rog_map/layer_value` | 投影层代价值 |
-| `/rog_map/layer_type` | 投影层分类 |
+| `/rog_map/layer_type` | 四类投影结果；RViz Map 使用 `costmap` 配色显示 UNKNOWN/FREE/PASSABLE/OCCUPIED |
 | `/rog_map/layer_confidence` | 分类置信度 |
 | `/rog_map/layer_height_delta` | 柱内高度变化 |
 | `/rog_map/field` | 势场/距离场诊断 |
@@ -148,7 +148,7 @@ projection:
 | `tunnel_height_delta_*`, `tunnel_occupancy_ratio_max` | 低矮/夹层地形分类判据 |
 | `passable_cost` | 可通行但有代价区域的规划代价 |
 | `hysteresis_count`, `obstacle_hold_time` | 分类迟滞与保持 |
-| `hole_fill_*` | 小孔洞补全策略 |
+| `mask_filter_en` / `fill_occ_min` / `denoise_occ_max` | 二维 8 邻域补洞与孤立障碍去噪 |
 
 ### ESDF 与性能
 

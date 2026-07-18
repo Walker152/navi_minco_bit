@@ -31,7 +31,7 @@ public:
   void bindCommunication()
   {
     Communication::setRosInterface(std::static_pointer_cast<ComInterfaceRos>(this->shared_from_this()));
-    Communication::init();
+    Communication::init(performance_diagnostics_enabled_);
   }
 
   void publishTeamInfo(const TeamInfo & in)
@@ -92,6 +92,10 @@ public:
   {
     if (!offline_info_pub_)
       return;
+    std::chrono::steady_clock::time_point receive_steady{};
+    if (performance_diagnostics_enabled_) {
+      receive_steady = std::chrono::steady_clock::now();
+    }
     ros_interfaces::msg::SentryInfoOffline msg;
     msg.is_get = in.is_get;
     msg.armor_pos.x = static_cast<double>(in.armor_pos[0]);
@@ -106,14 +110,44 @@ public:
     const auto stamp = now();
     msg.header.stamp = stamp;
     msg.capacitor_capacity = in.capacitor_capacity;
+    std::chrono::steady_clock::time_point publish_start{};
+    if (performance_diagnostics_enabled_) {
+      publish_start = std::chrono::steady_clock::now();
+    }
     offline_info_pub_->publish(msg);
+    std::chrono::steady_clock::time_point publish_end{};
+    if (performance_diagnostics_enabled_) {
+      publish_end = std::chrono::steady_clock::now();
+    }
 
+    size_t history_size = 0;
+    double history_span_ms = 0.0;
     {
       std::lock_guard<std::mutex> lk(imu_mutex_);
       if (chassis_imu_history_.size() >= kImuHistoryCapacity) {
         chassis_imu_history_.pop_front();
       }
       chassis_imu_history_.push_back(ImuYawSample{stamp, in.chassis_imu_yaw});
+      if (performance_diagnostics_enabled_) {
+        history_size = chassis_imu_history_.size();
+        if (history_size > 1) {
+          history_span_ms =
+            static_cast<double>(
+              (chassis_imu_history_.back().stamp - chassis_imu_history_.front().stamp).nanoseconds()) /
+            1.0e6;
+        }
+      }
+    }
+
+    if (performance_diagnostics_enabled_) {
+      std::lock_guard<std::mutex> lk(diagnostics_mutex_);
+      ++delta_yaw_diagnostics_.self_packet_count;
+      delta_yaw_diagnostics_.history_size = history_size;
+      delta_yaw_diagnostics_.history_span_ms = history_span_ms;
+      delta_yaw_diagnostics_.offline_publish_cost_us =
+        std::chrono::duration<double, std::micro>(publish_end - publish_start).count();
+      last_self_packet_steady_ = receive_steady;
+      has_self_packet_ = true;
     }
   }
 
@@ -199,6 +233,8 @@ private:
     map_frame_ = this->declare_parameter<std::string>("global_path.map_frame", "map");
     minimap_frame_ = this->declare_parameter<std::string>("global_path.minimap_frame", "minimap");
     imu_yaw_window_ms_ = this->declare_parameter<int64_t>("communication.imu_yaw_window_ms", 40);
+    performance_diagnostics_enabled_ =
+      this->declare_parameter<bool>("communication.enable_performance_diagnostics", false);
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
@@ -207,6 +243,14 @@ private:
     path_timer_ = this->create_wall_timer(std::chrono::milliseconds(1000),
       std::bind(&ComInterfaceRos::sendGlobalPathLoop, this),
       comm_cb_group_);
+    if (performance_diagnostics_enabled_) {
+      diagnostics_timer_ = this->create_wall_timer(
+        std::chrono::milliseconds(1000),
+        []() {
+          Communication::printPacketRates();
+        },
+        comm_cb_group_);
+    }
     RCLCPP_INFO(this->get_logger(), "ComInterfaceRos initialized");
   }
 
@@ -248,6 +292,8 @@ private:
     bool tunnel_escape_active = false;
     float tunnel_escape_vx = 0.0f;
     float tunnel_escape_vy = 0.0f;
+    bool tunnel_prepare_active = false;
+    bool tunnel_ready = false;
     geometry_msgs::msg::Quaternion odom_q;
     {
       // Snapshot shared state to avoid data races.
@@ -277,6 +323,8 @@ private:
       tunnel_escape_active = behavior_.tunnel_escape_active;
       tunnel_escape_vx = behavior_.tunnel_escape_vx;
       tunnel_escape_vy = behavior_.tunnel_escape_vy;
+      tunnel_prepare_active = behavior_.tunnel_prepare_active;
+      tunnel_ready = behavior_.tunnel_ready;
       scan_yaw_min_deg_ = behavior_.scan_yaw_min;
       scan_yaw_max_deg_ = behavior_.scan_yaw_max;
       ammo_purchase_request = behavior_.ammo_purchase_request;
@@ -293,6 +341,10 @@ private:
       if (tunnel_escape_active) {
         vx_mps = tunnel_escape_vx;
         vy_mps = tunnel_escape_vy;
+      }
+      if (tunnel_prepare_active && !tunnel_ready) {
+        vx_mps = 0.0f;
+        vy_mps = 0.0f;
       }
     }
 
@@ -312,7 +364,6 @@ private:
     double roll, pitch, yaw;
     tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
     const float current_yaw_deg = static_cast<float>(yaw * 180.0 / M_PI);
-    auto now = this->now();
     ChassisTarget target(vx_mps,
       vy_mps,
       vw_rpm,
@@ -328,7 +379,7 @@ private:
 
     BehaviorData behavior_data(pitch_mode,
       desire_stance,
-      desire_lifter_pos,
+      1,
       scan_yaw_min_deg_,
       scan_yaw_max_deg_,
       ammo_purchase_request,
@@ -340,6 +391,11 @@ private:
       not_aim_enemy,
       use_capacitor);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
+    if (performance_diagnostics_enabled_) {
+      auto diagnostics = getDiagnosticsSnapshot();
+      diagnostics.delta_yaw_initialized = delta_yaw_initialized;
+      CsvRecorder::record(target, flag, diagnostics);
+    }
 #ifdef COMMUNICATION_DEBUG
     if (flag == 0) {
       static auto last_send_time = this->now();
@@ -581,32 +637,116 @@ private:
 
   void odomCB(const nav_msgs::msg::Odometry::ConstSharedPtr & odomPtr)
   {
+    const auto receive_stamp =
+      performance_diagnostics_enabled_ ? now() : rclcpp::Time(0, 0, get_clock()->get_clock_type());
     {
       std::lock_guard<std::mutex> lk(state_mutex_);
       odom_ = *odomPtr;
     }
-    updateDeltaYaw(odomPtr->header.stamp, odomPtr->pose.pose.orientation);
+    updateDeltaYaw(odomPtr->header.stamp, receive_stamp, odomPtr->pose.pose.orientation);
   }
 
-  void updateDeltaYaw(
-    const builtin_interfaces::msg::Time & stamp_msg, const geometry_msgs::msg::Quaternion & orientation)
+  void updateDeltaYaw(const builtin_interfaces::msg::Time & stamp_msg,
+    const rclcpp::Time & receive_stamp,
+    const geometry_msgs::msg::Quaternion & orientation)
   {
     const rclcpp::Time stamp(stamp_msg);
     const int64_t window_ns = imu_yaw_window_ms_ * 1000000L;
-    float matched_imu_yaw = 0.0f;
+    float matched_imu_yaw = std::numeric_limits<float>::quiet_NaN();
+    rclcpp::Time matched_stamp(0, 0, stamp.get_clock_type());
+    size_t history_size = 0;
+    double history_span_ms = 0.0;
+    double odom_minus_oldest_ms = std::numeric_limits<double>::quiet_NaN();
+    double odom_minus_newest_ms = std::numeric_limits<double>::quiet_NaN();
+    int64_t best_signed_ns = 0;
+    int64_t best_abs_ns = std::numeric_limits<int64_t>::max();
     bool found = false;
 
     {
       std::lock_guard<std::mutex> lk(imu_mutex_);
-      int64_t best_abs_ns = std::numeric_limits<int64_t>::max();
+      if (performance_diagnostics_enabled_) {
+        history_size = chassis_imu_history_.size();
+      }
+      if (performance_diagnostics_enabled_ && !chassis_imu_history_.empty()) {
+        history_span_ms =
+          static_cast<double>(
+            (chassis_imu_history_.back().stamp - chassis_imu_history_.front().stamp).nanoseconds()) /
+          1.0e6;
+        odom_minus_oldest_ms =
+          static_cast<double>((stamp - chassis_imu_history_.front().stamp).nanoseconds()) / 1.0e6;
+        odom_minus_newest_ms =
+          static_cast<double>((stamp - chassis_imu_history_.back().stamp).nanoseconds()) / 1.0e6;
+      }
       for (const auto & sample : chassis_imu_history_) {
         const int64_t dt_ns = (sample.stamp - stamp).nanoseconds();
         const int64_t abs_ns = std::llabs(dt_ns);
-        if (abs_ns <= window_ns && abs_ns < best_abs_ns) {
+        if (abs_ns < best_abs_ns) {
           best_abs_ns = abs_ns;
+          best_signed_ns = dt_ns;
           matched_imu_yaw = sample.yaw;
-          found = true;
+          matched_stamp = sample.stamp;
         }
+      }
+      found = best_abs_ns <= window_ns;
+    }
+
+    double delta_candidate = std::numeric_limits<double>::quiet_NaN();
+    bool candidate_valid = false;
+    if (found) {
+      tf2::Quaternion q;
+      tf2::fromMsg(orientation, q);
+      double roll = 0.0;
+      double pitch = 0.0;
+      double yaw = 0.0;
+      tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+      if (std::isfinite(yaw) && std::isfinite(matched_imu_yaw)) {
+        delta_candidate = yaw * 180.0 / M_PI - matched_imu_yaw;
+        while (delta_candidate > 180.0) {
+          delta_candidate -= 360.0;
+        }
+        while (delta_candidate < -180.0) {
+          delta_candidate += 360.0;
+        }
+        candidate_valid = true;
+      }
+    }
+
+    if (candidate_valid) {
+      std::lock_guard<std::mutex> lk(state_mutex_);
+      delta_yaw_ = static_cast<float>(delta_candidate);
+      delta_yaw_initialized_ = true;
+    }
+
+    if (performance_diagnostics_enabled_) {
+      const auto update_steady = std::chrono::steady_clock::now();
+      std::lock_guard<std::mutex> lk(diagnostics_mutex_);
+      delta_yaw_diagnostics_.odom_stamp_sec = static_cast<double>(stamp.nanoseconds()) / 1.0e9;
+      delta_yaw_diagnostics_.odom_receive_stamp_sec =
+        static_cast<double>(receive_stamp.nanoseconds()) / 1.0e9;
+      delta_yaw_diagnostics_.odom_age_ms =
+        static_cast<double>((receive_stamp - stamp).nanoseconds()) / 1.0e6;
+      delta_yaw_diagnostics_.history_size = history_size;
+      delta_yaw_diagnostics_.history_span_ms = history_span_ms;
+      delta_yaw_diagnostics_.odom_minus_oldest_ms = odom_minus_oldest_ms;
+      delta_yaw_diagnostics_.odom_minus_newest_ms = odom_minus_newest_ms;
+      delta_yaw_diagnostics_.match_found = found;
+      delta_yaw_diagnostics_.delta_candidate = delta_candidate;
+      if (best_abs_ns != std::numeric_limits<int64_t>::max()) {
+        delta_yaw_diagnostics_.chassis_sample_stamp_sec =
+          static_cast<double>(matched_stamp.nanoseconds()) / 1.0e9;
+        delta_yaw_diagnostics_.chassis_imu_yaw = matched_imu_yaw;
+        delta_yaw_diagnostics_.best_signed_dt_ms = static_cast<double>(best_signed_ns) / 1.0e6;
+      } else {
+        delta_yaw_diagnostics_.chassis_sample_stamp_sec = std::numeric_limits<double>::quiet_NaN();
+        delta_yaw_diagnostics_.chassis_imu_yaw = std::numeric_limits<double>::quiet_NaN();
+        delta_yaw_diagnostics_.best_signed_dt_ms = std::numeric_limits<double>::quiet_NaN();
+      }
+      if (candidate_valid) {
+        delta_yaw_diagnostics_.consecutive_match_failures = 0;
+        last_delta_update_steady_ = update_steady;
+        has_delta_update_ = true;
+      } else {
+        ++delta_yaw_diagnostics_.consecutive_match_failures;
       }
     }
 
@@ -619,35 +759,28 @@ private:
       return;
     }
 
-    tf2::Quaternion q;
-    tf2::fromMsg(orientation, q);
-    double roll = 0.0;
-    double pitch = 0.0;
-    double yaw = 0.0;
-    tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-    if (!std::isfinite(yaw) || !std::isfinite(matched_imu_yaw)) {
+    if (!candidate_valid) {
       RCLCPP_WARN_THROTTLE(get_logger(),
         *get_clock(),
         1000,
         "[COM] Invalid yaw value while calculating delta_yaw; keeping last valid delta_yaw.");
-      return;
     }
+  }
 
-    float delta = static_cast<float>(yaw * 180.0 / M_PI) - matched_imu_yaw;
-    while (delta > 180.0f) {
-      delta -= 360.0f;
+  DeltaYawDiagnostics getDiagnosticsSnapshot()
+  {
+    std::lock_guard<std::mutex> lk(diagnostics_mutex_);
+    DeltaYawDiagnostics snapshot = delta_yaw_diagnostics_;
+    const auto now_steady = std::chrono::steady_clock::now();
+    if (has_self_packet_) {
+      snapshot.self_packet_age_ms =
+        std::chrono::duration<double, std::milli>(now_steady - last_self_packet_steady_).count();
     }
-    while (delta < -180.0f) {
-      delta += 360.0f;
+    if (has_delta_update_) {
+      snapshot.delta_last_update_age_ms =
+        std::chrono::duration<double, std::milli>(now_steady - last_delta_update_steady_).count();
     }
-
-    {
-      std::lock_guard<std::mutex> lk(state_mutex_);
-      delta_yaw_ = delta;
-      delta_yaw_initialized_ = true;
-      // std::cout << "Delta yaw updated: " << delta_yaw_ << " degrees (matched_imu_yaw=" << matched_imu_yaw
-      //           << ", found=" << found << ")" << std::endl;
-    }
+    return snapshot;
   }
 
   // Subscriptions
@@ -667,6 +800,7 @@ private:
   // Communication Timer
   rclcpp::TimerBase::SharedPtr com_timer_;
   rclcpp::TimerBase::SharedPtr path_timer_;
+  rclcpp::TimerBase::SharedPtr diagnostics_timer_;
 
   // Callback groups (enable concurrency with MultiThreadedExecutor)
   rclcpp::CallbackGroup::SharedPtr comm_cb_group_;
@@ -676,6 +810,7 @@ private:
   std::mutex state_mutex_;
   std::mutex path_mutex_;
   std::mutex imu_mutex_;
+  std::mutex diagnostics_mutex_;
 
   struct ImuYawSample
   {
@@ -685,6 +820,12 @@ private:
   static constexpr size_t kImuHistoryCapacity = 200;
   std::deque<ImuYawSample> chassis_imu_history_;
   int64_t imu_yaw_window_ms_{20};
+  bool performance_diagnostics_enabled_{false};
+  DeltaYawDiagnostics delta_yaw_diagnostics_{};
+  std::chrono::steady_clock::time_point last_self_packet_steady_{};
+  std::chrono::steady_clock::time_point last_delta_update_steady_{};
+  bool has_self_packet_{false};
+  bool has_delta_update_{false};
 
   // Latest global path packet cache
   GlobalPath pending_global_path_{};

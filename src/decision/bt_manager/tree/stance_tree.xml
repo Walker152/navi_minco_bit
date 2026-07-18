@@ -14,6 +14,7 @@
                                  ki="0.2"
                                  kd="0.3"
                                  deadzone_rad="0.05"
+                                 yaw_alignment_threshold_rad="0.26"
                                  max_abs_gyro_vel="60.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="ManualAttackTunnelDefendAlignBranch" /> -->
         </ReactiveSequence>
@@ -26,6 +27,7 @@
                                  ki="0.2"
                                  kd="0.3"
                                  deadzone_rad="0.05"
+                                 yaw_alignment_threshold_rad="0.26"
                                  max_abs_gyro_vel="60.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
         </ReactiveSequence>
@@ -52,7 +54,7 @@
               <Inverter>
                 <CheckInEnemyFortZone branch="ApproachEnemyFortMoveZeroGyro" />
               </Inverter>
-              <SetGyroState use_gyro="true"
+              <SetGyroState use_gyro="false"
                             gyro_vel="0.0"
                             random_speed="false" />
               <ChangeStance name="ChangeStanceApproachEnemyFortMove" stance="MOVE" />

@@ -268,7 +268,7 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{12.7, 0.7},
 };
 inline Area_Square enemy_outpost_watch_zone{Point2D{4.6, 6.6}, Point2D{3.2,5.2 }};
-inline Area_Circle enemy_fort_zone{Point2D{12.9, 2.7}, 1.0};
+inline Area_Circle enemy_fort_zone{Point2D{12.4, 3.0}, 1.0};
 inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{12.0, 2.0},
   Point2D{11.0, 2.0},
@@ -335,13 +335,13 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 inline std::vector<Point2D> nav_points = {
 
   // for test
-  {8.2, 2.2, 0.0},  // HOME
+  {8.1, 2.4, 0.0},  // HOME
   // {13.5, 4.8, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
   // {9.1, 6.5, 0.0},  // OUTPOST
   {3.9, 5.9, 0.0},  // OUTPOST
-  {12.8, 2.6, 0.0},  // OWN_FORT
-  {12.7, 2.8, 0.0}   // ENEMY_FORT
+  {12.6, 3.0, 0.0},  // OWN_FORT
+  {12.5, 3.0, 0.0}   // ENEMY_FORT
 };
 
 using PatrolList = std::vector<PatrolPoint>; 
@@ -349,14 +349,14 @@ inline std::vector<PatrolList> normal_patrol_branches = {
   // for test
   {
     // {{10.0, 2.5, 0.0}, 5000},
-    // {{12.7, 2.8, 0.0}, 5000},
-    {{9.6, 2.6, 0.0}, 5000},
-    {{3.9, 4.9, 0.0}, 10000},
+    {{11.0, 3.1, 0.0}, 5000},
+    // {{9.6, 2.6, 0.0}, 5000},
+    // {{3.9, 4.9, 0.0}, 10000},
     {{10.0, 2.7, 0.0}, 10000}
   },
   {
     {{3.9, 4.9, 0.0}, 10000},
-    {{10.0, 2.7, 0.0}, 10000}
+    {{10.0, 2.7, 0.0}, 10000} 
   },
   {
     {{3.9, 4.9, 0.0}, 10000},

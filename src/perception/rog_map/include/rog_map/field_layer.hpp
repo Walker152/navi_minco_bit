@@ -29,7 +29,7 @@ class DynamicLayer
 public:
   DynamicLayer() = default;
 
-  void updateFromMask(int width,
+  void update(int width,
     int height,
     double resolution,
     const Eigen::Vector2d & origin,

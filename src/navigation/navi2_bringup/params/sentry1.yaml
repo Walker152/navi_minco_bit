@@ -103,7 +103,7 @@ controller_server:
       lookahead_time : 0.5
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.15 
+      control_delay_compensation: 0.05 
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [3.0, 3.0, 2.0]
@@ -398,7 +398,7 @@ planner_server:
           # [absolute Z coordinate, m]
           # ROGMap frame 中参与单柱扫描的绝对 Z 上界。
           # 这是坐标值，不是障碍高度，也不是高度差。
-          scan_z_max_abs: 1.50
+          scan_z_max_abs: 1.5
 
           # UNKNOWN 是否作为 ESDF 障碍。
           unknown_as_occupied: false
@@ -415,11 +415,11 @@ planner_server:
           # [vertical height difference, m]
           # 判定竖直墙所需的最小单柱垂直高度差 H。
           # 这是差值，不是绝对 Z 坐标。
-          wall_height_delta_min: 0.20
+          wall_height_delta_min: 0.40
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
-          wall_occupancy_ratio_min: 0.40
+          wall_occupancy_ratio_min: 0.80
 
           # [vertical height difference, m]
           # 可通行隧道所需的最小上下表面高度差。
@@ -448,9 +448,9 @@ planner_server:
           # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
           obstacle_hold_time: 1.0
 
-          hole_fill_enable: true
-          hole_fill_radius: 1
-          hole_fill_min_occupied_neighbors: 4
+          mask_filter_en: true
+          fill_occ_min: 4
+          denoise_occ_max: 0
         field:
           enable: true
           inflation_radius: 0.0
