@@ -17,11 +17,24 @@ std::atomic<uint16_t> Communication::arm_seq_num{0};
 uint16_t Communication::puncture_seq_num = 0;
 std::string Communication::STM32_PORT = "/dev/ttyACM0";
 std::shared_ptr<ComInterfaceRos> Communication::ros_if_{nullptr};
+std::atomic<bool> Communication::diagnostics_enabled_{false};
+std::array<std::atomic<uint64_t>, Communication::kPacketTypeCount> Communication::tx_packet_counts_{};
+std::array<std::atomic<uint64_t>, Communication::kPacketTypeCount> Communication::tx_success_counts_{};
+std::array<std::atomic<uint64_t>, Communication::kPacketTypeCount> Communication::rx_packet_counts_{};
+std::chrono::steady_clock::time_point Communication::last_rate_print_time_ =
+  std::chrono::steady_clock::now();
 
 // 初始化通信模块
-void Communication::init()
+void Communication::init(bool performance_diagnostics_enabled)
 {
-  CsvRecorder::initialize();
+  diagnostics_enabled_.store(performance_diagnostics_enabled, std::memory_order_relaxed);
+  for (size_t i = 0; i < kPacketTypeCount; ++i) {
+    tx_packet_counts_[i].store(0, std::memory_order_relaxed);
+    tx_success_counts_[i].store(0, std::memory_order_relaxed);
+    rx_packet_counts_[i].store(0, std::memory_order_relaxed);
+  }
+  last_rate_print_time_ = std::chrono::steady_clock::now();
+  CsvRecorder::initialize(performance_diagnostics_enabled);
   timer_manager.addTimer(1000, true, []() {
     Communication::__open(STM32_NAME, STM32_PORT, stm32_read_cb, 115200);
   });
@@ -37,6 +50,78 @@ void Communication::init()
 void Communication::setRosInterface(const std::shared_ptr<ComInterfaceRos> & ptr)
 {
   ros_if_ = ptr;
+}
+
+void Communication::recordTxPacket(PacketTypeEnum packet_type, int send_result)
+{
+  const int packet_index = static_cast<int>(packet_type);
+  if (packet_index < 0 || static_cast<size_t>(packet_index) >= kPacketTypeCount) {
+    return;
+  }
+  tx_packet_counts_[static_cast<size_t>(packet_index)].fetch_add(1, std::memory_order_relaxed);
+  if (send_result == 0) {
+    tx_success_counts_[static_cast<size_t>(packet_index)].fetch_add(1, std::memory_order_relaxed);
+  }
+}
+
+void Communication::recordRxPacket(PacketTypeEnum packet_type)
+{
+  if (!diagnostics_enabled_.load(std::memory_order_relaxed)) {
+    return;
+  }
+  const int packet_index = static_cast<int>(packet_type);
+  if (packet_index < 0 || static_cast<size_t>(packet_index) >= kPacketTypeCount) {
+    return;
+  }
+  rx_packet_counts_[static_cast<size_t>(packet_index)].fetch_add(1, std::memory_order_relaxed);
+}
+
+void Communication::printPacketRates()
+{
+  if (!diagnostics_enabled_.load(std::memory_order_relaxed)) {
+    return;
+  }
+
+  const auto now = std::chrono::steady_clock::now();
+  const double interval_sec = std::chrono::duration<double>(now - last_rate_print_time_).count();
+  last_rate_print_time_ = now;
+  if (interval_sec <= 0.0) {
+    return;
+  }
+
+  std::array<uint64_t, kPacketTypeCount> tx{};
+  std::array<uint64_t, kPacketTypeCount> tx_success{};
+  std::array<uint64_t, kPacketTypeCount> rx{};
+  uint64_t tx_total = 0;
+  uint64_t tx_success_total = 0;
+  uint64_t rx_total = 0;
+  for (size_t i = 0; i < kPacketTypeCount; ++i) {
+    tx[i] = tx_packet_counts_[i].exchange(0, std::memory_order_relaxed);
+    tx_success[i] = tx_success_counts_[i].exchange(0, std::memory_order_relaxed);
+    rx[i] = rx_packet_counts_[i].exchange(0, std::memory_order_relaxed);
+    tx_total += tx[i];
+    tx_success_total += tx_success[i];
+    rx_total += rx[i];
+  }
+
+  const auto rate = [interval_sec](uint64_t count) {
+    return static_cast<double>(count) / interval_sec;
+  };
+  const double success_percent =
+    tx_total == 0 ? 0.0 : 100.0 * static_cast<double>(tx_success_total) / tx_total;
+
+  std::ostringstream out;
+  out << std::fixed << std::setprecision(1) << "[COM][Rate] TX=" << rate(tx_total) << "Hz"
+      << " success=" << success_percent << "%"
+      << " nav=" << rate(tx[ENUM_PACKET_NAV_DATA]) << "Hz"
+      << " behavior=" << rate(tx[ENUM_PACKET_BEHAVIOR_DATA]) << "Hz"
+      << " | RX=" << rate(rx_total) << "Hz"
+      << " self=" << rate(rx[ENUM_PACKET_SENTRY_SELF_DATA]) << "Hz"
+      << " online=" << rate(rx[ENUM_PACKET_SENTRY_SERVER_DATA]) << "Hz"
+      << " game=" << rate(rx[ENUM_PACKET_GAMESTATUS_DATA]) << "Hz"
+      << " team=" << rate(rx[ENUM_PACKET_ALLY_STATUS]) << "Hz"
+      << " radar=" << rate(rx[ENUM_PACKET_RADAR]) << "Hz";
+  std::cout << out.str() << std::endl;
 }
 
 // 打开串口
@@ -138,6 +223,9 @@ void Communication::stm32_read_cb(ByteArray arr)
       return;
     }
     if (check(buf, full_len)) {
+      if (diagnostics_enabled_.load(std::memory_order_relaxed)) {
+        recordRxPacket(header->packet_type);
+      }
       // std::cout << static_cast<int>(header->packet_type) << std::endl;
       switch (header->packet_type) {
         // 校验通过，根据报文类型解析数据并发布ROS消息
