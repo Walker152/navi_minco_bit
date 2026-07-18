@@ -34,7 +34,7 @@
             lidar_type: 1                                   # 1 for Livox serials LiDAR, 2 for Velodyne LiDAR, 3 for ouster LiDAR
             scan_line: 4
             timestamp_unit: 3                               # the unit of time/t field in the PointCloud2 rostopic: 0-second, 1-milisecond, 2-microsecond, 3-nanosecond.
-            blind: 0.45
+            blind: 0.35
             blind_center_enable: True
             blind_center: [ 0.0, 0.20, 0.0 ]
 
