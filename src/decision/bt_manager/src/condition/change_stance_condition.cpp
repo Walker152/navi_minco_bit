@@ -575,6 +575,8 @@ BT::NodeStatus CheckManualStanceOverride::tick()
     break;
   }
   if (remaining_sec <= 0) {
+    blackboard->set<bool>("manual_stance_override_active", false);
+    blackboard->set<ControlMode>("control_mode", ControlMode::AUTO);
     detail::logTransition(
       detail::TreeKind::STANCE, "CheckManualStanceOverride", false,
       "remaining_sec=" + std::to_string(remaining_sec) + " (timeout)", branch);
