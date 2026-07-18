@@ -227,7 +227,7 @@ inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
   TunnelRecoveryConfig{1.57f},
   TunnelRecoveryConfig{1.57f},
   TunnelRecoveryConfig{1.57f},
-  TunnelRecoveryConfig{3.14f},
+  TunnelRecoveryConfig{-0.785f},
 };
 inline std::array<Area_Square, 2> stairs_zone{
   Area_Square{Point2D{11.5, 7.1}, Point2D{10.3, 6.2}},
@@ -350,7 +350,7 @@ inline std::vector<PatrolList> normal_patrol_branches = {
   {
     // {{10.0, 2.5, 0.0}, 5000},
     // {{12.7, 2.8, 0.0}, 5000},
-    // {{9.6, 2.6, 0.0}, 5000},
+    {{9.6, 2.6, 0.0}, 5000},
     {{3.9, 4.9, 0.0}, 10000},
     {{10.0, 2.7, 0.0}, 10000}
   },
