@@ -103,7 +103,7 @@ controller_server:
       lookahead_time : 0.5
       use_small_gyro_mode: false
       deadzone_speed_threshold: 0.1
-      control_delay_compensation: 0.15 
+      control_delay_compensation: 0.05 
 
       # Cost weights: Q for state error [x, y, yaw], R for control error [vx, vy, omega]
       Q: [3.0, 3.0, 2.0]

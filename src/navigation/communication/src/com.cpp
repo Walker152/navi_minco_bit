@@ -1,5 +1,6 @@
 #include "com.hpp"
 #include "com_interface_ros.hpp"
+#include "utils/custom_protocol.hpp"
 #include <chrono>
 #include <cstdint>
 // #define COM_DEBUG
