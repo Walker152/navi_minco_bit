@@ -1,10 +1,10 @@
 #!/bin/bash
-cd ~/2025-sentry-navi
+cd ~/2027-sentry-navi
 source ./install/setup.bash
 
 # PTP Sync
 gnome-terminal -- bash -c "sudo ./scripts/ptp_sync.bash; exec bash"
-# sleep 8
+sleep 8
 
 # Driver + SLAM
 gnome-terminal -- bash -c "ros2 launch point_lio single_livox_pointlio_intra_process.launch.py; exec bash"
@@ -54,7 +54,7 @@ ROSBAG_TOPICS=(
   # /livox/lidar
   # /livox/imu_192_168_1_135
 )
-# gnome-terminal -- bash -c "mkdir -p ~/rosbag && ros2 bag record -o ~/rosbag/$(date +%Y%m%d_%H%M%S) ${ROSBAG_TOPICS[*]}; exec bash"
+gnome-terminal -- bash -c "mkdir -p ~/rosbag && ros2 bag record -o ~/rosbag/$(date +%Y%m%d_%H%M%S) ${ROSBAG_TOPICS[*]}; exec bash"
 
 # Foxglove
 # gnome-terminal -- bash -c "ros2 launch foxglove_bridge foxglove_bridge_launch.xml port:=8765; exec bash"
