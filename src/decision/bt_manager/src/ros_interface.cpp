@@ -94,6 +94,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     const auto current_mode = blackboard_->get<NavMode>("current_mode");
     const auto desired_stance = blackboard_->get<Sentry_BT::SentryStance>("desired_stance");
     const auto desired_lifter_pos = blackboard_->get<Sentry_BT::LifterPos>("desired_lifter_pos");
+    const auto chassis_yaw_align_mode = blackboard_->get<uint8_t>("chassis_yaw_align_mode");
     const auto use_gyro_mode = blackboard_->get<bool>("use_gyro_mode");
     const auto gyro_vel = blackboard_->get<float>("gyro_vel");
     const auto tunnel_escape_active = blackboard_->get<bool>("tunnel_escape_active");
@@ -126,6 +127,7 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.tunnel_prepare_active = tunnel_prepare_active;
     behavior_msg.tunnel_ready = tunnel_ready;
     behavior_msg.desire_lifter_pos = static_cast<uint8_t>(desired_lifter_pos);
+    behavior_msg.chassis_yaw_align_mode = chassis_yaw_align_mode;
     behavior_msg.scan_yaw_min = yaw_min_deg;
     behavior_msg.scan_yaw_max = yaw_max_deg;
     behavior_msg.use_limited_scan = use_limited_scan;
@@ -310,6 +312,7 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
   blackboard_->set<bool>("is_transformable", msg->is_transformable);
   blackboard_->set<float>("transform_state", msg->transform_state);
   blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
+  blackboard_->set<bool>("chassis_yaw_aligned", msg->chassis_yaw_aligned);
   auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
   float gimbal_yaw_init = msg->yaw_camerainit_to_gimbal;
   if (tf_utils) {

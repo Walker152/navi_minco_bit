@@ -41,5 +41,6 @@ float32 tunnel_escape_vx
 float32 tunnel_escape_vy
 float32 tunnel_escape_wz
 
+uint8 chassis_yaw_align_mode
 bool tunnel_prepare_active
 bool tunnel_ready

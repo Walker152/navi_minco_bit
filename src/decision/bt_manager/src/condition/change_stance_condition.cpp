@@ -445,44 +445,113 @@ BT::PortsList CheckTunnelDeformation::providedPorts()
 BT::NodeStatus CheckTunnelDeformation::tick()
 {
   auto blackboard = config().blackboard;
+
   const bool through_tunnel = blackboard->get<bool>("through_tunnel");
   const bool current_in_tunnel = blackboard->get<bool>("current_in_tunnel");
   const bool is_disengaged = blackboard->get<bool>("is_disengaged");
   const bool in_transform_zone = blackboard->get<bool>("in_transform_zone");
+  const bool is_transformable = blackboard->get<bool>("is_transformable");
+  const bool chassis_yaw_aligned = blackboard->get<bool>("chassis_yaw_aligned");
   const auto lifter_current_pos = blackboard->get<LifterPos>("lifter_current_pos");
-  const bool tunnel_yaw_aligned = blackboard->get<bool>("tunnel_yaw_aligned");
+  const int tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
+
   const bool tunnel_prepare_active =
     current_in_tunnel || (in_transform_zone && through_tunnel);
-  const bool tunnel_ready =
-    tunnel_prepare_active &&
-    lifter_current_pos == LifterPos::BOTTOM && tunnel_yaw_aligned;
-  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-  LifterPos desired_pos = LifterPos::TOP;
 
-  if (current_in_tunnel) {
-    desired_pos = LifterPos::BOTTOM;
-  } else if (in_transform_zone) {
-    if (through_tunnel) {
-      desired_pos = LifterPos::BOTTOM;
+  const bool valid_tunnel_idx =
+    tunnel_idx >= 0 &&
+    tunnel_idx < static_cast<int>(tunnel_yaw_align_configs.size());
+
+  if (!tunnel_prepare_active) {
+    latched_yaw_align_mode_ = 0;
+    latched_tunnel_idx_ = -1;
+  } else if (valid_tunnel_idx && latched_yaw_align_mode_ == 0) {
+    const auto current_pose =
+      blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+    const auto nav_goal = blackboard->get<Point2D>("nav_goal");
+    const auto & config =
+      tunnel_yaw_align_configs[static_cast<std::size_t>(tunnel_idx)];
+
+    const double travel_direction =
+      config.axis == TunnelAxis::X
+        ? nav_goal.x - current_pose.position.x
+        : nav_goal.y - current_pose.position.y;
+
+    constexpr double kDirectionEps = 0.05;
+
+    if (std::fabs(travel_direction) > kDirectionEps) {
+      latched_yaw_align_mode_ =
+        travel_direction > 0.0 ? config.positive_mode : config.negative_mode;
+      latched_tunnel_idx_ = tunnel_idx;
     }
   }
 
-  // std::cout << " in_transform_zone=" << in_transform_zone << "current_pose= ("
-  // << current_pose.position.x << ", " << current_pose.position.y << ")" << std::endl;
-  blackboard->set<LifterPos>("desired_lifter_pos", desired_pos);
-  blackboard->set("tunnel_prepare_active", tunnel_prepare_active);
-  blackboard->set("tunnel_ready", tunnel_ready);
-  if (!tunnel_prepare_active) {
-    blackboard->set("tunnel_yaw_aligned", false);
+  const bool tunnel_idx_consistent =
+    valid_tunnel_idx && latched_tunnel_idx_ == tunnel_idx;
+
+  const uint8_t chassis_yaw_align_mode =
+    tunnel_prepare_active && tunnel_idx_consistent
+      ? latched_yaw_align_mode_
+      : 0;
+
+  const bool yaw_request_valid = chassis_yaw_align_mode != 0;
+
+  const auto now = std::chrono::steady_clock::now();
+  const bool transformable_active =
+    tunnel_prepare_active && is_transformable;
+
+  if (!transformable_active) {
+    transformable_timing_ = false;
+  } else if (!transformable_timing_) {
+    transformable_timing_ = true;
+    transformable_since_ = now;
   }
-  detail::logTransition(detail::TreeKind::STANCE,
+
+  const bool transformable_delay_ok =
+    transformable_timing_ &&
+    now - transformable_since_ >= std::chrono::seconds(1);
+
+  const bool tunnel_ready =
+    tunnel_prepare_active &&
+    yaw_request_valid &&
+    chassis_yaw_aligned &&
+    transformable_delay_ok &&
+    lifter_current_pos == LifterPos::BOTTOM;
+
+  const LifterPos desired_pos =
+    tunnel_prepare_active &&
+    yaw_request_valid &&
+    chassis_yaw_aligned &&
+    transformable_delay_ok
+      ? LifterPos::BOTTOM
+      : LifterPos::TOP;
+
+  blackboard->set<uint8_t>("chassis_yaw_align_mode", chassis_yaw_align_mode);
+  blackboard->set<LifterPos>("desired_lifter_pos", desired_pos);
+  blackboard->set<bool>("tunnel_prepare_active", tunnel_prepare_active);
+  blackboard->set<bool>("tunnel_ready", tunnel_ready);
+
+  std::ostringstream oss;
+  oss << "through_tunnel=" << through_tunnel
+      << ", current_in_tunnel=" << current_in_tunnel
+      << ", in_transform_zone=" << in_transform_zone
+      << ", tunnel_idx=" << tunnel_idx
+      << ", latched_idx=" << latched_tunnel_idx_
+      << ", yaw_mode=" << static_cast<int>(chassis_yaw_align_mode)
+      << ", chassis_yaw_aligned=" << chassis_yaw_aligned
+      << ", is_transformable=" << is_transformable
+      << ", transform_delay_ok=" << transformable_delay_ok
+      << ", desired_pos=" << static_cast<int>(desired_pos)
+      << ", tunnel_ready=" << tunnel_ready
+      << ", is_disengaged=" << is_disengaged;
+
+  detail::logTransition(
+    detail::TreeKind::STANCE,
     "CheckTunnelDeformation",
     true,
-    "through_tunnel=" + std::to_string(through_tunnel) + ", current_in_tunnel=" +
-      std::to_string(current_in_tunnel) + ", is_disengaged=" + std::to_string(is_disengaged) +
-      ", desired_pos=" + std::to_string(static_cast<int>(desired_pos)) +
-      ", tunnel_ready=" + std::to_string(tunnel_ready),
+    oss.str(),
     "");
+
   return BT::NodeStatus::SUCCESS;
 }
 

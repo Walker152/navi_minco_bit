@@ -27,12 +27,12 @@ public:
     blackboard_->set<bool>("manual_stance_override_active", false);          // 云台手强化姿态覆盖是否激活
     blackboard_->set<SentryStance>("manual_override_stance", SentryStance::ENHANCED_ATTACK);  // 云台手请求的强化姿态
     blackboard_->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);       // 目标升降位置
+    blackboard_->set<uint8_t>("chassis_yaw_align_mode", 0);  // 0表示不启用世界系yaw对齐
     blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);        // 控制模式
     blackboard_->set("use_gyro_mode", false);                                // 小陀螺开关
     blackboard_->set("gyro_vel", 80.0f);                                     // 小陀螺转速(rpm)
     blackboard_->set("current_in_tunnel", false);                            // 当前是否在隧道中
     blackboard_->set("tunnel_prepare_active", false);                        // 当前是否处于过洞准备场景
-    blackboard_->set("tunnel_yaw_aligned", false);                           // 过洞航向是否已对齐
     blackboard_->set("tunnel_ready", false);                                 // 航向和升降机构是否均已就绪
     blackboard_->set("attack_accumulated_time", 0.0);  // ATTACK累计停留时长(秒),用于效果下降判定
     blackboard_->set("defend_accumulated_time", 0.0);  // DEFEND累计停留时长(秒),用于效果下降判定
@@ -97,6 +97,7 @@ public:
     blackboard_->set("target_pose", geometry_msgs::msg::Pose());                 // 目标位置
     blackboard_->set("target_armor_id", -1);                                     // 目标装甲板ID
     blackboard_->set<uint8_t>("capacitor_capacity", static_cast<uint8_t>(100));  // 电容容量百分比
+    blackboard_->set("chassis_yaw_aligned", false);                              // 底盘偏航对齐状态
 
     // --- Sentry Online Info ---
     blackboard_->set("health", 100.0f);                   // 初始生命值(百分比)

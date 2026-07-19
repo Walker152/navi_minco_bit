@@ -111,9 +111,9 @@ BT::NodeStatus SetGyroState::tick()
   random_speed_enabled_ = false;
   current_gyro_vel_ = gyro_vel;
 
-  const bool reverse_now =
-    shouldReverseRotation(use_gyro, ammo_purchase_total, bullets_remaining, game_time_remaining);
-  // const bool reverse_now = false;
+  // const bool reverse_now =
+    // shouldReverseRotation(use_gyro, ammo_purchase_total, bullets_remaining, game_time_remaining);
+  const bool reverse_now = false;
   const float base_speed = reverse_now ? -current_gyro_vel_ : current_gyro_vel_;
   float output_gyro_vel = base_speed;
   if (random_speed) {

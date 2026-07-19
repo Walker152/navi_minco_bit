@@ -3,7 +3,7 @@
 #include "bt_manager/utils/area.hpp"
 #include "bt_manager/utils/log.hpp"
 #include <behaviortree_cpp_v3/condition_node.h>
-
+#include <chrono>
 #include <string>
 
 namespace Sentry_BT {
@@ -128,6 +128,10 @@ private:
   float last_health_ = 100.0f;
   bool health_initialized_ = false;
   rclcpp::Time last_hurt_time_;
+  uint8_t latched_yaw_align_mode_{0};
+  int latched_tunnel_idx_{-1};
+  bool transformable_timing_{false};
+  std::chrono::steady_clock::time_point transformable_since_;
 };
 
 class CheckInEnemyFortZone : public BT::ConditionNode

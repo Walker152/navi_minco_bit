@@ -4,6 +4,7 @@
 #include "bt_manager/utils/nav_zone.hpp"
 
 #include <array>
+#include <cstdint>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -41,6 +42,27 @@ inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
   TunnelRecoveryConfig{1.57f},   // Enemy Right Tunnel
   TunnelRecoveryConfig{0.0f},    // Home Left Tunnel
   TunnelRecoveryConfig{3.14f},   // Enemy Left Tunnel
+};
+// 世界系yaw对齐模式，与 tunnel_zone 的下标一一对应。
+// 0：不对齐，1：0°，2：90°，3：180°，4：-90°
+enum class TunnelAxis : uint8_t
+{
+  X,
+  Y
+};
+
+struct TunnelYawAlignConfig
+{
+  TunnelAxis axis;
+  uint8_t positive_mode;
+  uint8_t negative_mode;
+};
+// 0：关闭，1：0°，2：90°，3：180°，4：-90°
+inline std::array<TunnelYawAlignConfig, 4> tunnel_yaw_align_configs = {
+  TunnelYawAlignConfig{TunnelAxis::Y, 2, 4},  // 0：+Y=90°，-Y=-90°
+  TunnelYawAlignConfig{TunnelAxis::Y, 2, 4},  // 1：+Y=90°，-Y=-90°
+  TunnelYawAlignConfig{TunnelAxis::X, 1, 3},  // 2：+X=0°，-X=180°
+  TunnelYawAlignConfig{TunnelAxis::X, 1, 3},  // 3：+X=0°，-X=180°
 };
 inline std::array<Area_Square, 2> stairs_zone{
   Area_Square{Point2D{9.4, 1.8}, Point2D{8.0, 0.2}},
@@ -209,8 +231,8 @@ inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
     Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
     Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.3, 4.0}, Point2D{5.7, 4.0}, Point2D{2.4, 4.0},
-    Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{9.3, 1.4}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{8.0, 4.0}, Point2D{5.7, 4.0}, Point2D{2.4, 4.0},
+    Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{8.0, 1.4}}, // TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
@@ -223,17 +245,29 @@ inline std::array<Area_Square, 4> tunnel_zone = {
   Area_Square{Point2D{5.7, 3.6}, Point2D{2.4, 1.4}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
-// inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
-//   TunnelRecoveryConfig{1.57f},
-//   TunnelRecoveryConfig{1.57f},
-//   TunnelRecoveryConfig{1.57f},
-//   TunnelRecoveryConfig{-0.785f},
-// };
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
-  TunnelRecoveryConfig{0.0f},
-  TunnelRecoveryConfig{0.0f},
-  TunnelRecoveryConfig{0.0f},
   TunnelRecoveryConfig{1.57f},
+  TunnelRecoveryConfig{1.57f},
+  TunnelRecoveryConfig{1.57f},
+  TunnelRecoveryConfig{3.14f},
+};
+enum class TunnelAxis : uint8_t
+{
+  X,
+  Y
+};
+
+struct TunnelYawAlignConfig
+{
+  TunnelAxis axis;
+  uint8_t positive_mode;
+  uint8_t negative_mode;
+};
+inline std::array<TunnelYawAlignConfig, 4> tunnel_yaw_align_configs = {
+  TunnelYawAlignConfig{TunnelAxis::Y, 2, 4},
+  TunnelYawAlignConfig{TunnelAxis::Y, 2, 4},
+  TunnelYawAlignConfig{TunnelAxis::Y, 2, 4},
+  TunnelYawAlignConfig{TunnelAxis::X, 1, 3},
 };
 inline std::array<Area_Square, 2> stairs_zone{
   Area_Square{Point2D{11.5, 7.1}, Point2D{10.3, 6.2}},
@@ -341,8 +375,7 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 inline std::vector<Point2D> nav_points = {
 
   // for test
-  // {8.1, 2.4, 0.0},  // HOME BLUE
-  {15.0, 4.2, 0.0},  // HOME
+  {8.1, 2.4, 0.0},  // HOME
   // {13.5, 4.8, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
   // {9.1, 6.5, 0.0},  // OUTPOST
@@ -356,10 +389,10 @@ inline std::vector<PatrolList> normal_patrol_branches = {
   // for test
   {
     // {{10.0, 2.5, 0.0}, 5000},
-    {{9.5, 3.1, 0.0}, 5000},
+    // {{11.0, 3.1, 0.0}, 5000},
     // {{9.6, 2.6, 0.0}, 5000},
-    // {{3.9, 4.9, 0.0}, 10000},
-    {{8.5, 2.7, 0.0}, 10000}
+    {{3.9, 4.9, 0.0}, 10000},
+    {{10.0, 2.7, 0.0}, 10000}
   },
   {
     {{3.9, 4.9, 0.0}, 10000},

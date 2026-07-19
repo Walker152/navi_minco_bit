@@ -110,6 +110,7 @@ public:
     const auto stamp = now();
     msg.header.stamp = stamp;
     msg.capacitor_capacity = in.capacitor_capacity;
+    msg.chassis_yaw_aligned = in.chassis_yaw_aligned;
     std::chrono::steady_clock::time_point publish_start{};
     if (performance_diagnostics_enabled_) {
       publish_start = std::chrono::steady_clock::now();
@@ -279,6 +280,7 @@ private:
     float scan_yaw_max_deg_ = 0.0f;
     uint8_t desire_stance = 0;
     uint8_t desire_lifter_pos = 0;
+    uint8_t chassis_yaw_align_mode = 0;
     uint8_t comfirm_revive = 0;
     uint16_t ammo_purchase_request = 0;
     uint8_t ammo_req = 0;
@@ -318,6 +320,7 @@ private:
       pitch_mode = behavior_.pitch_mode;
       desire_stance = behavior_.desired_stance;
       desire_lifter_pos = behavior_.desire_lifter_pos;
+      chassis_yaw_align_mode = behavior_.chassis_yaw_align_mode;
       use_gyro_mode = behavior_.use_gyro_mode;
       gyro_vel = behavior_.gyro_vel;
       tunnel_escape_active = behavior_.tunnel_escape_active;
@@ -358,7 +361,6 @@ private:
         1000,
         "[COM] delta_yaw is not initialized; suppressing translational command.");
     }
-
     tf2::Quaternion q;
     tf2::fromMsg(odom_q, q);
     double roll, pitch, yaw;
@@ -389,7 +391,8 @@ private:
       health_req,
       use_limited_scan,
       not_aim_enemy,
-      use_capacitor);
+      use_capacitor,
+      chassis_yaw_align_mode);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
     if (performance_diagnostics_enabled_) {
       auto diagnostics = getDiagnosticsSnapshot();
@@ -437,7 +440,8 @@ private:
           NV(behavior_data.remote_ammo_request),
           NV(behavior_data.remote_health_request),
           NV(behavior_data.use_limited_scan),
-          NV(behavior_data.use_capacitor));
+          NV(behavior_data.use_capacitor),
+          NV(static_cast<int>(behavior_data.is_align_world_yaw)));
         last_send_time = now_time;
       }
     }

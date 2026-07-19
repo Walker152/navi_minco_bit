@@ -156,6 +156,7 @@ struct __attribute__((packed, aligned(1))) _BehaviorData
   bool use_limited_scan{};           // 是否使用限制性扫描模式
   bool not_aim_enemy{};              // 是否瞄准敌方目标
   bool use_capacitor{};              // 是否使用电容
+  uint8_t is_align_world_yaw{};      // 底盘偏航对齐角度 0：关闭；1：0°；2：90°；3：180°；4：-90°
 
   _BehaviorData(uint8_t _pitch_mode,
     uint8_t _desire_stance,
@@ -169,13 +170,15 @@ struct __attribute__((packed, aligned(1))) _BehaviorData
     uint8_t _remote_health_request,
     bool _use_limited_scan,
     bool _not_aim_enemy,
-    bool _use_capacitor)
+    bool _use_capacitor,
+    uint8_t _is_align_world_yaw )
   : pitch_mode(_pitch_mode), desire_stance(_desire_stance), desire_lifter_pos(_desire_lifter_pos),
     scan_yaw_min_deg(_scan_yaw_min_deg), scan_yaw_max_deg(_scan_yaw_max_deg),
     ammo_purchase_request(_ammo_purchase_request), revive_request(_revive_request),
     remote_revive_request(_remote_revive_request), remote_ammo_request(_remote_ammo_request),
     remote_health_request(_remote_health_request), use_limited_scan(_use_limited_scan),
-    not_aim_enemy(_not_aim_enemy), use_capacitor(_use_capacitor)
+    not_aim_enemy(_not_aim_enemy), use_capacitor(_use_capacitor),
+    is_align_world_yaw(_is_align_world_yaw)
   {
   }
 };
@@ -289,6 +292,7 @@ struct __attribute__((packed)) _SentryInfoOffline
   float transform_state{};  // 变形状态，0-1，0%为未变形，100%为完全变形，过渡状态根据实际情况变化
   uint8_t capacitor_capacity{};  // 电容容量百分比，0-100
   float chassis_imu_yaw{};       // 底盘IMU的yaw轴角度 逆时针为正
+  bool chassis_yaw_aligned{}; // 底盘偏航对齐状态，0为未对齐，1为已对齐
 
   _SentryInfoOffline(bool _is_get,
     float _armor_pos[3],
@@ -298,7 +302,8 @@ struct __attribute__((packed)) _SentryInfoOffline
     bool _is_transformable,
     float _transform_state,
     uint8_t _capacitor_capacity,
-    float _chassis_imu_yaw)
+    float _chassis_imu_yaw,
+    bool _chassis_yaw_aligned)
   {
     is_get = _is_get;
     for (int i = 0; i < 3; ++i) {
@@ -311,6 +316,7 @@ struct __attribute__((packed)) _SentryInfoOffline
     transform_state = _transform_state;
     capacitor_capacity = _capacitor_capacity;
     chassis_imu_yaw = _chassis_imu_yaw;
+    chassis_yaw_aligned = _chassis_yaw_aligned;
   }
 };
 using SentryInfoOffline = struct _SentryInfoOffline;

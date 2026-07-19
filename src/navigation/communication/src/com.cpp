@@ -311,7 +311,8 @@ void Communication::stm32_read_cb(ByteArray arr)
           NV(sentry_self_data->lifter_current_pos),
           NV(sentry_self_data->transform_state),
           NV(sentry_self_data->yaw_camerainit_to_gimbal),
-          NV(sentry_self_data->capacitor_capacity));
+          NV(sentry_self_data->capacitor_capacity);
+          NV(sentry_self_data->chassis_yaw_aligned));
 #endif
         auto ros_ptr = ros_if_;
         if (ros_ptr)
