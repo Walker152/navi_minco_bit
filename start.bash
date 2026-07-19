@@ -4,7 +4,7 @@ source ./install/setup.bash
 
 # PTP Sync
 gnome-terminal -- bash -c "sudo ./scripts/ptp_sync.bash; exec bash"
-# sleep 8
+sleep 8
 
 # Driver + SLAM
 # gnome-terminal -- bash -c "ros2 launch point_lio single_livox_pointlio_intra_process.launch.py; exec bash"
