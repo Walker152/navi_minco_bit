@@ -322,8 +322,6 @@ inline AreaPolygon<8, Point2D> engineering_zone{
 
 inline AreaPolygon<6, Point2D> own_highland_buff_zone{
   Point2D{10.1, 7.2},
-  Point2D{10.1, 6.7},nt2D> own_highland_buff_zone{
-  Point2D{10.1, 7.2},
   Point2D{10.1, 6.7},
   Point2D{10.1, 6.2},
   Point2D{8.3, 6.2},
@@ -337,9 +335,7 @@ inline AreaPolygon<6, Point2D> enemy_highland_buff_zone{
   Point2D{8.3, 6.2},
   Point2D{8.3, 6.7},
   Point2D{8.3, 7.2},
-};nt2D> own_highland_buff_zone{
-  Point2D{10.1, 7.2},
-  Point2D{10.1, 6.7},
+};
 
 inline AreaPolygon<6, Point2D> own_base_buff_zone{
   Point2D{7.2, 4.3}, 
