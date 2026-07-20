@@ -200,17 +200,17 @@ inline std::vector<PatrolList> attack_patrol_branches = {
 // for test
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 3.0}, Point2D{11.1, 3.0}, Point2D{10.6, 3.0}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 3.0}, Point2D{11.1, 3.0}, Point2D{10.6, 3.0}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 3.0}, Point2D{11.1, 3.0}, Point2D{10.6, 3.0}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.3, 4.0}, Point2D{5.7, 4.0}, Point2D{2.4, 4.0},
-    Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{9.3, 1.4}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{8.0, 4.0}, Point2D{5.7, 4.0}, Point2D{2.4, 4.0},
+    Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{8.0, 1.4}}, // TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
@@ -336,7 +336,7 @@ inline std::vector<Point2D> nav_points = {
 
   // for test
   {8.1, 2.4, 0.0},  // HOME
-  // {13.5, 4.8, 0.0},  // HOME
+  // {13.5, 4.8, 0.0},  // HOME RED
   {5.6, 3.8, 0.0},  // BONUS
   // {9.1, 6.5, 0.0},  // OUTPOST
   {3.9, 5.9, 0.0},  // OUTPOST
@@ -349,10 +349,10 @@ inline std::vector<PatrolList> normal_patrol_branches = {
   // for test
   {
     // {{10.0, 2.5, 0.0}, 5000},
-    {{11.0, 3.1, 0.0}, 5000},
+    {{10.7, 3.1, 0.0}, 5000},
     // {{9.6, 2.6, 0.0}, 5000},
     {{3.9, 4.9, 0.0}, 10000},
-    {{10.0, 2.7, 0.0}, 10000}
+    {{10.0, 2.4, 0.0}, 10000}
   },
   {
     {{3.9, 4.9, 0.0}, 10000},
