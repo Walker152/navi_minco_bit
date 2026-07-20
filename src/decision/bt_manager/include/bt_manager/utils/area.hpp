@@ -200,17 +200,17 @@ inline std::vector<PatrolList> attack_patrol_branches = {
 // for test
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 3.5}, Point2D{11.1, 3.5}, Point2D{10.6, 3.5}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 3.5}, Point2D{11.1, 3.5}, Point2D{10.6, 3.5}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 3.5}, Point2D{11.1, 3.5}, Point2D{10.6, 3.5}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.3, 4.0}, Point2D{5.7, 4.0}, Point2D{2.4, 4.0},
-    Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{9.3, 1.4}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{7.8, 4.0}, Point2D{5.7, 4.0}, Point2D{2.4, 4.0},
+    Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{7.8, 1.4}}, // TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
