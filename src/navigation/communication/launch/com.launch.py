@@ -10,7 +10,7 @@ def generate_launch_description():
             output='screen',
             respawn=True,
             parameters=[{
-                'communication.enable_performance_diagnostics': False,
+                'communication.enable_performance_diagnostics': True,
             }]
         )
     ])
