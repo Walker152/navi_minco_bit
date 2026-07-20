@@ -445,7 +445,7 @@ planner_server:
           hysteresis_enable: false
           hysteresis_count: 2
           # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
-          obstacle_hold_time: 1.0
+          obstacle_hold_time: 1.5
 
           mask_filter_en: true
           fill_occ_min: 4
@@ -460,7 +460,7 @@ planner_server:
           clamp_distance: true
           # [field][枚举] 插值方式 bilinear/quadratic；quadratic 梯度更平滑，边界邻域不足时会回退到 bilinear。
           interpolation: quadratic
-          update_rate: 50.0
+          update_rate: 20.0
 
         performance:
           enable: true
@@ -514,9 +514,9 @@ planner_server:
         max_acceleration: 2.0
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.1
-        turn_angle_saturation: 0.8
+        turn_angle_saturation: 1.0
         min_turn_vel: 0.6
-        decay_power: 1.7
+        decay_power: 1.5
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
