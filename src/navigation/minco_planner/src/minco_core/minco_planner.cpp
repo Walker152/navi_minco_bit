@@ -1450,13 +1450,15 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
   if (tracking_error > dynamic_error_threshold) {
     std::cout << YELLOW << "[MincoPlanner] Large tracking error (" << tracking_error
               << "m). Downgrading to COLD_START." << RESET << std::endl;
-    return PlanningState::COLD_START;
+    return PlanningState::HOT_START;
+    // return PlanningState::COLD_START;
   }
 
   if (vel_error > 1.0) {
     std::cout << YELLOW << "[MincoPlanner] Large velocity error (" << vel_error
               << "m/s). Downgrading to COLD_START." << RESET << std::endl;
-    return PlanningState::COLD_START;
+    return PlanningState::HOT_START;
+    // return PlanningState::COLD_START;
   }
 
   if (new_path.size() >= 2) {
@@ -1486,50 +1488,14 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
   (void)sparse_path;
   Eigen::Vector3d real_speed = getCurrentSpeed();
   start_state.col(1) = real_speed;
-  // bool has_valid_odom = false;
-  // geometry_msgs::msg::Quaternion odom_q;
-  // {
-  //   std::lock_guard<std::mutex> lk(odom_mutex_);
-  //   has_valid_odom = has_latest_odom_;
-  //   if (has_valid_odom) {
-  //     odom_q = latest_odom_.pose.pose.orientation;
-  //   }
-  // }
-
-  // constexpr double slope_threshold = 0.05;
-  // if (has_valid_odom && sparse_path.size() >= 2) {
-  //   const tf2::Quaternion q(odom_q.x, odom_q.y, odom_q.z, odom_q.w);
-  //   double roll = 0.0;
-  //   double pitch = 0.0;
-  //   double yaw = 0.0;
-  //   tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-
-  //   if (std::abs(pitch) > slope_threshold) {
-  //     Eigen::Vector2d path_dir = (sparse_path[1] - sparse_path[0]).head<2>();
-  //     const double dir_norm = path_dir.norm();
-  //     if (dir_norm > 0.1) {
-  //       path_dir /= dir_norm;
-  //       const double min_climb_speed = std::max(1.0, minco_config.max_vel * 0.8);
-  //       const double cur_spd = std::hypot(real_speed.x(), real_speed.y());
-  //       if (cur_spd < min_climb_speed) {
-  //         real_speed.x() = path_dir.x() * min_climb_speed;
-  //         real_speed.y() = path_dir.y() * min_climb_speed;
-  //         start_state.col(2) = Eigen::Vector3d(
-  //             path_dir.x() * minco_config.max_acc, path_dir.y() * minco_config.max_acc, 0.0);
-  //       }
-  //     }
-  //   }
-  // }
-
-  start_state.col(1) = real_speed;
 }
 
 void MincoPlanner::prepareHotStart(
   const geometry_msgs::msg::Pose & start_pose, double t_dur, Eigen::Matrix3d & start_state)
 {
   start_state.setZero();
-  start_state.col(0) = last_traj_.getPos(t_dur);
-  // start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
+  // start_state.col(0) = last_traj_.getPos(t_dur);
+  start_state.col(0) = Eigen::Vector3d(start_pose.position.x, start_pose.position.y, 0.0);
   start_state.col(1) = last_traj_.getVel(t_dur);
   // Eigen::Vector3d real_speed = getCurrentSpeed();
   start_state.col(2) = last_traj_.getAcc(t_dur);
