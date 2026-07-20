@@ -222,17 +222,17 @@ inline std::vector<PatrolList> attack_patrol_branches = {
 // for test
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 3.5}, Point2D{11.1, 3.5}, Point2D{10.6, 3.5}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 3.5}, Point2D{11.1, 3.5}, Point2D{10.6, 3.5}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 3.5}, Point2D{11.1, 3.5}, Point2D{10.6, 3.5}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{8.0, 4.0}, Point2D{5.7, 4.0}, Point2D{2.4, 4.0},
-    Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{8.0, 1.4}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{7.8, 4.0}, Point2D{5.7, 4.0}, Point2D{2.4, 4.0},
+    Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{7.8, 1.4}}, // TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
@@ -322,6 +322,8 @@ inline AreaPolygon<8, Point2D> engineering_zone{
 
 inline AreaPolygon<6, Point2D> own_highland_buff_zone{
   Point2D{10.1, 7.2},
+  Point2D{10.1, 6.7},nt2D> own_highland_buff_zone{
+  Point2D{10.1, 7.2},
   Point2D{10.1, 6.7},
   Point2D{10.1, 6.2},
   Point2D{8.3, 6.2},
@@ -335,7 +337,9 @@ inline AreaPolygon<6, Point2D> enemy_highland_buff_zone{
   Point2D{8.3, 6.2},
   Point2D{8.3, 6.7},
   Point2D{8.3, 7.2},
-};
+};nt2D> own_highland_buff_zone{
+  Point2D{10.1, 7.2},
+  Point2D{10.1, 6.7},
 
 inline AreaPolygon<6, Point2D> own_base_buff_zone{
   Point2D{7.2, 4.3}, 
@@ -375,11 +379,13 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 inline std::vector<Point2D> nav_points = {
 
   // for test
-  // {8.1, 2.4, 0.0},  // HOME
-  {13.5, 4.8, 0.0},  // HOME
+  // {8.1, 2.4, 0.0},  // HOME BLUE
+  {15.0, 4.2, 0.0},  // HOME
+  // {13.5, 4.8, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
   // {9.1, 6.5, 0.0},  // OUTPOST
-  {3.9, 5.9, 0.0},  // OUTPOST
+  {3.4, 5.4, 0.0},  // OUTPOST red
+  // {3.9, 5.4, 0.0},  // OUTPOST blue
   {12.6, 3.0, 0.0},  // OWN_FORT
   {12.5, 3.0, 0.0}   // ENEMY_FORT
 };
@@ -388,11 +394,18 @@ using PatrolList = std::vector<PatrolPoint>;
 inline std::vector<PatrolList> normal_patrol_branches = {
   // for test
   {
+    //红方巡检
     // {{10.0, 2.5, 0.0}, 5000},
-    // {{11.0, 3.1, 0.0}, 5000},
-    {{9.6, 2.6, 0.0}, 5000},
+    {{9.5, 3.9, 0.0}, 5000},
+    // {{9.6, 2.6, 0.0}, 5000},
+    {{3.1, 5.0, 0.0}, 10000},
+    // {{8.5, 2.7, 0.0}, 10000}
+    //蓝方巡检
+    // // {{10.0, 2.5, 0.0}, 5000},
+    // {{9.5, 3.1, 0.0}, 5000},
+    // // {{9.6, 2.6, 0.0}, 5000},
     // {{3.9, 4.9, 0.0}, 10000},
-    {{10.0, 2.7, 0.0}, 10000}
+    // {{8.5, 2.7, 0.0}, 10000}
   },
   {
     {{3.9, 4.9, 0.0}, 10000},
