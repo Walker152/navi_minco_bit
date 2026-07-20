@@ -11,28 +11,28 @@
                             branch="Priority1SpecialResponseScan" />
         <SetGimbalPose name="SetOutpostInspectPose" mode="0"/>
       </ReactiveSequence>
-      <SetGimbalPose name="SetDefaultInspectPose" mode="1"/>
+      <!-- <SetGimbalPose name="SetDefaultInspectPose" mode="1"/> -->
       <!-- <ReactiveSequence name="Priority2StairZoneScan">
         <CheckInStairsZone branch="Priority2StairZoneScan" />
         <SetGimbalPoseByAreaAction name="SetStairZoneGimbal" />
       </ReactiveSequence> -->
       <ReactiveSequence name="Priority3NormalScan">
         <SetGimbalPose name="SetNormalInspectPose" mode="1" />
-          <!-- <ReactiveFallback name="GimbalScanStrategy"> -->
-            <!-- <ReactiveSequence name="EnergyGimbalScan">
-              <CheckEnergyActive branch="EnergyGimbalScan" />
-              <SetGimbalPoseByAreaAction name="SetEnergyGimbal" />
-            </ReactiveSequence> -->
-            <!-- <ReactiveSequence name="DefendScan">
-              <CheckTacticalModeCondition mode="defend" branch="DefendScan" />
-              <SetGimbalPoseByAreaAction name="SetDefendGimbal" />
-            </ReactiveSequence>
-            <ReactiveSequence name="AttackScan">
-              <CheckTacticalModeCondition mode="attack" branch="AttackScan" />
-              <SetGimbalPoseByAreaAction name="SetAttackGimbal" />
-            </ReactiveSequence>
-            <SetGimbalPoseByAreaAction name="SetNormalGimbal" /> -->
-          <!-- </ReactiveFallback> -->
+        <ReactiveFallback name="GimbalScanStrategy">
+          <ReactiveSequence name="EnergyGimbalScan">
+            <CheckEnergyActive branch="EnergyGimbalScan" />
+            <SetGimbalPoseByAreaAction name="SetEnergyGimbal" />
+          </ReactiveSequence>
+          <ReactiveSequence name="DefendScan">
+            <CheckTacticalModeCondition mode="defend" branch="DefendScan" />
+            <SetGimbalPoseByAreaAction name="SetDefendGimbal" />
+          </ReactiveSequence>
+          <ReactiveSequence name="AttackScan">
+            <CheckTacticalModeCondition mode="attack" branch="AttackScan" />
+            <SetGimbalPoseByAreaAction name="SetAttackGimbal" />
+          </ReactiveSequence>
+          <SetGimbalPoseByAreaAction name="SetNormalGimbal" />
+        </ReactiveFallback>
       </ReactiveSequence>
       
     </ReactiveFallback>
