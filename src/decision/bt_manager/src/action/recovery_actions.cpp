@@ -143,8 +143,8 @@ geometry_msgs::msg::Twist TunnelTimeoutBackoutAction::computeBackoutVelocity(
   }
 
   const double v = std::abs(speed);
-  cmd_vel.linear.x = -v * std::cos(yaw);
-  cmd_vel.linear.y = -v * std::sin(yaw);
+  cmd_vel.linear.x = v * std::sin(yaw);
+  cmd_vel.linear.y = -v * std::cos(yaw);
   cmd_vel.angular.z = 0.0;
   return cmd_vel;
 }
