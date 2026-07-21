@@ -35,7 +35,10 @@ def generate_launch_description():
             # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
             # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['1', '3', '0', '0', '0', '0', 'map', 'camera_init'],
+            # 测试场地蓝方启动点
             arguments=['6.7', '4.0', '0', '0', '0', '0', 'map', 'camera_init'],
+            # 测试场地备用启动点
+            # arguments=['5.9`', '4.0', '0', '0', '0', '0', 'map', 'camera_init'],
             # arguments=['9.0', '4.0', '0', '1.57', '0', '0', 'map', 'camera_init'],
             # 2026 rmuc
             # x坐标：台阶到基地边缘1655mm+基地长1881mm+车身y半长198.5mm+地图投影边缘300mm=4036mm
