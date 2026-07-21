@@ -511,18 +511,24 @@ BT::NodeStatus CheckTunnelDeformation::tick()
     transformable_timing_ &&
     now - transformable_since_ >= std::chrono::seconds(1);
 
+  const bool deformation_allowed =
+    tunnel_prepare_active &&
+    yaw_request_valid &&
+    chassis_yaw_aligned &&
+    transformable_delay_ok;
+
+  const bool lifter_at_bottom =
+    lifter_current_pos == LifterPos::BOTTOM;
+
   const bool tunnel_ready =
     tunnel_prepare_active &&
     yaw_request_valid &&
-    chassis_yaw_aligned &&
-    transformable_delay_ok &&
-    lifter_current_pos == LifterPos::BOTTOM;
+    lifter_at_bottom &&
+    (current_in_tunnel ||
+     (chassis_yaw_aligned && transformable_delay_ok));
 
   const LifterPos desired_pos =
-    tunnel_prepare_active &&
-    yaw_request_valid &&
-    chassis_yaw_aligned &&
-    transformable_delay_ok
+    deformation_allowed || current_in_tunnel
       ? LifterPos::BOTTOM
       : LifterPos::TOP;
 
