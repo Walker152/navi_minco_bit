@@ -14,7 +14,7 @@ def generate_launch_description():
             description='Enable behavior-tree transition debug logs'),
         DeclareLaunchArgument(
             'bt_debug_log_to_file',
-            default_value='false',
+            default_value='true',
             description='Enable behavior-tree transition logs to file'),
         DeclareLaunchArgument(
             'bt_debug_log_file',

@@ -393,7 +393,7 @@ planner_server:
           # [absolute Z coordinate, m]
           # ROGMap frame 中参与单柱扫描的绝对 Z 下界。
           # 这是坐标值，不是地面相对高度，也不是高度差。
-          scan_z_min_abs: -0.20
+          scan_z_min_abs: -0.15
 
           # [absolute Z coordinate, m]
           # ROGMap frame 中参与单柱扫描的绝对 Z 上界。
@@ -410,7 +410,7 @@ planner_server:
           # 同一 XY 柱中最高与最低占据体素的垂直高度差 H。
           # 不超过该值时，分类为地面或坡面薄表面。
           # 这是差值，不是 ROGMap frame 中的绝对 Z 坐标。
-          surface_height_delta_max: 0.2
+          surface_height_delta_max: 0.1
 
           # [vertical height difference, m]
           # 判定竖直墙所需的最小单柱垂直高度差 H。
@@ -419,7 +419,7 @@ planner_server:
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
-          wall_occupancy_ratio_min: 0.80
+          wall_occupancy_ratio_min: 0.60
 
           # [vertical height difference, m]
           # 可通行隧道所需的最小上下表面高度差。
@@ -446,7 +446,7 @@ planner_server:
           hysteresis_enable: false
           hysteresis_count: 2
           # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
-          obstacle_hold_time: 1.0
+          obstacle_hold_time: 2.0
 
           mask_filter_en: true
           fill_occ_min: 4
@@ -508,16 +508,16 @@ planner_server:
         opt_freq: 20.0
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
-        safe_dist: 0.35
-        collision_dist: 0.25
+        safe_dist: 0.40
+        collision_dist: 0.30
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
         max_acceleration: 2.0
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.1
-        turn_angle_saturation: 0.8
-        min_turn_vel: 0.6
-        decay_power: 1.7
+        turn_angle_saturation: 0.7
+        min_turn_vel: 0.8
+        decay_power: 1.5
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
