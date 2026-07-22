@@ -200,17 +200,17 @@ inline std::vector<PatrolList> attack_patrol_branches = {
 // for test
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 3.0}, Point2D{11.1, 3.0}, Point2D{10.6, 3.0}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 3.0}, Point2D{11.1, 3.0}, Point2D{10.6, 3.0}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 1.5}, Point2D{11.1, 1.5}, Point2D{9.6, 1.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
+    Point2D{12.6, 3.0}, Point2D{11.1, 3.0}, Point2D{10.6, 3.0}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{9.3, 4.0}, Point2D{5.7, 4.0}, Point2D{2.4, 4.0},
-    Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{9.3, 1.4}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{8.0, 4.0}, Point2D{5.7, 4.0}, Point2D{2.4, 4.0},
+    Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{8.0, 1.4}}, // TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
@@ -268,7 +268,7 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{12.7, 0.7},
 };
 inline Area_Square enemy_outpost_watch_zone{Point2D{4.6, 6.6}, Point2D{3.2,5.2 }};
-inline Area_Circle enemy_fort_zone{Point2D{12.4, 3.0}, 1.0};
+inline Area_Circle enemy_fort_zone{Point2D{12.7, 3.3}, 0.4};
 inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{12.0, 2.0},
   Point2D{11.0, 2.0},
@@ -341,7 +341,7 @@ inline std::vector<Point2D> nav_points = {
   // {9.1, 6.5, 0.0},  // OUTPOST
   {3.9, 5.9, 0.0},  // OUTPOST
   {12.6, 3.0, 0.0},  // OWN_FORT
-  {12.5, 3.0, 0.0}   // ENEMY_FORT
+  {12.7, 3.3, 0.0}   // ENEMY_FORT
 };
 
 using PatrolList = std::vector<PatrolPoint>; 
