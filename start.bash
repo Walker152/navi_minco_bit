@@ -9,7 +9,7 @@ sleep 8
 # Driver + SLAM
 # gnome-terminal -- bash -c "ros2 launch point_lio single_livox_pointlio_intra_process.launch.py; exec bash"
 gnome-terminal -- bash -c "ros2 launch point_lio mixed_livox_pointlio_intra_process.launch.py; exec bash"
-sleep 3
+sleep 5
 
 # ICP
 # gnome-terminal -- bash c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
