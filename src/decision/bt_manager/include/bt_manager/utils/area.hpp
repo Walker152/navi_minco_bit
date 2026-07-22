@@ -336,7 +336,7 @@ inline std::vector<Point2D> nav_points = {
 
   // for test
   {8.1, 2.4, 0.0},  // HOME
-  // {13.5, 4.8, 0.0},  // HOME RED
+  // {15.0, 4.5, 0.0},  // HOME RED
   {5.6, 3.8, 0.0},  // BONUS
   // {9.1, 6.5, 0.0},  // OUTPOST
   {3.9, 5.9, 0.0},  // OUTPOST
