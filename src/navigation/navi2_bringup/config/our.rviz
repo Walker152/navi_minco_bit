@@ -8,9 +8,8 @@ Panels:
         - /TF1/Frames1
         - /TF1/Tree1
         - /ROGMAP1
-        - /ROGMAP1/Occupied1
       Splitter Ratio: 0.5833333134651184
-    Tree Height: 515
+    Tree Height: 352
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -84,7 +83,7 @@ Visualization Manager:
           Value: true
         camera_init:
           Value: true
-        drone:
+        gimbal:
           Value: true
         map:
           Value: true
@@ -101,10 +100,9 @@ Visualization Manager:
         map:
           camera_init:
             base_link:
-              {}
+              gimbal:
+                {}
             body:
-              {}
-            drone:
               {}
             slambase:
               {}
@@ -306,7 +304,9 @@ Visualization Manager:
           Enabled: true
           Name: Control Points
           Namespaces:
-            {}
+            minco_local_end: true
+            minco_opt_waypoints: true
+            opt_time: true
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -699,6 +699,48 @@ Visualization Manager:
       Displays:
         - Alpha: 0.699999988079071
           Class: rviz_default_plugins/Map
+          Color Scheme: map
+          Draw Behind: false
+          Enabled: false
+          Name: Dynamic Layer Value
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Best Effort
+            Value: /rog_map/layer_value_dynamic
+          Update Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /rog_map/layer_value_dynamic_updates
+          Use Timestamp: false
+          Value: false
+        - Alpha: 0.699999988079071
+          Class: rviz_default_plugins/Map
+          Color Scheme: map
+          Draw Behind: false
+          Enabled: false
+          Name: Static Layer value
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Best Effort
+            Value: /rog_map/layer_value_static
+          Update Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /rog_map/layer_value_static_updates
+          Use Timestamp: false
+          Value: false
+        - Alpha: 0.699999988079071
+          Class: rviz_default_plugins/Map
           Color Scheme: costmap
           Draw Behind: false
           Enabled: false
@@ -754,9 +796,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 4.062634468078613
+          Max Intensity: 1.9506409168243408
           Min Color: 0; 0; 0
-          Min Intensity: -0.15811388194561005
+          Min Intensity: -0.8062257766723633
           Name: 2DESDF
           Position Transformer: XYZ
           Selectable: true
@@ -810,8 +852,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 0.5249999761581421
-            Min Value: -0.4749999940395355
+            Max Value: 0.675000011920929
+            Min Value: -0.17499999701976776
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -849,7 +891,83 @@ Visualization Manager:
           Enabled: true
           Name: BehaviorAreas
           Namespaces:
-            {}
+            sentry_area_box/enemy_outpost_watch_zone: true
+            sentry_area_box/enemy_supply_zone: true
+            sentry_area_box/own_supply_zone: true
+            sentry_area_box/stairs_lower_safe_zone: true
+            sentry_area_box/stairs_zone: true
+            sentry_area_box/tunnel_zone[0]: true
+            sentry_area_box/tunnel_zone[1]: true
+            sentry_area_box/tunnel_zone[2]: true
+            sentry_area_box/tunnel_zone[3]: true
+            sentry_area_circle/enemy_fort_zone: true
+            sentry_area_circle_label/enemy_fort_zone: true
+            sentry_area_label/enemy_outpost_watch_zone: true
+            sentry_area_label/enemy_supply_zone: true
+            sentry_area_label/own_supply_zone: true
+            sentry_area_label/stairs_lower_safe_zone: true
+            sentry_area_label/stairs_zone: true
+            sentry_area_label/tunnel_zone[0]: true
+            sentry_area_label/tunnel_zone[1]: true
+            sentry_area_label/tunnel_zone[2]: true
+            sentry_area_label/tunnel_zone[3]: true
+            sentry_area_poly/base/enemy_base_buff_zone: true
+            sentry_area_poly/base/enemy_defense_zone: true
+            sentry_area_poly/base/enemy_highland_buff_zone: true
+            sentry_area_poly/base/enemy_outpost_buff_zone: true
+            sentry_area_poly/base/engineering_zone: true
+            sentry_area_poly/base/highland_zone: true
+            sentry_area_poly/base/own_base_buff_zone: true
+            sentry_area_poly/base/own_defense_zone: true
+            sentry_area_poly/base/own_highland_buff_zone: true
+            sentry_area_poly/base/own_outpost_buff_zone: true
+            sentry_area_poly/base/transform_zone[0]: true
+            sentry_area_poly/base/transform_zone[1]: true
+            sentry_area_poly/base/transform_zone[2]: true
+            sentry_area_poly/base/transform_zone[3]: true
+            sentry_area_poly/tracking/_mode_0_0: true
+            sentry_area_poly/tracking/_mode_0_1: true
+            sentry_area_poly/tracking/_mode_0_2: true
+            sentry_area_poly/tracking/_mode_1_0: true
+            sentry_area_poly/tracking/_mode_1_1: true
+            sentry_area_poly/tracking/_mode_1_2: true
+            sentry_area_poly/tracking/_mode_2_0: true
+            sentry_area_poly/tracking/_mode_2_1: true
+            sentry_area_poly/tracking/_mode_2_2: true
+            sentry_area_poly_fill/base/enemy_base_buff_zone: true
+            sentry_area_poly_fill/base/enemy_highland_buff_zone: true
+            sentry_area_poly_fill/base/enemy_outpost_buff_zone: true
+            sentry_area_poly_fill/base/engineering_zone: true
+            sentry_area_poly_fill/base/own_base_buff_zone: true
+            sentry_area_poly_fill/base/own_highland_buff_zone: true
+            sentry_area_poly_fill/base/own_outpost_buff_zone: true
+            sentry_area_poly_fill/base/transform_zone[0]: true
+            sentry_area_poly_fill/base/transform_zone[1]: true
+            sentry_area_poly_fill/base/transform_zone[2]: true
+            sentry_area_poly_fill/base/transform_zone[3]: true
+            sentry_area_poly_label/base/enemy_base_buff_zone: true
+            sentry_area_poly_label/base/enemy_defense_zone: true
+            sentry_area_poly_label/base/enemy_highland_buff_zone: true
+            sentry_area_poly_label/base/enemy_outpost_buff_zone: true
+            sentry_area_poly_label/base/engineering_zone: true
+            sentry_area_poly_label/base/highland_zone: true
+            sentry_area_poly_label/base/own_base_buff_zone: true
+            sentry_area_poly_label/base/own_defense_zone: true
+            sentry_area_poly_label/base/own_highland_buff_zone: true
+            sentry_area_poly_label/base/own_outpost_buff_zone: true
+            sentry_area_poly_label/base/transform_zone[0]: true
+            sentry_area_poly_label/base/transform_zone[1]: true
+            sentry_area_poly_label/base/transform_zone[2]: true
+            sentry_area_poly_label/base/transform_zone[3]: true
+            sentry_area_poly_label/tracking/_mode_0_0: true
+            sentry_area_poly_label/tracking/_mode_0_1: true
+            sentry_area_poly_label/tracking/_mode_0_2: true
+            sentry_area_poly_label/tracking/_mode_1_0: true
+            sentry_area_poly_label/tracking/_mode_1_1: true
+            sentry_area_poly_label/tracking/_mode_1_2: true
+            sentry_area_poly_label/tracking/_mode_2_0: true
+            sentry_area_poly_label/tracking/_mode_2_1: true
+            sentry_area_poly_label/tracking/_mode_2_2: true
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -978,16 +1096,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 17.14854621887207
+      Distance: 26.31550407409668
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 4.430642127990723
-        Y: 7.205227375030518
-        Z: -8.614583969116211
+        X: 9.221443176269531
+        Y: 6.404575824737549
+        Z: -8.192933082580566
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -996,23 +1114,23 @@ Visualization Manager:
       Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 3.1635913848876953
+      Yaw: 3.0635876655578613
     Saved: ~
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 1016
+  Height: 1312
   Hide Left Dock: false
   Hide Right Dock: false
   Navigation 2:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd0000000400000000000001f90000039efc020000000afb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003d00000240000000c900fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb00000018004e0061007600690067006100740069006f006e002000320100000283000001580000013900fffffffb0000001e005200650061006c00730065006e0073006500430061006d00650072006101000002f7000000900000000000000000000000010000010f0000039efc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073010000003d0000039e000000a400fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004420000003efc0100000002fb0000000800540069006d00650100000000000004420000000000000000fb0000000800540069006d00650100000000000004500000000000000000000004260000039e00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000004000000000000020500000484fc020000000afb0000001200530065006c0065006300740069006f006e00000001e10000009b000000b000fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000006e000001ce0000018200fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb00000018004e0061007600690067006100740069006f006e002000320100000248000002aa0000021600fffffffb0000001e005200650061006c00730065006e0073006500430061006d00650072006101000002f7000000900000000000000000000000010000015f00000484fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073010000006e000004840000013200fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004420000003efc0100000002fb0000000800540069006d00650100000000000004420000000000000000fb0000000800540069006d00650100000000000004500000000000000000000004680000048400000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Tool Properties:
     collapsed: false
   Views:
     collapsed: false
-  Width: 1850
-  X: 70
-  Y: 27
+  Width: 2020
+  X: 140
+  Y: 54
