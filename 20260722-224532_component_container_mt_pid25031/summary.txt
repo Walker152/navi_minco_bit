@@ -1,0 +1,9 @@
+backend=systemd
+capture_time=2026-07-22T22:45:32+08:00
+pid=25031
+exe=/opt/ros/humble/lib/rclcpp_components/component_container_mt
+cmdline=/opt/ros/humble/lib/rclcpp_components/component_container_mt --ros-args --log-level info --ros-args -r __node:=livox_pointlio_container -r __ns:=/
+signal=SIGSEGV
+journal_realtime_us=1784731531977046
+hostname=rm-NUC13ANKi5
+kernel=Linux rm-NUC13ANKi5 6.8.0-134-generic #134~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Tue Jun 30 14:05:04 UTC  x86_64 x86_64 x86_64 GNU/Linux

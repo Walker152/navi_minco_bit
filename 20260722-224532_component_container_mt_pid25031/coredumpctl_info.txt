@@ -1,0 +1,195 @@
+           PID: 25031 (component_conta)
+           UID: 1000 (rm)
+           GID: 1000 (rm)
+        Signal: 11 (SEGV)
+     Timestamp: Wed 2026-07-22 22:45:31 CST (1s ago)
+  Command Line: /opt/ros/humble/lib/rclcpp_components/component_container_mt --ros-args --log-level info --ros-args -r __node:=livox_pointlio_container -r __ns:=/
+    Executable: /opt/ros/humble/lib/rclcpp_components/component_container_mt
+ Control Group: /user.slice/user-1000.slice/user@1000.service/app.slice/app-org.gnome.Terminal.slice/gnome-terminal-server.service
+          Unit: user@1000.service
+     User Unit: gnome-terminal-server.service
+         Slice: user-1000.slice
+     Owner UID: 1000 (rm)
+       Boot ID: 05d12d8e1233420abd21902f6d2d604e
+    Machine ID: 0b6d9084a69646b992e8b890a8fa8218
+      Hostname: rm-NUC13ANKi5
+       Storage: /var/lib/systemd/coredump/core.component_conta.1000.05d12d8e1233420abd21902f6d2d604e.25031.1784731531000000.zst (present)
+     Disk Size: 7.2M
+       Message: Process 25031 (component_conta) of user 1000 dumped core.
+                
+                Found module /home/rm/2027-sentry-navi/build/point_lio/libpoint_lio_component.so with build-id: c5934c17fb857894cbd1507c5c79b942130975a3
+                Found module /home/rm/2027-sentry-navi/install/livox_ros_driver2/lib/liblivox_ros_driver2__rosidl_typesupport_introspection_cpp.so with build-id: a15f5ba140df7397fbedeec6417c2d39cf6466b4
+                Found module /home/rm/2027-sentry-navi/install/livox_ros_driver2/lib/liblivox_ros_driver2__rosidl_typesupport_fastrtps_cpp.so with build-id: d383c40f04a70f1b769938625445d19053913d90
+                Found module /home/rm/2027-sentry-navi/install/livox_ros_driver2/lib/liblivox_ros_driver2__rosidl_typesupport_cpp.so with build-id: 9b52b7564fe5bcfdc2f8566e2e899ee31587ac1e
+                Found module /home/rm/2027-sentry-navi/build/livox_ros_driver2/liblivox_ros_driver2.so with build-id: 5de772723d1fa30cd6d87cbf31863714734c3659
+                Found module linux-vdso.so.1 with build-id: 362dd1f4502e2288501a78006d0d63f3892a0a11
+                Found module liblifecycle_msgs__rosidl_typesupport_fastrtps_cpp.so with build-id: 69a4a4f28fa4ff6935f80c71dcfbf08d812382b3
+                Found module liblifecycle_msgs__rosidl_typesupport_introspection_c.so with build-id: f88658dc2d3f65a641ebaa6f55faad783cc3d6bf
+                Found module liblifecycle_msgs__rosidl_typesupport_fastrtps_c.so with build-id: 8ef37635dcc7209b941e210082e72c8636c4df50
+                Found module liblifecycle_msgs__rosidl_generator_c.so with build-id: 8f2a8bbc02142f805d4ce2052c06619c884c865e
+                Found module libuuid.so.1 with build-id: 6ae7cace620b9a45800a154c0410eeb00115aed6
+                Found module libbond__rosidl_typesupport_cpp.so with build-id: 072e5842930a607b5c2cf07f4cf95e705ad71aff
+                Found module liblifecycle_msgs__rosidl_typesupport_c.so with build-id: faca93c3d0b83aa360d7aaf45235528089a405c1
+                Found module librcl_lifecycle.so with build-id: b2c55214594f0a8081da7aa8fa5070e5d0af1b80
+                Found module liblifecycle_msgs__rosidl_typesupport_cpp.so with build-id: 1f45c2d1c2ae276d5e5abf2218c9156357521cd9
+                Found module libbondcpp.so with build-id: aee9b5c3b12e88f6867bf1149e0e453fbbe83983
+                Found module libgeometry_msgs__rosidl_typesupport_cpp.so with build-id: 646e91e6f016070ff39772030555e5546a0dd3de
+                Found module liborocos-kdl.so.1.5 with build-id: 1a7590bf2f1465b7526fae3fb0e2bbb9b87f0f46
+                Found module libmap_msgs__rosidl_typesupport_cpp.so with build-id: 1d82c32858b099e7eafeacbc091df2a9c3ab8620
+                Found module librclcpp_lifecycle.so with build-id: ef1a3f0fffa5fe80e5116edbdac4d7f4f367dff9
+                Found module libnav2_msgs__rosidl_typesupport_cpp.so with build-id: fb0987b1572e4b1734dd08fc91175e4b96b7d813
+                Found module libnav2_util_core.so with build-id: f5cab71b32d07f38f233212a4dbc8ea57dcfa26c
+                Found module libnav2_costmap_2d_core.so with build-id: 4796401df11e4a859b6f4b4d1d3a73ac61ea9a38
+                Found module libplanner_server_core.so with build-id: d1284bf26bae8c037dacd04cd6682a1af2622dfb
+                Found module libunique_identifier_msgs__rosidl_typesupport_introspection_cpp.so with build-id: 7a5f1f2165bd674ba7a856b070c358f249df69c7
+                Found module libtf2_msgs__rosidl_typesupport_introspection_cpp.so with build-id: 86bcd2f456524e4b3f287d00ffdfb0771e7a3f39
+                Found module libunique_identifier_msgs__rosidl_typesupport_fastrtps_cpp.so with build-id: 9a85dd0eda3a54279969e97093b4e73c770e8c11
+                Found module libtf2_msgs__rosidl_typesupport_fastrtps_cpp.so with build-id: 06d732e9c38ea233748151049cd3b36ea70b4e58
+                Found module libnav_msgs__rosidl_typesupport_introspection_cpp.so with build-id: 8b3469a33118d1d45150e7c8a957a145220b80e1
+                Found module libnav_msgs__rosidl_typesupport_fastrtps_cpp.so with build-id: 1c23ddf6d4c0c71c28b8de3c89a9d713378c5cc1
+                Found module libgeometry_msgs__rosidl_typesupport_introspection_cpp.so with build-id: 2cf31830d64bbd2850db201058333162fa44670a
+                Found module libsensor_msgs__rosidl_typesupport_introspection_cpp.so with build-id: 047c9264ce892471c1ed07862088b00e4a54a4e6
+                Found module libgeometry_msgs__rosidl_typesupport_fastrtps_cpp.so with build-id: c789bbb608631d146ef00d63a73e6b8935685202
+                Found module libsensor_msgs__rosidl_typesupport_fastrtps_cpp.so with build-id: 7297d88b78b913eb42a96d5708b4ae95931d252e
+                Found module libstd_msgs__rosidl_typesupport_introspection_cpp.so with build-id: e67e75a3f8dfa53ef7fb8ca8d515270d21eba140
+                Found module libstd_msgs__rosidl_typesupport_fastrtps_cpp.so with build-id: 7bb2f20ef2a4e8e10bbe3e00703e12ee718e756f
+                Found module libstd_srvs__rosidl_typesupport_fastrtps_cpp.so with build-id: d0f6161673a81bedfbdf469476f55a3b3555a42d
+                Found module libgpg-error.so.0 with build-id: 3fbec71c67bee60d8aef00697ee187079b0fb307
+                Found module libgcrypt.so.20 with build-id: 493e638f6c41a9f433436ff44bbc5c592089f4bc
+                Found module libcap.so.2 with build-id: 174fbbad7edc43478db7bcc886814df339af9766
+                Found module libdeflate.so.0 with build-id: 702adff4f2f7536b32bba66ecaab25f470674927
+                Found module libjbig.so.0 with build-id: 5ae70eb022297d6be039f37f3005fa9be544d394
+                Found module libwebp.so.7 with build-id: 939537c005a6d7ce229b175888a38f74fdd9dd4b
+                Found module libsystemd.so.0 with build-id: a7f1cd850d9083cb70233956caebe0a47eedb736
+                Found module libvtkkissfft-9.1.so.1 with build-id: 582b0782f90a073f01d9543e4f4f02738bc788d8
+                Found module libvtkfmt-9.1.so.1 with build-id: 35209127029ce4b7aca9d3896f24a82e5cdc1234
+                Found module libvtkCommonComputationalGeometry-9.1.so.1 with build-id: bc24b5a1a49a0bfccdc46167eace951043fb2423
+                Found module libvtkFiltersSources-9.1.so.1 with build-id: c4c0b01524ee0629403e67c81e4f0fbe4b46b4bb
+                Found module libvtkCommonColor-9.1.so.1 with build-id: 65da59499d8fcb1ba3e56c9353362f1f0986f152
+                Found module libvtkFiltersGeometry-9.1.so.1 with build-id: 33507eb6abe7307727ce2dea17796da858de8dc2
+                Found module libvtkImagingSources-9.1.so.1 with build-id: daf0f52f9cba15a60c9eff4d0d6854abb426f6d7
+                Found module libvtkloguru-9.1.so.1 with build-id: 530f65b6ab755749954ba675dd42c8902443d6e3
+                Found module libdouble-conversion.so.3 with build-id: 309d9a98f19077dc8f2f8b8456a824f30851548c
+                Found module libtbb.so.12 with build-id: 3337fe835c644cbbf5154b0b2dbdcedb9b8a3ee2
+                Found module libtiff.so.5 with build-id: efcedda26d2c23d624c35aec68db3deb738bb9e3
+                Found module libvtkpugixml-9.1.so.1 with build-id: 8c25492497392f2f658aa510dfbf159d8301ebc4
+                Found module libvtkmetaio-9.1.so.1 with build-id: 581c22b2a665156bd3dcb34409ade93aab2d439e
+                Found module libvtkDICOMParser-9.1.so.1 with build-id: cb46bd5a22a41878b078c8d57e9a7c0b0d2e5472
+                Found module libdbus-1.so.3 with build-id: 63e8b99215502138cb63afd6d65851a5e837ed49
+                Found module libtinyxml.so.2.6.2 with build-id: fcfd3641937b65b1832b0533e9272a24ba486077
+                Found module libjpeg.so.8 with build-id: c54abff9294357e28532a76a049a4cb2542fc15b
+                Found module libpthread.so.0 with build-id: 34f1f6beeaed8ab30ee4056ff1cc053f8d05c153
+                Found module libdl.so.2 with build-id: 3e48d897159844681cdebf82148294cc1a6c7bc2
+                Found module libudev.so.1 with build-id: 6e6dcf4c73dbe137a65aa55ac0441e650c1e4f20
+                Found module libvtkCommonMisc-9.1.so.1 with build-id: 117302972f17879f5e839ecd651b88573721743c
+                Found module libvtksys-9.1.so.1 with build-id: 1f22470d1467f9bc7ce1613e1567592d97e9101f
+                Found module libvtkCommonMath-9.1.so.1 with build-id: 3ae70ea39affa4380b267d1488d6f61e2217766b
+                Found module libvtkCommonTransforms-9.1.so.1 with build-id: f58fd835ac1a6290734944bc60bd313bbc077d57
+                Found module libvtkCommonSystem-9.1.so.1 with build-id: 50d26c03f3743c6be4bf5d58d9ccf02290f669ec
+                Found module libvtkFiltersCore-9.1.so.1 with build-id: 0960b1d6780a4fd50c3ccd036fcd2a7228c93969
+                Found module libvtkFiltersGeneral-9.1.so.1 with build-id: b79e16cdce667832a53ab2645833bd45eb727eb7
+                Found module libjsoncpp.so.25 with build-id: 522fd80dadeb654a2aaa6dd36013cc0d74465528
+                Found module libvtkRenderingCore-9.1.so.1 with build-id: 720dec93a81cda3bc38e8d4bbbbe50cf4faf8357
+                Found module libvtkFiltersHybrid-9.1.so.1 with build-id: 0ac59bd530bf6745c5edb32d525d0493aa53d7e7
+                Found module libzstd.so.1 with build-id: 5d9d0d946a3154a748e87e17af9d14764519237b
+                Found module liblzma.so.5 with build-id: f92b661cb14384e29376869d2eeb1aae32fd6346
+                Found module libbz2.so.1.0 with build-id: e56b62c27bcc7ace8f9be36b255bd7b31bfde405
+                Found module libz.so.1 with build-id: 30840b79ac329ecbf1dec0bb60180eed256d319f
+                Found module liblz4.so.1 with build-id: a85971851cd059f1af80d553c8e7170d42ec59a1
+                Found module librcl_action.so with build-id: 6b89ca0b6b831637452e169ce72f9b648c142ca7
+                Found module libvtkCommonCore-9.1.so.1 with build-id: cf547a991e885ad31cd77de6ec3401861bab9008
+                Found module libvtkCommonDataModel-9.1.so.1 with build-id: 01595e6af90260e4ab927313548e3d13f6695a44
+                Found module libvtkCommonExecutionModel-9.1.so.1 with build-id: 429d33e939f817fc4627b091cc421b2aff5750bc
+                Found module libvtkIOCore-9.1.so.1 with build-id: 1a2840edb04e6d09374c4b45c20fa9c26c7a873f
+                Found module libvtkImagingCore-9.1.so.1 with build-id: cb709a065d07f98c004a0039233ce41f17206959
+                Found module libvtkIOLegacy-9.1.so.1 with build-id: d2b0b495affa6f6826c285ec9ad834205bcbde62
+                Found module libvtkIOImage-9.1.so.1 with build-id: 5d22becaeb73719b05e7b5cf5087fed38adc7b80
+                Found module libpcap.so.0.8 with build-id: adeb3a8dcf6e3267fb07b97f564e43f5f5ce01dd
+                Found module libOpenNI.so.0 with build-id: 79a267be088601b00a937bb7e0c04668e4712752
+                Found module libOpenNI2.so.0 with build-id: 001987339957056d045db0cd3f216c1f61c5791e
+                Found module libusb-1.0.so.0 with build-id: 8974a74dbeb0e144e076801cc8d7dea1423597b0
+                Found module libpng16.so.16 with build-id: b91ab9ea20b4b67b73045093f96d82341789e0f0
+                Found module libvtkIOPLY-9.1.so.1 with build-id: 393336bcd740313c67ac13671a9ada727ebbab9b
+                Found module libvtkIOGeometry-9.1.so.1 with build-id: d3a2f8c4af723f1bb0c7a4a6660e737c5f53272e
+                Found module libpcl_io_ply.so.1.12 with build-id: d97b825cdb39bf341f4fc95845f9b4ebf1a84641
+                Found module libboost_iostreams.so.1.74.0 with build-id: 17859730b1f41eda594cad6dcdd63b5fcd49260f
+                Found module libboost_filesystem.so.1.74.0 with build-id: f0cb6f85ac07ed93816bae06c584d4a1fabb0e70
+                Found module libpcl_octree.so.1.12 with build-id: 0c4734137a092ea823492a65fa5c74b55306d1c1
+                Found module libpcl_kdtree.so.1.12 with build-id: e4993607fc0b5ed771009d17524efe27fc6d90ab
+                Found module libpcl_search.so.1.12 with build-id: 92b5eae76bbfd6a24f0a23b43ed8da8d4af78b88
+                Found module libpcl_sample_consensus.so.1.12 with build-id: f6430fca42572a3b98e18aed34e95cfe6bb1e457
+                Found module libaction_msgs__rosidl_typesupport_cpp.so with build-id: 420ec9c74868c5717c2a5b37b463878a2ceb2b53
+                Found module libtf2.so with build-id: 05332ddc6c4d49861b72a5cbdfc0e819bfed1bbe
+                Found module librclcpp_action.so with build-id: bdda4f1fda31097ef005f17848fb3225af576636
+                Found module libgomp.so.1 with build-id: 18089fa8383c8b2208f7f4bdfcd12a990fd33c12
+                Found module libpcl_io.so.1.12 with build-id: 2e93c14306912ff5019bb3808456505ecc1303a4
+                Found module libpcl_filters.so.1.12 with build-id: 1427dfa5b1c9a2033def52f53483a1079a166270
+                Found module libpcl_common.so.1.12 with build-id: a61c101ef87b9bf761cfab439672000574c2381a
+                Found module libtf2_msgs__rosidl_typesupport_cpp.so with build-id: d7f19e23b843764fca4b35d902971c0e72965a78
+                Found module libtf2_ros.so with build-id: e2acc085e118b65a200eff04de9e854d6a1cf024
+                Found module libnav_msgs__rosidl_typesupport_cpp.so with build-id: 78284fd8bca8972ba1311e2abc92fc82533d518a
+                Found module libstd_srvs__rosidl_typesupport_cpp.so with build-id: 8ccf93d6c4f137a1c640d36f4be030a9fdf05739
+                Found module liblivox_lidar_sdk_shared.so with build-id: a94c8afc29f9203268da6384638e02d53d8dba3a
+                Found module libsensor_msgs__rosidl_typesupport_cpp.so with build-id: 0c8f2881dabff5a07d5fa30d5229aa191b6dafa7
+                Found module libcomposition_interfaces__rosidl_typesupport_fastrtps_cpp.so with build-id: cb6502322eb39a5119d48e55440d5dde165f41a2
+                Found module libbuiltin_interfaces__rosidl_typesupport_introspection_cpp.so with build-id: 08aa266ffa72b81e6612a9eb506f1107d3ac6e46
+                Found module librcl_interfaces__rosidl_typesupport_introspection_cpp.so with build-id: 73a9010c7267f3ef5d5c2c4f8f925c5bccaf3beb
+                Found module libbuiltin_interfaces__rosidl_typesupport_fastrtps_cpp.so with build-id: 29b570d44ce5ebdb51f5a1b908c5aa71b592566c
+                Found module librcl_interfaces__rosidl_typesupport_fastrtps_cpp.so with build-id: f3370be11a556226e215c67018244ede002c9910
+                Found module libbuiltin_interfaces__rosidl_typesupport_introspection_c.so with build-id: febd94f41a6977b0c49a040865524275ac8f162d
+                Found module librcl_interfaces__rosidl_typesupport_introspection_c.so with build-id: 10215c4677bc4ec6667606bf9895687e711414a6
+                Found module libbuiltin_interfaces__rosidl_typesupport_fastrtps_c.so with build-id: 378543fb854a192a8cfaebd9b09de42d8df90372
+                Found module librcl_interfaces__rosidl_typesupport_fastrtps_c.so with build-id: 896c5bfe26e02f4ebb0bf38a16c840aaab7d3363
+                Found module librmw_dds_common__rosidl_typesupport_introspection_cpp.so with build-id: 93dab423a03fdd3225d40ed619a68d049cf8d9d9
+                Found module librmw_dds_common__rosidl_typesupport_fastrtps_cpp.so with build-id: 5263595b9144227d0a116c61d21199ff0802bb74
+                Found module libcrypto.so.3 with build-id: 944b3ffe5002a1490024d1c240e373b054e6e583
+                Found module libssl.so.3 with build-id: 764bd1ced9791bc9c2abfa0c58c75740a63f6547
+                Found module libtinyxml2.so.9 with build-id: 4a4724796f3719a80f9d72b68e8262d33f7b9648
+                Found module librosidl_typesupport_introspection_c.so with build-id: 6c59fb1a43696c7b87bf8b8e58c297a0b893b47f
+                Found module librosidl_typesupport_introspection_cpp.so with build-id: b8501d8ffeda6e01fb896a1c3e7de8d802cb8137
+                Found module librmw_dds_common__rosidl_typesupport_cpp.so with build-id: f5cdf84ec0a63ce4aee745e4aedaacf3d0a50008
+                Found module librmw_dds_common.so with build-id: 71b3c2f7194ca07078a1e58ead1a4782aa12e1f4
+                Found module libfastcdr.so.1 with build-id: 0621c836193002c6d1f5e897df8ccc7d3dad7bed
+                Found module librosidl_typesupport_fastrtps_cpp.so with build-id: b69ff0cb360329cbd716cd76a68f3e2609237781
+                Found module librosidl_typesupport_fastrtps_c.so with build-id: c37d35e2e1efc3987fe1b0ee53e61e12aa5f344f
+                Found module libfastrtps.so.2.6 with build-id: e3ea7903b217bb6db718c4a1d1b8e4a40bff6740
+                Found module librmw_fastrtps_shared_cpp.so with build-id: 12a3a57d4d2c7222dc327bb7ce0c649ab3f75f72
+                Found module librmw_fastrtps_cpp.so with build-id: d6d0094d196b2744168bae24740000bce28ab49f
+                Found module libfmt.so.8 with build-id: 1a50cf7c320e3ffcb933ec2c05701af5770b2f09
+                Found module libbuiltin_interfaces__rosidl_generator_c.so with build-id: 75b81ef921c9bd2d10535db0b10adcc896b1efb7
+                Found module librosidl_typesupport_c.so with build-id: 981838b368b95e31298c8069aeb645a277a6d88c
+                Found module libspdlog.so.1 with build-id: 678c05cd95763f3f0e3373e02da1c2cd2b2447ca
+                Found module libyaml.so with build-id: 0fa81ca5b627b3bb5db17a9af330a8a56c9a0b3f
+                Found module librosidl_runtime_c.so with build-id: e3599f26ff2c99a2bca6d8da4ad966acca567218
+                Found module librcl_interfaces__rosidl_generator_c.so with build-id: d4fe7c7df4680cd3a9b24fc255d8b4f9b219da96
+                Found module librcl_interfaces__rosidl_typesupport_c.so with build-id: 4078e8d3a7c3bf778b6b09aed1db1616d44583f6
+                Found module librcl_logging_spdlog.so with build-id: e2d8b0a8427636849509c4d0c7fd1b039d0d285f
+                Found module librosidl_typesupport_cpp.so with build-id: 7e264e92324148e181de7aea500ad88f497c4455
+                Found module ld-linux-x86-64.so.2 with build-id: 8cfa19934886748ff4603da8aa8fdb0c2402b8cf
+                Found module libm.so.6 with build-id: 2ac471af4796e5b69e0e2dde85c3d3dacdcc0b3d
+                Found module librcl_interfaces__rosidl_typesupport_cpp.so with build-id: 3dd27460a61d7b1a19a7a997400b9db2ed0da58b
+                Found module librmw.so with build-id: b89293ca595a21ef16939927a19423050e8cc884
+                Found module librcl_logging_interface.so with build-id: b602df65be9c4d62131961b1fc953d3b47202f7a
+                Found module librmw_implementation.so with build-id: ad6f2a0427116dd4d720699d334f0c0d52406ced
+                Found module libstatistics_msgs__rosidl_typesupport_cpp.so with build-id: d7b6e506e6260ead426a5db86ebc43585bc4d479
+                Found module librosgraph_msgs__rosidl_typesupport_cpp.so with build-id: 2f6a7fb895d0f775fcfcbf0ad80b560cff3f9809
+                Found module librcl_yaml_param_parser.so with build-id: 9dcaafb2e51aa8dfc7e937b0fb516f0b8a40b837
+                Found module liblibstatistics_collector.so with build-id: 3906c54bb2346e76f4b740468daf007fce301454
+                Found module libtracetools.so with build-id: 9d703601d1258a011cd3a4ef579a9c625e36b284
+                Found module librcpputils.so with build-id: 2c436239c585e3169c969e867f8f55e0024f3dd7
+                Found module libament_index_cpp.so with build-id: dfca5486271e910129c1c6a2a4b06d16e9721c61
+                Found module librcl.so with build-id: c5723c089ec777d3966ac7c5a0c5bca331317807
+                Found module libconsole_bridge.so.1.0 with build-id: 0f5f7b86caf024aa0715d2fe190139a4d2256970
+                Found module libcomposition_interfaces__rosidl_typesupport_cpp.so with build-id: 6596c2f01a9e16c7b1e6aadc367a5e14d3f14baf
+                Found module libclass_loader.so with build-id: de8a659906a67004012a055955d8e117e8c9f79a
+                Found module libc.so.6 with build-id: 095c7ba148aeca81668091f718047078d57efddb
+                Found module libgcc_s.so.1 with build-id: a28a0189983e4a3c87d91aac1daaa8eb706db9ea
+                Found module libstdc++.so.6 with build-id: eb0991e99bf8c31e942757ab71a6266bffb30e1f
+                Found module librcutils.so with build-id: ed803f79bccce11f6b7ab464e224588a9aad4b19
+                Found module librclcpp.so with build-id: 4e0a8e41ca35a9b55f6c48f7415bc1b41905b620
+                Found module libcomponent_manager.so with build-id: 9ad8ac13f4856281231c38b06d7ece748bb8ee9c
+                Found module component_container_mt with build-id: 8aff84d065d43425ac51a385330e614fe49c28ab
+                Stack trace of thread 25066:
+                #0  0x00007dd5a0075078 __vfprintf_internal (libc.so.6 + 0x75078)
+                #1  0x00007dd5a0134d93 ___fprintf_chk (libc.so.6 + 0x134d93)
+                #2  0x00007dd52e311853 n/a (/home/rm/2027-sentry-navi/build/point_lio/libpoint_lio_component.so + 0x111853)
