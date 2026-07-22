@@ -389,6 +389,14 @@ planner_server:
         projection:
           enable: true
 
+          # 标准 Nav2 YAML/PGM 静态先验；启用后只增加二维硬障碍，不清除在线障碍。
+          prior_map:
+            enable: false
+            yaml_path: ""
+            # 留空时使用 YAML 的 image 字段，并相对 YAML 所在目录解析。
+            pgm_path: ""
+            frame_id: map
+
           # [absolute Z coordinate, m]
           # ROGMap frame 中参与单柱扫描的绝对 Z 下界。
           # 这是坐标值，不是地面相对高度，也不是高度差。

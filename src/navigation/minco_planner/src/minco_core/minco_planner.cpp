@@ -125,16 +125,19 @@ bool MincoPlanner::configureRogMap(
     return false;
   }
 
+  rog_map::Config rog_cfg;
   try {
-    rog_map::Config rog_cfg;
     rog_cfg.loadFromRosNode(node, plugin_prefix + "rog_map");
-    rog_map_ros_ = std::make_shared<rog_map::ROGMapROS>(node, rog_cfg);
+    rog_map_ros_ = std::make_shared<rog_map::ROGMapROS>(node, rog_cfg, tf_);
     rog_query_raw_ = rog_map_ros_->queryInterface();
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger_, "[MincoPlanner] Failed to configure ROGMap: %s", e.what());
     rog_map_ros_.reset();
     rog_query_raw_.reset();
     map_.reset();
+    if (rog_cfg.prior_map_enable) {
+      throw;
+    }
     return false;
   }
 

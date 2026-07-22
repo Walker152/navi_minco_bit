@@ -36,6 +36,9 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <tf2/exceptions.h>
+#include <tf2/time.h>
+#include <tf2_ros/buffer.h>
 #include <visualization_msgs/msg/marker_array.hpp>
 
 #include <rog_map/rog_map.h>
@@ -61,6 +64,7 @@ class ROGMapROS : public ROGMap
   rclcpp::node_interfaces::NodeClockInterface::SharedPtr node_clock_;
   rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr node_logging_;
   rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_;
+  std::shared_ptr<tf2_ros::Buffer> tf_;
   std::unique_ptr<ROGMapVisualizer> visualizer_driver_;
 
   const double getSystemWalltimeNow() override { return now().seconds(); }
@@ -68,6 +72,50 @@ class ROGMapROS : public ROGMap
   void getSystemWalltimeNow(rclcpp::Time & _in) { _in = now(); };
 
   rclcpp::Time now() const { return node_clock_->get_clock()->now(); }
+
+  bool getPriorMapTransform(PriorMapTransform2D & transform) override
+  {
+    if (cfg_.prior_map_frame == cfg_.frame_id) {
+      transform = PriorMapTransform2D{};
+      return true;
+    }
+    if (!tf_) {
+      RCLCPP_WARN_THROTTLE(node_logging_->get_logger(),
+        *node_clock_->get_clock(),
+        2000,
+        "[ROGMap] prior map TF is unavailable because the shared TF buffer is null");
+      return false;
+    }
+    try {
+      // lookupTransform(target, source, ...) returns T_target_source.
+      const auto tf_msg = tf_->lookupTransform(cfg_.prior_map_frame, cfg_.frame_id, tf2::TimePointZero);
+      transform.tx = tf_msg.transform.translation.x;
+      transform.ty = tf_msg.transform.translation.y;
+      const auto & q = tf_msg.transform.rotation;
+      transform.yaw = std::atan2(
+        2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+      if (std::isfinite(transform.tx) && std::isfinite(transform.ty) &&
+          std::isfinite(transform.yaw)) {
+        return true;
+      }
+      RCLCPP_WARN_THROTTLE(node_logging_->get_logger(),
+        *node_clock_->get_clock(),
+        2000,
+        "[ROGMap] prior map TF from '%s' to '%s' contains a non-finite 2D transform",
+        cfg_.frame_id.c_str(),
+        cfg_.prior_map_frame.c_str());
+      return false;
+    } catch (const tf2::TransformException & error) {
+      RCLCPP_WARN_THROTTLE(node_logging_->get_logger(),
+        *node_clock_->get_clock(),
+        2000,
+        "[ROGMap] cannot transform projection from '%s' to prior map frame '%s': %s",
+        cfg_.frame_id.c_str(),
+        cfg_.prior_map_frame.c_str(),
+        error.what());
+      return false;
+    }
+  }
 
   template <typename NodeT> void bindNode(NodeT node)
   {
@@ -267,13 +315,21 @@ class ROGMapROS : public ROGMap
 
     if (layer_ && !layer_->empty()) {
       if (vm_.layer_value_pub && vm_.layer_value_pub->get_subscription_count() >= 1) {
-        std::vector<uint8_t> mask_values(layer_->cells().size(), 0U);
-        for (size_t i = 0; i < layer_->cells().size(); ++i) {
-          mask_values[i] = layer_->cells()[i].mask == 1U ? 0U : 100U;
-        }
         nav_msgs::msg::OccupancyGrid grid;
-        fillLayerGrid(mask_values, grid);
+        fillLayerMaskGrid(fused_projection_mask_, grid);
         vm_.layer_value_pub->publish(grid);
+      }
+      if (vm_.layer_value_dynamic_pub &&
+          vm_.layer_value_dynamic_pub->get_subscription_count() >= 1) {
+        nav_msgs::msg::OccupancyGrid grid;
+        fillLayerMaskGrid(layer_->mask(), grid);
+        vm_.layer_value_dynamic_pub->publish(grid);
+      }
+      if (vm_.layer_value_static_pub &&
+          vm_.layer_value_static_pub->get_subscription_count() >= 1) {
+        nav_msgs::msg::OccupancyGrid grid;
+        fillLayerMaskGrid(prior_projection_mask_, grid);
+        vm_.layer_value_static_pub->publish(grid);
       }
       if (vm_.layer_type_pub && vm_.layer_type_pub->get_subscription_count() >= 1) {
         std::vector<uint8_t> types(layer_->cells().size(), 0U);
@@ -470,6 +526,10 @@ class ROGMapROS : public ROGMap
     return (vm_.unknown_pub && vm_.unknown_pub->get_subscription_count() >= 1) ||
            (vm_.unknown_inf_pub && vm_.unknown_inf_pub->get_subscription_count() >= 1) ||
            (vm_.layer_value_pub && vm_.layer_value_pub->get_subscription_count() >= 1) ||
+           (vm_.layer_value_dynamic_pub &&
+            vm_.layer_value_dynamic_pub->get_subscription_count() >= 1) ||
+           (vm_.layer_value_static_pub &&
+            vm_.layer_value_static_pub->get_subscription_count() >= 1) ||
            (vm_.layer_type_pub && vm_.layer_type_pub->get_subscription_count() >= 1) ||
            (vm_.layer_confidence_pub && vm_.layer_confidence_pub->get_subscription_count() >= 1) ||
            (vm_.layer_height_delta_pub && vm_.layer_height_delta_pub->get_subscription_count() >= 1) ||
@@ -512,6 +572,15 @@ class ROGMapROS : public ROGMap
     for (size_t i = 0; i < data.size(); ++i) {
       grid.data[i] = static_cast<int8_t>(std::min<int>(100, data[i]));
     }
+  }
+
+  void fillLayerMaskGrid(const std::vector<uint8_t> & mask, nav_msgs::msg::OccupancyGrid & grid)
+  {
+    std::vector<uint8_t> occupancy(mask.size(), 0U);
+    for (size_t i = 0; i < mask.size(); ++i) {
+      occupancy[i] = mask[i] == 0U ? 100U : 0U;
+    }
+    fillLayerGrid(occupancy, grid);
   }
 
   void fillLayerHeightDeltaCloud(sensor_msgs::msg::PointCloud2 & cloud)
@@ -606,6 +675,15 @@ class ROGMapROS : public ROGMap
     // TODO: The current implementation uses a lenient QoS configuration for message transmission.
     const rclcpp::QoS qos(rclcpp::QoS(1).best_effort().keep_last(1).durability_volatile());
 
+    if (cfg_.prior_map_enable) {
+      prior_map_ = loadPriorMap(cfg_.prior_map_yaml_path, cfg_.prior_map_pgm_path);
+      RCLCPP_INFO(node_logging_->get_logger(),
+        "[ROGMap] loaded prior map %dx%d at %.3f m/cell in frame '%s'",
+        prior_map_.width,
+        prior_map_.height,
+        prior_map_.resolution,
+        cfg_.prior_map_frame.c_str());
+    }
     init();
     /// Initialize visualization module
     if (cfg_.visualization_en) {
@@ -630,6 +708,8 @@ class ROGMapROS : public ROGMap
       vm_.field_pub = pubs.field_pub;
       vm_.decay_cells_pub = pubs.decay_cells_pub;
       vm_.layer_value_pub = pubs.layer_value_pub;
+      vm_.layer_value_dynamic_pub = pubs.layer_value_dynamic_pub;
+      vm_.layer_value_static_pub = pubs.layer_value_static_pub;
       vm_.layer_type_pub = pubs.layer_type_pub;
       vm_.layer_confidence_pub = pubs.layer_confidence_pub;
       vm_.mkr_arr_pub = pubs.mkr_arr_pub;
@@ -659,15 +739,20 @@ class ROGMapROS : public ROGMap
 public:
   typedef shared_ptr<ROGMapROS> Ptr;
 
-  ROGMapROS(const rclcpp_lifecycle::LifecycleNode::SharedPtr nh, const rog_map::Config & cfg)
-  : lifecycle_nh_(nh)
+  ROGMapROS(const rclcpp_lifecycle::LifecycleNode::SharedPtr nh,
+    const rog_map::Config & cfg,
+    const std::shared_ptr<tf2_ros::Buffer> & tf = nullptr)
+  : lifecycle_nh_(nh), tf_(tf)
   {
     bindNode(lifecycle_nh_);
     cfg_ = cfg;
     initializeRos();
   }
 
-  ROGMapROS(const rclcpp::Node::SharedPtr nh, const rog_map::Config & cfg) : nh_(nh)
+  ROGMapROS(const rclcpp::Node::SharedPtr nh,
+    const rog_map::Config & cfg,
+    const std::shared_ptr<tf2_ros::Buffer> & tf = nullptr)
+  : nh_(nh), tf_(tf)
   {
     bindNode(nh_);
     cfg_ = cfg;
