@@ -454,9 +454,11 @@ BT::NodeStatus CheckTunnelDeformation::tick()
   const bool chassis_yaw_aligned = blackboard->get<bool>("chassis_yaw_aligned");
   const auto lifter_current_pos = blackboard->get<LifterPos>("lifter_current_pos");
   const int tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
+  const bool tunnel_escape_active = blackboard->get<bool>("tunnel_escape_active");
 
   const bool tunnel_prepare_active =
-    current_in_tunnel || (in_transform_zone && through_tunnel);
+    !tunnel_escape_active &&
+    (current_in_tunnel || (in_transform_zone && through_tunnel));
 
   const bool valid_tunnel_idx =
     tunnel_idx >= 0 &&
@@ -528,7 +530,7 @@ BT::NodeStatus CheckTunnelDeformation::tick()
      (chassis_yaw_aligned && transformable_delay_ok));
 
   const LifterPos desired_pos =
-    deformation_allowed || current_in_tunnel
+    deformation_allowed || current_in_tunnel || tunnel_escape_active
       ? LifterPos::BOTTOM
       : LifterPos::TOP;
 
@@ -549,6 +551,7 @@ BT::NodeStatus CheckTunnelDeformation::tick()
       << ", transform_delay_ok=" << transformable_delay_ok
       << ", desired_pos=" << static_cast<int>(desired_pos)
       << ", tunnel_ready=" << tunnel_ready
+      << ", tunnel_escape_active=" << tunnel_escape_active
       << ", is_disengaged=" << is_disengaged;
 
   detail::logTransition(

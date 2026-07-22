@@ -345,7 +345,7 @@ private:
         vx_mps = tunnel_escape_vx;
         vy_mps = tunnel_escape_vy;
       }
-      if (tunnel_prepare_active && !tunnel_ready) {
+      if (!tunnel_escape_active && tunnel_prepare_active && !tunnel_ready) {
         vx_mps = 0.0f;
         vy_mps = 0.0f;
       }

@@ -5,6 +5,7 @@
 #include <geometry_msgs/msg/twist.hpp>
 
 #include <chrono>
+#include <cstdint>
 
 namespace Sentry_BT {
 
@@ -21,7 +22,7 @@ public:
 private:
   int findTunnelIndexByPose(const geometry_msgs::msg::Pose & pose) const;
   geometry_msgs::msg::Twist computeBackoutVelocity(
-    int tunnel_idx, double speed,
+    int tunnel_idx, uint8_t yaw_align_mode, double speed,
     const geometry_msgs::msg::Pose & current_pose) const;
   void setTunnelEscapeCommand(
     bool active,
@@ -35,6 +36,7 @@ private:
   bool was_in_tunnel_ = false;
   bool active_backout_ = false;
   int active_tunnel_idx_ = -1;
+  uint8_t active_yaw_align_mode_ = 0;
   std::chrono::steady_clock::time_point entry_time_;
   std::chrono::steady_clock::time_point backout_start_time_;
 };

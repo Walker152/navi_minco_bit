@@ -42,17 +42,47 @@ BT::NodeStatus TunnelTimeoutBackoutAction::onRunning()
   const auto now = std::chrono::steady_clock::now();
   const auto current_pose = config().blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const int tunnel_idx = findTunnelIndexByPose(current_pose);
+  const bool valid_active_tunnel_idx =
+    active_tunnel_idx_ >= 0 &&
+    active_tunnel_idx_ < static_cast<int>(transform_zone.size());
+  const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
+  const bool in_active_transform_zone =
+    valid_active_tunnel_idx &&
+    transform_zone[static_cast<std::size_t>(active_tunnel_idx_)].contains(current_point);
 
-  if (tunnel_idx < 0) {
-    clearCmdVel();
-    if (active_backout_) {
+  if (active_backout_) {
+    const double duration = std::chrono::duration<double>(now - entry_time_).count();
+    const double backout_duration =
+      std::chrono::duration<double>(now - backout_start_time_).count();
+
+    if (!in_active_transform_zone) {
+      clearCmdVel();
       geometry_msgs::msg::Twist stopped;
       logState(false, active_tunnel_idx_,
-        std::chrono::duration<double>(now - entry_time_).count(), timeout_s, stopped,
-        "exit_tunnel", branch);
+        duration, timeout_s, stopped, "exit_transform_zone", branch);
       resetState();
       return BT::NodeStatus::SUCCESS;
     }
+
+    if (backout_duration > max_backout_s) {
+      clearCmdVel();
+      geometry_msgs::msg::Twist stopped;
+      logState(false, active_tunnel_idx_, duration, timeout_s, stopped,
+        "max_backout_s_exceeded", branch);
+      resetState();
+      return BT::NodeStatus::FAILURE;
+    }
+
+    const auto cmd_vel = computeBackoutVelocity(
+      active_tunnel_idx_, active_yaw_align_mode_, speed, current_pose);
+    setTunnelEscapeCommand(true, cmd_vel);
+    logState(true, active_tunnel_idx_, duration, timeout_s, cmd_vel,
+      tunnel_idx >= 0 ? "active_backout" : "active_backout_exit_zone", branch);
+    return BT::NodeStatus::RUNNING;
+  }
+
+  if (tunnel_idx < 0) {
+    clearCmdVel();
     resetState();
     geometry_msgs::msg::Twist stopped;
     logState(false, -1, 0.0, timeout_s, stopped, "outside_tunnel", branch);
@@ -82,19 +112,12 @@ BT::NodeStatus TunnelTimeoutBackoutAction::onRunning()
   if (!active_backout_) {
     active_backout_ = true;
     backout_start_time_ = now;
+    active_yaw_align_mode_ =
+      config().blackboard->get<uint8_t>("chassis_yaw_align_mode");
   }
 
-  const double backout_duration =
-    std::chrono::duration<double>(now - backout_start_time_).count();
-  if (backout_duration > max_backout_s) {
-    clearCmdVel();
-    geometry_msgs::msg::Twist stopped;
-    logState(false, tunnel_idx, duration, timeout_s, stopped, "max_backout_s_exceeded", branch);
-    resetState();
-    return BT::NodeStatus::FAILURE;
-  }
-
-  const auto cmd_vel = computeBackoutVelocity(tunnel_idx, speed, current_pose);
+  const auto cmd_vel = computeBackoutVelocity(
+    tunnel_idx, active_yaw_align_mode_, speed, current_pose);
   setTunnelEscapeCommand(true, cmd_vel);
   logState(true, tunnel_idx, duration, timeout_s, cmd_vel, "active_backout", branch);
   return BT::NodeStatus::RUNNING;
@@ -124,10 +147,29 @@ int TunnelTimeoutBackoutAction::findTunnelIndexByPose(
 }
 
 geometry_msgs::msg::Twist TunnelTimeoutBackoutAction::computeBackoutVelocity(
-  const int tunnel_idx, const double speed,
+  const int tunnel_idx, const uint8_t yaw_align_mode, const double speed,
   const geometry_msgs::msg::Pose & current_pose) const
 {
   geometry_msgs::msg::Twist cmd_vel;
+  const double v = std::abs(speed);
+
+  switch (yaw_align_mode) {
+  case 1:  // Normal travel: +X, recovery: -X.
+    cmd_vel.linear.x = -v;
+    return cmd_vel;
+  case 2:  // Normal travel: +Y, recovery: -Y.
+    cmd_vel.linear.y = -v;
+    return cmd_vel;
+  case 3:  // Normal travel: -X, recovery: +X.
+    cmd_vel.linear.x = v;
+    return cmd_vel;
+  case 4:  // Normal travel: -Y, recovery: +Y.
+    cmd_vel.linear.y = v;
+    return cmd_vel;
+  default:
+    break;
+  }
+
   const bool valid_tunnel_idx =
     tunnel_idx >= 0 && tunnel_idx < static_cast<int>(tunnel_recovery_configs.size());
 
@@ -142,7 +184,6 @@ geometry_msgs::msg::Twist TunnelTimeoutBackoutAction::computeBackoutVelocity(
       1.0 - 2.0 * (q.y * q.y + q.z * q.z));
   }
 
-  const double v = std::abs(speed);
   cmd_vel.linear.x = -v * std::cos(yaw);
   cmd_vel.linear.y = -v * std::sin(yaw);
   cmd_vel.angular.z = 0.0;
@@ -169,6 +210,7 @@ void TunnelTimeoutBackoutAction::resetState()
   was_in_tunnel_ = false;
   active_backout_ = false;
   active_tunnel_idx_ = -1;
+  active_yaw_align_mode_ = 0;
   entry_time_ = {};
   backout_start_time_ = {};
 }
@@ -181,6 +223,7 @@ void TunnelTimeoutBackoutAction::logState(const bool active, const int tunnel_id
   oss << std::boolalpha << "node=TunnelTimeoutBackoutAction"
       << ", active=" << active << ", tunnel_idx=" << tunnel_idx << ", duration=" << duration
       << ", timeout_s=" << timeout_s << ", active_backout=" << active_backout_
+      << ", yaw_align_mode=" << static_cast<int>(active_yaw_align_mode_)
       << ", cmd_vel=(" << cmd_vel.linear.x << ", " << cmd_vel.linear.y << ", "
       << cmd_vel.angular.z << "), reason=" << reason << ", branch=" << branch;
   detail::logTransition(
