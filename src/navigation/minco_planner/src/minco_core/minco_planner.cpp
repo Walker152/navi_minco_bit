@@ -1450,7 +1450,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
   if (tracking_error > dynamic_error_threshold) {
     std::cout << YELLOW << "[MincoPlanner] Large tracking error (" << tracking_error
               << "m). Downgrading to COLD_START." << RESET << std::endl;
-    return PlanningState::COLD_START;
+    return PlanningState::HOT_START;
   }
 
   if (vel_error > 1.0) {
