@@ -11,10 +11,10 @@
           <ChangeStance name="ChangeStanceManualAttackTunnelDefend" stance="DEFEND" />
           <TunnelGyroAlignAction branch="ManualAttackTunnelDefendAlignBranch"
                                  kp="1.8"
-                                 ki="0.3"
-                                 kd="0.3"
+                                 ki="0.2"
+                                 kd="0.6"
                                  deadzone_rad="0.05"
-                                 yaw_alignment_threshold_rad="0.26"
+                                 yaw_alignment_threshold_rad="0.17"
                                  max_abs_gyro_vel="60.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="ManualAttackTunnelDefendAlignBranch" /> -->
         </ReactiveSequence>
@@ -23,11 +23,11 @@
           <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch" />
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
           <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch"
-                                 kp="2.5"
-                                 ki="0.5"
-                                 kd="0.1"
+                                 kp="1.8"
+                                 ki="0.4"
+                                 kd="0.3"
                                  deadzone_rad="0.05"
-                                 yaw_alignment_threshold_rad="0.26"
+                                 yaw_alignment_threshold_rad="0.17"
                                  max_abs_gyro_vel="60.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
         </ReactiveSequence>
