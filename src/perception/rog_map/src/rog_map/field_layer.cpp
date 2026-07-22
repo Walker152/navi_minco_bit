@@ -57,7 +57,7 @@ void DynamicLayer::rebuild(int width,
 {
   FieldBuildStats local_stats;
   const auto total_start = std::chrono::steady_clock::now();
-  // Dynamic field/二维 ESDF 只由 ProjectionLayer 的 mask 生成。
+  // Dynamic field/二维 ESDF 由 ROGMap 提供的最终二维 mask 生成。
   // mask=0 作为障碍源，最终距离会执行 raw_distance - inflation_radius。
   if (width <= 0 || height <= 0 || resolution <= 0.0) {
     throw std::invalid_argument("DynamicLayer::rebuild: invalid grid metadata");
