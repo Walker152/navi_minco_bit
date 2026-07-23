@@ -325,9 +325,9 @@ planner_server:
       lidar_offset_y: -0.20
       performance:
         enable: false
-        print_enable: true
+        print_enable: false
         detailed_csv_enable: false
-        odom_sub_debug_enable: true
+        odom_sub_debug_enable: false
         minco_csv_path: /tmp/minco_perf_detailed.csv
         print_period_sec: 1.0
         csv_flush_every_n: 30
@@ -528,7 +528,7 @@ planner_server:
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
-        opt_accuracy: 0.001
+        opt_accuracy: 0.
         print_optimizer_log: false
         penalty_weight_time: 100.0
         penalty_weight_pos: 50000.0
