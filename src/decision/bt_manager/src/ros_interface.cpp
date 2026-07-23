@@ -250,15 +250,24 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
     break;
   }
   case 67:  // 'C'键进入强化攻击姿态,同时切入手动控制(保持到操作手切换其他姿态)
+  case 99:  // 'c'键（兼容小写）
     blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
     blackboard_->set<Sentry_BT::SentryStance>(
       "manual_override_stance", Sentry_BT::SentryStance::ENHANCED_ATTACK);
     blackboard_->set<bool>("manual_stance_override_active", true);
     break;
   case 68:  // 'D'键进入强化防御姿态,同时切入手动控制(保持到操作手切换其他姿态)
+  case 100: // 'd'键（兼容小写）
     blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
     blackboard_->set<Sentry_BT::SentryStance>(
       "manual_override_stance", Sentry_BT::SentryStance::ENHANCED_DEFEND);
+    blackboard_->set<bool>("manual_stance_override_active", true);
+    break;
+  case 69:  // 'E'键进入强化移动姿态,同时切入手动控制(保持到操作手切换其他姿态)
+  case 101: // 'e'键（兼容小写）
+    blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
+    blackboard_->set<Sentry_BT::SentryStance>(
+      "manual_override_stance", Sentry_BT::SentryStance::ENHANCED_MOVE);
     blackboard_->set<bool>("manual_stance_override_active", true);
     break;
   case 0:  // '0'键切换回自动模式,同时解除强化姿态覆盖

@@ -591,4 +591,109 @@ BT::NodeStatus CheckManualStanceOverride::tick()
   return BT::NodeStatus::SUCCESS;
 }
 
+// ------------------- CheckShouldEnhanceStance -------------------
+CheckShouldEnhanceStance::CheckShouldEnhanceStance(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckShouldEnhanceStance::providedPorts()
+{
+  return {
+    BT::InputPort<std::string>("target_stance", "Target stance: ATTACK/DEFEND/MOVE"),
+    BT::InputPort<int>("accumulated_threshold", 170, "Accumulated time threshold for level-1 trigger (sec)"),
+    BT::InputPort<int>("fallback_game_time", 60, "Game time threshold for level-2 trigger (sec)"),
+    BT::InputPort<int>("min_remaining_sec", 1, "Minimum enhanced stance quota (sec)"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")
+  };
+}
+
+BT::NodeStatus CheckShouldEnhanceStance::tick()
+{
+  const auto blackboard = config().blackboard;
+  const std::string target = getInput<std::string>("target_stance").value_or("ATTACK");
+  const int acc_threshold = getInput<int>("accumulated_threshold").value_or(170);
+  const int fallback_time = getInput<int>("fallback_game_time").value_or(60);
+  const int min_remaining = getInput<int>("min_remaining_sec").value_or(1);
+  const std::string branch = getInput<std::string>("branch").value_or("");
+
+  // 1. 获取对应的累计时间和强化姿态名称
+  double accumulated_time = 0.0;
+  SentryStance enhanced_stance = SentryStance::ENHANCED_ATTACK;
+
+  if (target == "ATTACK") {
+    accumulated_time = blackboard->get<double>("attack_accumulated_time");
+    enhanced_stance = SentryStance::ENHANCED_ATTACK;
+  } else if (target == "DEFEND") {
+    accumulated_time = blackboard->get<double>("defend_accumulated_time");
+    enhanced_stance = SentryStance::ENHANCED_DEFEND;
+  } else if (target == "MOVE") {
+    accumulated_time = blackboard->get<double>("move_accumulated_time");
+    enhanced_stance = SentryStance::ENHANCED_MOVE;
+  }
+
+  // 2. 获取对应的强化配额
+  int remaining_time = 0;
+  switch (enhanced_stance) {
+  case SentryStance::ENHANCED_ATTACK:
+    remaining_time = blackboard->get<int>("enhanced_attack_remaining_time");
+    break;
+  case SentryStance::ENHANCED_DEFEND:
+    remaining_time = blackboard->get<int>("enhanced_defend_remaining_time");
+    break;
+  case SentryStance::ENHANCED_MOVE:
+    remaining_time = blackboard->get<int>("enhanced_move_remaining_time");
+    break;
+  default:
+    break;
+  }
+
+  // 3. 检查能量
+  const auto energy_ratio = blackboard->get<EnergyRatio>("energy_ratio");
+  if (energy_ratio == EnergyRatio::BELOW_1) {
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckShouldEnhanceStance", false,
+      "target=" + target + ", energy_insufficient", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  // 4. 检查配额
+  if (remaining_time < min_remaining) {
+    std::ostringstream oss;
+    oss << "target=" << target << ", quota_exhausted: remaining=" << remaining_time
+        << " < min=" << min_remaining;
+    detail::logTransition(detail::TreeKind::STANCE, "CheckShouldEnhanceStance", false, oss.str(), branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  // 5. 触发条件判断（两级）
+  const int game_time_remaining = blackboard->get<int>("game_time_remaining");
+
+  // 一级触发：普通姿态累计快到 180s（效果降级前续命）
+  const bool level1_trigger = accumulated_time >= static_cast<double>(acc_threshold);
+
+  // 二级触发：比赛剩余 <= 保底时间，且配额 >= 5s（避免在最后几秒浪费开启）
+  const bool level2_trigger = (game_time_remaining <= fallback_time && remaining_time >= 5);
+
+  if (level1_trigger || level2_trigger) {
+    std::ostringstream oss;
+    oss << "target=" << target << ", should_enhance=true"
+        << ", accumulated=" << accumulated_time
+        << ", game_remaining=" << game_time_remaining
+        << ", quota=" << remaining_time
+        << ", trigger=" << (level1_trigger ? "L1(accumulated)" : "L2(fallback)");
+    detail::logTransition(detail::TreeKind::STANCE, "CheckShouldEnhanceStance", true, oss.str(), branch);
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  std::ostringstream oss;
+  oss << "target=" << target << ", not_triggered"
+      << ", accumulated=" << accumulated_time << "/" << acc_threshold
+      << ", game_remaining=" << game_time_remaining << "/" << fallback_time
+      << ", quota=" << remaining_time;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckShouldEnhanceStance", false, oss.str(), branch);
+  return BT::NodeStatus::FAILURE;
+}
+
 }  // namespace Sentry_BT
