@@ -29,6 +29,7 @@
 #include <rog_map/field_layer.hpp>
 #include <rog_map/map_query_interface.hpp>
 #include <rog_map/performance_monitor.hpp>
+#include <rog_map/prior_map.hpp>
 #include <rog_map/projection_layer.hpp>
 #include <rog_map/query_adapter.hpp>
 #include <rog_map/rog_map_core/common_lib.hpp>
@@ -137,12 +138,23 @@ namespace rog_map {
         uint64_t field_sequence_{0};
         double last_field_stamp_{0.0};
         bool field_stale_{true};
+        PriorMapData prior_map_;
+        std::vector<uint8_t> fused_projection_mask_;
+        std::vector<uint8_t> fused_projection_values_;
+        std::vector<uint8_t> prior_projection_mask_;
 
         void updateMapInternal(const PointCloud& cloud, const Pose& pose);
 
         void refreshLayers();
 
         void refreshQuery();
+
+        void rebuildFusedProjection(const PriorMapTransform2D * transform);
+
+        virtual bool getPriorMapTransform(PriorMapTransform2D & transform) {
+            (void)transform;
+            return false;
+        }
 
         void updateRobotState(const Pose& pose);
 

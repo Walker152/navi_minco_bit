@@ -12,9 +12,9 @@
           <TunnelGyroAlignAction branch="ManualAttackTunnelDefendAlignBranch"
                                  kp="1.8"
                                  ki="0.2"
-                                 kd="0.3"
+                                 kd="0.6"
                                  deadzone_rad="0.05"
-                                 yaw_alignment_threshold_rad="0.26"
+                                 yaw_alignment_threshold_rad="0.17"
                                  max_abs_gyro_vel="60.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="ManualAttackTunnelDefendAlignBranch" /> -->
         </ReactiveSequence>
@@ -24,10 +24,10 @@
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
           <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch"
                                  kp="1.8"
-                                 ki="0.2"
+                                 ki="0.4"
                                  kd="0.3"
                                  deadzone_rad="0.05"
-                                 yaw_alignment_threshold_rad="0.26"
+                                 yaw_alignment_threshold_rad="0.17"
                                  max_abs_gyro_vel="60.0" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
         </ReactiveSequence>
