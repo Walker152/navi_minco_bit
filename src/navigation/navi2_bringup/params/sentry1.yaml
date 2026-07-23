@@ -515,16 +515,16 @@ planner_server:
         opt_freq: 20.0
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
-        safe_dist: 0.40
+        safe_dist: 0.35
         collision_dist: 0.25
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
         max_acceleration: 2.0
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.1
-        turn_angle_saturation: 1.0
-        min_turn_vel: 0.7
-        decay_power: 1.3
+        turn_angle_saturation: 0.8
+        min_turn_vel: 0.6
+        decay_power: 1.7
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
