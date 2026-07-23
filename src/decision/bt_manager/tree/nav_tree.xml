@@ -60,7 +60,7 @@
             </ReactiveSequence>
 
             <ReactiveSequence name="MidAmmoSupply">
-              <CheckAmmoLow ammo_threshold="0" branch="MidAmmoSupply" />
+              <CheckAmmoLow ammo_threshold="100" branch="MidAmmoSupply" />
               <ReactiveFallback name="MidAmmoSupplyZoneSelector">
                 <!-- <ReactiveSequence name="MidHighlandOutpostSupply">
                   <CheckInZone zone_name="highland" branch="MidHighlandOutpostSupply" />
@@ -95,7 +95,7 @@
             </ReactiveSequence>
 
             <ReactiveSequence name="GlobalAmmoSupply">
-              <CheckAmmoLow ammo_threshold="0" branch="GlobalAmmoSupply" />
+              <CheckAmmoLow ammo_threshold="50" branch="GlobalAmmoSupply" />
               <ReactiveFallback name="GlobalAmmoSupplyZoneSelector">
                 <!-- <ReactiveSequence name="GlobalOutpostAmmoSupply">
                   <ReactiveFallback>
@@ -135,8 +135,8 @@
               <ForceSuccess>
                 <ReactiveSequence name="AutoOutpostEnableOnce">
                   <CheckGameTimeWindow name="CheckAutoOutpostEnableWindow"
-                                       min_remaining="400"
-                                       max_remaining="410"
+                                       min_remaining="390"
+                                       max_remaining="420"
                                        branch="AutoOutpostEnableOnce" />
                   <SetEnemyOutpostDestroyed name="SetAutoOutpostRemainedOnce"
                                             enemy_outpost_destroyed="false"
@@ -146,8 +146,8 @@
               <ForceSuccess>
                 <ReactiveSequence name="AutoOutpostDisableOnce">
                   <CheckGameTimeWindow name="CheckAutoOutpostDisableWindow"
-                                       min_remaining="360"
-                                       max_remaining="365"
+                                       min_remaining="340"
+                                       max_remaining="370"
                                        require_game_started="false"
                                        branch="AutoOutpostDisableOnce" />
                   <SetEnemyOutpostDestroyed name="SetAutoOutpostDestroyedOnce"
