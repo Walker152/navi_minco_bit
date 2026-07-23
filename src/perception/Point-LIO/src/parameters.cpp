@@ -411,6 +411,12 @@ void open_file()
 
   // 打开IMU点对点处理日志文件 (记录高频处理过程)
   fout_imu_pbp.open(DEBUG_FILE_DIR("imu_pbp.txt"), ios::out);
+  if (fout_imu_pbp) {
+    fout_imu_pbp
+      << "# seq original_stamp corrected_stamp sensor_dt arrival_dt estimated_missing status "
+         "gyro_x gyro_y gyro_z acc_x acc_y acc_z pending_queue_size\n"
+      << "# status: 0=normal 1=gap 2=duplicate 3=rollback_dropped\n";
+  }
 
   // 检查文件打开状态并输出提示信息
   if (fout_out && fout_imu_pbp)

@@ -1327,7 +1327,8 @@ private:
           standard_pcl_cbk(std::move(msg));
         });
     }
-    sub_imu_ = create_subscription<sensor_msgs::msg::Imu>(imu_topic, rclcpp::SensorDataQoS(), imu_cbk);
+    sub_imu_ = create_subscription<sensor_msgs::msg::Imu>(
+      imu_topic, rclcpp::SensorDataQoS().keep_last(200), imu_cbk);
     pub_laser_cloud_full_res_ = create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered", 20);
     pub_laser_cloud_full_world_ = create_publisher<sensor_msgs::msg::PointCloud2>(
       "/cloud_registered_full", rclcpp::SensorDataQoS().keep_last(1));

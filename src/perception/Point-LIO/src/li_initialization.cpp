@@ -12,6 +12,12 @@
 
 #include "li_initialization.h"
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <iomanip>
+
 // ======================== 全局变量定义 ========================
 // 系统初始化和状态管理相关变量
 
@@ -135,6 +141,10 @@ namespace {
 std::deque<PointCloudXYZI::Ptr> pending_lidar_buffer;
 std::deque<double> pending_time_buffer;
 std::deque<sensor_msgs::msg::Imu::ConstSharedPtr> pending_imu_deque;
+uint64_t imu_log_sequence = 0;
+std::chrono::steady_clock::time_point last_imu_arrival_time;
+std::chrono::steady_clock::time_point last_imu_log_flush_time;
+bool has_last_imu_arrival_time = false;
 
 void flush_pending_sensor_data_locked()
 {
@@ -389,6 +399,51 @@ void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr & msg_in)
 
   // 获取校正后的时间戳
   double timestamp = get_time_sec(msg->header.stamp);
+  const double original_timestamp = get_time_sec(msg_in->header.stamp);
+  const double sensor_dt = last_timestamp_imu >= 0.0 ? timestamp - last_timestamp_imu : 0.0;
+  const auto arrival_time = std::chrono::steady_clock::now();
+  const double arrival_dt = has_last_imu_arrival_time ?
+    std::chrono::duration<double>(arrival_time - last_imu_arrival_time).count() : 0.0;
+
+  int status = 0;
+  int estimated_missing = 0;
+  if (last_timestamp_imu >= 0.0) {
+    if (sensor_dt < 0.0) {
+      status = 3;
+    } else if (sensor_dt == 0.0) {
+      status = 2;
+    } else if (imu_time_inte > 0.0 && sensor_dt > 1.5 * imu_time_inte) {
+      status = 1;
+      estimated_missing =
+        std::max(0, static_cast<int>(std::llround(sensor_dt / imu_time_inte)) - 1);
+    }
+  }
+
+  if (runtime_pos_log && fout_imu_pbp) {
+    const size_t pending_size =
+      pending_imu_deque.size() + static_cast<size_t>(status != 3);
+    fout_imu_pbp << imu_log_sequence << ' '
+                 << std::fixed << std::setprecision(9)
+                 << original_timestamp << ' ' << timestamp << ' '
+                 << sensor_dt << ' ' << arrival_dt << ' '
+                 << estimated_missing << ' ' << status << ' '
+                 << msg_in->angular_velocity.x << ' '
+                 << msg_in->angular_velocity.y << ' '
+                 << msg_in->angular_velocity.z << ' '
+                 << msg_in->linear_acceleration.x << ' '
+                 << msg_in->linear_acceleration.y << ' '
+                 << msg_in->linear_acceleration.z << ' '
+                 << pending_size << '\n';
+
+    if (!has_last_imu_arrival_time ||
+        arrival_time - last_imu_log_flush_time >= std::chrono::seconds(1)) {
+      fout_imu_pbp.flush();
+      last_imu_log_flush_time = arrival_time;
+    }
+  }
+  ++imu_log_sequence;
+  last_imu_arrival_time = arrival_time;
+  has_last_imu_arrival_time = true;
 
   // 调试信息（已注释）
   // printf("time_diff%f, %f, %f\n", last_timestamp_imu - timestamp, last_timestamp_imu, timestamp);
