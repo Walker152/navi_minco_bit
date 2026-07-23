@@ -149,4 +149,17 @@ public:
   BT::NodeStatus tick() override;
 };
 
+// 检查当前是否应该强化指定姿态（基于姿态累计时间、比赛剩余时间、强化配额、能量等）。
+// 两级触发逻辑：
+// 1. 一级触发：普通姿态累计时间 >= accumulated_threshold（效果降级前续命）
+// 2. 二级触发：比赛剩余时间 <= fallback_game_time 且配额 >= 5s（保底开启，避免浪费）
+// 任一触发条件满足 + 能量充足 + 配额足够 → SUCCESS
+class CheckShouldEnhanceStance : public BT::ConditionNode
+{
+public:
+  CheckShouldEnhanceStance(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 }  // namespace Sentry_BT
