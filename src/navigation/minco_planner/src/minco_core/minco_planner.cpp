@@ -125,16 +125,19 @@ bool MincoPlanner::configureRogMap(
     return false;
   }
 
+  rog_map::Config rog_cfg;
   try {
-    rog_map::Config rog_cfg;
     rog_cfg.loadFromRosNode(node, plugin_prefix + "rog_map");
-    rog_map_ros_ = std::make_shared<rog_map::ROGMapROS>(node, rog_cfg);
+    rog_map_ros_ = std::make_shared<rog_map::ROGMapROS>(node, rog_cfg, tf_);
     rog_query_raw_ = rog_map_ros_->queryInterface();
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger_, "[MincoPlanner] Failed to configure ROGMap: %s", e.what());
     rog_map_ros_.reset();
     rog_query_raw_.reset();
     map_.reset();
+    if (rog_cfg.prior_map_enable) {
+      throw;
+    }
     return false;
   }
 
@@ -1450,7 +1453,8 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
   if (tracking_error > dynamic_error_threshold) {
     std::cout << YELLOW << "[MincoPlanner] Large tracking error (" << tracking_error
               << "m). Downgrading to COLD_START." << RESET << std::endl;
-    return PlanningState::COLD_START;
+    return PlanningState::HOT_START;
+    // return PlanningState::COLD_START;
   }
 
   if (vel_error > 1.0) {
@@ -1487,42 +1491,6 @@ void MincoPlanner::prepareColdStart(const geometry_msgs::msg::Pose & start_pose,
   (void)sparse_path;
   Eigen::Vector3d real_speed = getCurrentSpeed();
   start_state.col(1) = real_speed;
-  // bool has_valid_odom = false;
-  // geometry_msgs::msg::Quaternion odom_q;
-  // {
-  //   std::lock_guard<std::mutex> lk(odom_mutex_);
-  //   has_valid_odom = has_latest_odom_;
-  //   if (has_valid_odom) {
-  //     odom_q = latest_odom_.pose.pose.orientation;
-  //   }
-  // }
-
-  // constexpr double slope_threshold = 0.05;
-  // if (has_valid_odom && sparse_path.size() >= 2) {
-  //   const tf2::Quaternion q(odom_q.x, odom_q.y, odom_q.z, odom_q.w);
-  //   double roll = 0.0;
-  //   double pitch = 0.0;
-  //   double yaw = 0.0;
-  //   tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-
-  //   if (std::abs(pitch) > slope_threshold) {
-  //     Eigen::Vector2d path_dir = (sparse_path[1] - sparse_path[0]).head<2>();
-  //     const double dir_norm = path_dir.norm();
-  //     if (dir_norm > 0.1) {
-  //       path_dir /= dir_norm;
-  //       const double min_climb_speed = std::max(1.0, minco_config.max_vel * 0.8);
-  //       const double cur_spd = std::hypot(real_speed.x(), real_speed.y());
-  //       if (cur_spd < min_climb_speed) {
-  //         real_speed.x() = path_dir.x() * min_climb_speed;
-  //         real_speed.y() = path_dir.y() * min_climb_speed;
-  //         start_state.col(2) = Eigen::Vector3d(
-  //             path_dir.x() * minco_config.max_acc, path_dir.y() * minco_config.max_acc, 0.0);
-  //       }
-  //     }
-  //   }
-  // }
-
-  start_state.col(1) = real_speed;
 }
 
 void MincoPlanner::prepareHotStart(
@@ -1534,26 +1502,6 @@ void MincoPlanner::prepareHotStart(
   start_state.col(1) = last_traj_.getVel(t_dur);
   // Eigen::Vector3d real_speed = getCurrentSpeed();
   start_state.col(2) = last_traj_.getAcc(t_dur);
-
-  // // Slope-aware minimum speed: enforce min climb speed to prevent stalling on inclines.
-  // const tf2::Quaternion q(
-  //     start_pose.orientation.x, start_pose.orientation.y,
-  //     start_pose.orientation.z, start_pose.orientation.w);
-  // double roll = 0.0, pitch = 0.0, yaw = 0.0;
-  // tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-  // constexpr double slope_threshold = 0.05;
-  // if (std::abs(pitch) > slope_threshold) {
-  //   const Eigen::Vector2d path_dir(std::cos(yaw), std::sin(yaw));
-  //   const double min_climb_speed = std::max(1.0, minco_config.max_vel * 0.8);
-  //   const double cur_spd = std::hypot(real_speed.x(), real_speed.y());
-  //   if (cur_spd < min_climb_speed) {
-  //     real_speed.x() = path_dir.x() * min_climb_speed;
-  //     real_speed.y() = path_dir.y() * min_climb_speed;
-  //     start_state.col(2) = Eigen::Vector3d(
-  //         path_dir.x() * minco_config.max_acc, path_dir.y() * minco_config.max_acc, 0.0);
-  //   }
-  //   start_state.col(1) = real_speed;
-  // }
 }
 
 bool MincoPlanner::optimizeYaw(const Eigen::Matrix3d & start_state,
