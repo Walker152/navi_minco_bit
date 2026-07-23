@@ -242,7 +242,7 @@ inline std::array<Area_Square, 4> tunnel_zone = {
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
-  Area_Square{Point2D{6,3, 4.0}, Point2D{2.4, 1.4}},
+  Area_Square{Point2D{6.3, 4.0}, Point2D{2.4, 1.4}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
