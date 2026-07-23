@@ -426,7 +426,7 @@ planner_server:
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
-          wall_occupancy_ratio_min: 0.80
+          wall_occupancy_ratio_min: 0.60
 
           # [vertical height difference, m]
           # 可通行隧道所需的最小上下表面高度差。
@@ -441,7 +441,7 @@ planner_server:
 
           # [dimensionless ratio, 0~1]
           # 隧道上下表面之间的最大垂直占据率。
-          tunnel_occupancy_ratio_max: 0.45
+          tunnel_occupancy_ratio_max: 0.4
 
           # PASSABLE 在 value layer 中的代价值。
           passable_cost: 50
@@ -522,9 +522,9 @@ planner_server:
         max_acceleration: 2.0
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.1
-        turn_angle_saturation: 1.0
-        min_turn_vel: 0.8
-        decay_power: 1.3
+        turn_angle_saturation: 0.8
+        min_turn_vel: 0.6
+        decay_power: 1.7
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
