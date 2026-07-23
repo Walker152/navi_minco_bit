@@ -343,8 +343,8 @@ private:
         vy_mps = tunnel_escape_vy;
       }
       if (tunnel_prepare_active && !tunnel_ready) {
-        vx_mps *= 0.3f;
-        vy_mps *= 0.3f;
+        vx_mps *= 0.15f;
+        vy_mps *= 0.15f;
       }
     }
 
