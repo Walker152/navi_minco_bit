@@ -37,6 +37,9 @@
              优先级:高于自动分支,低于隧道分支。 -->
         <Sequence name="ManualEnhancedStanceBranch">
           <CheckManualStanceOverride branch="ManualEnhancedStanceBranch" />
+          <SetGyroState use_gyro="true"
+                        gyro_vel="80.0"
+                        random_speed="false" />
           <ApplyManualStanceOverride name="ApplyManualEnhancedStance" />
         </Sequence>
 
@@ -48,7 +51,18 @@
               <SetGyroState use_gyro="true"
                             gyro_vel="80.0"
                             random_speed="false" />
-              <ChangeStance name="ChangeStanceArrivedEnemyFortDefend" stance="DEFEND" />
+              <Fallback name="FortDefendStanceSelector">
+                <Sequence name="TryEnhancedDefend">
+                  <CheckShouldEnhanceStance
+                    target_stance="DEFEND"
+                    accumulated_threshold="170"
+                    fallback_game_time="60"
+                    min_remaining_sec="1"
+                    branch="FortDefend_Enhanced" />
+                  <ChangeStance name="ChangeStanceArrivedEnemyFortEnhancedDefend" stance="ENHANCED_DEFEND" />
+                </Sequence>
+                <ChangeStance name="ChangeStanceArrivedEnemyFortDefend" stance="DEFEND" />
+              </Fallback>
             </Sequence>
             <Sequence name="ApproachEnemyFortMoveZeroGyro">
               <Inverter>
@@ -57,7 +71,18 @@
               <SetGyroState use_gyro="false"
                             gyro_vel="0.0"
                             random_speed="false" />
-              <ChangeStance name="ChangeStanceApproachEnemyFortMove" stance="MOVE" />
+              <Fallback name="FortMoveStanceSelector">
+                <Sequence name="TryEnhancedMove">
+                  <CheckShouldEnhanceStance
+                    target_stance="MOVE"
+                    accumulated_threshold="170"
+                    fallback_game_time="60"
+                    min_remaining_sec="1"
+                    branch="FortMove_Enhanced" />
+                  <ChangeStance name="ChangeStanceApproachEnemyFortEnhancedMove" stance="ENHANCED_MOVE" />
+                </Sequence>
+                <ChangeStance name="ChangeStanceApproachEnemyFortMove" stance="MOVE" />
+              </Fallback>
             </Sequence>
           </ReactiveFallback>
         </ReactiveSequence>
@@ -72,7 +97,18 @@
                         gyro_vel="40.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="AbsoluteAttackBranch" /> -->
-          <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
+          <Fallback name="AbsoluteAttackStanceSelector">
+            <Sequence name="TryEnhancedAttack">
+              <CheckShouldEnhanceStance
+                target_stance="ATTACK"
+                accumulated_threshold="170"
+                fallback_game_time="60"
+                min_remaining_sec="1"
+                branch="AbsoluteAttack_Enhanced" />
+              <ChangeStance name="ChangeStanceAbsoluteEnhancedAttack" stance="ENHANCED_ATTACK" />
+            </Sequence>
+            <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
+          </Fallback>
         </Sequence>
 
         <Sequence name="CombatAttackBranch">
@@ -83,18 +119,40 @@
                         gyro_vel="80.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
-          <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
+          <Fallback name="CombatAttackStanceSelector">
+            <Sequence name="TryEnhancedAttack">
+              <CheckShouldEnhanceStance
+                target_stance="ATTACK"
+                accumulated_threshold="170"
+                fallback_game_time="60"
+                min_remaining_sec="1"
+                branch="CombatAttack_Enhanced" />
+              <ChangeStance name="ChangeStanceCombatEnhancedAttack" stance="ENHANCED_ATTACK" />
+            </Sequence>
+            <ChangeStance name="ChangeStanceCombatAttack" stance="ATTACK" />
+          </Fallback>
         </Sequence>
 
         <Sequence name="DefendStanceBranch">
           <CheckEngagedStatus expected="true" branch="DefendStanceBranch" />
           <CheckHealth threshold="50" mode="less" branch="DefendStanceBranch" />
           <!-- <CheckStanceEffectLimit target_stance="DEFEND" max_time_sec="180" /> -->
-          <SetGyroState use_gyro="true" 
-                        gyro_vel="80.0" 
+          <SetGyroState use_gyro="true"
+                        gyro_vel="80.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefendStanceBranch" /> -->
-          <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
+          <Fallback name="DefendStanceSelector">
+            <Sequence name="TryEnhancedDefend">
+              <CheckShouldEnhanceStance
+                target_stance="DEFEND"
+                accumulated_threshold="170"
+                fallback_game_time="60"
+                min_remaining_sec="1"
+                branch="Defend_Enhanced" />
+              <ChangeStance name="ChangeStanceEnhancedDefend" stance="ENHANCED_DEFEND" />
+            </Sequence>
+            <ChangeStance name="ChangeStanceDefend" stance="DEFEND" />
+          </Fallback>
         </Sequence>
 
         <Sequence name="MoveStanceGyroBranch">
@@ -102,11 +160,20 @@
             <CheckCapacitorCapacity threshold="30" mode="less" branch="MoveStanceGyroBranch" />
             <CheckEngagedStatus expected="false" branch="MoveStanceGyroBranch" />
           </Fallback>
-          <SetGyroState use_gyro="true" 
-                        gyro_vel="40.0" 
+          <SetGyroState use_gyro="true"
+                        gyro_vel="40.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
           <Fallback name="MoveStanceSelector">
+            <Sequence name="TryEnhancedMove">
+              <CheckShouldEnhanceStance
+                target_stance="MOVE"
+                accumulated_threshold="170"
+                fallback_game_time="60"
+                min_remaining_sec="1"
+                branch="Move_Enhanced" />
+              <ChangeStance name="ChangeStanceEnhancedMove" stance="ENHANCED_MOVE" />
+            </Sequence>
             <!-- <Sequence name="DisengagedHighlandDefendBranch">
               <Inverter>
                 <CheckInZone zone_name="own_defend" branch="DisengagedHighlandDefendBranch" />
@@ -122,7 +189,18 @@
                         gyro_vel="80.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefaultDefendBranch" /> -->
-          <ChangeStance name="DefaultDefendStance" stance="DEFEND" />
+          <Fallback name="DefaultDefendStanceSelector">
+            <Sequence name="TryEnhancedDefend">
+              <CheckShouldEnhanceStance
+                target_stance="DEFEND"
+                accumulated_threshold="170"
+                fallback_game_time="60"
+                min_remaining_sec="1"
+                branch="DefaultDefend_Enhanced" />
+              <ChangeStance name="DefaultEnhancedDefendStance" stance="ENHANCED_DEFEND" />
+            </Sequence>
+            <ChangeStance name="DefaultDefendStance" stance="DEFEND" />
+          </Fallback>
         </Sequence>
 
       </ReactiveFallback>
