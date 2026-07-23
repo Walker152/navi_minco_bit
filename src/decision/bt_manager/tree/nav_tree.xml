@@ -146,7 +146,7 @@
               <ForceSuccess>
                 <ReactiveSequence name="AutoOutpostDisableOnce">
                   <CheckGameTimeWindow name="CheckAutoOutpostDisableWindow"
-                                       min_remaining="360"
+                                       min_remaining="0"
                                        max_remaining="365"
                                        require_game_started="false"
                                        branch="AutoOutpostDisableOnce" />
