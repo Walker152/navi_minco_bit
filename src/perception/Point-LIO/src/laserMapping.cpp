@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cmath>
 #include <deque>
+#include <filesystem>
 #include <limits>
 #include <vector>
 #include <memory>
@@ -584,6 +585,10 @@ PointCloudXYZI::Ptr loadPointcloudFromPcd(const std::string & file_path)
 
 inline void dump_lio_state_to_log(FILE * fp_)
 {
+  if (fp_ == nullptr) {
+    return;
+  }
+
   V3D rot_ang;
   if (!use_imu_as_input) {
     rot_ang = SO3ToEuler(kf_output.x_.rot);
@@ -1273,9 +1278,34 @@ private:
     Q_input_ = process_noise_cov_input();
     Q_output_ = process_noise_cov_output();
 
-    string pos_log_dir = root_dir + "/Log/pos_log.txt";
-    fp_ = fopen(pos_log_dir.c_str(), "w");
-    open_file();
+    if (runtime_pos_log) {
+      const std::filesystem::path log_dir = std::filesystem::path(root_dir) / "Log";
+      std::error_code log_dir_error;
+      std::filesystem::create_directories(log_dir, log_dir_error);
+      if (log_dir_error) {
+        RCLCPP_ERROR(get_logger(),
+          "[Point-LIO] Failed to create runtime log directory %s: %s. Runtime pose logging disabled.",
+          log_dir.c_str(),
+          log_dir_error.message().c_str());
+        runtime_pos_log = false;
+      } else {
+        const std::string pos_log_path = (log_dir / "pos_log.txt").string();
+        fp_ = fopen(pos_log_path.c_str(), "w");
+        open_file();
+        if (!fp_ || !fout_out || !fout_imu_pbp) {
+          RCLCPP_ERROR(get_logger(),
+            "[Point-LIO] Failed to open runtime log files under %s. Runtime pose logging disabled.",
+            log_dir.c_str());
+          if (fp_) {
+            fclose(fp_);
+            fp_ = nullptr;
+          }
+          fout_out.close();
+          fout_imu_pbp.close();
+          runtime_pos_log = false;
+        }
+      }
+    }
 
     if (print_cloud_input_fps) {
       RCLCPP_INFO(get_logger(),
