@@ -16,7 +16,7 @@
                                  branch="AutoAttackFortCondition" />
           </Sequence>
         </ReactiveFallback>
-        <SetTacticalMode name="SetAttackMode" mode="normal" />
+        <SetTacticalMode name="SetAttackMode" mode="attack" />
       </Sequence>
 
       <!-- <Sequence name="DefendPriority">
