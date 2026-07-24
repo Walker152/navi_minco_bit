@@ -151,6 +151,137 @@ double requireFiniteScalar(const YAML::Node & root, const char * key, const std:
   return value;
 }
 
+size_t checkedCellCount(int width, int height)
+{
+  if (width <= 0 || height <= 0) {
+    throw std::invalid_argument("PriorMap projection dimensions must be positive");
+  }
+  const size_t width_size = static_cast<size_t>(width);
+  const size_t height_size = static_cast<size_t>(height);
+  if (width_size > std::numeric_limits<size_t>::max() / height_size) {
+    throw std::invalid_argument("PriorMap projection dimensions overflow cell count");
+  }
+  return width_size * height_size;
+}
+
+bool priorStorageValid(const PriorMapData & prior_map)
+{
+  if (!prior_map.loaded || prior_map.width <= 0 || prior_map.height <= 0 ||
+      !std::isfinite(prior_map.resolution) || prior_map.resolution <= 0.0) {
+    return false;
+  }
+  const size_t width = static_cast<size_t>(prior_map.width);
+  const size_t height = static_cast<size_t>(prior_map.height);
+  return width <= std::numeric_limits<size_t>::max() / height &&
+         prior_map.occupied.size() == width * height;
+}
+
+bool priorMapOccupiedWithRotation(const PriorMapData & prior_map,
+  double map_x,
+  double map_y,
+  double origin_yaw_cos,
+  double origin_yaw_sin)
+{
+  if (!priorStorageValid(prior_map) || !std::isfinite(map_x) || !std::isfinite(map_y)) {
+    return false;
+  }
+
+  const double dx = map_x - prior_map.origin_x;
+  const double dy = map_y - prior_map.origin_y;
+  const double local_x = origin_yaw_cos * dx + origin_yaw_sin * dy;
+  const double local_y = -origin_yaw_sin * dx + origin_yaw_cos * dy;
+  const double image_col_value = local_x / prior_map.resolution;
+  const double map_row_value = local_y / prior_map.resolution;
+  if (!std::isfinite(image_col_value) || !std::isfinite(map_row_value) ||
+      image_col_value < 0.0 || image_col_value >= static_cast<double>(prior_map.width) ||
+      map_row_value < 0.0 || map_row_value >= static_cast<double>(prior_map.height)) {
+    return false;
+  }
+
+  const int image_col = static_cast<int>(std::floor(image_col_value));
+  const int image_row =
+    prior_map.height - 1 - static_cast<int>(std::floor(map_row_value));
+  const size_t index = static_cast<size_t>(image_row) * static_cast<size_t>(prior_map.width) +
+                       static_cast<size_t>(image_col);
+  return prior_map.occupied[index] != 0U;
+}
+
+bool samplePriorAtRogPointFast(
+  const PriorMapData & prior_map, double rog_x, double rog_y)
+{
+  if (!prior_map.transform_ready) {
+    return false;
+  }
+  const double map_x = prior_map.fixed_transform_cos * rog_x -
+                       prior_map.fixed_transform_sin * rog_y +
+                       prior_map.fixed_transform.tx;
+  const double map_y = prior_map.fixed_transform_sin * rog_x +
+                       prior_map.fixed_transform_cos * rog_y +
+                       prior_map.fixed_transform.ty;
+  return priorMapOccupiedWithRotation(prior_map,
+    map_x,
+    map_y,
+    prior_map.fast_origin_yaw_cos,
+    prior_map.fast_origin_yaw_sin);
+}
+
+bool sameProjectionGeometry(const PriorMapData & prior_map,
+  int min_global_x,
+  int min_global_y,
+  int width,
+  int height,
+  double resolution,
+  size_t expected_size)
+{
+  return prior_map.cached_min_x == min_global_x &&
+         prior_map.cached_min_y == min_global_y &&
+         prior_map.cached_width == width &&
+         prior_map.cached_height == height &&
+         std::abs(prior_map.cached_resolution - resolution) <= 1.0e-9 &&
+         prior_map.cached_mask.size() == expected_size;
+}
+
+void saveProjectionGeometry(PriorMapData & prior_map,
+  int min_global_x,
+  int min_global_y,
+  int width,
+  int height,
+  double resolution)
+{
+  prior_map.cached_min_x = min_global_x;
+  prior_map.cached_min_y = min_global_y;
+  prior_map.cached_width = width;
+  prior_map.cached_height = height;
+  prior_map.cached_resolution = resolution;
+}
+
+void rebuildPriorProjection(PriorMapData & prior_map,
+  int min_global_x,
+  int min_global_y,
+  int width,
+  int height,
+  double resolution,
+  double origin_x,
+  double origin_y,
+  size_t expected_size)
+{
+  prior_map.cached_mask.assign(expected_size, 1U);
+  prior_map.scratch_mask.resize(expected_size);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const double rog_x = origin_x + (static_cast<double>(x) + 0.5) * resolution;
+      const double rog_y = origin_y + (static_cast<double>(y) + 0.5) * resolution;
+      if (samplePriorAtRogPointFast(prior_map, rog_x, rog_y)) {
+        prior_map.cached_mask[static_cast<size_t>(y) * static_cast<size_t>(width) +
+                              static_cast<size_t>(x)] = 0U;
+      }
+    }
+  }
+  saveProjectionGeometry(
+    prior_map, min_global_x, min_global_y, width, height, resolution);
+  prior_map.projection_cache_ready = true;
+}
+
 }  // namespace
 
 PriorMapData loadPriorMap(const std::string & yaml_path, const std::string & pgm_path)
@@ -235,29 +366,9 @@ PriorMapData loadPriorMap(const std::string & yaml_path, const std::string & pgm
 
 bool priorMapOccupied(const PriorMapData & prior_map, double map_x, double map_y)
 {
-  if (!prior_map.loaded || prior_map.width <= 0 || prior_map.height <= 0 ||
-      prior_map.resolution <= 0.0 ||
-      prior_map.occupied.size() !=
-        static_cast<size_t>(prior_map.width) * static_cast<size_t>(prior_map.height)) {
-    return false;
-  }
-
-  const double dx = map_x - prior_map.origin_x;
-  const double dy = map_y - prior_map.origin_y;
   const double c = std::cos(prior_map.origin_yaw);
   const double s = std::sin(prior_map.origin_yaw);
-  const double local_x = c * dx + s * dy;
-  const double local_y = -s * dx + c * dy;
-  const int image_col = static_cast<int>(std::floor(local_x / prior_map.resolution));
-  const int my_from_bottom = static_cast<int>(std::floor(local_y / prior_map.resolution));
-  const int image_row = prior_map.height - 1 - my_from_bottom;
-  if (image_col < 0 || image_col >= prior_map.width || image_row < 0 ||
-      image_row >= prior_map.height) {
-    return false;
-  }
-  const size_t index = static_cast<size_t>(image_row) * static_cast<size_t>(prior_map.width) +
-                       static_cast<size_t>(image_col);
-  return prior_map.occupied[index] != 0U;
+  return priorMapOccupiedWithRotation(prior_map, map_x, map_y, c, s);
 }
 
 void transformPriorMapPoint(
@@ -269,57 +380,175 @@ void transformPriorMapPoint(
   map_y = s * rog_x + c * rog_y + transform.ty;
 }
 
-void fusePriorMapProjection(const PriorMapData & prior_map,
-  const PriorMapTransform2D * transform,
+bool initializePriorMapTransformOnce(
+  PriorMapData & prior_map, const PriorMapTransform2D & transform)
+{
+  if (!prior_map.loaded) {
+    return false;
+  }
+  if (prior_map.transform_ready) {
+    return true;
+  }
+  if (!std::isfinite(transform.tx) || !std::isfinite(transform.ty) ||
+      !std::isfinite(transform.yaw) || !std::isfinite(prior_map.origin_yaw)) {
+    return false;
+  }
+
+  prior_map.fixed_transform = transform;
+  prior_map.fixed_transform_cos = std::cos(transform.yaw);
+  prior_map.fixed_transform_sin = std::sin(transform.yaw);
+  prior_map.fast_origin_yaw_cos = std::cos(prior_map.origin_yaw);
+  prior_map.fast_origin_yaw_sin = std::sin(prior_map.origin_yaw);
+  prior_map.transform_ready = true;
+  return true;
+}
+
+bool refreshPriorMapProjectionCache(PriorMapData & prior_map,
+  int min_global_x,
+  int min_global_y,
   int width,
   int height,
   double resolution,
   double origin_x,
-  double origin_y,
-  const std::vector<uint8_t> & dynamic_mask,
-  const std::vector<uint8_t> & dynamic_values,
-  std::vector<uint8_t> & fused_mask,
-  std::vector<uint8_t> & fused_values,
-  std::vector<uint8_t> * prior_mask)
+  double origin_y)
 {
-  const size_t expected = static_cast<size_t>(std::max(0, width)) *
-                          static_cast<size_t>(std::max(0, height));
-  if (width <= 0 || height <= 0) {
-    fused_mask.clear();
-    fused_values.clear();
-    if (prior_mask != nullptr) {
-      prior_mask->clear();
-    }
-    return;
-  }
-  if (resolution <= 0.0 || dynamic_mask.size() != expected || dynamic_values.size() != expected) {
-    throw std::invalid_argument("fusePriorMapProjection: invalid projection geometry or buffer size");
+  const size_t expected_size = checkedCellCount(width, height);
+  if (!std::isfinite(resolution) || resolution <= 0.0 ||
+      !std::isfinite(origin_x) || !std::isfinite(origin_y)) {
+    throw std::invalid_argument("PriorMap projection geometry must be finite and positive");
   }
 
-  fused_mask = dynamic_mask;
-  fused_values = dynamic_values;
-  if (prior_mask != nullptr) {
-    prior_mask->assign(expected, 1U);
+  const bool same_geometry = sameProjectionGeometry(prior_map,
+    min_global_x,
+    min_global_y,
+    width,
+    height,
+    resolution,
+    expected_size);
+  if (!prior_map.transform_ready) {
+    if (same_geometry && !prior_map.projection_cache_ready) {
+      return false;
+    }
+    prior_map.cached_mask.assign(expected_size, 1U);
+    prior_map.scratch_mask.resize(expected_size);
+    saveProjectionGeometry(
+      prior_map, min_global_x, min_global_y, width, height, resolution);
+    prior_map.projection_cache_ready = false;
+    return true;
   }
-  if (!prior_map.loaded || transform == nullptr) {
-    return;
+
+  if (prior_map.projection_cache_ready && same_geometry) {
+    return false;
+  }
+
+  const bool reusable_geometry =
+    prior_map.projection_cache_ready &&
+    prior_map.cached_width == width &&
+    prior_map.cached_height == height &&
+    std::abs(prior_map.cached_resolution - resolution) <= 1.0e-9 &&
+    prior_map.cached_mask.size() == expected_size;
+  if (!reusable_geometry) {
+    rebuildPriorProjection(prior_map,
+      min_global_x,
+      min_global_y,
+      width,
+      height,
+      resolution,
+      origin_x,
+      origin_y,
+      expected_size);
+    return true;
+  }
+
+  const int64_t old_min_x = prior_map.cached_min_x;
+  const int64_t old_min_y = prior_map.cached_min_y;
+  const int64_t new_min_x = min_global_x;
+  const int64_t new_min_y = min_global_y;
+  const int64_t old_max_x = old_min_x + static_cast<int64_t>(width) - 1;
+  const int64_t old_max_y = old_min_y + static_cast<int64_t>(height) - 1;
+  const int64_t new_max_x = new_min_x + static_cast<int64_t>(width) - 1;
+  const int64_t new_max_y = new_min_y + static_cast<int64_t>(height) - 1;
+  const int64_t overlap_min_x = std::max(old_min_x, new_min_x);
+  const int64_t overlap_min_y = std::max(old_min_y, new_min_y);
+  const int64_t overlap_max_x = std::min(old_max_x, new_max_x);
+  const int64_t overlap_max_y = std::min(old_max_y, new_max_y);
+  const bool has_overlap =
+    overlap_min_x <= overlap_max_x && overlap_min_y <= overlap_max_y;
+  if (!has_overlap) {
+    rebuildPriorProjection(prior_map,
+      min_global_x,
+      min_global_y,
+      width,
+      height,
+      resolution,
+      origin_x,
+      origin_y,
+      expected_size);
+    return true;
+  }
+
+  prior_map.scratch_mask.resize(expected_size);
+  std::fill(prior_map.scratch_mask.begin(), prior_map.scratch_mask.end(), 1U);
+  const size_t overlap_width =
+    static_cast<size_t>(overlap_max_x - overlap_min_x + 1);
+  for (int64_t global_y = overlap_min_y; global_y <= overlap_max_y; ++global_y) {
+    const size_t old_y = static_cast<size_t>(global_y - old_min_y);
+    const size_t new_y = static_cast<size_t>(global_y - new_min_y);
+    const size_t old_x = static_cast<size_t>(overlap_min_x - old_min_x);
+    const size_t new_x = static_cast<size_t>(overlap_min_x - new_min_x);
+    std::copy_n(
+      prior_map.cached_mask.begin() + old_y * static_cast<size_t>(width) + old_x,
+      overlap_width,
+      prior_map.scratch_mask.begin() + new_y * static_cast<size_t>(width) + new_x);
   }
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
-      const size_t index = static_cast<size_t>(y) * static_cast<size_t>(width) +
-                           static_cast<size_t>(x);
-      const double rog_x = origin_x + (static_cast<double>(x) + 0.5) * resolution;
-      const double rog_y = origin_y + (static_cast<double>(y) + 0.5) * resolution;
-      double map_x = 0.0;
-      double map_y = 0.0;
-      transformPriorMapPoint(*transform, rog_x, rog_y, map_x, map_y);
-      if (!priorMapOccupied(prior_map, map_x, map_y)) {
+      const int64_t global_x = new_min_x + x;
+      const int64_t global_y = new_min_y + y;
+      if (global_x >= overlap_min_x && global_x <= overlap_max_x &&
+          global_y >= overlap_min_y && global_y <= overlap_max_y) {
         continue;
       }
-      if (prior_mask != nullptr) {
-        (*prior_mask)[index] = 0U;
+      const double rog_x = origin_x + (static_cast<double>(x) + 0.5) * resolution;
+      const double rog_y = origin_y + (static_cast<double>(y) + 0.5) * resolution;
+      if (samplePriorAtRogPointFast(prior_map, rog_x, rog_y)) {
+        prior_map.scratch_mask[static_cast<size_t>(y) * static_cast<size_t>(width) +
+                               static_cast<size_t>(x)] = 0U;
       }
+    }
+  }
+
+  prior_map.cached_mask.swap(prior_map.scratch_mask);
+  saveProjectionGeometry(
+    prior_map, min_global_x, min_global_y, width, height, resolution);
+  return true;
+}
+
+void fusePriorMapProjection(bool prior_enabled,
+  const PriorMapData & prior_map,
+  const std::vector<uint8_t> & dynamic_mask,
+  const std::vector<uint8_t> & dynamic_values,
+  std::vector<uint8_t> & fused_mask,
+  std::vector<uint8_t> & fused_values)
+{
+  if (dynamic_mask.size() != dynamic_values.size()) {
+    fused_mask.clear();
+    fused_values.clear();
+    throw std::invalid_argument(
+            "fusePriorMapProjection: dynamic mask and value sizes differ");
+  }
+
+  fused_mask = dynamic_mask;
+  fused_values = dynamic_values;
+  if (!prior_enabled || !prior_map.loaded || !prior_map.transform_ready ||
+      !prior_map.projection_cache_ready ||
+      prior_map.cached_mask.size() != dynamic_mask.size()) {
+    return;
+  }
+
+  for (size_t index = 0; index < prior_map.cached_mask.size(); ++index) {
+    if (prior_map.cached_mask[index] == 0U) {
       fused_mask[index] = 0U;
       fused_values[index] = 254U;
     }
