@@ -8,7 +8,7 @@ bt_navigator:
     # 行为树超时时间，秒
     default_server_timeout: 20
     # 毫秒
-    wait_for_service_timeout: 2000
+    wait_for_service_timeout: 10000
     # 'default_nav_through_poses_bt_xml' and 'default_nav_to_pose_bt_xml' are use defaults:
     # nav2_bt_navigator/navigate_to_pose_w_replanning_and_recovery.xml
     # nav2_bt_navigator/navigate_through_poses_w_replanning_and_recovery.xml
@@ -508,15 +508,15 @@ planner_server:
         opt_freq: 20.0
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
-        safe_dist: 0.40
-        collision_dist: 0.30
+        safe_dist: 0.35
+        collision_dist: 0.25
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
         max_acceleration: 2.0
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.1
         turn_angle_saturation: 0.7
-        min_turn_vel: 0.8
+        min_turn_vel: 0.6
         decay_power: 1.5
         time_allocation_iters: 15
         smooth_eps: 0.01
