@@ -57,7 +57,7 @@ int main(int argc, char const * argv[])
     return -1;
   }
 
-  bt_manager.run(10.0);
+  bt_manager.run(30.0);
 
   // 清理
   executor.cancel();
