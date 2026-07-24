@@ -38,14 +38,16 @@ class CsvRecorder
 public:
   static void initialize(bool enabled) noexcept;
   static void record(
-    const ChassisTarget & data, int send_result, const DeltaYawDiagnostics & diagnostics) noexcept;
+    const ChassisTarget & data, int send_result, const DeltaYawDiagnostics & diagnostics,
+    bool tunnel_escape_active, bool tunnel_prepare_active, bool tunnel_ready) noexcept;
 
 private:
   CsvRecorder() noexcept;
 
   static CsvRecorder & instance() noexcept;
   void recordChassis(
-    const ChassisTarget & data, int send_result, const DeltaYawDiagnostics & diagnostics) noexcept;
+    const ChassisTarget & data, int send_result, const DeltaYawDiagnostics & diagnostics,
+    bool tunnel_escape_active, bool tunnel_prepare_active, bool tunnel_ready) noexcept;
   void writePrefix(int send_result);
 
   static std::atomic<bool> enabled_;

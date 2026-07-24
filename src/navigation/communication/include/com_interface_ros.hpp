@@ -398,7 +398,9 @@ private:
     if (performance_diagnostics_enabled_) {
       auto diagnostics = getDiagnosticsSnapshot();
       diagnostics.delta_yaw_initialized = delta_yaw_initialized;
-      CsvRecorder::record(target, flag, diagnostics);
+      CsvRecorder::record(
+        target, flag, diagnostics,
+        tunnel_escape_active, tunnel_prepare_active, tunnel_ready);
     }
 #ifdef COMMUNICATION_DEBUG
     if (flag == 0) {

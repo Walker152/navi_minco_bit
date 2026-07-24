@@ -47,6 +47,7 @@ CsvRecorder::CsvRecorder() noexcept : start_time_(std::chrono::steady_clock::now
     }
 
     stream_ << "system_time,elapsed_ms,send_result,send_success,"
+               "tunnel_escape_active,tunnel_prepare_active,tunnel_ready,"
                "vx_mps,vy_mps,vw_rpm,current_yaw,current_vx,current_vy,current_vw,"
                "fx_global,fy_global,fw_global,use_speed_control,delta_yaw,"
                "odom_stamp_sec,odom_receive_stamp_sec,odom_age_ms,"
@@ -76,12 +77,16 @@ void CsvRecorder::initialize(bool enabled) noexcept
 }
 
 void CsvRecorder::record(
-  const ChassisTarget & data, int send_result, const DeltaYawDiagnostics & diagnostics) noexcept
+  const ChassisTarget & data, int send_result, const DeltaYawDiagnostics & diagnostics,
+  const bool tunnel_escape_active, const bool tunnel_prepare_active,
+  const bool tunnel_ready) noexcept
 {
   if (!enabled_.load(std::memory_order_relaxed)) {
     return;
   }
-  instance().recordChassis(data, send_result, diagnostics);
+  instance().recordChassis(
+    data, send_result, diagnostics,
+    tunnel_escape_active, tunnel_prepare_active, tunnel_ready);
 }
 
 void CsvRecorder::writePrefix(int send_result)
@@ -94,7 +99,9 @@ void CsvRecorder::writePrefix(int send_result)
 }
 
 void CsvRecorder::recordChassis(
-  const ChassisTarget & data, int send_result, const DeltaYawDiagnostics & diagnostics) noexcept
+  const ChassisTarget & data, int send_result, const DeltaYawDiagnostics & diagnostics,
+  const bool tunnel_escape_active, const bool tunnel_prepare_active,
+  const bool tunnel_ready) noexcept
 {
   try {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -102,7 +109,10 @@ void CsvRecorder::recordChassis(
       return;
     }
     writePrefix(send_result);
-    stream_ << std::setprecision(9) << data.vx_mps << ',' << data.vy_mps << ',' << data.vw_rpm << ','
+    stream_ << static_cast<int>(tunnel_escape_active) << ','
+            << static_cast<int>(tunnel_prepare_active) << ','
+            << static_cast<int>(tunnel_ready) << ','
+            << std::setprecision(9) << data.vx_mps << ',' << data.vy_mps << ',' << data.vw_rpm << ','
             << data.current_yaw << ',' << data.current_vx << ',' << data.current_vy << ','
             << data.current_vw << ',' << data.fx_global << ',' << data.fy_global << ',' << data.fw_global
             << ',' << static_cast<int>(data.use_speed_control) << ',' << data.delta_yaw << ','
