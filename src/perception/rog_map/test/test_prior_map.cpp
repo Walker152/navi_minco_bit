@@ -6,9 +6,11 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 namespace rog_map {
@@ -61,6 +63,50 @@ public:
 private:
   std::filesystem::path dir_;
 };
+
+PriorMapData makePriorMap(int width,
+  int height,
+  const std::vector<std::pair<int, int>> & occupied_cells)
+{
+  PriorMapData prior;
+  prior.loaded = true;
+  prior.width = width;
+  prior.height = height;
+  prior.resolution = 1.0;
+  prior.occupied.assign(static_cast<size_t>(width) * static_cast<size_t>(height), 0U);
+  for (const auto & cell : occupied_cells) {
+    const int image_row = height - 1 - cell.second;
+    const size_t index = static_cast<size_t>(image_row) * static_cast<size_t>(width) +
+                         static_cast<size_t>(cell.first);
+    prior.occupied[index] = 1U;
+  }
+  return prior;
+}
+
+std::vector<uint8_t> projectReference(const PriorMapData & prior,
+  int width,
+  int height,
+  double resolution,
+  double origin_x,
+  double origin_y)
+{
+  std::vector<uint8_t> mask(
+    static_cast<size_t>(width) * static_cast<size_t>(height), 1U);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const double rog_x = origin_x + (static_cast<double>(x) + 0.5) * resolution;
+      const double rog_y = origin_y + (static_cast<double>(y) + 0.5) * resolution;
+      double map_x = 0.0;
+      double map_y = 0.0;
+      transformPriorMapPoint(prior.fixed_transform, rog_x, rog_y, map_x, map_y);
+      if (priorMapOccupied(prior, map_x, map_y)) {
+        mask[static_cast<size_t>(y) * static_cast<size_t>(width) +
+             static_cast<size_t>(x)] = 0U;
+      }
+    }
+  }
+  return mask;
+}
 
 TEST(PriorMap, LoadsP5AndUsesBottomLeftMapOrigin)
 {
@@ -147,84 +193,170 @@ TEST(PriorMap, AppliesRogToMapTransformInTargetSourceDirection)
   EXPECT_NEAR(map_y, 22.0, 1.0e-9);
 }
 
-TEST(PriorMap, FusesOnlyPriorObstacles)
+TEST(PriorMap, InitializesFixedTransformOnlyOnce)
 {
-  PriorMapData prior;
-  prior.loaded = true;
-  prior.width = 2;
-  prior.height = 2;
-  prior.resolution = 1.0;
-  prior.occupied = {0U, 1U, 0U, 1U};
-  const PriorMapTransform2D identity;
+  PriorMapData prior = makePriorMap(2, 2, {});
+  const PriorMapTransform2D first{1.0, 2.0, 0.25};
+  const PriorMapTransform2D second{9.0, 8.0, 0.75};
+
+  ASSERT_TRUE(initializePriorMapTransformOnce(prior, first));
+  ASSERT_TRUE(initializePriorMapTransformOnce(prior, second));
+
+  EXPECT_TRUE(prior.transform_ready);
+  EXPECT_DOUBLE_EQ(prior.fixed_transform.tx, first.tx);
+  EXPECT_DOUBLE_EQ(prior.fixed_transform.ty, first.ty);
+  EXPECT_DOUBLE_EQ(prior.fixed_transform.yaw, first.yaw);
+}
+
+TEST(PriorMap, RejectsNonFiniteFixedTransform)
+{
+  PriorMapData prior = makePriorMap(2, 2, {});
+  const PriorMapTransform2D invalid{
+    std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0};
+
+  EXPECT_FALSE(initializePriorMapTransformOnce(prior, invalid));
+  EXPECT_FALSE(prior.transform_ready);
+}
+
+TEST(PriorMap, KeepsFullFreeBufferUntilTransformIsReady)
+{
+  PriorMapData prior = makePriorMap(3, 3, {{0, 0}});
+
+  EXPECT_TRUE(refreshPriorMapProjectionCache(prior, 10, 20, 3, 2, 1.0, 10.0, 20.0));
+  EXPECT_FALSE(prior.projection_cache_ready);
+  EXPECT_EQ(prior.cached_mask, std::vector<uint8_t>(6U, 1U));
+  EXPECT_EQ(prior.scratch_mask.size(), 6U);
+
+  const auto before = prior.cached_mask;
+  EXPECT_FALSE(refreshPriorMapProjectionCache(prior, 10, 20, 3, 2, 1.0, 10.0, 20.0));
+  EXPECT_EQ(prior.cached_mask, before);
+}
+
+TEST(PriorMap, RefreshesCacheOnceForUnchangedWindow)
+{
+  PriorMapData prior = makePriorMap(4, 3, {{1, 0}, {2, 1}});
+  ASSERT_TRUE(initializePriorMapTransformOnce(prior, PriorMapTransform2D{}));
+  ASSERT_TRUE(refreshPriorMapProjectionCache(prior, 0, 0, 3, 2, 1.0, 0.0, 0.0));
+  ASSERT_TRUE(prior.projection_cache_ready);
+  ASSERT_EQ(prior.cached_mask, projectReference(prior, 3, 2, 1.0, 0.0, 0.0));
+
+  const auto before = prior.cached_mask;
+  EXPECT_FALSE(refreshPriorMapProjectionCache(prior, 0, 0, 3, 2, 1.0, 0.0, 0.0));
+  EXPECT_EQ(prior.cached_mask, before);
+}
+
+TEST(PriorMap, MarksOutsidePriorProjectionReady)
+{
+  PriorMapData prior = makePriorMap(1, 1, {{0, 0}});
+  ASSERT_TRUE(initializePriorMapTransformOnce(prior, PriorMapTransform2D{}));
+
+  ASSERT_TRUE(refreshPriorMapProjectionCache(
+    prior, 20, 20, 2, 2, 1.0, 20.0, 20.0));
+  EXPECT_TRUE(prior.projection_cache_ready);
+  EXPECT_EQ(prior.cached_mask, std::vector<uint8_t>(4U, 1U));
+}
+
+TEST(PriorMap, FastProjectionMatchesPublicOriginYawSemantics)
+{
+  PriorMapData prior = makePriorMap(4, 4, {{0, 0}, {1, 2}, {3, 1}});
+  prior.origin_x = 2.0;
+  prior.origin_y = -1.0;
+  prior.origin_yaw = std::acos(-1.0) / 2.0;
+  const PriorMapTransform2D transform{1.0, 2.0, -0.25};
+  ASSERT_TRUE(initializePriorMapTransformOnce(prior, transform));
+
+  ASSERT_TRUE(refreshPriorMapProjectionCache(
+    prior, -2, -2, 5, 5, 1.0, -2.0, -2.0));
+  EXPECT_EQ(prior.cached_mask, projectReference(prior, 5, 5, 1.0, -2.0, -2.0));
+}
+
+TEST(PriorMap, SlidingCacheMatchesFullProjection)
+{
+  PriorMapData prior = makePriorMap(
+    8, 8, {{0, 0}, {1, 2}, {2, 1}, {3, 3}, {4, 2}, {5, 5}, {6, 4}});
+  ASSERT_TRUE(initializePriorMapTransformOnce(prior, PriorMapTransform2D{}));
+
+  struct Window
+  {
+    int min_x;
+    int min_y;
+  };
+  const std::vector<Window> windows{
+    {1, 1}, {2, 1}, {1, 1}, {1, 2}, {1, 1}, {2, 2}, {4, 3}, {20, 20}};
+  for (const auto & window : windows) {
+    ASSERT_TRUE(refreshPriorMapProjectionCache(
+      prior, window.min_x, window.min_y, 3, 3, 1.0, window.min_x, window.min_y));
+    EXPECT_EQ(prior.cached_mask,
+      projectReference(prior, 3, 3, 1.0, window.min_x, window.min_y));
+  }
+}
+
+TEST(PriorMap, SlidingNearIntegerLimitDoesNotOverflow)
+{
+  PriorMapData prior = makePriorMap(1, 1, {});
+  ASSERT_TRUE(initializePriorMapTransformOnce(prior, PriorMapTransform2D{}));
+  constexpr int kFirstMin = std::numeric_limits<int>::max() - 2;
+  constexpr int kSecondMin = std::numeric_limits<int>::max() - 1;
+
+  ASSERT_TRUE(refreshPriorMapProjectionCache(
+    prior, kFirstMin, kFirstMin, 3, 3, 1.0, kFirstMin, kFirstMin));
+  EXPECT_TRUE(refreshPriorMapProjectionCache(
+    prior, kSecondMin, kSecondMin, 3, 3, 1.0, kSecondMin, kSecondMin));
+  EXPECT_EQ(prior.cached_mask, std::vector<uint8_t>(9U, 1U));
+}
+
+TEST(PriorMap, FusesCachedPriorOnlyWhenEnabledAndReady)
+{
+  PriorMapData prior = makePriorMap(2, 2, {{1, 0}, {1, 1}});
+  ASSERT_TRUE(initializePriorMapTransformOnce(prior, PriorMapTransform2D{}));
+  ASSERT_TRUE(refreshPriorMapProjectionCache(prior, 0, 0, 2, 2, 1.0, 0.0, 0.0));
   const std::vector<uint8_t> dynamic_mask{1U, 0U, 0U, 1U};
   const std::vector<uint8_t> dynamic_values{0U, 254U, 254U, 0U};
   std::vector<uint8_t> fused_mask;
   std::vector<uint8_t> fused_values;
-  std::vector<uint8_t> prior_mask;
 
-  fusePriorMapProjection(prior,
-    &identity,
-    2,
-    2,
-    1.0,
-    0.0,
-    0.0,
-    dynamic_mask,
-    dynamic_values,
-    fused_mask,
-    fused_values,
-    &prior_mask);
-
+  fusePriorMapProjection(
+    true, prior, dynamic_mask, dynamic_values, fused_mask, fused_values);
   EXPECT_EQ(fused_mask, (std::vector<uint8_t>{1U, 0U, 0U, 0U}));
   EXPECT_EQ(fused_values, (std::vector<uint8_t>{0U, 254U, 254U, 254U}));
-  EXPECT_EQ(prior_mask, (std::vector<uint8_t>{1U, 0U, 1U, 0U}));
+
+  fusePriorMapProjection(
+    false, prior, dynamic_mask, dynamic_values, fused_mask, fused_values);
+  EXPECT_EQ(fused_mask, dynamic_mask);
+  EXPECT_EQ(fused_values, dynamic_values);
 }
 
-TEST(PriorMap, MissingTransformRebuildsPureDynamicResult)
+TEST(PriorMap, CacheSizeMismatchFallsBackToDynamicResult)
 {
-  PriorMapData prior;
-  prior.loaded = true;
-  prior.width = 1;
-  prior.height = 1;
-  prior.resolution = 1.0;
-  prior.occupied = {1U};
-  const PriorMapTransform2D identity;
+  PriorMapData prior = makePriorMap(1, 1, {{0, 0}});
+  prior.transform_ready = true;
+  prior.projection_cache_ready = true;
+  prior.cached_mask.clear();
   const std::vector<uint8_t> dynamic_mask{1U};
   const std::vector<uint8_t> dynamic_values{0U};
   std::vector<uint8_t> fused_mask;
   std::vector<uint8_t> fused_values;
-  std::vector<uint8_t> prior_mask;
 
-  fusePriorMapProjection(prior,
-    &identity,
-    1,
-    1,
-    1.0,
-    0.0,
-    0.0,
-    dynamic_mask,
-    dynamic_values,
-    fused_mask,
-    fused_values,
-    &prior_mask);
-  ASSERT_EQ(fused_mask, (std::vector<uint8_t>{0U}));
-  ASSERT_EQ(prior_mask, (std::vector<uint8_t>{0U}));
-
-  fusePriorMapProjection(prior,
-    nullptr,
-    1,
-    1,
-    1.0,
-    0.0,
-    0.0,
-    dynamic_mask,
-    dynamic_values,
-    fused_mask,
-    fused_values,
-    &prior_mask);
+  fusePriorMapProjection(
+    true, prior, dynamic_mask, dynamic_values, fused_mask, fused_values);
   EXPECT_EQ(fused_mask, dynamic_mask);
   EXPECT_EQ(fused_values, dynamic_values);
-  EXPECT_EQ(prior_mask, (std::vector<uint8_t>{1U}));
+}
+
+TEST(PriorMap, RejectsMismatchedDynamicBuffers)
+{
+  PriorMapData prior;
+  const std::vector<uint8_t> dynamic_mask{1U, 1U};
+  const std::vector<uint8_t> dynamic_values{0U};
+  std::vector<uint8_t> fused_mask{0U};
+  std::vector<uint8_t> fused_values{254U};
+
+  EXPECT_THROW(
+    fusePriorMapProjection(
+      false, prior, dynamic_mask, dynamic_values, fused_mask, fused_values),
+    std::invalid_argument);
+  EXPECT_TRUE(fused_mask.empty());
+  EXPECT_TRUE(fused_values.empty());
 }
 
 }  // namespace
