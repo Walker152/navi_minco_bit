@@ -522,9 +522,9 @@ planner_server:
         max_acceleration: 2.0
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.1
-        turn_angle_saturation: 0.87
-        min_turn_vel: 0.5
-        decay_power: 1.8
+        turn_angle_saturation: 0.8
+        min_turn_vel: 0.6
+        decay_power: 1.7
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16

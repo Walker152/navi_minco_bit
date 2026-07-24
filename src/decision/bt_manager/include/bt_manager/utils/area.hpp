@@ -220,7 +220,7 @@ inline std::array<Area_Square, 4> tunnel_zone = {
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
-  Area_Square{Point2D{5.7, 3.6}, Point2D{2.4, 1.4}},
+  Area_Square{Point2D{6.5, 3.6}, Point2D{2.4, 1.4}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
@@ -335,8 +335,8 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 inline std::vector<Point2D> nav_points = {
 
   // for test
-  // {8.1, 2.4, 0.0},  // HOME
-  {15.0, 4.4, 0.0},  // HOME
+  {8.1, 2.4, 0.0},  // HOME
+  // {15.0, 4.4, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
   // {9.1, 6.5, 0.0},  // OUTPOST
   {3.9, 5.9, 0.0},  // OUTPOST
@@ -349,8 +349,8 @@ inline std::vector<PatrolList> normal_patrol_branches = {
   // for test
   {
     {{10.0, 2.5, 0.0}, 5000},
-    {{11.0, 3.1, 0.0}, 5000},
-    // {{15.0, 4.2, 0.0}, 5000},
+    // {{11.0, 3.1, 0.0}, 5000},
+    {{15.0, 4.2, 0.0}, 5000},
     {{3.9, 4.9, 0.0}, 10000},
     // {{8.1, 6.4, 0.0}, 10000}
   },
