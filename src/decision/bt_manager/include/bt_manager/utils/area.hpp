@@ -335,24 +335,24 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 inline std::vector<Point2D> nav_points = {
 
   // for test
-  {8.1, 2.4, 0.0},  // HOME
-  // {15.0, 4.2, 0.0},  // HOME
+  // {8.1, 2.4, 0.0},  // HOME
+  {15.0, 4.4, 0.0},  // HOME
   {5.6, 3.8, 0.0},  // BONUS
   // {9.1, 6.5, 0.0},  // OUTPOST
   {3.9, 5.9, 0.0},  // OUTPOST
   {12.6, 3.0, 0.0},  // OWN_FORT
-  {12.7, 3.3, 0.0}   // ENEMY_FORT
+  {12.3, 3.3, 0.0}   // ENEMY_FORT
 };
 
 using PatrolList = std::vector<PatrolPoint>; 
 inline std::vector<PatrolList> normal_patrol_branches = {
   // for test
   {
-    // {{10.0, 2.5, 0.0}, 5000},
-    // {{11.0, 3.1, 0.0}, 5000},
-    {{15.0, 4.2, 0.0}, 5000},
+    {{10.0, 2.5, 0.0}, 5000},
+    {{11.0, 3.1, 0.0}, 5000},
+    // {{15.0, 4.2, 0.0}, 5000},
     {{3.9, 4.9, 0.0}, 10000},
-    {{8.1, 6.4, 0.0}, 10000}
+    // {{8.1, 6.4, 0.0}, 10000}
   },
   {
     {{3.9, 4.9, 0.0}, 10000},
