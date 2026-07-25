@@ -231,7 +231,7 @@ inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
     Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
     Point2D{12.6, 3.0}, Point2D{11.1, 3.0}, Point2D{10.6, 3.0}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{8.5, 4.0}, Point2D{5.7, 4.0}, Point2D{2.4, 4.0},
+    Point2D{8.5, 4.1}, Point2D{5.7, 4.1}, Point2D{2.4, 4.1},
     Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{8.5, 1.4}}, // TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
@@ -242,7 +242,7 @@ inline std::array<Area_Square, 4> tunnel_zone = {
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
-  Area_Square{Point2D{6.3, 4.0}, Point2D{2.4, 1.4}},
+  Area_Square{Point2D{6.3, 3.9}, Point2D{2.4, 1.4}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
