@@ -29,6 +29,7 @@
 #include <thread>
 
 #include "li_initialization.h"
+#include "sensor_time_rate_limiter.h"
 
 using namespace std;
 
@@ -998,12 +999,12 @@ template <typename T> void set_posestamp(T & out)
 void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pubOdomAftMapped,
   std::shared_ptr<tf2_ros::TransformBroadcaster> & tf_br)
 {
-  static auto last_time = std::chrono::steady_clock::now();
-  auto current_time = std::chrono::steady_clock::now();
-  if (current_time - last_time < std::chrono::milliseconds(5)) {
+  static point_lio::SensorTimeRateLimiter odom_rate_limiter;
+  const double odom_sensor_time =
+    publish_odometry_without_downsample ? time_current : lidar_end_time;
+  if (!odom_rate_limiter.should_publish(odom_sensor_time, orig_odom_freq)) {
     return;
   }
-  last_time = current_time;
 
   // // -------------------- Odom / Yaw 调试统计 --------------------
   // static bool yaw_initialized = false;
@@ -1027,11 +1028,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
   };
   odomAftMapped.header.frame_id = "camera_init";
   odomAftMapped.child_frame_id = "body";
-  if (publish_odometry_without_downsample) {
-    odomAftMapped.header.stamp = get_ros_time(time_current);
-  } else {
-    odomAftMapped.header.stamp = get_ros_time(lidar_end_time);
-  }
+  odomAftMapped.header.stamp = get_ros_time(odom_sensor_time);
   set_posestamp(odomAftMapped.pose.pose);
 
   tf2::Quaternion q_pose(odomAftMapped.pose.pose.orientation.x,
