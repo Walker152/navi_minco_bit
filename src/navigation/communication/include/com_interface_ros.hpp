@@ -349,6 +349,7 @@ private:
         vx_mps = tunnel_escape_vx;
         vy_mps = tunnel_escape_vy;
       }
+      std::cout << "tunnel_escape_active: " << tunnel_escape_active << ", tunnel_prepare_active: " << tunnel_prepare_active << ", tunnel_ready: " << tunnel_ready << std::endl;
       if (!tunnel_escape_active && tunnel_prepare_active && !tunnel_ready) {
         vx_mps = 0.0f;
         vy_mps = 0.0f;
@@ -401,7 +402,9 @@ private:
     if (performance_diagnostics_enabled_) {
       auto diagnostics = getDiagnosticsSnapshot();
       diagnostics.delta_yaw_initialized = delta_yaw_initialized;
-      CsvRecorder::record(target, flag, diagnostics);
+      CsvRecorder::record(
+        target, flag, diagnostics,
+        tunnel_escape_active, tunnel_prepare_active, tunnel_ready);
     }
 #ifdef COMMUNICATION_DEBUG
     if (flag == 0) {

@@ -65,7 +65,9 @@ flowchart LR
 | `/rog_map/inflated` | 膨胀障碍 |
 | `/rog_map/frontier` | 前沿区域 |
 | `/rog_map/esdf` | ESDF 可视化 |
-| `/rog_map/layer_value` | 投影层代价值 |
+| `/rog_map/layer_value` | 动态与 PGM 静态先验融合后的二维障碍投影 |
+| `/rog_map/layer_value_dynamic` | 仅在线三维感知生成的动态二维障碍投影 |
+| `/rog_map/layer_value_static` | 仅 PGM 静态先验在当前 ROGMap 网格上的二维障碍投影 |
 | `/rog_map/layer_type` | 四类投影结果；RViz Map 使用 `costmap` 配色显示 UNKNOWN/FREE/PASSABLE/OCCUPIED |
 | `/rog_map/layer_confidence` | 分类置信度 |
 | `/rog_map/layer_height_delta` | 柱内高度变化 |

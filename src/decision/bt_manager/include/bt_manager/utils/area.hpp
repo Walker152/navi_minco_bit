@@ -223,16 +223,16 @@ inline std::vector<PatrolList> attack_patrol_branches = {
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
   AreaPolygon<6, Point2D>{
     Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 3.5}, Point2D{11.1, 3.5}, Point2D{10.6, 3.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{12.6, 3.0}, Point2D{11.1, 3.0}, Point2D{10.6, 3.0}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
     Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 3.5}, Point2D{11.1, 3.5}, Point2D{10.6, 3.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{12.6, 3.0}, Point2D{11.1, 3.0}, Point2D{10.6, 3.0}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
     Point2D{10.6, 7.3}, Point2D{11.1, 7.3}, Point2D{12.6, 7.3},
-    Point2D{12.6, 3.5}, Point2D{11.1, 3.5}, Point2D{10.6, 3.5}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{12.6, 3.0}, Point2D{11.1, 3.0}, Point2D{10.6, 3.0}}, // TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{7.8, 4.1}, Point2D{5.7, 4.1}, Point2D{2.4, 4.1},
-    Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{7.8, 1.4}}, // TODO: replace with measured 6-point polygon vertices
+    Point2D{8.5, 4.0}, Point2D{5.7, 4.0}, Point2D{2.4, 4.0},
+    Point2D{2.4, 1.4}, Point2D{5.7,1.4}, Point2D{8.5, 1.4}}, // TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
@@ -242,7 +242,7 @@ inline std::array<Area_Square, 4> tunnel_zone = {
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
-  Area_Square{Point2D{6,3, 4.0}, Point2D{2.4, 1.4}},
+  Area_Square{Point2D{6.3, 4.0}, Point2D{2.4, 1.4}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
@@ -308,7 +308,7 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
   Point2D{12.7, 0.7},
 };
 inline Area_Square enemy_outpost_watch_zone{Point2D{4.6, 6.6}, Point2D{3.2,5.2 }};
-inline Area_Circle enemy_fort_zone{Point2D{12.4, 3.0}, 1.0};
+inline Area_Circle enemy_fort_zone{Point2D{12.7, 3.3}, 0.4};
 inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{12.0, 2.0},
   Point2D{11.0, 2.0},
@@ -375,15 +375,14 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 inline std::vector<Point2D> nav_points = {
 
   // for test
-  {8.1, 2.4, 0.0},  // HOME BLUE
-  // {15.0, 4.2, 0.0},  // HOME
-  // {13.5, 4.8, 0.0},  // HOME
+  // {8.1, 2.4, 0.0},  // HOME BULE
+  {15.0, 4.4, 0.0},  // HOME RED
   {5.6, 3.8, 0.0},  // BONUS
   // {9.1, 6.5, 0.0},  // OUTPOST
-  // {3.4, 5.4, 0.0},  // OUTPOST red
-  {3.9, 5.4, 0.0},  // OUTPOST blue
+  {3.4, 5.4, 0.0},  // OUTPOST red
+  // {3.9, 5.4, 0.0},  // OUTPOST blue
   {12.6, 3.0, 0.0},  // OWN_FORT
-  {12.5, 3.0, 0.0}   // ENEMY_FORT
+  {12.3, 3.3, 0.0}   // ENEMY_FORT
 };
 
 using PatrolList = std::vector<PatrolPoint>; 
@@ -391,17 +390,17 @@ inline std::vector<PatrolList> normal_patrol_branches = {
   // for test
   {
     //红方巡检
-    // // {{10.0, 2.5, 0.0}, 5000},
-    // {{9.5, 3.9, 0.0}, 5000},
-    // // {{9.6, 2.6, 0.0}, 5000},
-    // {{3.1, 5.0, 0.0}, 10000},
-    // // {{8.5, 2.7, 0.0}, 10000}
+    // {{10.0, 2.5, 0.0}, 5000},
+    {{9.5, 3.9, 0.0}, 5000},
+    // {{9.6, 2.6, 0.0}, 5000},
+    {{3.1, 5.0, 0.0}, 10000},
+    // {{8.5, 2.7, 0.0}, 10000}
     //蓝方巡检
     // // {{10.0, 2.5, 0.0}, 5000},
-    {{9.5, 3.1, 0.0}, 5000},
-    // {{9.6, 6.7}, 5000},
-    {{3.9, 4.4, 0.0}, 10000},
-    // {{10.2, 3.2, 0.0}, 10000}
+    // {{9.5, 3.1, 0.0}, 5000},
+    // // {{9.6, 6.7}, 5000},
+    // {{3.9, 4.4, 0.0}, 10000},
+    // // {{10.2, 3.2, 0.0}, 10000}
   },
   {
     {{3.9, 4.9, 0.0}, 10000},

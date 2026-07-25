@@ -4,7 +4,7 @@
 # PTP 同步脚本
 # ==========================================
 
-INTERFACE="enp86s0"
+INTERFACE="enp114s0"
 
 # 1. 权限校验
 if [ "$EUID" -ne 0 ]; then
