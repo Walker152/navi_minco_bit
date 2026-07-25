@@ -10,6 +10,8 @@
 
 #include "parameters.h"
 
+#include <cmath>
+
 // === 系统状态和时间管理变量定义 ===
 bool is_first_frame = true;          // 标识是否为第一帧数据，用于系统初始化
 double lidar_end_time = 0.0;         // 当前激光雷达帧的结束时间戳
@@ -52,6 +54,7 @@ double match_s = 81;                // 点云匹配的搜索半径参数
 float plane_thr = 0.1f;             // 平面特征提取阈值
 double filter_size_surf_min = 0.5;  // 表面特征点的降采样尺寸 (米)
 double filter_size_map_min = 0.5;   // 地图点的降采样尺寸 (米)
+double pose_update_time_bin_ms = 0.0;  // EKF位姿更新批处理时间桶 (毫秒)
 double fov_deg = 180;               // 激光雷达视场角 (度)
 float DET_RANGE = 450;              // 激光雷达有效检测范围 (米)
 
@@ -164,6 +167,15 @@ void readParameters(rclcpp::Node & nh)
 
     nh.declare_parameter<float>("mapping.plane_thr", 0.05f);
     nh.get_parameter("mapping.plane_thr", plane_thr);
+
+    nh.declare_parameter<double>("mapping.pose_update_time_bin_ms", 0.0);
+    nh.get_parameter("mapping.pose_update_time_bin_ms", pose_update_time_bin_ms);
+    if (!std::isfinite(pose_update_time_bin_ms) || pose_update_time_bin_ms < 0.0) {
+      RCLCPP_WARN(
+        nh.get_logger(),
+        "mapping.pose_update_time_bin_ms must be finite and non-negative; falling back to 0.0");
+      pose_update_time_bin_ms = 0.0;
+    }
 
     nh.declare_parameter<int>("point_filter_num", 2);
     nh.get_parameter("point_filter_num", p_pre->point_filter_num);
