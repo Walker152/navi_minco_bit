@@ -68,6 +68,7 @@
 
         odometry:
             publish_odometry_without_downsample: True
+            publish_frequency_hz: 200                        # Sensor-time rate limit; every message follows a successful EKF update
 
         publish:
             path_en: True                                   # False: close the path output
