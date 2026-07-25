@@ -23,9 +23,9 @@
           <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch" />
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
           <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch"
-                                 kp="1.5"
-                                 ki="0.2"
-                                 kd="0.4"
+                                 kp="2.0"
+                                 ki="0.4"
+                                 kd="0.6"
                                  deadzone_rad="0.05"
                                  yaw_alignment_threshold_rad="0.26"
                                  max_abs_gyro_vel="60.0" />
