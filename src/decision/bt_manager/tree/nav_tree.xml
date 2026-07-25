@@ -60,7 +60,7 @@
             </ReactiveSequence>
 
             <ReactiveSequence name="MidAmmoSupply">
-              <CheckAmmoLow ammo_threshold="0" branch="MidAmmoSupply" />
+              <CheckAmmoLow ammo_threshold="100" branch="MidAmmoSupply" />
               <ReactiveFallback name="MidAmmoSupplyZoneSelector">
                 <!-- <ReactiveSequence name="MidHighlandOutpostSupply">
                   <CheckInZone zone_name="highland" branch="MidHighlandOutpostSupply" />
@@ -95,7 +95,7 @@
             </ReactiveSequence>
 
             <ReactiveSequence name="GlobalAmmoSupply">
-              <CheckAmmoLow ammo_threshold="0" branch="GlobalAmmoSupply" />
+              <CheckAmmoLow ammo_threshold="50" branch="GlobalAmmoSupply" />
               <ReactiveFallback name="GlobalAmmoSupplyZoneSelector">
                 <!-- <ReactiveSequence name="GlobalOutpostAmmoSupply">
                   <ReactiveFallback>
