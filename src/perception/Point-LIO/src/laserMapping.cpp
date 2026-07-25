@@ -1531,7 +1531,7 @@ void LaserMappingNode::processingLoop()
         sort(feats_down_body->points.begin(), feats_down_body->points.end(), time_list);
       }
       {
-        time_seq = time_compressing<int>(feats_down_body);
+        time_seq = time_compressing<int>(feats_down_body, pose_update_time_bin_ms);
         feats_down_size = feats_down_body->points.size();
       }
       record_pose_update_debug_downsample(feats_down_size);

@@ -155,6 +155,12 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(time_batching_test test/time_batching_test.cpp)
+  target_include_directories(time_batching_test PRIVATE include)
+endif()
+
 # Export dependencies
 ament_export_dependencies(
   rclcpp

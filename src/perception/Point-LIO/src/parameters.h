@@ -100,6 +100,7 @@ extern double match_s;                    // 点云匹配的搜索半径参数
 extern float plane_thr;                   // 平面特征提取阈值 (越小要求越平)
 extern double filter_size_surf_min;       // 表面特征点的降采样尺寸 (米)
 extern double filter_size_map_min;        // 地图点的降采样尺寸 (米)
+extern double pose_update_time_bin_ms;    // EKF位姿更新批处理时间桶 (毫秒，<=0保持逐时间戳更新)
 extern double fov_deg;                    // 激光雷达视场角 (度)
 extern float DET_RANGE;                   // 激光雷达有效检测范围 (米)
 
