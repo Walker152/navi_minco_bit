@@ -166,7 +166,7 @@ extern double first_imu_time;             // 第一个IMU数据的时间戳
 
 // === 帧处理参数 ===
 extern int cut_frame_num;                 // 帧切分数量
-extern int orig_odom_freq;                // 原始里程计频率 (Hz)
+extern int orig_odom_freq;                // 里程计发布频率上限 (Hz，按传感器时间)
 extern double online_refine_time;         // 在线优化时间 (秒)
 extern bool cut_frame_init;               // 帧切分初始化标志
 
