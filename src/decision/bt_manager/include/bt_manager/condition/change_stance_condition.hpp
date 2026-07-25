@@ -130,8 +130,9 @@ private:
   rclcpp::Time last_hurt_time_;
   uint8_t latched_yaw_align_mode_{0};
   int latched_tunnel_idx_{-1};
-  bool transformable_timing_{false};
-  std::chrono::steady_clock::time_point transformable_since_;
+  bool yaw_aligned_timing_{false};
+  std::chrono::steady_clock::time_point yaw_aligned_since_;
+  bool deformation_started_{false};
 };
 
 class CheckInEnemyFortZone : public BT::ConditionNode

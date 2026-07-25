@@ -457,8 +457,9 @@ BT::NodeStatus CheckTunnelDeformation::tick()
   const bool tunnel_escape_active = blackboard->get<bool>("tunnel_escape_active");
 
   const bool tunnel_prepare_active =
-    !tunnel_escape_active &&
-    (current_in_tunnel || (in_transform_zone && through_tunnel));
+    tunnel_escape_active ||
+    current_in_tunnel ||
+    (in_transform_zone && through_tunnel);
 
   const bool valid_tunnel_idx =
     tunnel_idx >= 0 &&
@@ -467,6 +468,8 @@ BT::NodeStatus CheckTunnelDeformation::tick()
   if (!tunnel_prepare_active) {
     latched_yaw_align_mode_ = 0;
     latched_tunnel_idx_ = -1;
+    yaw_aligned_timing_ = false;
+    deformation_started_ = false;
   } else if (valid_tunnel_idx && latched_yaw_align_mode_ == 0) {
     const auto current_pose =
       blackboard->get<geometry_msgs::msg::Pose>("current_pose");
@@ -490,34 +493,37 @@ BT::NodeStatus CheckTunnelDeformation::tick()
 
   const bool tunnel_idx_consistent =
     valid_tunnel_idx && latched_tunnel_idx_ == tunnel_idx;
+  const bool escape_yaw_latch_valid =
+    tunnel_escape_active && latched_yaw_align_mode_ != 0;
 
   const uint8_t chassis_yaw_align_mode =
-    tunnel_prepare_active && tunnel_idx_consistent
+    tunnel_prepare_active && (tunnel_idx_consistent || escape_yaw_latch_valid)
       ? latched_yaw_align_mode_
       : 0;
 
   const bool yaw_request_valid = chassis_yaw_align_mode != 0;
 
   const auto now = std::chrono::steady_clock::now();
-  const bool transformable_active =
-    tunnel_prepare_active && is_transformable;
+  const bool yaw_aligned_active =
+    tunnel_prepare_active &&
+    !tunnel_escape_active &&
+    chassis_yaw_aligned;
 
-  if (!transformable_active) {
-    transformable_timing_ = false;
-  } else if (!transformable_timing_) {
-    transformable_timing_ = true;
-    transformable_since_ = now;
+  if (!yaw_aligned_active) {
+    yaw_aligned_timing_ = false;
+  } else if (!yaw_aligned_timing_) {
+    yaw_aligned_timing_ = true;
+    yaw_aligned_since_ = now;
   }
 
-  const bool transformable_delay_ok =
-    transformable_timing_ &&
-    now - transformable_since_ >= std::chrono::seconds(1);
+  const bool yaw_aligned_delay_ok =
+    yaw_aligned_timing_ &&
+    now - yaw_aligned_since_ >= std::chrono::seconds(1);
 
-  const bool deformation_allowed =
-    tunnel_prepare_active &&
-    yaw_request_valid &&
-    chassis_yaw_aligned &&
-    transformable_delay_ok;
+  if (!deformation_started_ &&
+      yaw_aligned_delay_ok && yaw_request_valid && is_transformable) {
+    deformation_started_ = true;
+  }
 
   const bool lifter_at_bottom =
     lifter_current_pos == LifterPos::BOTTOM;
@@ -526,11 +532,10 @@ BT::NodeStatus CheckTunnelDeformation::tick()
     tunnel_prepare_active &&
     yaw_request_valid &&
     lifter_at_bottom &&
-    (current_in_tunnel ||
-     (chassis_yaw_aligned && transformable_delay_ok));
+    (current_in_tunnel || deformation_started_);
 
   const LifterPos desired_pos =
-    deformation_allowed || current_in_tunnel || tunnel_escape_active
+    deformation_started_ || current_in_tunnel || tunnel_escape_active
       ? LifterPos::BOTTOM
       : LifterPos::TOP;
 
@@ -548,7 +553,8 @@ BT::NodeStatus CheckTunnelDeformation::tick()
       << ", yaw_mode=" << static_cast<int>(chassis_yaw_align_mode)
       << ", chassis_yaw_aligned=" << chassis_yaw_aligned
       << ", is_transformable=" << is_transformable
-      << ", transform_delay_ok=" << transformable_delay_ok
+      << ", yaw_aligned_delay_ok=" << yaw_aligned_delay_ok
+      << ", deformation_started=" << deformation_started_
       << ", desired_pos=" << static_cast<int>(desired_pos)
       << ", tunnel_ready=" << tunnel_ready
       << ", tunnel_escape_active=" << tunnel_escape_active
