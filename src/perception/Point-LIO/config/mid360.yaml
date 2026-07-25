@@ -9,7 +9,7 @@
         filter_size_surf: 0.5                               # Options: 0.5, 0.3, 0.2, 0.15, 0.1
         filter_size_map: 0.5                                # Options: 0.5, 0.3, 0.15, 0.1
         ivox_nearby_type: 6                                 # Options: 0, 6, 18, 26
-        runtime_pos_log_enable: True                       # Option: True
+        runtime_pos_log_enable: False                       # Option: True
 
         common:
             lid_topic: "livox/lidar"
@@ -21,7 +21,7 @@
             cut_frame_time_interval: 0.1                    # should be integral fraction of 1 / LiDAR frequency
             print_cloud_input_fps: False                    # True: print cloud input, odom publish and pose update rates
             cloud_input_fps_print_period: 1.0               # seconds between runtime rate logs
-            debug_pose_update_detail: True                 # True: print aggregated pose update detail diagnostics
+            debug_pose_update_detail: False                 # True: print aggregated pose update detail diagnostics
             debug_pose_update_detail_period: 1.0            # seconds between pose update detail logs
             time_diff_lidar_to_imu: 0.0                     # Time offset between LiDAR and IMU calibrated by other algorithms, e.g., LI-Init (find in Readme)
 
@@ -68,7 +68,7 @@
 
         odometry:
             publish_odometry_without_downsample: True
-            publish_frequency_hz: 200                        # Sensor-time rate limit; every message follows a successful EKF update
+            publish_frequency_hz: 100                        # Sensor-time rate limit; every message follows a successful EKF update
 
         publish:
             path_en: True                                   # False: close the path output
