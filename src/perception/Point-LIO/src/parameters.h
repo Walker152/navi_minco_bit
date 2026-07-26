@@ -28,8 +28,8 @@
 #include <condition_variable>          // 条件变量
 #include <csignal>                     // 信号处理
 #include <cstring>                     // 字符串处理
-#include <fstream>                     // 文件流
 #include <mutex>                       // 互斥锁
+#include <string>                      // 字符串
 #include <thread>                      // 线程库
 
 // === ROS2消息类型 ===
@@ -87,8 +87,8 @@ extern bool use_imu_as_input;             // IMU数据使用模式 (true: 作为
 extern bool space_down_sample;            // 是否进行空间降采样 (减少计算量)
 extern bool extrinsic_est_en;             // 是否启用外参在线估计 (自动标定激光雷达-IMU外参)
 extern bool publish_odometry_without_downsample; // 是否发布未降采样的高频里程计
-extern bool print_cloud_input_fps;        // 是否打印点云接收、里程计发布和位姿更新频率
-extern bool debug_pose_update_detail;     // 是否打印位姿更新细粒度诊断
+extern bool print_cloud_input_fps;        // 总开关开启后打印运行频率
+extern bool debug_pose_update_detail;     // 总开关开启后打印位姿更新细节
 extern bool blind_center_enable;          // 是否将blind球心迁移到配置位置
 extern std::vector<double> blind_center;  // blind球心在输入点云坐标系中的位置
 // === 地图初始化参数 ===
@@ -142,7 +142,8 @@ extern std::vector<double> gravity_init;  // 初始重力向量 (IMU本体坐标
 extern std::vector<double> gravity;       // 当前估计的重力向量 (世界坐标系下)
 
 // === 日志和调试控制 ===
-extern bool runtime_pos_log;              // 是否启用运行时位姿日志记录
+extern bool runtime_pos_log;              // 运行时统计总开关（IMU/状态/性能）
+extern std::string runtime_log_path;      // 运行时统计日志目录，空值保持 ROOT_DIR/Log
 extern bool pcd_save_en;                  // 是否启用PCD点云文件保存
 extern double accumulated_map_publish_hz; // 累积地图发布频率，<=0 时不发布
 
@@ -184,9 +185,6 @@ extern std::vector<double> init_pose;     // 初始位姿 [x, y, z, qx, qy, qz, 
 // === 数据结构 ===
 extern MeasureGroup Measures;             // 传感器数据测量组 (包含激光雷达和IMU数据)
 
-// === 日志文件流 ===
-extern ofstream fout_out;                 // 状态输出日志文件流
-extern ofstream fout_imu_pbp;             // IMU点对点处理日志文件流
 // === 函数声明 ===
 
 /**
@@ -195,12 +193,6 @@ extern ofstream fout_imu_pbp;             // IMU点对点处理日志文件流
  * @details 该函数负责声明和读取所有ROS2参数，包括传感器配置、算法参数、噪声模型等
  */
 void readParameters(rclcpp::Node & n);
-
-/**
- * @brief 打开日志文件用于调试和分析
- * @details 打开两个日志文件：mat_out.txt(状态输出) 和 imu_pbp.txt(IMU点对点处理)
- */
-void open_file();
 
 /**
  * @brief 将SO3旋转矩阵转换为欧拉角 (ZYX顺序)
