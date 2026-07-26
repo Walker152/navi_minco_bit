@@ -100,6 +100,7 @@ extern double match_s;                    // 点云匹配的搜索半径参数
 extern float plane_thr;                   // 平面特征提取阈值 (越小要求越平)
 extern double filter_size_surf_min;       // 表面特征点的降采样尺寸 (米)
 extern double filter_size_map_min;        // 地图点的降采样尺寸 (米)
+extern double pose_update_time_bin_ms;    // EKF位姿更新批处理时间桶 (毫秒，<=0保持逐时间戳更新)
 extern double fov_deg;                    // 激光雷达视场角 (度)
 extern float DET_RANGE;                   // 激光雷达有效检测范围 (米)
 
@@ -165,7 +166,7 @@ extern double first_imu_time;             // 第一个IMU数据的时间戳
 
 // === 帧处理参数 ===
 extern int cut_frame_num;                 // 帧切分数量
-extern int orig_odom_freq;                // 原始里程计频率 (Hz)
+extern int orig_odom_freq;                // 里程计发布频率上限 (Hz，按传感器时间)
 extern double online_refine_time;         // 在线优化时间 (秒)
 extern bool cut_frame_init;               // 帧切分初始化标志
 

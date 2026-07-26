@@ -56,6 +56,7 @@
             gyr_cov_input: 0.01                             # for IMU as input model
             acc_cov_input: 0.1                              # for IMU as input model
             plane_thr: 0.1                                  # 0.05, the threshold for plane criteria, the smaller, the flatter a plane
+            pose_update_time_bin_ms: 0.25                   # EKF batch window only; 0.0 restores per-timestamp updates without dropping full-cloud points
             match_s: 81.0
             ivox_grid_resolution: 2.0
             gravity: [ 0.0, 0.0, -9.810 ]                   # [0.0, 9.810, 0.0] # gravity to be aligned
@@ -67,6 +68,7 @@
 
         odometry:
             publish_odometry_without_downsample: True
+            publish_frequency_hz: 100                        # Sensor-time rate limit; every message follows a successful EKF update
 
         publish:
             path_en: True                                   # False: close the path output

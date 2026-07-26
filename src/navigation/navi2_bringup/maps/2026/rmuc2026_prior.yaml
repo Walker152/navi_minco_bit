@@ -1,4 +1,4 @@
-image: rmuc2026_back.pgm
+image: rmuc2026_prior.pgm
 mode: trinary
 resolution: 0.05
 origin: [0, 0, 0] # x,y,yaw

@@ -183,9 +183,12 @@ private:
 
     comm_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     sub_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    odom_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
     rclcpp::SubscriptionOptions sub_opt;
     sub_opt.callback_group = sub_cb_group_;
+    rclcpp::SubscriptionOptions odom_sub_opt;
+    odom_sub_opt.callback_group = odom_cb_group_;
 
     chassis_sub_ = create_subscription<geometry_msgs::msg::Twist>(
       "/cmd_vel_mpc",
@@ -201,13 +204,14 @@ private:
         sendCmdWrenchCB(msg);
       },
       sub_opt);
+    auto odom_qos = rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().durability_volatile();
     odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
       "/aft_mapped_to_init",
-      1,
+      odom_qos,
       [this](nav_msgs::msg::Odometry::ConstSharedPtr msg) {
         odomCB(msg);
       },
-      sub_opt);
+      odom_sub_opt);
     // astar_path_sub_ = create_subscription<nav_msgs::msg::Path>(
     //   "/astar_path_vis",
     //   rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
@@ -343,8 +347,8 @@ private:
         vy_mps = tunnel_escape_vy;
       }
       if (tunnel_prepare_active && !tunnel_ready) {
-        vx_mps *= 0.3f;
-        vy_mps *= 0.3f;
+        vx_mps *= 0.15f;
+        vy_mps *= 0.15f;
       }
     }
 
@@ -805,6 +809,7 @@ private:
   // Callback groups (enable concurrency with MultiThreadedExecutor)
   rclcpp::CallbackGroup::SharedPtr comm_cb_group_;
   rclcpp::CallbackGroup::SharedPtr sub_cb_group_;
+  rclcpp::CallbackGroup::SharedPtr odom_cb_group_;
 
   // Shared state mutex
   std::mutex state_mutex_;
