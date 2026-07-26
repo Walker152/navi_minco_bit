@@ -61,7 +61,7 @@ static inline uint16_t calChecksum(const char * __data, const size_t __len)
   }
   // 若长度为奇数，最后单字节加到校验和
   if (__len & 0x01) {
-    uint16_t tmp = uint16_t(__data[__len - 1]);
+    uint16_t tmp = static_cast<uint8_t>(__data[__len - 1]);
     my_checksum += tmp;
   }
   // std::cout << "my checksum:" << std::hex << my_checksum << std::dec << std::endl;
