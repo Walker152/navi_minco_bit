@@ -16,13 +16,7 @@
         <ReactiveSequence name="MoveStanceNoGyroBranch">
           <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch" />
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
-          <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch"
-                                 kp="1.5"
-                                 ki="0.2"
-                                 kd="0.6"
-                                 deadzone_rad="0.05"
-                                 yaw_alignment_threshold_rad="0.26"
-                                 max_abs_gyro_vel="60.0" />
+          <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
         </ReactiveSequence>
 

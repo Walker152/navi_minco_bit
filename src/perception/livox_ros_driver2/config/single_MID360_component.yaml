@@ -11,7 +11,7 @@
     cmdline_input_bd_code: livox0000000001
     enable_internal_lidar_merge: false
     enable_merge_debug: false
-    merge_front_ip: 192.168.1.196
+    merge_front_ip: 192.168.1.178
     merge_back_ip: 192.168.1.122
     merge_output_topic: livox/lidar
     merge_frame_id: livox_frame
