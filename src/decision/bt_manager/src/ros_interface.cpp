@@ -253,24 +253,16 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
     blackboard_->set<bool>("enemy_outpost_destroyed", !enemy_outpost_destroyed);
     break;
   }
-<<<<<<< HEAD
   case 67:  // 'C'键进入强化攻击姿态,同时切入手动控制(保持到操作手切换其他姿态)
   case 99:  // 'c'键（兼容小写）
     blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
-=======
-  case 67:  // 'C'键进入强化攻击姿态,不改变导航控制模式
->>>>>>> rog_map_work
     blackboard_->set<Sentry_BT::SentryStance>(
       "manual_override_stance", Sentry_BT::SentryStance::ENHANCED_ATTACK);
     blackboard_->set<bool>("manual_stance_override_active", true);
     break;
-<<<<<<< HEAD
   case 68:  // 'D'键进入强化防御姿态,同时切入手动控制(保持到操作手切换其他姿态)
   case 100: // 'd'键（兼容小写）
     blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
-=======
-  case 68:  // 'D'键进入强化防御姿态,不改变导航控制模式
->>>>>>> rog_map_work
     blackboard_->set<Sentry_BT::SentryStance>(
       "manual_override_stance", Sentry_BT::SentryStance::ENHANCED_DEFEND);
     blackboard_->set<bool>("manual_stance_override_active", true);
