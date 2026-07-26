@@ -29,6 +29,7 @@
 #include <thread>
 
 #include "li_initialization.h"
+#include "runtime_statistics.h"
 #include "sensor_time_rate_limiter.h"
 
 using namespace std;
@@ -39,12 +40,7 @@ const float MOV_THRESHOLD = 1.5f;
 
 string root_dir = ROOT_DIR;
 
-int time_log_counter = 0;
-
 bool init_map = false, flg_first_scan = true;
-
-// Time Log Variables
-double match_time = 0, solve_time = 0, propag_time = 0, update_time = 0;
 
 bool flg_reset = false, flg_exit = false;
 
@@ -60,8 +56,6 @@ std::deque<PointCloudXYZI::Ptr> depth_feats_world;
 pcl::VoxelGrid<PointType> downSizeFilterSurf;
 pcl::VoxelGrid<PointType> downSizeFilterMap;
 
-V3D euler_cur;
-
 nav_msgs::msg::Path path;
 nav_msgs::msg::Odometry odomAftMapped;
 geometry_msgs::msg::PoseStamped msg_body_pose;
@@ -69,83 +63,6 @@ geometry_msgs::msg::PoseStamped msg_body_pose;
 int sleep_time = 0;
 
 auto LOGGER = rclcpp::get_logger("laserMapping");
-
-enum class RuntimeRateEvent
-{
-  CloudInput,
-  SyncInput,
-  OdomPublish,
-  PoseUpdate,
-};
-
-struct RuntimeRateStats
-{
-  std::mutex mutex;
-  std::chrono::steady_clock::time_point window_start = std::chrono::steady_clock::now();
-  uint64_t cloud_input_count = 0;
-  uint64_t sync_input_count = 0;
-  uint64_t odom_publish_count = 0;
-  uint64_t pose_update_count = 0;
-  uint64_t process_count = 0;
-  double process_sum_ms = 0.0;
-  double process_max_ms = 0.0;
-};
-
-RuntimeRateStats runtime_rate_stats;
-
-struct PoseUpdateDebugStats
-{
-  std::mutex mutex;
-  std::chrono::steady_clock::time_point window_start = std::chrono::steady_clock::now();
-
-  uint64_t sync_count = 0;
-  uint64_t pose_update_count = 0;
-  uint64_t odom_pub_count = 0;
-
-  uint64_t input_points_sum = 0;
-  uint64_t downsample_points_sum = 0;
-  uint64_t update_points_sum = 0;
-
-  uint64_t min_points_per_update = std::numeric_limits<uint64_t>::max();
-  uint64_t max_points_per_update = 0;
-
-  uint64_t single_point_update_count = 0;
-  uint64_t small_update_count = 0;
-  uint64_t medium_update_count = 0;
-  uint64_t large_update_count = 0;
-
-  double sensor_update_dt_sum_ms = 0.0;
-  double sensor_update_dt_min_ms = std::numeric_limits<double>::infinity();
-  double sensor_update_dt_max_ms = 0.0;
-  uint64_t sensor_update_dt_count = 0;
-
-  double odom_stamp_dt_sum_ms = 0.0;
-  double odom_stamp_dt_min_ms = std::numeric_limits<double>::infinity();
-  double odom_stamp_dt_max_ms = 0.0;
-  uint64_t odom_stamp_dt_count = 0;
-
-  double odom_wall_dt_sum_ms = 0.0;
-  double odom_wall_dt_min_ms = std::numeric_limits<double>::infinity();
-  double odom_wall_dt_max_ms = 0.0;
-  uint64_t odom_wall_dt_count = 0;
-
-  double full_undistort_time_sum_ms = 0.0;
-  double full_undistort_time_min_ms = std::numeric_limits<double>::infinity();
-  double full_undistort_time_max_ms = 0.0;
-  uint64_t full_undistort_time_count = 0;
-
-  double map_incremental_time_sum_ms = 0.0;
-  double map_incremental_time_min_ms = std::numeric_limits<double>::infinity();
-  double map_incremental_time_max_ms = 0.0;
-  uint64_t map_incremental_time_count = 0;
-
-  double last_sensor_update_time = -1.0;
-  double last_odom_stamp_time = -1.0;
-  std::chrono::steady_clock::time_point last_odom_wall_time;
-  bool has_last_odom_wall_time = false;
-};
-
-PoseUpdateDebugStats pose_update_debug_stats;
 
 struct FullCloudPoint
 {
@@ -181,388 +98,6 @@ uint64_t full_cloud_dropped_points_this_scan = 0;
 uint64_t last_full_cloud_enqueued_points = 0;
 uint64_t last_full_cloud_out_of_order = 0;
 
-double average_or_zero(double sum, uint64_t count)
-{
-  return count > 0 ? sum / static_cast<double>(count) : 0.0;
-}
-
-double min_or_zero(double value, uint64_t count)
-{
-  return count > 0 ? value : 0.0;
-}
-
-void reset_pose_update_debug_window_locked(std::chrono::steady_clock::time_point now)
-{
-  pose_update_debug_stats.window_start = now;
-  pose_update_debug_stats.sync_count = 0;
-  pose_update_debug_stats.pose_update_count = 0;
-  pose_update_debug_stats.odom_pub_count = 0;
-  pose_update_debug_stats.input_points_sum = 0;
-  pose_update_debug_stats.downsample_points_sum = 0;
-  pose_update_debug_stats.update_points_sum = 0;
-  pose_update_debug_stats.min_points_per_update = std::numeric_limits<uint64_t>::max();
-  pose_update_debug_stats.max_points_per_update = 0;
-  pose_update_debug_stats.single_point_update_count = 0;
-  pose_update_debug_stats.small_update_count = 0;
-  pose_update_debug_stats.medium_update_count = 0;
-  pose_update_debug_stats.large_update_count = 0;
-  pose_update_debug_stats.sensor_update_dt_sum_ms = 0.0;
-  pose_update_debug_stats.sensor_update_dt_min_ms = std::numeric_limits<double>::infinity();
-  pose_update_debug_stats.sensor_update_dt_max_ms = 0.0;
-  pose_update_debug_stats.sensor_update_dt_count = 0;
-  pose_update_debug_stats.odom_stamp_dt_sum_ms = 0.0;
-  pose_update_debug_stats.odom_stamp_dt_min_ms = std::numeric_limits<double>::infinity();
-  pose_update_debug_stats.odom_stamp_dt_max_ms = 0.0;
-  pose_update_debug_stats.odom_stamp_dt_count = 0;
-  pose_update_debug_stats.odom_wall_dt_sum_ms = 0.0;
-  pose_update_debug_stats.odom_wall_dt_min_ms = std::numeric_limits<double>::infinity();
-  pose_update_debug_stats.odom_wall_dt_max_ms = 0.0;
-  pose_update_debug_stats.odom_wall_dt_count = 0;
-  pose_update_debug_stats.full_undistort_time_sum_ms = 0.0;
-  pose_update_debug_stats.full_undistort_time_min_ms = std::numeric_limits<double>::infinity();
-  pose_update_debug_stats.full_undistort_time_max_ms = 0.0;
-  pose_update_debug_stats.full_undistort_time_count = 0;
-  pose_update_debug_stats.map_incremental_time_sum_ms = 0.0;
-  pose_update_debug_stats.map_incremental_time_min_ms = std::numeric_limits<double>::infinity();
-  pose_update_debug_stats.map_incremental_time_max_ms = 0.0;
-  pose_update_debug_stats.map_incremental_time_count = 0;
-}
-
-void maybe_print_pose_update_debug_locked(std::chrono::steady_clock::time_point now)
-{
-  const double period = debug_pose_update_detail_period > 0.05 ? debug_pose_update_detail_period : 1.0;
-  const double elapsed =
-    std::chrono::duration_cast<std::chrono::duration<double>>(now - pose_update_debug_stats.window_start)
-      .count();
-
-  if (elapsed < period) {
-    return;
-  }
-
-  const double sync_hz = static_cast<double>(pose_update_debug_stats.sync_count) / elapsed;
-  const double pose_update_hz = static_cast<double>(pose_update_debug_stats.pose_update_count) / elapsed;
-  const double odom_pub_hz = static_cast<double>(pose_update_debug_stats.odom_pub_count) / elapsed;
-  const double updates_per_sync = pose_update_debug_stats.sync_count > 0
-                                    ? static_cast<double>(pose_update_debug_stats.pose_update_count) /
-                                        static_cast<double>(pose_update_debug_stats.sync_count)
-                                    : 0.0;
-  const double odom_per_sync = pose_update_debug_stats.sync_count > 0
-                                 ? static_cast<double>(pose_update_debug_stats.odom_pub_count) /
-                                     static_cast<double>(pose_update_debug_stats.sync_count)
-                                 : 0.0;
-  const double full_pts_per_sync = pose_update_debug_stats.sync_count > 0
-                                     ? static_cast<double>(pose_update_debug_stats.input_points_sum) /
-                                         static_cast<double>(pose_update_debug_stats.sync_count)
-                                     : 0.0;
-  const double down_pts_per_sync = pose_update_debug_stats.sync_count > 0
-                                     ? static_cast<double>(pose_update_debug_stats.downsample_points_sum) /
-                                         static_cast<double>(pose_update_debug_stats.sync_count)
-                                     : 0.0;
-  const double avg_points_per_update = pose_update_debug_stats.pose_update_count > 0
-                                         ? static_cast<double>(pose_update_debug_stats.update_points_sum) /
-                                             static_cast<double>(pose_update_debug_stats.pose_update_count)
-                                         : 0.0;
-  const uint64_t min_points_per_update =
-    pose_update_debug_stats.pose_update_count > 0 ? pose_update_debug_stats.min_points_per_update : 0;
-
-  const double avg_full_undistort_time_ms =
-    average_or_zero(
-      pose_update_debug_stats.full_undistort_time_sum_ms,
-      pose_update_debug_stats.full_undistort_time_count);
-
-  const double avg_map_incremental_time_ms =
-    average_or_zero(
-      pose_update_debug_stats.map_incremental_time_sum_ms,
-      pose_update_debug_stats.map_incremental_time_count);
-
-  RCLCPP_INFO(LOGGER,
-    "[Point-LIO][PoseDebug] window=%.2fs\n"
-    "  sync=%.1fHz, pose_update=%.1fHz, odom_pub=%.1fHz\n"
-    "  updates_per_sync=%.1f, odom_per_sync=%.1f\n"
-    "  full_pts/sync_avg=%.1f, down_pts/sync_avg=%.1f\n"
-    "  pts/update avg=%.2f min=%llu max=%llu\n"
-    "  update_bins single=%llu small=%llu medium=%llu large=%llu\n"
-    "  full_undistort_time_ms avg=%.2f min=%.2f max=%.2f count=%llu\n"
-    "  map_incremental_time_ms avg=%.2f min=%.2f max=%.2f count=%llu\n"
-    "  sensor_update_dt_ms avg=%.2f min=%.2f max=%.2f\n"
-    "  odom_stamp_dt_ms avg=%.2f min=%.2f max=%.2f\n"
-    "  odom_wall_dt_ms avg=%.2f min=%.2f max=%.2f",
-    elapsed,
-    sync_hz,
-    pose_update_hz,
-    odom_pub_hz,
-    updates_per_sync,
-    odom_per_sync,
-    full_pts_per_sync,
-    down_pts_per_sync,
-    avg_points_per_update,
-    static_cast<unsigned long long>(min_points_per_update),
-    static_cast<unsigned long long>(pose_update_debug_stats.max_points_per_update),
-    static_cast<unsigned long long>(pose_update_debug_stats.single_point_update_count),
-    static_cast<unsigned long long>(pose_update_debug_stats.small_update_count),
-    static_cast<unsigned long long>(pose_update_debug_stats.medium_update_count),
-    static_cast<unsigned long long>(pose_update_debug_stats.large_update_count),
-    avg_full_undistort_time_ms,
-    min_or_zero(
-      pose_update_debug_stats.full_undistort_time_min_ms,
-      pose_update_debug_stats.full_undistort_time_count),
-    pose_update_debug_stats.full_undistort_time_max_ms,
-    static_cast<unsigned long long>(pose_update_debug_stats.full_undistort_time_count),
-    avg_map_incremental_time_ms,
-    min_or_zero(
-      pose_update_debug_stats.map_incremental_time_min_ms,
-      pose_update_debug_stats.map_incremental_time_count),
-    pose_update_debug_stats.map_incremental_time_max_ms,
-    static_cast<unsigned long long>(pose_update_debug_stats.map_incremental_time_count),
-    average_or_zero(
-      pose_update_debug_stats.sensor_update_dt_sum_ms, pose_update_debug_stats.sensor_update_dt_count),
-    min_or_zero(
-      pose_update_debug_stats.sensor_update_dt_min_ms, pose_update_debug_stats.sensor_update_dt_count),
-    pose_update_debug_stats.sensor_update_dt_max_ms,
-    average_or_zero(
-      pose_update_debug_stats.odom_stamp_dt_sum_ms, pose_update_debug_stats.odom_stamp_dt_count),
-    min_or_zero(pose_update_debug_stats.odom_stamp_dt_min_ms, pose_update_debug_stats.odom_stamp_dt_count),
-    pose_update_debug_stats.odom_stamp_dt_max_ms,
-    average_or_zero(
-      pose_update_debug_stats.odom_wall_dt_sum_ms, pose_update_debug_stats.odom_wall_dt_count),
-    min_or_zero(pose_update_debug_stats.odom_wall_dt_min_ms, pose_update_debug_stats.odom_wall_dt_count),
-    pose_update_debug_stats.odom_wall_dt_max_ms);
-
-  if (pose_update_debug_stats.pose_update_count > 0) {
-    const double single_ratio = static_cast<double>(pose_update_debug_stats.single_point_update_count) /
-                                static_cast<double>(pose_update_debug_stats.pose_update_count);
-    if (avg_points_per_update <= 2.0 || single_ratio > 0.5) {
-      RCLCPP_WARN(LOGGER,
-        "[Point-LIO][PoseDebug] Pose update is close to point-wise update; consider batching "
-        "time_seq.");
-    }
-    if (updates_per_sync > 100.0) {
-      RCLCPP_WARN(LOGGER,
-        "[Point-LIO][PoseDebug] Many EKF updates per sync package; updates may be burst processed "
-        "after each cloud frame.");
-    }
-    if (pose_update_debug_stats.odom_pub_count < pose_update_debug_stats.pose_update_count) {
-      RCLCPP_INFO(LOGGER,
-        "[Point-LIO][PoseDebug] Odom publish is rate-limited or decoupled from EKF update. Use "
-        "odom_pub as external output rate.");
-    }
-  }
-
-  reset_pose_update_debug_window_locked(now);
-}
-
-void record_pose_update_debug_sync(uint64_t input_points)
-{
-  if (!debug_pose_update_detail) {
-    return;
-  }
-
-  const auto now = std::chrono::steady_clock::now();
-  std::lock_guard<std::mutex> lock(pose_update_debug_stats.mutex);
-  ++pose_update_debug_stats.sync_count;
-  pose_update_debug_stats.input_points_sum += input_points;
-  maybe_print_pose_update_debug_locked(now);
-}
-
-void record_pose_update_debug_downsample(uint64_t downsample_points)
-{
-  if (!debug_pose_update_detail) {
-    return;
-  }
-
-  const auto now = std::chrono::steady_clock::now();
-  std::lock_guard<std::mutex> lock(pose_update_debug_stats.mutex);
-  pose_update_debug_stats.downsample_points_sum += downsample_points;
-  maybe_print_pose_update_debug_locked(now);
-}
-
-void record_pose_update_debug_update(uint64_t points_per_update, double sensor_time)
-{
-  if (!debug_pose_update_detail) {
-    return;
-  }
-
-  const auto now = std::chrono::steady_clock::now();
-  std::lock_guard<std::mutex> lock(pose_update_debug_stats.mutex);
-  ++pose_update_debug_stats.pose_update_count;
-  pose_update_debug_stats.update_points_sum += points_per_update;
-  pose_update_debug_stats.min_points_per_update =
-    std::min(pose_update_debug_stats.min_points_per_update, points_per_update);
-  pose_update_debug_stats.max_points_per_update =
-    std::max(pose_update_debug_stats.max_points_per_update, points_per_update);
-
-  if (points_per_update <= 1) {
-    ++pose_update_debug_stats.single_point_update_count;
-  }
-  if (points_per_update <= 5) {
-    ++pose_update_debug_stats.small_update_count;
-  } else if (points_per_update <= 30) {
-    ++pose_update_debug_stats.medium_update_count;
-  } else {
-    ++pose_update_debug_stats.large_update_count;
-  }
-
-  if (pose_update_debug_stats.last_sensor_update_time >= 0.0) {
-    const double dt_ms = (sensor_time - pose_update_debug_stats.last_sensor_update_time) * 1000.0;
-    pose_update_debug_stats.sensor_update_dt_sum_ms += dt_ms;
-    pose_update_debug_stats.sensor_update_dt_min_ms =
-      std::min(pose_update_debug_stats.sensor_update_dt_min_ms, dt_ms);
-    pose_update_debug_stats.sensor_update_dt_max_ms =
-      std::max(pose_update_debug_stats.sensor_update_dt_max_ms, dt_ms);
-    ++pose_update_debug_stats.sensor_update_dt_count;
-  }
-  pose_update_debug_stats.last_sensor_update_time = sensor_time;
-  maybe_print_pose_update_debug_locked(now);
-}
-
-void record_pose_update_debug_odom(const builtin_interfaces::msg::Time & stamp)
-{
-  if (!debug_pose_update_detail) {
-    return;
-  }
-
-  const auto now = std::chrono::steady_clock::now();
-  const double stamp_time = rclcpp::Time(stamp).seconds();
-  std::lock_guard<std::mutex> lock(pose_update_debug_stats.mutex);
-  ++pose_update_debug_stats.odom_pub_count;
-
-  if (pose_update_debug_stats.last_odom_stamp_time >= 0.0) {
-    const double dt_ms = (stamp_time - pose_update_debug_stats.last_odom_stamp_time) * 1000.0;
-    pose_update_debug_stats.odom_stamp_dt_sum_ms += dt_ms;
-    pose_update_debug_stats.odom_stamp_dt_min_ms =
-      std::min(pose_update_debug_stats.odom_stamp_dt_min_ms, dt_ms);
-    pose_update_debug_stats.odom_stamp_dt_max_ms =
-      std::max(pose_update_debug_stats.odom_stamp_dt_max_ms, dt_ms);
-    ++pose_update_debug_stats.odom_stamp_dt_count;
-  }
-  pose_update_debug_stats.last_odom_stamp_time = stamp_time;
-
-  if (pose_update_debug_stats.has_last_odom_wall_time) {
-    const double dt_ms =
-      std::chrono::duration<double, std::milli>(now - pose_update_debug_stats.last_odom_wall_time).count();
-    pose_update_debug_stats.odom_wall_dt_sum_ms += dt_ms;
-    pose_update_debug_stats.odom_wall_dt_min_ms =
-      std::min(pose_update_debug_stats.odom_wall_dt_min_ms, dt_ms);
-    pose_update_debug_stats.odom_wall_dt_max_ms =
-      std::max(pose_update_debug_stats.odom_wall_dt_max_ms, dt_ms);
-    ++pose_update_debug_stats.odom_wall_dt_count;
-  }
-  pose_update_debug_stats.last_odom_wall_time = now;
-  pose_update_debug_stats.has_last_odom_wall_time = true;
-  maybe_print_pose_update_debug_locked(now);
-}
-
-void record_pose_update_debug_full_undistort(double time_ms)
-{
-  if (!debug_pose_update_detail || !std::isfinite(time_ms) || time_ms < 0.0) {
-    return;
-  }
-
-  const auto now = std::chrono::steady_clock::now();
-  std::lock_guard<std::mutex> lock(pose_update_debug_stats.mutex);
-  pose_update_debug_stats.full_undistort_time_sum_ms += time_ms;
-  pose_update_debug_stats.full_undistort_time_min_ms =
-    std::min(pose_update_debug_stats.full_undistort_time_min_ms, time_ms);
-  pose_update_debug_stats.full_undistort_time_max_ms =
-    std::max(pose_update_debug_stats.full_undistort_time_max_ms, time_ms);
-  ++pose_update_debug_stats.full_undistort_time_count;
-  maybe_print_pose_update_debug_locked(now);
-}
-
-void record_pose_update_debug_map_incremental(double time_ms)
-{
-  if (!debug_pose_update_detail || !std::isfinite(time_ms) || time_ms < 0.0) {
-    return;
-  }
-
-  const auto now = std::chrono::steady_clock::now();
-  std::lock_guard<std::mutex> lock(pose_update_debug_stats.mutex);
-  pose_update_debug_stats.map_incremental_time_sum_ms += time_ms;
-  pose_update_debug_stats.map_incremental_time_min_ms =
-    std::min(pose_update_debug_stats.map_incremental_time_min_ms, time_ms);
-  pose_update_debug_stats.map_incremental_time_max_ms =
-    std::max(pose_update_debug_stats.map_incremental_time_max_ms, time_ms);
-  ++pose_update_debug_stats.map_incremental_time_count;
-  maybe_print_pose_update_debug_locked(now);
-}
-
-void record_runtime_rate(RuntimeRateEvent event)
-{
-  if (!print_cloud_input_fps) {
-    return;
-  }
-
-  const auto now = std::chrono::steady_clock::now();
-  std::lock_guard<std::mutex> lock(runtime_rate_stats.mutex);
-
-  switch (event) {
-  case RuntimeRateEvent::CloudInput:
-    ++runtime_rate_stats.cloud_input_count;
-    break;
-  case RuntimeRateEvent::SyncInput:
-    ++runtime_rate_stats.sync_input_count;
-    break;
-  case RuntimeRateEvent::OdomPublish:
-    ++runtime_rate_stats.odom_publish_count;
-    break;
-  case RuntimeRateEvent::PoseUpdate:
-    ++runtime_rate_stats.pose_update_count;
-    break;
-  }
-
-  const double elapsed =
-    std::chrono::duration_cast<std::chrono::duration<double>>(now - runtime_rate_stats.window_start)
-      .count();
-  const double print_period = cloud_input_fps_print_period > 0.0 ? cloud_input_fps_print_period : 1.0;
-  if (elapsed < print_period) {
-    return;
-  }
-
-  const double cloud_input_fps = static_cast<double>(runtime_rate_stats.cloud_input_count) / elapsed;
-  const double sync_input_fps = static_cast<double>(runtime_rate_stats.sync_input_count) / elapsed;
-  const double odom_publish_fps = static_cast<double>(runtime_rate_stats.odom_publish_count) / elapsed;
-  const double pose_update_fps = static_cast<double>(runtime_rate_stats.pose_update_count) / elapsed;
-  const double avg_process_ms =
-    runtime_rate_stats.process_count > 0
-      ? runtime_rate_stats.process_sum_ms / static_cast<double>(runtime_rate_stats.process_count)
-      : 0.0;
-  RCLCPP_INFO(LOGGER,
-    "[Point-LIO] rates: cloud_cb=%.2fHz (%llu), sync_in=%.2fHz (%llu), odom_pub=%.2fHz (%llu), "
-    "pose_update=%.2fHz (%llu), avg_process=%.2fms, max_process=%.2fms, window=%.2fs",
-    cloud_input_fps,
-    static_cast<unsigned long long>(runtime_rate_stats.cloud_input_count),
-    sync_input_fps,
-    static_cast<unsigned long long>(runtime_rate_stats.sync_input_count),
-    odom_publish_fps,
-    static_cast<unsigned long long>(runtime_rate_stats.odom_publish_count),
-    pose_update_fps,
-    static_cast<unsigned long long>(runtime_rate_stats.pose_update_count),
-    avg_process_ms,
-    runtime_rate_stats.process_max_ms,
-    elapsed);
-
-  runtime_rate_stats.cloud_input_count = 0;
-  runtime_rate_stats.sync_input_count = 0;
-  runtime_rate_stats.odom_publish_count = 0;
-  runtime_rate_stats.pose_update_count = 0;
-  runtime_rate_stats.process_count = 0;
-  runtime_rate_stats.process_sum_ms = 0.0;
-  runtime_rate_stats.process_max_ms = 0.0;
-  runtime_rate_stats.window_start = now;
-}
-
-void record_runtime_process_time(double process_ms)
-{
-  if (!print_cloud_input_fps) {
-    return;
-  }
-
-  std::lock_guard<std::mutex> lock(runtime_rate_stats.mutex);
-  ++runtime_rate_stats.process_count;
-  runtime_rate_stats.process_sum_ms += process_ms;
-  runtime_rate_stats.process_max_ms = std::max(runtime_rate_stats.process_max_ms, process_ms);
-}
-
 void SigHandle(int sig)
 {
   flg_exit = true;
@@ -582,50 +117,6 @@ PointCloudXYZI::Ptr loadPointcloudFromPcd(const std::string & file_path)
 
   RCLCPP_INFO(LOGGER, "Loaded %zu points from %s", pcd_ptr->size(), file_path.c_str());
   return pcd_ptr;
-}
-
-inline void dump_lio_state_to_log(FILE * fp_)
-{
-  if (fp_ == nullptr) {
-    return;
-  }
-
-  V3D rot_ang;
-  if (!use_imu_as_input) {
-    rot_ang = SO3ToEuler(kf_output.x_.rot);
-  } else {
-    rot_ang = SO3ToEuler(kf_input.x_.rot);
-  }
-
-  fprintf(fp_, "%lf ", Measures.lidar_beg_time - first_lidar_time);
-  fprintf(fp_, "%lf %lf %lf ", rot_ang(0), rot_ang(1), rot_ang(2));  // Angle
-  if (use_imu_as_input) {
-    fprintf(fp_, "%lf %lf %lf ", kf_input.x_.pos(0), kf_input.x_.pos(1), kf_input.x_.pos(2));  // Pos
-    fprintf(fp_, "%lf %lf %lf ", 0.0, 0.0, 0.0);                                               // omega
-    fprintf(fp_, "%lf %lf %lf ", kf_input.x_.vel(0), kf_input.x_.vel(1), kf_input.x_.vel(2));  // Vel
-    fprintf(fp_, "%lf %lf %lf ", 0.0, 0.0, 0.0);                                               // Acc
-    fprintf(fp_, "%lf %lf %lf ", kf_input.x_.bg(0), kf_input.x_.bg(1), kf_input.x_.bg(2));     // Bias_g
-    fprintf(fp_, "%lf %lf %lf ", kf_input.x_.ba(0), kf_input.x_.ba(1), kf_input.x_.ba(2));     // Bias_a
-    fprintf(fp_,
-      "%lf %lf %lf ",
-      kf_input.x_.gravity(0),
-      kf_input.x_.gravity(1),
-      kf_input.x_.gravity(2));  // Bias_a
-  } else {
-    fprintf(fp_, "%lf %lf %lf ", kf_output.x_.pos(0), kf_output.x_.pos(1), kf_output.x_.pos(2));  // Pos
-    fprintf(fp_, "%lf %lf %lf ", 0.0, 0.0, 0.0);                                                  // omega
-    fprintf(fp_, "%lf %lf %lf ", kf_output.x_.vel(0), kf_output.x_.vel(1), kf_output.x_.vel(2));  // Vel
-    fprintf(fp_, "%lf %lf %lf ", 0.0, 0.0, 0.0);                                                  // Acc
-    fprintf(fp_, "%lf %lf %lf ", kf_output.x_.bg(0), kf_output.x_.bg(1), kf_output.x_.bg(2));     // Bias_g
-    fprintf(fp_, "%lf %lf %lf ", kf_output.x_.ba(0), kf_output.x_.ba(1), kf_output.x_.ba(2));     // Bias_a
-    fprintf(fp_,
-      "%lf %lf %lf ",
-      kf_output.x_.gravity(0),
-      kf_output.x_.gravity(1),
-      kf_output.x_.gravity(2));  // Bias_a
-  }
-  fprintf(fp_, "\r\n");
-  fflush(fp_);
 }
 
 void pointBodyLidarToIMU(PointType const * const pi, PointType * const po)
@@ -821,7 +312,7 @@ void publishAccumulatedFullCloudWorld(
   cloud_msg->header.frame_id = "camera_init";
   pub->publish(std::move(cloud_msg));
 
-  if (print_cloud_input_fps) {
+  if (point_lio::RuntimeStatistics::instance().enabled() && print_cloud_input_fps) {
     RCLCPP_INFO(LOGGER,
       "[Point-LIO][FullCloud] enqueued=%llu published=%zu queue_remaining=%zu "
       "dropped_old=%llu out_of_order=%llu",
@@ -913,6 +404,38 @@ void publish_accumulated_map(
 }
 
 PointCloudXYZI::Ptr pcl_wait_save(new PointCloudXYZI());
+
+point_lio::StateLogRecord makeStateLogRecord()
+{
+  point_lio::StateLogRecord record;
+  record.relative_time = Measures.lidar_beg_time - first_lidar_time;
+  record.use_imu_as_input = use_imu_as_input;
+
+  const auto copy_vector = [](const auto & source, std::array<double, 3> & destination) {
+    destination = {source(0), source(1), source(2)};
+  };
+
+  if (use_imu_as_input) {
+    copy_vector(SO3ToEuler(kf_input.x_.rot), record.euler);
+    copy_vector(kf_input.x_.pos, record.pos);
+    copy_vector(kf_input.x_.vel, record.vel);
+    copy_vector(kf_input.x_.gravity, record.gravity);
+    copy_vector(kf_input.x_.bg, record.bg);
+    copy_vector(kf_input.x_.ba, record.ba);
+  } else {
+    copy_vector(SO3ToEuler(kf_output.x_.rot), record.euler);
+    copy_vector(kf_output.x_.pos, record.pos);
+    copy_vector(kf_output.x_.vel, record.vel);
+    copy_vector(kf_output.x_.omg, record.omega);
+    copy_vector(kf_output.x_.acc, record.acc);
+    copy_vector(kf_output.x_.gravity, record.gravity);
+    copy_vector(kf_output.x_.bg, record.bg);
+    copy_vector(kf_output.x_.ba, record.ba);
+  }
+  record.point_count = feats_undistort ? feats_undistort->size() : 0;
+  return record;
+}
+
 void publish_frame_world(
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pubLaserCloudFullRes)
 {
@@ -1115,8 +638,9 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
   }
 
   pubOdomAftMapped->publish(odomAftMapped);
-  record_runtime_rate(RuntimeRateEvent::OdomPublish);
-  record_pose_update_debug_odom(odomAftMapped.header.stamp);
+  const double publish_time =
+    std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+  point_lio::RuntimeStatistics::instance().recordOdomPublish(odom_sensor_time, publish_time);
 
   if (tf_send_en) {
     geometry_msgs::msg::TransformStamped transform;
@@ -1213,12 +737,7 @@ public:
       pcl::PCDWriter pcd_writer;
       pcd_writer.writeBinary(all_points_dir, *pcl_wait_save);
     }
-    if (fp_) {
-      fclose(fp_);
-      fp_ = nullptr;
-    }
-    fout_out.close();
-    fout_imu_pbp.close();
+    RuntimeStatistics::instance().shutdown();
   }
 
 private:
@@ -1275,36 +794,24 @@ private:
     Q_input_ = process_noise_cov_input();
     Q_output_ = process_noise_cov_output();
 
-    if (runtime_pos_log) {
-      const std::filesystem::path log_dir = std::filesystem::path(root_dir) / "Log";
-      std::error_code log_dir_error;
-      std::filesystem::create_directories(log_dir, log_dir_error);
-      if (log_dir_error) {
-        RCLCPP_ERROR(get_logger(),
-          "[Point-LIO] Failed to create runtime log directory %s: %s. Runtime pose logging disabled.",
-          log_dir.c_str(),
-          log_dir_error.message().c_str());
-        runtime_pos_log = false;
-      } else {
-        const std::string pos_log_path = (log_dir / "pos_log.txt").string();
-        fp_ = fopen(pos_log_path.c_str(), "w");
-        open_file();
-        if (!fp_ || !fout_out || !fout_imu_pbp) {
-          RCLCPP_ERROR(get_logger(),
-            "[Point-LIO] Failed to open runtime log files under %s. Runtime pose logging disabled.",
-            log_dir.c_str());
-          if (fp_) {
-            fclose(fp_);
-            fp_ = nullptr;
-          }
-          fout_out.close();
-          fout_imu_pbp.close();
-          runtime_pos_log = false;
-        }
-      }
+    double statistics_print_period =
+      cloud_input_fps_print_period > 0.05 ? cloud_input_fps_print_period : 1.0;
+    if (debug_pose_update_detail &&
+        (!print_cloud_input_fps || debug_pose_update_detail_period < statistics_print_period)) {
+      statistics_print_period = debug_pose_update_detail_period;
+    }
+    const std::filesystem::path log_dir =
+      resolveLogDirectory(runtime_log_path, std::filesystem::path(root_dir));
+    if (!RuntimeStatistics::instance().initialize(
+        runtime_pos_log, log_dir, print_cloud_input_fps, debug_pose_update_detail,
+        statistics_print_period)) {
+      RCLCPP_ERROR(get_logger(),
+        "[Point-LIO] Failed to initialize runtime statistics under %s. Runtime logging disabled.",
+        log_dir.c_str());
+      runtime_pos_log = false;
     }
 
-    if (print_cloud_input_fps) {
+    if (runtime_pos_log && print_cloud_input_fps) {
       RCLCPP_INFO(get_logger(),
         "[Point-LIO] runtime rate print enabled, period: %.2f s, lidar topic: %s",
         cloud_input_fps_print_period > 0.0 ? cloud_input_fps_print_period : 1.0,
@@ -1314,13 +821,13 @@ private:
     if (p_pre->lidar_type == AVIA) {
       sub_pcl_livox_ = create_subscription<livox_ros_driver2::msg::CustomMsg>(
         lid_topic, rclcpp::SensorDataQoS(), [](livox_ros_driver2::msg::CustomMsg::UniquePtr msg) {
-          record_runtime_rate(RuntimeRateEvent::CloudInput);
+          RuntimeStatistics::instance().recordRate(RuntimeRateEvent::CloudInput);
           livox_pcl_cbk(std::move(msg));
         });
     } else {
       sub_pcl_pc_ = create_subscription<sensor_msgs::msg::PointCloud2>(
         lid_topic, rclcpp::SensorDataQoS(), [](sensor_msgs::msg::PointCloud2::UniquePtr msg) {
-          record_runtime_rate(RuntimeRateEvent::CloudInput);
+          RuntimeStatistics::instance().recordRate(RuntimeRateEvent::CloudInput);
           standard_pcl_cbk(std::move(msg));
         });
     }
@@ -1368,16 +875,10 @@ private:
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_path_;
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
-  FILE * fp_{nullptr};
-  int frame_num_{0};
-  double aver_time_consu_{0.0};
-  double aver_time_icp_{0.0};
-  double aver_time_match_{0.0};
-  double aver_time_incre_{0.0};
-  double aver_time_solve_{0.0};
-  double aver_time_propag_{0.0};
   double last_proc_time_{-1.0};
   int startup_frame_cnt_{0};
+  static constexpr uint64_t kIvoxStatisticsPeriodFrames = 20;
+  uint64_t ivox_statistics_frame_counter_{0};
   Eigen::Matrix<double, 24, 24> P_init_;
   Eigen::Matrix<double, 30, 30> P_init_output_;
   Eigen::Matrix<double, 24, 24> Q_input_;
@@ -1391,9 +892,13 @@ void LaserMappingNode::processingLoop()
     if (flg_exit)
       break;
     if (sync_packages(Measures)) {
-      const auto process_wall_start = std::chrono::steady_clock::now();
-      record_runtime_rate(RuntimeRateEvent::SyncInput);
-      record_pose_update_debug_sync(Measures.lidar ? Measures.lidar->size() : 0);
+      const bool statistics_enabled = RuntimeStatistics::instance().enabled();
+      const auto process_wall_start =
+        statistics_enabled ? std::chrono::steady_clock::now()
+                           : std::chrono::steady_clock::time_point{};
+      RuntimeStatistics::instance().recordRate(RuntimeRateEvent::SyncInput);
+      RuntimeStatistics::instance().beginFrame(
+        Measures.lidar_beg_time, Measures.lidar ? Measures.lidar->size() : 0);
       startup_frame_cnt_++;
 
       bool trigger_exit = false;
@@ -1498,20 +1003,14 @@ void LaserMappingNode::processingLoop()
         G_m_s2 = std::sqrt(gravity[0] * gravity[0] + gravity[1] * gravity[1] + gravity[2] * gravity[2]);
       }
 
-      double t0, t1, t2, t3, t4, t5, match_start, solve_start;
-      match_time = 0;
-      solve_time = 0;
-      propag_time = 0;
-      update_time = 0;
-      t0 = omp_get_wtime();
-
       /*** downsample the feature points in a scan ***/
-      t1 = omp_get_wtime();
-      {
+      if (statistics_enabled) {
         const double full_undistort_start = omp_get_wtime();
         p_imu->Process(Measures, feats_undistort);
-        record_pose_update_debug_full_undistort(
+        RuntimeStatistics::instance().recordFullUndistort(
           (omp_get_wtime() - full_undistort_start) * 1000.0);
+      } else {
+        p_imu->Process(Measures, feats_undistort);
       }
       enqueueFullCloud(feats_undistort, Measures.lidar_beg_time);
       if (!has_full_cloud_anchor) {
@@ -1531,8 +1030,6 @@ void LaserMappingNode::processingLoop()
         time_seq = time_compressing<int>(feats_down_body, pose_update_time_bin_ms);
         feats_down_size = feats_down_body->points.size();
       }
-      record_pose_update_debug_downsample(feats_down_size);
-
       if (!p_imu->after_imu_init_)  // !p_imu->UseLIInit &&
       {
         if (!p_imu->imu_need_init_) {
@@ -1602,8 +1099,6 @@ void LaserMappingNode::processingLoop()
       feats_down_world->resize(feats_down_size);
 
       Nearest_Points.resize(feats_down_size);
-
-      t2 = omp_get_wtime();
 
       /*** iterated state estimation ***/
       crossmat_list.resize(feats_down_size);
@@ -1697,14 +1192,8 @@ void LaserMappingNode::processingLoop()
 
                   if (dt_cov > 0.0) {
                     time_update_last = get_time_sec(imu_next.header.stamp);
-                    double propag_imu_start = omp_get_wtime();
-
                     kf_output.predict(dt_cov, Q_output_, input_in, false, true);
-
-                    propag_time += omp_get_wtime() - propag_imu_start;
-                    double solve_imu_start = omp_get_wtime();
                     kf_output.update_iterated_dyn_share_IMU();
-                    solve_time += omp_get_wtime() - solve_imu_start;
                   }
                 }
                 imu_deque.pop_front();
@@ -1720,7 +1209,6 @@ void LaserMappingNode::processingLoop()
             }
 
             double dt = time_current - time_predict_last_const;
-            double propag_state_start = omp_get_wtime();
             if (!prop_at_freq_of_imu) {
               double dt_cov = time_current - time_update_last;
               if (dt_cov > 0.0) {
@@ -1729,36 +1217,35 @@ void LaserMappingNode::processingLoop()
               }
             }
             kf_output.predict(dt, Q_output_, input_in, true, false);
-            propag_time += omp_get_wtime() - propag_state_start;
             time_predict_last_const = time_current;
-            double t_update_start = omp_get_wtime();
 
             if (feats_down_size < 1) {
               RCLCPP_WARN(LOGGER, "No point, skip this scan!\n");
               idx += time_seq[k];
               continue;
             }
-            if (!kf_output.update_iterated_dyn_share_modified()) {
+            const auto update_start = statistics_enabled ? std::chrono::steady_clock::now()
+                                                         : std::chrono::steady_clock::time_point{};
+            const bool update_success = kf_output.update_iterated_dyn_share_modified();
+            if (statistics_enabled) {
+              const double update_time_ms =
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - update_start)
+                  .count();
+              RuntimeStatistics::instance().recordPoseUpdate(
+                static_cast<uint64_t>(time_seq[k]), time_current, update_time_ms, update_success);
+            }
+            if (!update_success) {
               idx = idx + time_seq[k];
               continue;
             }
-            record_runtime_rate(RuntimeRateEvent::PoseUpdate);
-            record_pose_update_debug_update(static_cast<uint64_t>(time_seq[k]), time_current);
             processFullCloudSegmentWithSnapshot(makeStateSnapshot(time_current));
-            solve_start = omp_get_wtime();
 
             if (publish_odometry_without_downsample) {
               /******* Publish odometry *******/
 
               publish_odometry(pub_odom_aft_mapped_, tf_broadcaster_);
-              if (runtime_pos_log) {
-                euler_cur = SO3ToEuler(kf_output.x_.rot);
-                fout_out << setw(20) << Measures.lidar_beg_time - first_lidar_time << " "
-                         << euler_cur.transpose() << " " << kf_output.x_.pos.transpose() << " "
-                         << kf_output.x_.vel.transpose() << " " << kf_output.x_.omg.transpose() << " "
-                         << kf_output.x_.acc.transpose() << " " << kf_output.x_.gravity.transpose() << " "
-                         << kf_output.x_.bg.transpose() << " " << kf_output.x_.ba.transpose() << " "
-                         << feats_undistort->points.size() << '\n';
+              if (RuntimeStatistics::instance().enabled()) {
+                RuntimeStatistics::instance().recordMat(makeStateLogRecord());
               }
             }
 
@@ -1768,9 +1255,6 @@ void LaserMappingNode::processingLoop()
               pointBodyToWorld(&point_body_j, &point_world_j);
             }
 
-            solve_time += omp_get_wtime() - solve_start;
-
-            update_time += omp_get_wtime() - t_update_start;
             idx += time_seq[k];
             // std::cout << "pbp output effect feat num:" << effct_feat_num << '\n';
           }
@@ -1907,7 +1391,6 @@ void LaserMappingNode::processingLoop()
             }
             double dt = time_current - t_last;
             t_last = time_current;
-            double propag_start = omp_get_wtime();
 
             if (!prop_at_freq_of_imu) {
               double dt_cov = time_current - time_update_last;
@@ -1918,37 +1401,34 @@ void LaserMappingNode::processingLoop()
             }
             kf_input.predict(dt, Q_input_, input_in, true, false);
 
-            propag_time += omp_get_wtime() - propag_start;
-
-            double t_update_start = omp_get_wtime();
-
             if (feats_down_size < 1) {
               RCLCPP_WARN(LOGGER, "No point, skip this scan!\n");
 
               idx += time_seq[k];
               continue;
             }
-            if (!kf_input.update_iterated_dyn_share_modified()) {
+            const auto update_start = statistics_enabled ? std::chrono::steady_clock::now()
+                                                         : std::chrono::steady_clock::time_point{};
+            const bool update_success = kf_input.update_iterated_dyn_share_modified();
+            if (statistics_enabled) {
+              const double update_time_ms =
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - update_start)
+                  .count();
+              RuntimeStatistics::instance().recordPoseUpdate(
+                static_cast<uint64_t>(time_seq[k]), time_current, update_time_ms, update_success);
+            }
+            if (!update_success) {
               idx = idx + time_seq[k];
               continue;
             }
-            record_runtime_rate(RuntimeRateEvent::PoseUpdate);
-            record_pose_update_debug_update(static_cast<uint64_t>(time_seq[k]), time_current);
             processFullCloudSegmentWithSnapshot(makeStateSnapshot(time_current));
-
-            solve_start = omp_get_wtime();
 
             if (publish_odometry_without_downsample) {
               /******* Publish odometry *******/
 
               publish_odometry(pub_odom_aft_mapped_, tf_broadcaster_);
-              if (runtime_pos_log) {
-                euler_cur = SO3ToEuler(kf_input.x_.rot);
-                fout_out << setw(20) << Measures.lidar_beg_time - first_lidar_time << " "
-                         << euler_cur.transpose() << " " << kf_input.x_.pos.transpose() << " "
-                         << kf_input.x_.vel.transpose() << " " << kf_input.x_.bg.transpose() << " "
-                         << kf_input.x_.ba.transpose() << " " << kf_input.x_.gravity.transpose() << " "
-                         << feats_undistort->points.size() << '\n';
+              if (RuntimeStatistics::instance().enabled()) {
+                RuntimeStatistics::instance().recordMat(makeStateLogRecord());
               }
             }
 
@@ -1957,9 +1437,6 @@ void LaserMappingNode::processingLoop()
               PointType & point_world_j = feats_down_world->points[idx + j + 1];
               pointBodyToWorld(&point_body_j, &point_world_j);
             }
-            solve_time += omp_get_wtime() - solve_start;
-
-            update_time += omp_get_wtime() - t_update_start;
             idx = idx + time_seq[k];
           }
         } else {
@@ -2031,104 +1508,126 @@ void LaserMappingNode::processingLoop()
           }
         }
       }
-      // M3D rot_cur_lidar;
-      // {
-      //     rot_cur_lidar = state.rot_end;
-      // }
-      // euler_cur = RotMtoEuler(rot_cur_lidar);
-      // geoQuat = tf::createQuaternionMsgFromRollPitchYaw
-      //                     (euler_cur(0), euler_cur(1), euler_cur(2));
       /******* Publish odometry downsample *******/
       if (!publish_odometry_without_downsample) {
         publish_odometry(pub_odom_aft_mapped_, tf_broadcaster_);
       }
 
       /*** add the feature points to map ***/
-      t3 = omp_get_wtime();
       double map_incremental_ms = 0.0;
       bool map_incremental_called = false;
       if (feats_down_size > 4) {
         if (enable_prior_pcd) {
           sleep_time++;
           if (sleep_time > 200) {
-            const double map_incremental_start = omp_get_wtime();
+            const double map_incremental_start =
+              statistics_enabled ? omp_get_wtime() : 0.0;
             MapIncremental();
-            map_incremental_ms = (omp_get_wtime() - map_incremental_start) * 1000.0;
+            if (statistics_enabled) {
+              map_incremental_ms = (omp_get_wtime() - map_incremental_start) * 1000.0;
+            }
             map_incremental_called = true;
           }
         } else {
-          const double map_incremental_start = omp_get_wtime();
+          const double map_incremental_start =
+            statistics_enabled ? omp_get_wtime() : 0.0;
           MapIncremental();
-          map_incremental_ms = (omp_get_wtime() - map_incremental_start) * 1000.0;
+          if (statistics_enabled) {
+            map_incremental_ms = (omp_get_wtime() - map_incremental_start) * 1000.0;
+          }
           map_incremental_called = true;
         }
       }
-      if (map_incremental_called) {
-        record_pose_update_debug_map_incremental(map_incremental_ms);
+      if (statistics_enabled && map_incremental_called) {
+        RuntimeStatistics::instance().recordMapIncremental(map_incremental_ms);
       }
-      t5 = omp_get_wtime();
+
       /******* Publish points *******/
-      if (path_en)
+      double path_publish_ms = 0.0;
+      double cloud_publish_ms = 0.0;
+      double full_cloud_publish_ms = 0.0;
+      double map_publish_ms = 0.0;
+      if (path_en) {
+        const double publish_start = statistics_enabled ? omp_get_wtime() : 0.0;
         publish_path(pub_path_);
-      if (scan_pub_en || pcd_save_en)
+        if (statistics_enabled) {
+          path_publish_ms = (omp_get_wtime() - publish_start) * 1000.0;
+        }
+      }
+      if (scan_pub_en || pcd_save_en) {
+        const double publish_start = statistics_enabled ? omp_get_wtime() : 0.0;
         publish_frame_world(pub_laser_cloud_full_res_);
+        if (statistics_enabled) {
+          cloud_publish_ms += (omp_get_wtime() - publish_start) * 1000.0;
+        }
+      }
+      const double full_cloud_publish_start = statistics_enabled ? omp_get_wtime() : 0.0;
       if (has_full_cloud_anchor && lidar_end_time > full_cloud_anchor.stamp) {
         processFullCloudSegmentWithSnapshot(makeStateSnapshot(lidar_end_time));
       }
       publishAccumulatedFullCloudWorld(pub_laser_cloud_full_world_, lidar_end_time);
-      if (scan_pub_en && scan_body_pub_en)
-        publish_frame_body(pub_laser_cloud_full_res_body_);
-      if (scan_pub_en)
-        publish_accumulated_map(pub_laser_cloud_map_);
-
-      /*** Debug variables Logging ***/
-      if (runtime_pos_log) {
-        frame_num_++;
-        aver_time_consu_ = aver_time_consu_ * (frame_num_ - 1) / frame_num_ + (t5 - t0) / frame_num_;
-        {
-          aver_time_icp_ = aver_time_icp_ * (frame_num_ - 1) / frame_num_ + update_time / frame_num_;
-        }
-        aver_time_match_ = aver_time_match_ * (frame_num_ - 1) / frame_num_ + (match_time) / frame_num_;
-        aver_time_solve_ = aver_time_solve_ * (frame_num_ - 1) / frame_num_ + solve_time / frame_num_;
-        aver_time_propag_ = aver_time_propag_ * (frame_num_ - 1) / frame_num_ + propag_time / frame_num_;
-        T1[time_log_counter] = Measures.lidar_beg_time;
-        s_plot[time_log_counter] = t5 - t0;
-        s_plot2[time_log_counter] = feats_undistort->points.size();
-        s_plot3[time_log_counter] = aver_time_consu_;
-        time_log_counter++;
-        printf("[ mapping ]: time: IMU + Map + Input Downsample: %0.6f ave match: %0.6f ave solve: "
-               "%0.6f  ave ICP: %0.6f  map incre: %0.6f ave total: %0.6f icp: %0.6f propogate: %0.6f \n",
-          t1 - t0,
-          aver_time_match_,
-          aver_time_solve_,
-          t3 - t1,
-          t5 - t3,
-          aver_time_consu_,
-          aver_time_icp_,
-          aver_time_propag_);
-        if (!publish_odometry_without_downsample) {
-          if (!use_imu_as_input) {
-            euler_cur = SO3ToEuler(kf_output.x_.rot);
-            fout_out << setw(20) << Measures.lidar_beg_time - first_lidar_time << " "
-                     << euler_cur.transpose() << " " << kf_output.x_.pos.transpose() << " "
-                     << kf_output.x_.vel.transpose() << " " << kf_output.x_.omg.transpose() << " "
-                     << kf_output.x_.acc.transpose() << " " << kf_output.x_.gravity.transpose() << " "
-                     << kf_output.x_.bg.transpose() << " " << kf_output.x_.ba.transpose() << " "
-                     << feats_undistort->points.size() << '\n';
-          } else {
-            euler_cur = SO3ToEuler(kf_input.x_.rot);
-            fout_out << setw(20) << Measures.lidar_beg_time - first_lidar_time << " "
-                     << euler_cur.transpose() << " " << kf_input.x_.pos.transpose() << " "
-                     << kf_input.x_.vel.transpose() << " " << kf_input.x_.bg.transpose() << " "
-                     << kf_input.x_.ba.transpose() << " " << kf_input.x_.gravity.transpose() << " "
-                     << feats_undistort->points.size() << '\n';
-          }
-        }
-        dump_lio_state_to_log(fp_);
+      if (statistics_enabled) {
+        full_cloud_publish_ms = (omp_get_wtime() - full_cloud_publish_start) * 1000.0;
       }
-      const auto process_wall_end = std::chrono::steady_clock::now();
-      record_runtime_process_time(
-        std::chrono::duration<double, std::milli>(process_wall_end - process_wall_start).count());
+      if (scan_pub_en && scan_body_pub_en) {
+        const double publish_start = statistics_enabled ? omp_get_wtime() : 0.0;
+        publish_frame_body(pub_laser_cloud_full_res_body_);
+        if (statistics_enabled) {
+          cloud_publish_ms += (omp_get_wtime() - publish_start) * 1000.0;
+        }
+      }
+      if (scan_pub_en) {
+        const double publish_start = statistics_enabled ? omp_get_wtime() : 0.0;
+        publish_accumulated_map(pub_laser_cloud_map_);
+        if (statistics_enabled) {
+          map_publish_ms = (omp_get_wtime() - publish_start) * 1000.0;
+        }
+      }
+
+      if (statistics_enabled) {
+        const StateLogRecord state_log = makeStateLogRecord();
+        if (!publish_odometry_without_downsample) {
+          RuntimeStatistics::instance().recordMat(state_log);
+        }
+        RuntimeStatistics::instance().recordPos(state_log);
+
+        const auto process_wall_end = std::chrono::steady_clock::now();
+        FramePerformanceRecord performance;
+        performance.lidar_beg_stamp = Measures.lidar_beg_time;
+        performance.lidar_end_stamp = lidar_end_time;
+        performance.process_ms =
+          std::chrono::duration<double, std::milli>(process_wall_end - process_wall_start).count();
+        performance.path_publish_ms = path_publish_ms;
+        performance.cloud_publish_ms = cloud_publish_ms;
+        performance.full_cloud_publish_ms = full_cloud_publish_ms;
+        performance.map_publish_ms = map_publish_ms;
+        performance.input_points = Measures.lidar ? Measures.lidar->size() : 0;
+        performance.downsample_points = feats_down_size;
+        performance.full_cloud_queue_points = full_cloud_queue.size();
+        performance.global_map_points = global_map_ptr ? global_map_ptr->size() : 0;
+        performance.pcd_wait_points = pcl_wait_save ? pcl_wait_save->size() : 0;
+        performance.path_pose_count = path.poses.size();
+        performance.effective_feature_points =
+          effct_feat_num > 0 ? static_cast<std::size_t>(effct_feat_num) : 0;
+        ++ivox_statistics_frame_counter_;
+        if (ivox_ && ivox_statistics_frame_counter_ >= kIvoxStatisticsPeriodFrames) {
+          const auto ivox_statistics_start = std::chrono::steady_clock::now();
+          const std::vector<float> grid_statistics = ivox_->StatGridPoints();
+          performance.ivox.collection_ms = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - ivox_statistics_start)
+                                             .count();
+          performance.ivox.sampled = true;
+          if (grid_statistics.size() >= 5) {
+            performance.ivox.valid_grids = static_cast<std::size_t>(std::max(0.0F, grid_statistics[0]));
+            performance.ivox.points_per_grid_avg = grid_statistics[1];
+            performance.ivox.points_per_grid_max =
+              static_cast<std::size_t>(std::max(0.0F, grid_statistics[2]));
+            performance.ivox.points_per_grid_stddev = grid_statistics[4];
+          }
+          ivox_statistics_frame_counter_ = 0;
+        }
+        RuntimeStatistics::instance().recordFrame(performance);
+      }
     }
     rate.sleep();
   }

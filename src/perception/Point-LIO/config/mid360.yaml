@@ -9,7 +9,8 @@
         filter_size_surf: 0.5                               # Options: 0.5, 0.3, 0.2, 0.15, 0.1
         filter_size_map: 0.5                                # Options: 0.5, 0.3, 0.15, 0.1
         ivox_nearby_type: 6                                 # Options: 0, 6, 18, 26
-        runtime_pos_log_enable: False                       # Option: True
+        runtime_pos_log_enable: False                       # 运行时统计总开关：IMU、状态和逐帧性能日志
+        runtime_log_path: ""                                # 空值: ROOT_DIR/Log；支持绝对路径或相对 ROOT_DIR 的路径
 
         common:
             lid_topic: "livox/lidar"
@@ -19,9 +20,9 @@
             con_frame_num: 1                                # the number of frames combined
             cut_frame: False                                # True: if you need to cut one LiDAR frame into several subframes
             cut_frame_time_interval: 0.1                    # should be integral fraction of 1 / LiDAR frequency
-            print_cloud_input_fps: False                    # True: print cloud input, odom publish and pose update rates
+            print_cloud_input_fps: False                    # 总开关开启后打印 cloud/odom/pose update 频率
             cloud_input_fps_print_period: 1.0               # seconds between runtime rate logs
-            debug_pose_update_detail: False                 # True: print aggregated pose update detail diagnostics
+            debug_pose_update_detail: False                 # 总开关开启后打印聚合位姿更新诊断
             debug_pose_update_detail_period: 1.0            # seconds between pose update detail logs
             time_diff_lidar_to_imu: 0.0                     # Time offset between LiDAR and IMU calibrated by other algorithms, e.g., LI-Init (find in Readme)
 
@@ -56,7 +57,7 @@
             gyr_cov_input: 0.01                             # for IMU as input model
             acc_cov_input: 0.1                              # for IMU as input model
             plane_thr: 0.1                                  # 0.05, the threshold for plane criteria, the smaller, the flatter a plane
-            pose_update_time_bin_ms: 0.25                   # EKF batch window only; 0.0 restores per-timestamp updates without dropping full-cloud points
+            pose_update_time_bin_ms: 2.0                   # EKF batch window only; 0.0 restores per-timestamp updates without dropping full-cloud points
             match_s: 81.0
             ivox_grid_resolution: 2.0
             gravity: [ 0.0, 0.0, -9.810 ]                   # [0.0, 9.810, 0.0] # gravity to be aligned
@@ -76,8 +77,8 @@
             scan_bodyframe_pub_en: False                    # True: output the point cloud scans in IMU-body-frame
             tf_send_en: True                                # True: send transform from 'camera_init' to 'aft_mapped'
 
-        pcd_save:
-            pcd_save_en: True
+        pcd_save:           
+            pcd_save_en: False
             accumulated_map_publish_hz: 1.0                 # Low-rate publish frequency for /Laser_map when pcd_save_en is true
             interval: -1                                    # how many LiDAR frames saved in each pcd file;
                                                             # -1 : all frames will be saved in ONE pcd file, may lead to memory crash when having too much frames.

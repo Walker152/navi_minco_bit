@@ -15,13 +15,6 @@
 #include <common_lib.h>        // 公共库，包含基本数据类型和工具函数
 #include "Estimator.h"         // 状态估计器模块
 
-/**
- * @def MAXN
- * @brief 最大数组大小定义
- * @details 用于性能统计数组的最大容量，支持长时间运行的性能监控
- */
-#define MAXN (720000)
-
 // ======================== 初始化状态管理变量 ========================
 
 /**
@@ -157,18 +150,6 @@ extern sensor_msgs::msg::Imu imu_last, imu_next;
  * @details 用于存储多帧连续的点云数据
  */
 extern PointCloudXYZI::Ptr ptr_con;
-
-// ======================== 性能统计数组 ========================
-
-/**
- * @brief 性能统计数组
- * @details T1: 时间统计数组1
- *          s_plot: 绘图数据数组1  
- *          s_plot2: 绘图数据数组2
- *          s_plot3: 绘图数据数组3
- *          s_plot11: 预处理时间统计数组
- */
-extern double T1[MAXN], s_plot[MAXN], s_plot2[MAXN], s_plot3[MAXN], s_plot11[MAXN];
 
 // ======================== 核心函数声明 ========================
 

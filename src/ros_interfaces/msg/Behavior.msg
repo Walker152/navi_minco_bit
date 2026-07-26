@@ -43,3 +43,6 @@ float32 tunnel_escape_wz
 
 bool tunnel_prepare_active
 bool tunnel_ready
+
+bool tunnel_align_active
+float32 tunnel_align_angle_deg

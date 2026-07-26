@@ -156,6 +156,9 @@ struct __attribute__((packed, aligned(1))) _BehaviorData
   bool use_limited_scan{};           // 是否使用限制性扫描模式
   bool not_aim_enemy{};              // 是否瞄准敌方目标
   bool use_capacitor{};              // 是否使用电容
+  // 底盘航向对齐请求，目标角单位为度
+  bool tunnel_align_active{};
+  float tunnel_align_angle_deg{};
 
   _BehaviorData(uint8_t _pitch_mode,
     uint8_t _desire_stance,
@@ -169,13 +172,16 @@ struct __attribute__((packed, aligned(1))) _BehaviorData
     uint8_t _remote_health_request,
     bool _use_limited_scan,
     bool _not_aim_enemy,
-    bool _use_capacitor)
+    bool _use_capacitor,
+    bool _tunnel_align_active,
+    float _tunnel_align_angle_deg)
   : pitch_mode(_pitch_mode), desire_stance(_desire_stance), desire_lifter_pos(_desire_lifter_pos),
     scan_yaw_min_deg(_scan_yaw_min_deg), scan_yaw_max_deg(_scan_yaw_max_deg),
     ammo_purchase_request(_ammo_purchase_request), revive_request(_revive_request),
     remote_revive_request(_remote_revive_request), remote_ammo_request(_remote_ammo_request),
     remote_health_request(_remote_health_request), use_limited_scan(_use_limited_scan),
-    not_aim_enemy(_not_aim_enemy), use_capacitor(_use_capacitor)
+    not_aim_enemy(_not_aim_enemy), use_capacitor(_use_capacitor),
+    tunnel_align_active(_tunnel_align_active), tunnel_align_angle_deg(_tunnel_align_angle_deg)
   {
   }
 };
@@ -289,6 +295,8 @@ struct __attribute__((packed)) _SentryInfoOffline
   float transform_state{};  // 变形状态，0-1，0%为未变形，100%为完全变形，过渡状态根据实际情况变化
   uint8_t capacitor_capacity{};  // 电容容量百分比，0-100
   float chassis_imu_yaw{};       // 底盘IMU的yaw轴角度 逆时针为正
+  // 底盘航向对齐完成标志
+  bool tunnel_yaw_aligned{};
 
   _SentryInfoOffline(bool _is_get,
     float _armor_pos[3],
@@ -298,7 +306,8 @@ struct __attribute__((packed)) _SentryInfoOffline
     bool _is_transformable,
     float _transform_state,
     uint8_t _capacitor_capacity,
-    float _chassis_imu_yaw)
+    float _chassis_imu_yaw,
+    bool _tunnel_yaw_aligned)
   {
     is_get = _is_get;
     for (int i = 0; i < 3; ++i) {
@@ -311,6 +320,7 @@ struct __attribute__((packed)) _SentryInfoOffline
     transform_state = _transform_state;
     capacitor_capacity = _capacitor_capacity;
     chassis_imu_yaw = _chassis_imu_yaw;
+    tunnel_yaw_aligned = _tunnel_yaw_aligned;
   }
 };
 using SentryInfoOffline = struct _SentryInfoOffline;
