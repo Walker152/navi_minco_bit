@@ -877,6 +877,8 @@ private:
 
   double last_proc_time_{-1.0};
   int startup_frame_cnt_{0};
+  static constexpr uint64_t kIvoxStatisticsPeriodFrames = 20;
+  uint64_t ivox_statistics_frame_counter_{0};
   Eigen::Matrix<double, 24, 24> P_init_;
   Eigen::Matrix<double, 30, 30> P_init_output_;
   Eigen::Matrix<double, 24, 24> Q_input_;
@@ -1222,12 +1224,20 @@ void LaserMappingNode::processingLoop()
               idx += time_seq[k];
               continue;
             }
-            if (!kf_output.update_iterated_dyn_share_modified()) {
+            const auto update_start = statistics_enabled ? std::chrono::steady_clock::now()
+                                                         : std::chrono::steady_clock::time_point{};
+            const bool update_success = kf_output.update_iterated_dyn_share_modified();
+            if (statistics_enabled) {
+              const double update_time_ms =
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - update_start)
+                  .count();
+              RuntimeStatistics::instance().recordPoseUpdate(
+                static_cast<uint64_t>(time_seq[k]), time_current, update_time_ms, update_success);
+            }
+            if (!update_success) {
               idx = idx + time_seq[k];
               continue;
             }
-            RuntimeStatistics::instance().recordPoseUpdate(
-              static_cast<uint64_t>(time_seq[k]), time_current);
             processFullCloudSegmentWithSnapshot(makeStateSnapshot(time_current));
 
             if (publish_odometry_without_downsample) {
@@ -1397,12 +1407,20 @@ void LaserMappingNode::processingLoop()
               idx += time_seq[k];
               continue;
             }
-            if (!kf_input.update_iterated_dyn_share_modified()) {
+            const auto update_start = statistics_enabled ? std::chrono::steady_clock::now()
+                                                         : std::chrono::steady_clock::time_point{};
+            const bool update_success = kf_input.update_iterated_dyn_share_modified();
+            if (statistics_enabled) {
+              const double update_time_ms =
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - update_start)
+                  .count();
+              RuntimeStatistics::instance().recordPoseUpdate(
+                static_cast<uint64_t>(time_seq[k]), time_current, update_time_ms, update_success);
+            }
+            if (!update_success) {
               idx = idx + time_seq[k];
               continue;
             }
-            RuntimeStatistics::instance().recordPoseUpdate(
-              static_cast<uint64_t>(time_seq[k]), time_current);
             processFullCloudSegmentWithSnapshot(makeStateSnapshot(time_current));
 
             if (publish_odometry_without_downsample) {
@@ -1589,6 +1607,25 @@ void LaserMappingNode::processingLoop()
         performance.global_map_points = global_map_ptr ? global_map_ptr->size() : 0;
         performance.pcd_wait_points = pcl_wait_save ? pcl_wait_save->size() : 0;
         performance.path_pose_count = path.poses.size();
+        performance.effective_feature_points =
+          effct_feat_num > 0 ? static_cast<std::size_t>(effct_feat_num) : 0;
+        ++ivox_statistics_frame_counter_;
+        if (ivox_ && ivox_statistics_frame_counter_ >= kIvoxStatisticsPeriodFrames) {
+          const auto ivox_statistics_start = std::chrono::steady_clock::now();
+          const std::vector<float> grid_statistics = ivox_->StatGridPoints();
+          performance.ivox.collection_ms = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - ivox_statistics_start)
+                                             .count();
+          performance.ivox.sampled = true;
+          if (grid_statistics.size() >= 5) {
+            performance.ivox.valid_grids = static_cast<std::size_t>(std::max(0.0F, grid_statistics[0]));
+            performance.ivox.points_per_grid_avg = grid_statistics[1];
+            performance.ivox.points_per_grid_max =
+              static_cast<std::size_t>(std::max(0.0F, grid_statistics[2]));
+            performance.ivox.points_per_grid_stddev = grid_statistics[4];
+          }
+          ivox_statistics_frame_counter_ = 0;
+        }
         RuntimeStatistics::instance().recordFrame(performance);
       }
     }
