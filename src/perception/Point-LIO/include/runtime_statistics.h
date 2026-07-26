@@ -50,6 +50,16 @@ struct StateLogRecord
   std::size_t point_count{0};
 };
 
+struct IvoxStatisticsRecord
+{
+  bool sampled{false};
+  std::size_t valid_grids{0};
+  double points_per_grid_avg{0.0};
+  std::size_t points_per_grid_max{0};
+  double points_per_grid_stddev{0.0};
+  double collection_ms{0.0};
+};
+
 struct FramePerformanceRecord
 {
   double lidar_beg_stamp{0.0};
@@ -69,6 +79,8 @@ struct FramePerformanceRecord
   std::size_t global_map_points{0};
   std::size_t pcd_wait_points{0};
   std::size_t path_pose_count{0};
+  std::size_t effective_feature_points{0};
+  IvoxStatisticsRecord ivox{};
 };
 
 class RuntimeStatistics
@@ -100,7 +112,8 @@ public:
     std::size_t pending_imu_samples,
     std::size_t imu_buffer_samples);
   void beginFrame(double lidar_beg_stamp, std::size_t input_points);
-  void recordPoseUpdate(uint64_t points_per_update, double sensor_time);
+  void recordPoseUpdate(
+    uint64_t points_per_update, double sensor_time, double update_time_ms, bool successful);
   void recordOdomPublish(double odom_stamp, double publish_time);
   void recordFullUndistort(double time_ms);
   void recordMapIncremental(double time_ms);
@@ -134,6 +147,9 @@ private:
   double last_odom_publish_age_ms_{std::numeric_limits<double>::quiet_NaN()};
   double frame_full_undistort_ms_{0.0};
   double frame_map_incremental_ms_{0.0};
+  double frame_ekf_update_ms_{0.0};
+  double frame_ekf_update_max_ms_{0.0};
+  double frame_update_points_sum_{0.0};
   double process_time_sum_ms_{0.0};
   double process_time_max_ms_{0.0};
   double update_points_sum_{0.0};
@@ -147,10 +163,15 @@ private:
 
   uint64_t cloud_input_count_{0};
   uint64_t sync_input_count_{0};
+  uint64_t pose_update_attempt_count_{0};
   uint64_t pose_update_count_{0};
   uint64_t odom_publish_count_{0};
+  uint64_t frame_pose_update_attempt_count_{0};
   uint64_t frame_pose_update_count_{0};
+  uint64_t frame_pose_update_failure_count_{0};
   uint64_t frame_odom_publish_count_{0};
+  uint64_t frame_min_points_per_update_{std::numeric_limits<uint64_t>::max()};
+  uint64_t frame_max_points_per_update_{0};
   uint64_t frame_sequence_{0};
   uint64_t process_count_{0};
   uint64_t min_points_per_update_{std::numeric_limits<uint64_t>::max()};

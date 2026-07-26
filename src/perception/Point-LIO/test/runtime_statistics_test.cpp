@@ -81,6 +81,15 @@ TEST(RuntimeStatistics, EnabledModeOwnsLegacyAndPerformanceLogs)
   frame.lidar_end_stamp = 10.05;
   frame.latest_lidar_stamp = 10.10;
   frame.process_ms = 40.0;
+  frame.effective_feature_points = 55;
+  frame.ivox.sampled = true;
+  frame.ivox.valid_grids = 120;
+  frame.ivox.points_per_grid_avg = 8.5;
+  frame.ivox.points_per_grid_max = 32;
+  frame.ivox.points_per_grid_stddev = 4.25;
+  frame.ivox.collection_ms = 0.2;
+  statistics.recordPoseUpdate(80, 10.01, 2.5, true);
+  statistics.recordPoseUpdate(70, 10.02, 1.5, false);
   statistics.recordFrame(frame);
   statistics.shutdown();
 
@@ -99,8 +108,16 @@ TEST(RuntimeStatistics, EnabledModeOwnsLegacyAndPerformanceLogs)
   ASSERT_TRUE(static_cast<bool>(std::getline(performance, header)));
   ASSERT_TRUE(static_cast<bool>(std::getline(performance, row)));
   EXPECT_NE(header.find("lidar_backlog_ms"), std::string::npos);
-  EXPECT_EQ(std::count(header.begin(), header.end(), ','), 26);
-  EXPECT_EQ(std::count(row.begin(), row.end(), ','), 26);
+  EXPECT_NE(header.find("pose_update_attempt_count"), std::string::npos);
+  EXPECT_NE(header.find("pose_update_failure_count"), std::string::npos);
+  EXPECT_NE(header.find("pose_update_points_avg"), std::string::npos);
+  EXPECT_NE(header.find("ekf_update_ms"), std::string::npos);
+  EXPECT_NE(header.find("effective_feature_points"), std::string::npos);
+  EXPECT_NE(header.find("ivox_stats_sampled"), std::string::npos);
+  EXPECT_NE(header.find("ivox_points_per_grid_avg"), std::string::npos);
+  EXPECT_NE(header.find("ivox_stats_ms"), std::string::npos);
+  EXPECT_EQ(std::count(header.begin(), header.end(), ','), 40);
+  EXPECT_EQ(std::count(row.begin(), row.end(), ','), 40);
 
   std::filesystem::remove_all(directory);
 }

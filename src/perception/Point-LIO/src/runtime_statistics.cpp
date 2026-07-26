@@ -86,11 +86,15 @@ bool RuntimeStatistics::initialize(bool enabled,
 
   performance_stream_ << "frame_seq,elapsed_ms,lidar_beg_stamp,lidar_end_stamp,latest_lidar_stamp,"
                          "lidar_backlog_ms,pending_lidar_frames,lidar_buffer_frames,pending_imu_samples,"
-                         "imu_buffer_samples,input_points,downsample_points,pose_update_count,"
-                         "odom_publish_count,preprocess_ms,process_ms,full_undistort_ms,map_incremental_ms,"
-                         "path_publish_ms,cloud_publish_ms,full_cloud_publish_ms,map_publish_ms,"
-                         "odom_publish_age_ms,full_cloud_queue_points,global_map_points,pcd_wait_points,"
-                         "path_pose_count\n";
+                         "imu_buffer_samples,input_points,downsample_points,pose_update_attempt_count,"
+                         "pose_update_count,pose_update_failure_count,pose_update_points_avg,"
+                         "pose_update_points_min,pose_update_points_max,ekf_update_ms,ekf_update_max_ms,"
+                         "effective_feature_points,odom_publish_count,preprocess_ms,process_ms,"
+                         "full_undistort_ms,map_incremental_ms,path_publish_ms,cloud_publish_ms,"
+                         "full_cloud_publish_ms,map_publish_ms,odom_publish_age_ms,full_cloud_queue_points,"
+                         "global_map_points,pcd_wait_points,path_pose_count,ivox_stats_sampled,"
+                         "ivox_valid_grids,ivox_points_per_grid_avg,ivox_points_per_grid_max,"
+                         "ivox_points_per_grid_stddev,ivox_stats_ms\n";
 
   print_rate_summary_ = print_rate_summary;
   print_pose_detail_ = print_pose_detail;
@@ -100,6 +104,9 @@ bool RuntimeStatistics::initialize(bool enabled,
   last_odom_publish_age_ms_ = std::numeric_limits<double>::quiet_NaN();
   frame_full_undistort_ms_ = 0.0;
   frame_map_incremental_ms_ = 0.0;
+  frame_ekf_update_ms_ = 0.0;
+  frame_ekf_update_max_ms_ = 0.0;
+  frame_update_points_sum_ = 0.0;
   process_time_sum_ms_ = 0.0;
   process_time_max_ms_ = 0.0;
   update_points_sum_ = 0.0;
@@ -111,10 +118,15 @@ bool RuntimeStatistics::initialize(bool enabled,
   frame_input_points_ = 0;
   cloud_input_count_ = 0;
   sync_input_count_ = 0;
+  pose_update_attempt_count_ = 0;
   pose_update_count_ = 0;
   odom_publish_count_ = 0;
+  frame_pose_update_attempt_count_ = 0;
   frame_pose_update_count_ = 0;
+  frame_pose_update_failure_count_ = 0;
   frame_odom_publish_count_ = 0;
+  frame_min_points_per_update_ = std::numeric_limits<uint64_t>::max();
+  frame_max_points_per_update_ = 0;
   frame_sequence_ = 0;
   process_count_ = 0;
   min_points_per_update_ = std::numeric_limits<uint64_t>::max();
@@ -190,23 +202,45 @@ void RuntimeStatistics::beginFrame(double, std::size_t input_points)
   std::lock_guard<std::mutex> lock(mutex_);
   frame_input_points_ = input_points;
   frame_pose_update_count_ = 0;
+  frame_pose_update_attempt_count_ = 0;
+  frame_pose_update_failure_count_ = 0;
   frame_odom_publish_count_ = 0;
   frame_full_undistort_ms_ = 0.0;
   frame_map_incremental_ms_ = 0.0;
+  frame_ekf_update_ms_ = 0.0;
+  frame_ekf_update_max_ms_ = 0.0;
+  frame_update_points_sum_ = 0.0;
+  frame_min_points_per_update_ = std::numeric_limits<uint64_t>::max();
+  frame_max_points_per_update_ = 0;
 }
 
-void RuntimeStatistics::recordPoseUpdate(uint64_t points_per_update, double sensor_time)
+void RuntimeStatistics::recordPoseUpdate(
+  uint64_t points_per_update, double sensor_time, double update_time_ms, bool successful)
 {
   if (!enabled()) {
     return;
   }
   std::lock_guard<std::mutex> lock(mutex_);
-  ++pose_update_count_;
-  ++frame_pose_update_count_;
+  ++pose_update_attempt_count_;
+  ++frame_pose_update_attempt_count_;
+  frame_update_points_sum_ += static_cast<double>(points_per_update);
+  frame_min_points_per_update_ = std::min(frame_min_points_per_update_, points_per_update);
+  frame_max_points_per_update_ = std::max(frame_max_points_per_update_, points_per_update);
+  if (std::isfinite(update_time_ms) && update_time_ms >= 0.0) {
+    frame_ekf_update_ms_ += update_time_ms;
+    frame_ekf_update_max_ms_ = std::max(frame_ekf_update_max_ms_, update_time_ms);
+  }
+
   update_points_sum_ += static_cast<double>(points_per_update);
   min_points_per_update_ = std::min(min_points_per_update_, points_per_update);
   max_points_per_update_ = std::max(max_points_per_update_, points_per_update);
-  last_pose_sensor_time_ = sensor_time;
+  if (successful) {
+    ++pose_update_count_;
+    ++frame_pose_update_count_;
+    last_pose_sensor_time_ = sensor_time;
+  } else {
+    ++frame_pose_update_failure_count_;
+  }
 }
 
 void RuntimeStatistics::recordOdomPublish(double odom_stamp, double publish_time)
@@ -317,20 +351,31 @@ void RuntimeStatistics::recordFrame(const FramePerformanceRecord & record)
                                     ? (latest_lidar_stamp - record.lidar_beg_stamp) * 1000.0
                                     : std::numeric_limits<double>::quiet_NaN();
   const double elapsed_ms = std::chrono::duration<double, std::milli>(now - start_time_).count();
+  const double frame_update_points_avg =
+    frame_pose_update_attempt_count_ > 0
+      ? frame_update_points_sum_ / static_cast<double>(frame_pose_update_attempt_count_)
+      : 0.0;
+  const uint64_t frame_min_points = frame_pose_update_attempt_count_ > 0 ? frame_min_points_per_update_ : 0;
 
   performance_stream_
     << std::setprecision(9) << frame_sequence_ << ',' << elapsed_ms << ',' << record.lidar_beg_stamp << ','
     << record.lidar_end_stamp << ',' << latest_lidar_stamp << ',' << lidar_backlog_ms << ','
     << pending_lidar_frames_ << ',' << lidar_buffer_frames_ << ',' << pending_imu_samples_ << ','
     << imu_buffer_samples_ << ',' << (record.input_points > 0 ? record.input_points : frame_input_points_)
-    << ',' << record.downsample_points << ',' << frame_pose_update_count_ << ','
+    << ',' << record.downsample_points << ',' << frame_pose_update_attempt_count_ << ','
+    << frame_pose_update_count_ << ',' << frame_pose_update_failure_count_ << ',' << frame_update_points_avg
+    << ',' << frame_min_points << ',' << frame_max_points_per_update_ << ',' << frame_ekf_update_ms_ << ','
+    << frame_ekf_update_max_ms_ << ',' << record.effective_feature_points << ','
     << frame_odom_publish_count_ << ',' << preprocess_ms << ',' << record.process_ms << ','
     << (record.full_undistort_ms > 0.0 ? record.full_undistort_ms : frame_full_undistort_ms_) << ','
     << (record.map_incremental_ms > 0.0 ? record.map_incremental_ms : frame_map_incremental_ms_) << ','
     << record.path_publish_ms << ',' << record.cloud_publish_ms << ',' << record.full_cloud_publish_ms
     << ',' << record.map_publish_ms << ',' << last_odom_publish_age_ms_ << ','
     << record.full_cloud_queue_points << ',' << record.global_map_points << ',' << record.pcd_wait_points
-    << ',' << record.path_pose_count << '\n';
+    << ',' << record.path_pose_count << ',' << static_cast<int>(record.ivox.sampled) << ','
+    << record.ivox.valid_grids << ',' << record.ivox.points_per_grid_avg << ','
+    << record.ivox.points_per_grid_max << ',' << record.ivox.points_per_grid_stddev << ','
+    << record.ivox.collection_ms << '\n';
 
   maybePrintSummaryLocked(now);
   maybeFlushLocked(now);
@@ -390,9 +435,10 @@ void RuntimeStatistics::maybePrintSummaryLocked(std::chrono::steady_clock::time_
     const double odom_hz = static_cast<double>(odom_publish_count_) / elapsed;
     const double avg_process_ms =
       process_count_ > 0 ? process_time_sum_ms_ / static_cast<double>(process_count_) : 0.0;
-    const double avg_points =
-      pose_update_count_ > 0 ? update_points_sum_ / static_cast<double>(pose_update_count_) : 0.0;
-    const uint64_t min_points = pose_update_count_ > 0 ? min_points_per_update_ : 0;
+    const double avg_points = pose_update_attempt_count_ > 0
+                                ? update_points_sum_ / static_cast<double>(pose_update_attempt_count_)
+                                : 0.0;
+    const uint64_t min_points = pose_update_attempt_count_ > 0 ? min_points_per_update_ : 0;
 
     std::cout << "[Point-LIO][RuntimeStatistics] cloud=" << cloud_hz << "Hz sync=" << sync_hz
               << "Hz pose_update=" << pose_hz << "Hz odom=" << odom_hz
@@ -408,6 +454,7 @@ void RuntimeStatistics::maybePrintSummaryLocked(std::chrono::steady_clock::time_
 
   cloud_input_count_ = 0;
   sync_input_count_ = 0;
+  pose_update_attempt_count_ = 0;
   pose_update_count_ = 0;
   odom_publish_count_ = 0;
   process_count_ = 0;

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import re
 import unittest
 from pathlib import Path
 
@@ -22,6 +23,7 @@ class RuntimeStatisticsContractTest(unittest.TestCase):
         ).read_text()
         parameters_text = (POINT_LIO_DIR / "src" / "parameters.cpp").read_text()
         parameters_header = (POINT_LIO_DIR / "src" / "parameters.h").read_text()
+        ivox_text = (POINT_LIO_DIR / "include" / "ivox" / "ivox3d.h").read_text()
         cmake_text = (POINT_LIO_DIR / "CMakeLists.txt").read_text()
 
         for filename in (
@@ -44,9 +46,35 @@ class RuntimeStatisticsContractTest(unittest.TestCase):
             "global_map_points",
             "pcd_wait_points",
             "path_pose_count",
+            "pose_update_attempt_count",
+            "pose_update_failure_count",
+            "pose_update_points_avg",
+            "pose_update_points_min",
+            "pose_update_points_max",
+            "ekf_update_ms",
+            "ekf_update_max_ms",
+            "effective_feature_points",
+            "ivox_stats_sampled",
+            "ivox_valid_grids",
+            "ivox_points_per_grid_avg",
+            "ivox_points_per_grid_max",
+            "ivox_points_per_grid_stddev",
+            "ivox_stats_ms",
         ):
             self.assertIn(field, header_text + source_text)
 
+        self.assertRegex(
+            header_text,
+            re.compile(
+                r"recordPoseUpdate\s*\(\s*uint64_t points_per_update,\s*"
+                r"double sensor_time,\s*double update_time_ms,\s*bool successful\s*\)"
+            ),
+        )
+        self.assertIn("ivox_->StatGridPoints()", mapping_text)
+        self.assertIn("ivox_statistics_frame_counter_", mapping_text)
+        self.assertIn("kIvoxStatisticsPeriodFrames = 20", mapping_text)
+        self.assertIn("if (grid_count == 0)", ivox_text)
+        self.assertIn("double sum_square", ivox_text)
         self.assertIn("RuntimeStatistics::instance()", mapping_text)
         self.assertIn("runtime_pos_log, log_dir", mapping_text)
         self.assertIn("resolveLogDirectory", mapping_text)

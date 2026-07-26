@@ -152,6 +152,15 @@ class TunnelAlignmentProtocolTest(unittest.TestCase):
             action,
         )
 
+    def test_odd_length_checksum_treats_tail_byte_as_unsigned(self) -> None:
+        protocol = self.read(
+            "src/navigation/communication/include/utils/protocol.hpp"
+        )
+        self.assertIn(
+            "uint16_t tmp = static_cast<uint8_t>(__data[__len - 1]);",
+            protocol,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
