@@ -417,7 +417,6 @@ void ROGMap::refreshLayers()
   z_min = std::max(z_min, localMapMinIndex().z());
   z_max = std::min(z_max, localMapMaxIndex().z());
 
-  const std::vector<uint8_t> old_fused_mask = fused_projection_mask_;
   const ProjectionSlideResult slide_result = layer_->syncSlidingWindow(
     width, height, res, Eigen::Vector2i(min_id.x(), min_id.y()), origin, layer_cfg);
   const bool geometry_changed = slide_result.full_refresh_required;
@@ -581,18 +580,61 @@ void ROGMap::refreshLayers()
     runtime_stats_.projection_refresh_reason = "time_clear";
   }
 
-  PriorMapTransform2D prior_transform;
-  const PriorMapTransform2D * prior_transform_ptr = nullptr;
-  if (cfg_.prior_map_enable && prior_map_.loaded && getPriorMapTransform(prior_transform)) {
-    prior_transform_ptr = &prior_transform;
+  const bool prior_enabled = cfg_.prior_map_enable && prior_map_.loaded;
+  bool transform_initialized = false;
+  if (prior_enabled && !prior_map_.transform_ready) {
+    PriorMapTransform2D prior_transform;
+    if (getPriorMapTransform(prior_transform)) {
+      transform_initialized =
+        initializePriorMapTransformOnce(prior_map_, prior_transform);
+    }
   }
-  rebuildFusedProjection(prior_transform_ptr);
 
-  const auto & new_mask = fused_projection_mask_;
-  bool mask_changed = slide_result.window_moved || old_fused_mask.size() != new_mask.size();
-  if (!mask_changed) {
-    mask_changed = !std::equal(old_fused_mask.begin(), old_fused_mask.end(), new_mask.begin());
+  bool prior_changed = false;
+  if (prior_enabled) {
+    prior_changed = refreshPriorMapProjectionCache(prior_map_,
+      min_id.x(),
+      min_id.y(),
+      width,
+      height,
+      res,
+      origin.x(),
+      origin.y());
   }
+  const bool prior_visualization_invalid = prior_projection_mask_.size() != cell_count;
+  if (prior_changed || prior_visualization_invalid) {
+    if (prior_enabled && prior_map_.projection_cache_ready &&
+        prior_map_.cached_mask.size() == cell_count) {
+      prior_projection_mask_ = prior_map_.cached_mask;
+    } else {
+      prior_projection_mask_.assign(cell_count, 1U);
+    }
+  }
+  if (transform_initialized && prior_map_.projection_cache_ready) {
+    const auto occupied_count =
+      std::count(prior_map_.cached_mask.begin(), prior_map_.cached_mask.end(), 0U);
+    std::cout << "[PriorMap] initialized local projection cache "
+              << width << "x" << height << " at " << res
+              << " m/cell, occupied=" << occupied_count << std::endl;
+  }
+
+  const bool fused_buffer_invalid =
+    fused_projection_mask_.size() != layer_->mask().size() ||
+    fused_projection_values_.size() != layer_->values().size();
+  const bool need_fuse = layer_updated || prior_changed || fused_buffer_invalid;
+  bool mask_changed = false;
+  if (need_fuse) {
+    const std::vector<uint8_t> old_fused_mask = fused_projection_mask_;
+    rebuildFusedProjection(prior_enabled);
+    const auto & updated_mask = fused_projection_mask_;
+    mask_changed =
+      slide_result.window_moved || old_fused_mask.size() != updated_mask.size();
+    if (!mask_changed) {
+      mask_changed =
+        !std::equal(old_fused_mask.begin(), old_fused_mask.end(), updated_mask.begin());
+    }
+  }
+  const auto & new_mask = fused_projection_mask_;
   if (mask_changed) {
     ++mask_sequence_;
   }
@@ -760,7 +802,7 @@ void ROGMap::refreshLayers()
   runtime_stats_.field_sequence = static_cast<double>(field_sequence_);
 }
 
-void ROGMap::rebuildFusedProjection(const PriorMapTransform2D * transform)
+void ROGMap::rebuildFusedProjection(bool prior_enabled)
 {
   if (!layer_ || layer_->empty()) {
     fused_projection_mask_.clear();
@@ -769,20 +811,12 @@ void ROGMap::rebuildFusedProjection(const PriorMapTransform2D * transform)
     return;
   }
 
-  const PriorMapTransform2D * fused_transform =
-    (cfg_.prior_map_enable && prior_map_.loaded) ? transform : nullptr;
-  fusePriorMapProjection(prior_map_,
-    fused_transform,
-    layer_->width(),
-    layer_->height(),
-    layer_->resolution(),
-    layer_->origin().x(),
-    layer_->origin().y(),
+  fusePriorMapProjection(prior_enabled,
+    prior_map_,
     layer_->mask(),
     layer_->values(),
     fused_projection_mask_,
-    fused_projection_values_,
-    &prior_projection_mask_);
+    fused_projection_values_);
 }
 
 void ROGMap::refreshQuery()

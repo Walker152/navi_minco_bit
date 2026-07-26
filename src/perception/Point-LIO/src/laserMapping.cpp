@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cmath>
 #include <deque>
+#include <filesystem>
 #include <limits>
 #include <vector>
 #include <memory>
@@ -28,6 +29,7 @@
 #include <thread>
 
 #include "li_initialization.h"
+#include "sensor_time_rate_limiter.h"
 
 using namespace std;
 
@@ -584,6 +586,10 @@ PointCloudXYZI::Ptr loadPointcloudFromPcd(const std::string & file_path)
 
 inline void dump_lio_state_to_log(FILE * fp_)
 {
+  if (fp_ == nullptr) {
+    return;
+  }
+
   V3D rot_ang;
   if (!use_imu_as_input) {
     rot_ang = SO3ToEuler(kf_output.x_.rot);
@@ -993,12 +999,12 @@ template <typename T> void set_posestamp(T & out)
 void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr & pubOdomAftMapped,
   std::shared_ptr<tf2_ros::TransformBroadcaster> & tf_br)
 {
-  static auto last_time = std::chrono::steady_clock::now();
-  auto current_time = std::chrono::steady_clock::now();
-  if (current_time - last_time < std::chrono::milliseconds(5)) {
+  static point_lio::SensorTimeRateLimiter odom_rate_limiter;
+  const double odom_sensor_time =
+    publish_odometry_without_downsample ? time_current : lidar_end_time;
+  if (!odom_rate_limiter.should_publish(odom_sensor_time, orig_odom_freq)) {
     return;
   }
-  last_time = current_time;
 
   // // -------------------- Odom / Yaw 调试统计 --------------------
   // static bool yaw_initialized = false;
@@ -1022,11 +1028,7 @@ void publish_odometry(const rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPt
   };
   odomAftMapped.header.frame_id = "camera_init";
   odomAftMapped.child_frame_id = "body";
-  if (publish_odometry_without_downsample) {
-    odomAftMapped.header.stamp = get_ros_time(time_current);
-  } else {
-    odomAftMapped.header.stamp = get_ros_time(lidar_end_time);
-  }
+  odomAftMapped.header.stamp = get_ros_time(odom_sensor_time);
   set_posestamp(odomAftMapped.pose.pose);
 
   tf2::Quaternion q_pose(odomAftMapped.pose.pose.orientation.x,
@@ -1273,9 +1275,34 @@ private:
     Q_input_ = process_noise_cov_input();
     Q_output_ = process_noise_cov_output();
 
-    string pos_log_dir = root_dir + "/Log/pos_log.txt";
-    fp_ = fopen(pos_log_dir.c_str(), "w");
-    open_file();
+    if (runtime_pos_log) {
+      const std::filesystem::path log_dir = std::filesystem::path(root_dir) / "Log";
+      std::error_code log_dir_error;
+      std::filesystem::create_directories(log_dir, log_dir_error);
+      if (log_dir_error) {
+        RCLCPP_ERROR(get_logger(),
+          "[Point-LIO] Failed to create runtime log directory %s: %s. Runtime pose logging disabled.",
+          log_dir.c_str(),
+          log_dir_error.message().c_str());
+        runtime_pos_log = false;
+      } else {
+        const std::string pos_log_path = (log_dir / "pos_log.txt").string();
+        fp_ = fopen(pos_log_path.c_str(), "w");
+        open_file();
+        if (!fp_ || !fout_out || !fout_imu_pbp) {
+          RCLCPP_ERROR(get_logger(),
+            "[Point-LIO] Failed to open runtime log files under %s. Runtime pose logging disabled.",
+            log_dir.c_str());
+          if (fp_) {
+            fclose(fp_);
+            fp_ = nullptr;
+          }
+          fout_out.close();
+          fout_imu_pbp.close();
+          runtime_pos_log = false;
+        }
+      }
+    }
 
     if (print_cloud_input_fps) {
       RCLCPP_INFO(get_logger(),
@@ -1501,7 +1528,7 @@ void LaserMappingNode::processingLoop()
         sort(feats_down_body->points.begin(), feats_down_body->points.end(), time_list);
       }
       {
-        time_seq = time_compressing<int>(feats_down_body);
+        time_seq = time_compressing<int>(feats_down_body, pose_update_time_bin_ms);
         feats_down_size = feats_down_body->points.size();
       }
       record_pose_update_debug_downsample(feats_down_size);

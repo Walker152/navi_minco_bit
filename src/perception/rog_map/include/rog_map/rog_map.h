@@ -149,7 +149,7 @@ namespace rog_map {
 
         void refreshQuery();
 
-        void rebuildFusedProjection(const PriorMapTransform2D * transform);
+        void rebuildFusedProjection(bool prior_enabled);
 
         virtual bool getPriorMapTransform(PriorMapTransform2D & transform) {
             (void)transform;

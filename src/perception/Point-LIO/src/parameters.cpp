@@ -10,6 +10,8 @@
 
 #include "parameters.h"
 
+#include <cmath>
+
 // === 系统状态和时间管理变量定义 ===
 bool is_first_frame = true;          // 标识是否为第一帧数据，用于系统初始化
 double lidar_end_time = 0.0;         // 当前激光雷达帧的结束时间戳
@@ -52,6 +54,7 @@ double match_s = 81;                // 点云匹配的搜索半径参数
 float plane_thr = 0.1f;             // 平面特征提取阈值
 double filter_size_surf_min = 0.5;  // 表面特征点的降采样尺寸 (米)
 double filter_size_map_min = 0.5;   // 地图点的降采样尺寸 (米)
+double pose_update_time_bin_ms = 0.0;  // EKF位姿更新批处理时间桶 (毫秒)
 double fov_deg = 180;               // 激光雷达视场角 (度)
 float DET_RANGE = 450;              // 激光雷达有效检测范围 (米)
 
@@ -112,7 +115,7 @@ std::vector<double> init_pose;  // 初始位姿 [x,y,z,qx,qy,qz,qw]
 double lidar_time_inte = 0.1;      // 激光雷达数据积分时间 (秒)
 double first_imu_time = 0.0;       // 第一个IMU数据的时间戳
 int cut_frame_num = 1;             // 帧切分数量
-int orig_odom_freq = 10;           // 原始里程计频率 (Hz)
+int orig_odom_freq = 200;          // 里程计发布频率上限 (Hz，按传感器时间)
 double online_refine_time = 20.0;  // 在线优化时间 (秒)
 bool cut_frame_init = false;       // 帧切分初始化标志
 
@@ -164,6 +167,15 @@ void readParameters(rclcpp::Node & nh)
 
     nh.declare_parameter<float>("mapping.plane_thr", 0.05f);
     nh.get_parameter("mapping.plane_thr", plane_thr);
+
+    nh.declare_parameter<double>("mapping.pose_update_time_bin_ms", 0.0);
+    nh.get_parameter("mapping.pose_update_time_bin_ms", pose_update_time_bin_ms);
+    if (!std::isfinite(pose_update_time_bin_ms) || pose_update_time_bin_ms < 0.0) {
+      RCLCPP_WARN(
+        nh.get_logger(),
+        "mapping.pose_update_time_bin_ms must be finite and non-negative; falling back to 0.0");
+      pose_update_time_bin_ms = 0.0;
+    }
 
     nh.declare_parameter<int>("point_filter_num", 2);
     nh.get_parameter("point_filter_num", p_pre->point_filter_num);
@@ -303,6 +315,15 @@ void readParameters(rclcpp::Node & nh)
 
     nh.declare_parameter<bool>("odometry.publish_odometry_without_downsample", false);
     nh.get_parameter("odometry.publish_odometry_without_downsample", publish_odometry_without_downsample);
+
+    nh.declare_parameter<int>("odometry.publish_frequency_hz", 200);
+    nh.get_parameter("odometry.publish_frequency_hz", orig_odom_freq);
+    if (orig_odom_freq <= 0) {
+      RCLCPP_WARN(
+        nh.get_logger(),
+        "odometry.publish_frequency_hz must be positive; falling back to 200 Hz");
+      orig_odom_freq = 200;
+    }
 
     nh.declare_parameter<bool>("publish.path_en", true);
     nh.get_parameter("publish.path_en", path_en);

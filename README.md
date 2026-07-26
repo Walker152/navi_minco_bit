@@ -61,7 +61,7 @@ flowchart LR
   subgraph Perception[定位与环境感知]
     PL[Point-LIO\n高频 LIO + 稠密去畸变]
     RM[ROGMap\n概率占据 + 衰减]
-    PJ[ProjectionLayer\nFREE / PASSABLE / OCCUPIED / UNKNOWN]
+    PJ[ProjectionLayer\n在线投影 + 保守先验合并]
     DF[Signed ESDF]
     LD -->|/livox/lidar + IMU| PL
     PL -->|/cloud_registered_full| RM
@@ -102,9 +102,9 @@ flowchart LR
 | Point-LIO | `/aft_mapped_to_init` | Nav2、ROGMap、planner、controller | 位姿、体轴速度和角速度 |
 | Point-LIO | `/cloud_registered_full` | ROGMap | 世界系稠密去畸变点云 |
 | Point-LIO | `/cloud_registered` | Nav2 STVL | 常规配准点云 |
-| ROGMap | 进程内 `MapQueryInterface` | MincoPlanner | 占据、投影、ESDF 连续查询 |
-| MincoPlanner | `/opt_path` | MincoMpcController | 带 P/V/A/J/Yaw 前馈的连续轨迹 |
-| MincoMpcController | `/cmd_vel_mpc` | communication / 底盘 | 世界坐标系速度指令 |
+| ROGMap | 进程内 `MapQueryInterface` | MincoPlanner | 在线投影与保守先验合并后的占据、投影、ESDF 连续查询 |
+| MincoPlanner | `/opt_path` | MincoMpcController | planner 发布的优化轨迹，包含 P/V/A/J/Yaw 前馈 |
+| MincoMpcController | `/cmd_vel_mpc` | communication / 底盘 | MPC 发布的世界坐标系速度控制话题 |
 | bt_manager | Nav2 action / blackboard | Nav2、communication | 比赛策略和状态切换 |
 
 ## ✨ 功能亮点
@@ -129,6 +129,7 @@ flowchart LR
 - 三维概率占据通过 hit/miss 更新抑制瞬时噪声，并用 `keep_time → clear_time` 时间窗清除动态障碍残影。
 - `map_sliding.center_offset` 允许地图滑窗中心跟随机器人几何中心，而不是固定围绕 LIO 原点。
 - ProjectionLayer 根据单个 XY 柱内的占据高度跨度和垂直占据率，输出 `FREE / PASSABLE / OCCUPIED / UNKNOWN` 四类地形语义。
+- ProjectionLayer 支持保守先验合并：将 Nav2 YAML/PGM 先验地图变换到在线投影坐标系，先验中的占据栅格强制并入融合结果；该过程只增加硬障碍，不会用先验 free 清除在线障碍。
 - dirty-column 增量刷新、并行 Raycasting 和进程内地图查询减少全量遍历与 ROS 消息往返。
 - Signed ESDF 提供障碍外正距离、障碍内负距离和连续梯度，供搜索、优化和恢复共同使用。
 
@@ -336,7 +337,6 @@ publish:
 | `/cloud_registered[_full]` | `camera_init` | — | 世界系配准点云 |
 | TF | `camera_init` | `body` | 完整 LIO 姿态 |
 | TF | `camera_init` | `base_link` | 当前只发布 yaw 平面姿态，并加 `[0, 0.20, 0]` 平移偏置 |
-| TF | `camera_init` | `slambase` | 平面 yaw 参考 |
 
 > [!CAUTION]
 > `camera_init → base_link` 的 `offset_vec(0.0, 0.20, 0.0)` 当前硬编码在 `laserMapping.cpp`，不是 `mid360.yaml` 参数。修改车辆几何时，必须同步检查它与 `blind_center`、ROGMap `center_offset`、planner/controller `lidar_offset_*` 的定义；不要额外启动同名静态 TF，否则会产生重复 TF 发布者。
@@ -486,22 +486,17 @@ ros2 launch point_lio single_livox_pointlio_intra_process.launch.py
 
 使用前同步检查 `single_MID360_component.yaml`、`MID360_config.json` 和 Point-LIO IMU topic。
 
-### 4. 建图与先验地图导航
+### 4. 先验地图导航
 
 1. 启动雷达与 Point-LIO，确认 `/aft_mapped_to_init` 和 `/cloud_registered_full` 正常。
-2. 根据需要运行 SLAM：
-
-   ```bash
-   ros2 launch navi2 slam.launch.py
-   ```
-
-3. 保存 PCD / 栅格地图，并用 `pcd2pgm`、`pcd2esdf` 等工具生成所需先验数据。
-4. 修改 `src/navigation/navi2_bringup/launch/navigation2.launch.py` 中默认 map，或运行时覆盖：
+2. 准备 Nav2 YAML/PGM 先验地图；需要从已有 PCD 转换时，可使用 `pcd2pgm`、`pcd2esdf` 等工具生成所需先验数据。
+3. 修改 `src/navigation/navi2_bringup/launch/navigation2.launch.py` 中默认 map，或运行时覆盖：
 
    ```bash
    ros2 launch navi2 navigation2.launch.py map:=/absolute/path/to/map.yaml
    ```
 
+4. 若启用 ROGMap 投影层保守先验合并，同步配置 `projection.prior_map.enable`、`yaml_path`、`pgm_path` 和 `frame_id`。
 5. `PRIORMAP` 模式确认 `map → camera_init` 初始变换。当前 launch 中存在赛场相关硬编码静态 TF，应按地图原点修改，并确保该 TF 只有一个发布者。
 6. 无先验地图时将 `MincoPlanner.planner_mode` 改为 `EXPLORATION`，并重新核对 unknown 策略与 ROGMap 边界。
 
@@ -533,6 +528,10 @@ ros2 launch point_lio single_livox_pointlio_intra_process.launch.py
 | `raycasting.ray_range` | `[0.03,10.0] m` | 有效射线范围 |
 | `decay.keep_time` | `0.8 s` | hit 后保持占据的最短时间 |
 | `decay.clear_time` | `1.2 s` | hit 后强制衰减到 free 的最长时间 |
+| `projection.prior_map.enable` | `true` | 启用在线投影与二维先验地图的保守合并 |
+| `projection.prior_map.yaml_path` | `first_floor_prior.yaml` | Nav2 先验地图 YAML 路径 |
+| `projection.prior_map.pgm_path` | 空 | 留空时使用 YAML 的 `image` 字段 |
+| `projection.prior_map.frame_id` | `map` | 先验地图坐标系；通过 TF 对齐 ROGMap 投影 |
 | `projection.scan_z_min_abs/max_abs` | `-0.20 / 1.50 m` | ROGMap frame 中绝对 Z 扫描区间 |
 | `field.max_distance/min_distance` | `6.0 / -3.0 m` | Signed ESDF 截断范围 |
 | `performance.dirty_column_enable` | `true` | 增量刷新 Projection/Field |
@@ -548,6 +547,12 @@ ros2 launch point_lio single_livox_pointlio_intra_process.launch.py
 | `max_velocity` | `3.0 m/s` | 轨迹速度上界 |
 | `max_acceleration` | `2.0 m/s²` | 轨迹加速度上界 |
 | `safe_dist / collision_dist` | `0.35 / 0.25 m` | 优化安全距离 / 碰撞阈值 |
+| `minco_optimizer.penalty_weight_time` | `100.0` | 轨迹总时间惩罚权重 |
+| `minco_optimizer.penalty_weight_pos` | `50000.0` | ESDF 位置安全惩罚权重 |
+| `minco_optimizer.penalty_weight_vel` | `1500.0` | 速度越界惩罚权重 |
+| `minco_optimizer.penalty_weight_acc` | `1500.0` | 加速度越界惩罚权重 |
+| `minco_optimizer.penalty_weight_att` | `100.0` | 轨迹对前端路径吸引项权重 |
+| `minco_optimizer.penalty_weight_time_barrier` | `50.0` | 极短轨迹段时间屏障惩罚权重 |
 
 ### MincoMpcController
 
@@ -571,8 +576,7 @@ ros2 launch point_lio single_livox_pointlio_intra_process.launch.py
 map
 └── camera_init              # 当前 launch 中配置的全局初始变换
     ├── body                 # Point-LIO 完整姿态
-    ├── base_link            # 平面导航参考点
-    └── slambase             # 平面 yaw 参考
+    └── base_link            # 平面导航参考点
 ```
 
 - `map`：先验全局地图坐标系。
@@ -691,6 +695,8 @@ ros2 topic hz /cmd_vel_mpc
 ## 🙏 致谢与参考
 
 本项目建立在以下优秀开源工作之上：
+
+- 哈尔滨工业大学（威海）[刘谨博](https://github.com/LiuJinbo1027)
 
 - [ROS 2](https://docs.ros.org/en/humble/) 与 [Navigation2](https://github.com/ros-navigation/navigation2)
 - [Point-LIO](https://github.com/hku-mars/Point-LIO)

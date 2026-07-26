@@ -1,6 +1,6 @@
 #pragma once
-// #define RMUC_AREA
-#define TEST_AREA
+#define RMUC_AREA
+// #define TEST_AREA
 #include "bt_manager/utils/nav_zone.hpp"
 
 #include <array>
@@ -13,25 +13,25 @@ namespace Sentry_BT {
 // for rmuc
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
   AreaPolygon<6, Point2D>{
-    Point2D{6.5, 6.5}, Point2D{10.0, 6.5}, Point2D{13.0, 6.5},
-    Point2D{13.0, 0.1}, Point2D{10.0, 0.1}, Point2D{6.5, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{8.0, 6.0}, Point2D{10.0, 6.0}, Point2D{12.0, 6.0},
+    Point2D{12.0, 0.1}, Point2D{10.0, 0.1}, Point2D{8.0, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{16.0, 15.0}, Point2D{18.75, 15.0}, Point2D{22.0, 15.0},
-    Point2D{22.0, 8.5}, Point2D{18.75, 8.5}, Point2D{16.0, 8.5}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{21.0, 15.0},
+    Point2D{21.0, 9.0}, Point2D{18.75, 9.0}, Point2D{17.0, 9.0}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{7.6, 8.8}, Point2D{11.0, 14.5}, Point2D{18.5, 14.5},
-    Point2D{18.5, 12.5}, Point2D{12.7, 12.5}, Point2D{10.3, 8.8}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{9.5, 12.0}, Point2D{11.0, 14.2}, Point2D{17.0, 14.2},
+    Point2D{17.0, 12.5}, Point2D{12.7, 12.5}, Point2D{12.3, 12.0}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
   AreaPolygon<6, Point2D>{
-    Point2D{21.4, 6.2}, Point2D{18.0, 0.5}, Point2D{10.5, 0.5},
-    Point2D{10.5, 2.5}, Point2D{16.3, 2.5}, Point2D{18.7, 6.2}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{19.5, 3.0}, Point2D{18.0, 0.8}, Point2D{12.0, 0.8},
+    Point2D{12.0, 2.5}, Point2D{16.3, 2.5}, Point2D{16.7, 3.0}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
   Area_Square{Point2D{14.7, 11.0}, Point2D{15.7, 12.0}},
 };  // 假设这是奖励区域的坐标范围
 inline std::array<Area_Square, 4> tunnel_zone = {
-  Area_Square{Point2D{10.2, 3.6}, Point2D{9.4, 1.9}},     // Home Right Tunnel
-  Area_Square{Point2D{19.6, 13.1}, Point2D{18.8, 11.4}},  // Enemy Right Tunnel
+  Area_Square{Point2D{10.2, 3.6}, Point2D{9.4, 1.7}},     // Home Right Tunnel
+  Area_Square{Point2D{19.6, 13.3}, Point2D{18.8, 11.4}},  // Enemy Right Tunnel
   Area_Square{Point2D{15.4, 13.8}, Point2D{12.1, 13.0}},  // Home Left Tunnel
   Area_Square{Point2D{17.2, 2.0}, Point2D{13.6, 1.2}},    // Enemy Left Tunnel
 };
@@ -51,65 +51,65 @@ inline std::array<Area_Square, 2> stairs_lower_safe_zone{
   Area_Square{Point2D{19.6, 11.8}, Point2D{20.9, 12.8}},
 };
 inline AreaPolygon<8, Point2D> highland_zone{
-  Point2D{13.2, 12.7}, 
-  Point2D{10.9, 9.8},
-  Point2D{10.9, 4.8},
-  Point2D{13.5, 2.3},
-  Point2D{15.8, 2.3},
-  Point2D{18.1, 5.2},
-  Point2D{18.1, 10.2},
-  Point2D{15.5, 12.7},
+  Point2D{13.2, 12.8}, 
+  Point2D{10.7, 9.8},
+  Point2D{10.7, 4.8},
+  Point2D{13.5, 2.2},
+  Point2D{15.8, 2.2},
+  Point2D{18.3, 5.2},
+  Point2D{18.3, 10.2},
+  Point2D{15.5, 12.8},
 };
 inline AreaPolygon<8, Point2D> own_defense_zone{
-  Point2D{0.3, 9.8}, 
-  Point2D{8.3, 9.8},
-  Point2D{11.0, 13.6},
-  Point2D{13.3, 13.6},
-  Point2D{9.6, 8.4},
-  Point2D{9.6, 6.9},
-  Point2D{10.6, 4.4},
-  Point2D{0.3, 4.4},
+  Point2D{0.3, 10.1}, 
+  Point2D{8.3, 10.1},
+  Point2D{11.0, 13.8},
+  Point2D{13.5, 13.8},
+  Point2D{9.7, 8.4},
+  Point2D{9.7, 6.9},
+  Point2D{10.8, 4.1},
+  Point2D{0.3, 4.1},
 };
 inline AreaPolygon<8, Point2D> enemy_defense_zone{
-  Point2D{28.7, 5.2}, 
-  Point2D{20.7, 5.2},
-  Point2D{18.0, 1.4},
-  Point2D{15.8, 1.4},
-  Point2D{19.4, 6.6},
-  Point2D{19.4, 8.1},
-  Point2D{18.4, 10.6},
-  Point2D{28.7, 10.6},
+  Point2D{28.7, 4.9}, 
+  Point2D{20.7, 4.9},
+  Point2D{18.0, 1.2},
+  Point2D{15.5, 1.2},
+  Point2D{19.3, 6.6},
+  Point2D{19.3, 8.1},
+  Point2D{18.2, 10.9},
+  Point2D{28.7, 10.9},
 };
 inline Area_Square enemy_outpost_watch_zone{Point2D{16.7, 12.5}, Point2D{13.5, 10.1}};
 
 inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{16.7, 7.8},
   Point2D{16.7, 6.3},
-  Point2D{15.7, 5.3},
-  Point2D{14.3, 5.3},
-  Point2D{12.3, 7.2},
-  Point2D{12.3, 8.7},
-  Point2D{13.3, 9.7},
-  Point2D{14.7, 9.7},
+  Point2D{15.7, 5.4},
+  Point2D{14.3, 5.4},
+  Point2D{12.5, 7.2},
+  Point2D{12.5, 8.7},
+  Point2D{13.5, 9.6},
+  Point2D{14.7, 9.6},
 };
 inline Area_Circle enemy_fort_zone{Point2D{22.0, 7.5}, 1.0};
-inline Area_Circle enemy_fort_engage_zone{Point2D{22.0, 7.5}, 0.3};
+inline Area_Circle enemy_fort_engage_zone{Point2D{22.0, 7.5}, 0.4};
 
 inline AreaPolygon<6, Point2D> own_highland_buff_zone{
-  Point2D{13.0, 12.3},
+  Point2D{13.0, 12.5},
   Point2D{13.0, 11.1},
   Point2D{11.8, 9.5},
   Point2D{11.8, 6.5},
-  Point2D{11.0, 6.5},
-  Point2D{11.0, 9.5},
+  Point2D{10.8, 6.5},
+  Point2D{10.8, 9.7},
 };
 inline AreaPolygon<6, Point2D> enemy_highland_buff_zone{
-  Point2D{16.0, 2.7},
+  Point2D{16.0, 2.5},
   Point2D{16.0, 3.9},
   Point2D{17.2, 5.5},
   Point2D{17.2, 8.5},
-  Point2D{18.0, 8.5},
-  Point2D{18.0, 5.5},
+  Point2D{18.2, 8.5},
+  Point2D{18.2, 5.3},
 };
 
 inline AreaPolygon<6, Point2D> own_base_buff_zone{
@@ -148,7 +148,7 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 };
 
 inline std::vector<Point2D> nav_points = {
-  {3.0, 3.0, 0.0},   // HOME
+  {3.0, 3.2, 0.0},   // HOME
   {12.8, 5.5, 0.0},  // BONUS
   {15.2, 11.2, 0.0}, // ENEMY_OUTPOST
   {7.2, 7.5, 0.0},   // OWN_FORT
@@ -220,7 +220,7 @@ inline std::array<Area_Square, 4> tunnel_zone = {
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
   Area_Square{Point2D{12.6, 7.2}, Point2D{11.4, 5.3}},
-  Area_Square{Point2D{5.7, 3.6}, Point2D{2.4, 1.4}},
+  Area_Square{Point2D{6.5, 3.6}, Point2D{2.4, 1.4}},
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 // inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
@@ -349,7 +349,7 @@ inline std::vector<Point2D> nav_points = {
   {3.4, 5.4, 0.0},  // OUTPOST red
   // {3.9, 5.4, 0.0},  // OUTPOST blue
   {12.6, 3.0, 0.0},  // OWN_FORT
-  {12.7, 3.3, 0.0}   // ENEMY_FORT
+  {12.3, 3.3, 0.0}   // ENEMY_FORT
 };
 
 using PatrolList = std::vector<PatrolPoint>; 
