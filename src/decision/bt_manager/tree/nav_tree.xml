@@ -132,7 +132,7 @@
                                    max_remaining="420"
                                    require_game_started="false"
                                    branch="EarlyGameSpecialResponse" />
-              <!-- <ForceSuccess>
+              <ForceSuccess>
                 <ReactiveSequence name="AutoOutpostEnableOnce">
                   <CheckGameTimeWindow name="CheckAutoOutpostEnableWindow"
                                        min_remaining="390"
@@ -155,7 +155,7 @@
                                             exit_outpost_mode="true"
                                             branch="AutoOutpostDisableOnce" />
                 </ReactiveSequence>
-              </ForceSuccess> -->
+              </ForceSuccess>
               <ReactiveFallback name="EarlyGameSpecialSelector">
                 <ReactiveSequence name="AutoNormalOutpostResponse">
                   <CheckTacticalModeCondition name="CheckAutoOutpostNormalMode" mode="normal" branch="AutoNormalOutpostResponse" />
@@ -207,7 +207,7 @@
               <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
                                                           patrol_branch_balanced="0"
                                                           patrol_branch_offensive="0"/> -->
-              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0" />
+              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="2" />
               <NavigateToPoseAction name="NavigatePatrolPoint" />
               <Wait name="WaitAtPatrolPoint" />
             </Sequence>
