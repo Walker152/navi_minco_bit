@@ -86,7 +86,8 @@ int pcd_save_interval;  // PCD文件保存间隔 (帧数)
 std::vector<double> gravity_init, gravity;  // 初始和当前估计的重力向量
 
 // === 系统功能控制 ===
-bool runtime_pos_log;                     // 运行时位姿日志记录使能
+bool runtime_pos_log;                     // 运行时统计总开关（IMU/状态/性能）
+std::string runtime_log_path;             // 运行时统计日志目录，空值保持 ROOT_DIR/Log
 bool pcd_save_en;                         // PCD点云文件保存使能
 double accumulated_map_publish_hz = 1.0;  // 累积地图低频发布频率
 bool path_en;                             // 轨迹路径发布使能
@@ -119,9 +120,8 @@ int orig_odom_freq = 200;          // 里程计发布频率上限 (Hz，按传�
 double online_refine_time = 20.0;  // 在线优化时间 (秒)
 bool cut_frame_init = false;       // 帧切分初始化标志
 
-// === 数据结构和文件流 ===
-MeasureGroup Measures;            // 传感器数据测量组
-ofstream fout_out, fout_imu_pbp;  // 日志文件输出流
+// === 数据结构 ===
+MeasureGroup Measures;  // 传感器数据测量组
 
 /**
  * @brief 从ROS2参数服务器读取所有系统参数
@@ -340,6 +340,9 @@ void readParameters(rclcpp::Node & nh)
     nh.declare_parameter<bool>("runtime_pos_log_enable", false);
     nh.get_parameter("runtime_pos_log_enable", runtime_pos_log);
 
+    nh.declare_parameter<std::string>("runtime_log_path", "");
+    nh.get_parameter("runtime_log_path", runtime_log_path);
+
     nh.declare_parameter<bool>("pcd_save.pcd_save_en", false);
     nh.get_parameter("pcd_save.pcd_save_en", pcd_save_en);
 
@@ -416,28 +419,6 @@ Eigen::Matrix<double, 3, 1> SO3ToEuler(const SO3 & rot)
   // 返回欧拉角向量
   Eigen::Matrix<double, 3, 1> ang(x, y, z);
   return ang;
-}
-
-/**
- * @brief 打开日志文件用于调试和分析
- * @details 该函数打开两个关键的日志文件：
- *          1. mat_out.txt - 记录系统状态输出 (位姿、速度、偏置等)
- *          2. imu_pbp.txt - 记录IMU点对点处理过程
- *          这些文件对于系统调试和性能分析非常重要
- */
-void open_file()
-{
-  // 打开状态输出日志文件 (包含位置、姿态、速度等信息)
-  fout_out.open(DEBUG_FILE_DIR("mat_out.txt"), ios::out);
-
-  // 打开IMU点对点处理日志文件 (记录高频处理过程)
-  fout_imu_pbp.open(DEBUG_FILE_DIR("imu_pbp.txt"), ios::out);
-
-  // 检查文件打开状态并输出提示信息
-  if (fout_out && fout_imu_pbp)
-    std::cout << "~~~~ 日志文件打开成功: " << ROOT_DIR << std::endl;
-  else
-    std::cout << "~~~~ 错误: 日志目录不存在: " << ROOT_DIR << std::endl;
 }
 
 /**

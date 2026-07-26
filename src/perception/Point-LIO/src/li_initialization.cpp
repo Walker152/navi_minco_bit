@@ -12,6 +12,12 @@
 
 #include "li_initialization.h"
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+
+#include "runtime_statistics.h"
+
 // ======================== 全局变量定义 ========================
 // 系统初始化和状态管理相关变量
 
@@ -83,12 +89,6 @@ sensor_msgs::msg::Imu imu_last, imu_next;
  */
 PointCloudXYZI::Ptr ptr_con(new PointCloudXYZI());
 
-/**
- * @brief 性能统计数组
- * @details 用于记录各种时间和性能指标，支持后续分析
- */
-double T1[MAXN], s_plot[MAXN], s_plot2[MAXN], s_plot3[MAXN], s_plot11[MAXN];
-
 // ======================== 线程同步和数据缓冲相关变量 ========================
 
 /**
@@ -135,6 +135,9 @@ namespace {
 std::deque<PointCloudXYZI::Ptr> pending_lidar_buffer;
 std::deque<double> pending_time_buffer;
 std::deque<sensor_msgs::msg::Imu::ConstSharedPtr> pending_imu_deque;
+uint64_t imu_log_sequence = 0;
+std::chrono::steady_clock::time_point last_imu_arrival_time;
+bool has_last_imu_arrival_time = false;
 
 void flush_pending_sensor_data_locked()
 {
@@ -174,8 +177,8 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
   // 扫描帧计数递增
   scan_count++;
 
-  // 记录预处理开始时间，用于性能统计
-  double preprocess_start_time = omp_get_wtime();
+  const bool statistics_enabled = point_lio::RuntimeStatistics::instance().enabled();
+  const double preprocess_start_time = statistics_enabled ? omp_get_wtime() : 0.0;
 
   // 时间戳回环检测：检查是否出现时间倒退现象
   if (rclcpp::Time(msg->header.stamp).seconds() < last_timestamp_lidar) {
@@ -259,8 +262,14 @@ void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::SharedPtr & msg)
     }
   }
 
-  // 记录预处理耗时，用于性能分析
-  s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
+  if (statistics_enabled) {
+    const double preprocess_ms = (omp_get_wtime() - preprocess_start_time) * 1000.0;
+    point_lio::RuntimeStatistics::instance().recordLidarCallback(
+      last_timestamp_lidar,
+      preprocess_ms,
+      pending_lidar_buffer.size(),
+      lidar_buffer.size());
+  }
 
   sig_buffer.notify_all();
 }
@@ -286,8 +295,8 @@ void livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::SharedPtr & msg)
 {
   std::lock_guard<std::mutex> lock(mtx_buffer);
 
-  // 记录预处理开始时间
-  double preprocess_start_time = omp_get_wtime();
+  const bool statistics_enabled = point_lio::RuntimeStatistics::instance().enabled();
+  const double preprocess_start_time = statistics_enabled ? omp_get_wtime() : 0.0;
 
   // 扫描帧计数递增
   scan_count++;
@@ -347,7 +356,14 @@ void livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::SharedPtr & msg)
       }
     }
   }
-  s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
+  if (statistics_enabled) {
+    const double preprocess_ms = (omp_get_wtime() - preprocess_start_time) * 1000.0;
+    point_lio::RuntimeStatistics::instance().recordLidarCallback(
+      last_timestamp_lidar,
+      preprocess_ms,
+      pending_lidar_buffer.size(),
+      lidar_buffer.size());
+  }
   sig_buffer.notify_all();
 }
 
@@ -389,6 +405,51 @@ void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr & msg_in)
 
   // 获取校正后的时间戳
   double timestamp = get_time_sec(msg->header.stamp);
+  if (point_lio::RuntimeStatistics::instance().enabled()) {
+    const double original_timestamp = get_time_sec(msg_in->header.stamp);
+    const double sensor_dt = last_timestamp_imu >= 0.0 ? timestamp - last_timestamp_imu : 0.0;
+    const auto arrival_time = std::chrono::steady_clock::now();
+    const double arrival_dt =
+      has_last_imu_arrival_time
+        ? std::chrono::duration<double>(arrival_time - last_imu_arrival_time).count()
+        : 0.0;
+
+    int status = 0;
+    int estimated_missing = 0;
+    if (last_timestamp_imu >= 0.0) {
+      if (sensor_dt < 0.0) {
+        status = 3;
+      } else if (sensor_dt == 0.0) {
+        status = 2;
+      } else if (imu_time_inte > 0.0 && sensor_dt > 1.5 * imu_time_inte) {
+        status = 1;
+        estimated_missing =
+          std::max(0, static_cast<int>(std::llround(sensor_dt / imu_time_inte)) - 1);
+      }
+    }
+
+    point_lio::ImuLogRecord imu_record;
+    imu_record.sequence = imu_log_sequence++;
+    imu_record.original_stamp = original_timestamp;
+    imu_record.corrected_stamp = timestamp;
+    imu_record.sensor_dt = sensor_dt;
+    imu_record.arrival_dt = arrival_dt;
+    imu_record.estimated_missing = estimated_missing;
+    imu_record.status = status;
+    imu_record.gyro = {
+      msg_in->angular_velocity.x,
+      msg_in->angular_velocity.y,
+      msg_in->angular_velocity.z};
+    imu_record.acc = {
+      msg_in->linear_acceleration.x,
+      msg_in->linear_acceleration.y,
+      msg_in->linear_acceleration.z};
+    imu_record.pending_queue_size =
+      pending_imu_deque.size() + static_cast<std::size_t>(status != 3);
+    point_lio::RuntimeStatistics::instance().recordImu(imu_record);
+    last_imu_arrival_time = arrival_time;
+    has_last_imu_arrival_time = true;
+  }
 
   // 调试信息（已注释）
   // printf("time_diff%f, %f, %f\n", last_timestamp_imu - timestamp, last_timestamp_imu, timestamp);
@@ -438,8 +499,15 @@ bool sync_packages(MeasureGroup & meas)
   double available_last_timestamp_imu = -1.0;
   {
     std::lock_guard<std::mutex> lock(mtx_buffer);
+    const std::size_t pending_lidar_frames = pending_lidar_buffer.size();
+    const std::size_t pending_imu_samples = pending_imu_deque.size();
     flush_pending_sensor_data_locked();
     available_last_timestamp_imu = last_timestamp_imu;
+    point_lio::RuntimeStatistics::instance().recordSensorQueues(
+      pending_lidar_frames,
+      lidar_buffer.size(),
+      pending_imu_samples,
+      imu_deque.size());
   }
 
   {

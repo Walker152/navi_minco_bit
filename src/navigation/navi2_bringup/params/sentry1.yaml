@@ -353,7 +353,7 @@ planner_server:
           enable: true
           cloud_topic: /cloud_registered_full
           odom_topic: /aft_mapped_to_init
-          odom_timeout: 0.08
+          odom_timeout: 2.0
           update_period_ms: 20
 
         raycasting:

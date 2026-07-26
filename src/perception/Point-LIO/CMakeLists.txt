@@ -92,6 +92,7 @@ set(POINT_LIO_MAPPING_SOURCES
   src/preprocess.cpp
   src/Estimator.cpp
   src/IMU_Processing.cpp
+  src/runtime_statistics.cpp
 )
 
 add_library(point_lio_component SHARED
@@ -162,6 +163,13 @@ if(BUILD_TESTING)
 
   ament_add_gtest(sensor_time_rate_limiter_test test/sensor_time_rate_limiter_test.cpp)
   target_include_directories(sensor_time_rate_limiter_test PRIVATE include)
+
+  ament_add_gtest(
+    runtime_statistics_test
+    test/runtime_statistics_test.cpp
+    src/runtime_statistics.cpp
+  )
+  target_include_directories(runtime_statistics_test PRIVATE include)
 endif()
 
 # Export dependencies
