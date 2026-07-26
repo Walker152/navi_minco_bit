@@ -110,6 +110,7 @@ public:
     const auto stamp = now();
     msg.header.stamp = stamp;
     msg.capacitor_capacity = in.capacitor_capacity;
+    msg.tunnel_yaw_aligned = in.tunnel_yaw_aligned;
     std::chrono::steady_clock::time_point publish_start{};
     if (performance_diagnostics_enabled_) {
       publish_start = std::chrono::steady_clock::now();
@@ -298,6 +299,8 @@ private:
     float tunnel_escape_vy = 0.0f;
     bool tunnel_prepare_active = false;
     bool tunnel_ready = false;
+    bool tunnel_align_active = false;
+    float tunnel_align_angle_deg = 0.0f;
     geometry_msgs::msg::Quaternion odom_q;
     {
       // Snapshot shared state to avoid data races.
@@ -329,6 +332,8 @@ private:
       tunnel_escape_vy = behavior_.tunnel_escape_vy;
       tunnel_prepare_active = behavior_.tunnel_prepare_active;
       tunnel_ready = behavior_.tunnel_ready;
+      tunnel_align_active = behavior_.tunnel_align_active;
+      tunnel_align_angle_deg = behavior_.tunnel_align_angle_deg;
       scan_yaw_min_deg_ = behavior_.scan_yaw_min;
       scan_yaw_max_deg_ = behavior_.scan_yaw_max;
       ammo_purchase_request = behavior_.ammo_purchase_request;
@@ -393,7 +398,9 @@ private:
       health_req,
       use_limited_scan,
       not_aim_enemy,
-      use_capacitor);
+      use_capacitor,
+      tunnel_align_active,
+      tunnel_align_angle_deg);
     auto flag = Communication::send2stm32<ChassisTarget>(target, ENUM_PACKET_NAV_DATA);
     if (performance_diagnostics_enabled_) {
       auto diagnostics = getDiagnosticsSnapshot();
@@ -441,7 +448,9 @@ private:
           NV(behavior_data.remote_ammo_request),
           NV(behavior_data.remote_health_request),
           NV(behavior_data.use_limited_scan),
-          NV(behavior_data.use_capacitor));
+          NV(behavior_data.use_capacitor),
+          NV(behavior_data.tunnel_align_active),
+          NV(behavior_data.tunnel_align_angle_deg));
         last_send_time = now_time;
       }
     }

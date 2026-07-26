@@ -113,7 +113,7 @@ private:
       0.0,
       1));
     steps_.push_back(makeStep("1C_Tunnel",
-      "场景1: 进入隧道区域, PID 接管",
+      "场景1: 进入隧道区域, 底盘对齐接管",
       "姿态: 小陀螺禁止被其他条件抢占",
       100.0f,
       300,
@@ -170,7 +170,7 @@ private:
       0.0,
       1));
     steps_.push_back(makeStep("3B_RetreatTunnel",
-      "场景3: 进入隧道, PID 接管",
+      "场景3: 进入隧道, 底盘对齐接管",
       "姿态: 非小陀螺控制不应被抢占",
       20.0f,
       0,

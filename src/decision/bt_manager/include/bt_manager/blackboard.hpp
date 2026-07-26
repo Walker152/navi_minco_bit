@@ -33,6 +33,8 @@ public:
     blackboard_->set("current_in_tunnel", false);                            // 当前是否在隧道中
     blackboard_->set("tunnel_prepare_active", false);                        // 当前是否处于过洞准备场景
     blackboard_->set("tunnel_yaw_aligned", false);                           // 过洞航向是否已对齐
+    blackboard_->set("tunnel_align_active", false);                           // 是否请求底盘航向对齐
+    blackboard_->set("tunnel_align_angle_deg", 0.0f);                         // 底盘目标航向角(度)
     blackboard_->set("tunnel_ready", false);                                 // 航向和升降机构是否均已就绪
     blackboard_->set("attack_accumulated_time", 0.0);  // ATTACK累计停留时长(秒),用于效果下降判定
     blackboard_->set("defend_accumulated_time", 0.0);  // DEFEND累计停留时长(秒),用于效果下降判定
