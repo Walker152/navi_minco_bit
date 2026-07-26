@@ -41,21 +41,10 @@ public:
   void halt() override;
 
 private:
-  float computeTunnelGyroVelPid(double yaw_error,
-    float kp,
-    float ki,
-    float kd,
-    float deadzone,
-    float max_abs_gyro_vel,
-    const std::chrono::steady_clock::time_point & now);
-  void resetPidState();
+  void resetAlignmentState();
 
-  bool pid_initialized_ = false;
   bool target_yaw_selected_ = false;
   double selected_target_yaw_ = 0.0;
-  double integral_error_ = 0.0;
-  double last_error_ = 0.0;
-  std::chrono::steady_clock::time_point last_pid_time_;
 };
 
 class ChangeStance : public BT::StatefulActionNode

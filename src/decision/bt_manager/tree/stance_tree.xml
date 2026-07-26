@@ -9,26 +9,14 @@
           <CheckTacticalModeCondition mode="attack" branch="ManualAttackTunnelDefendAlignBranch" />
           <CheckCrossZoneTransition branch="ManualAttackTunnelDefendAlignBranch" />
           <ChangeStance name="ChangeStanceManualAttackTunnelDefend" stance="DEFEND" />
-          <TunnelGyroAlignAction branch="ManualAttackTunnelDefendAlignBranch"
-                                 kp="1.5"
-                                 ki="0.2"
-                                 kd="0.4"
-                                 deadzone_rad="0.05"
-                                 yaw_alignment_threshold_rad="0.26"
-                                 max_abs_gyro_vel="60.0" />
+          <TunnelGyroAlignAction branch="ManualAttackTunnelDefendAlignBranch" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="ManualAttackTunnelDefendAlignBranch" /> -->
         </ReactiveSequence>
 
         <ReactiveSequence name="MoveStanceNoGyroBranch">
           <CheckCrossZoneTransition branch="MoveStanceNoGyroBranch" />
           <ChangeStance name="ChangeStanceMoveNoGyro" stance="MOVE" />
-          <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch"
-                                 kp="2.0"
-                                 ki="0.0"
-                                 kd="0.0"
-                                 deadzone_rad="0.05"
-                                 yaw_alignment_threshold_rad="0.26"
-                                 max_abs_gyro_vel="60.0" />
+          <TunnelGyroAlignAction branch="MoveStanceNoGyroBranch" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
         </ReactiveSequence>
 
@@ -54,10 +42,9 @@
               <Inverter>
                 <CheckInEnemyFortZone branch="ApproachEnemyFortMoveZeroGyro" />
               </Inverter>
-              <SetGyroState use_gyro="false"
-                            gyro_vel="0.0"
-                            random_speed="false" />
               <ChangeStance name="ChangeStanceApproachEnemyFortMove" stance="MOVE" />
+              <TunnelGyroAlignAction branch="ApproachEnemyFortMoveZeroGyro"
+                                     reuse_existing_target="true" />
             </Sequence>
           </ReactiveFallback>
         </ReactiveSequence>

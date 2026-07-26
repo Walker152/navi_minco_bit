@@ -101,6 +101,8 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
       blackboard_->get<geometry_msgs::msg::Twist>("tunnel_escape_cmd_vel");
     const auto tunnel_prepare_active = blackboard_->get<bool>("tunnel_prepare_active");
     const auto tunnel_ready = blackboard_->get<bool>("tunnel_ready");
+    const auto tunnel_align_active = blackboard_->get<bool>("tunnel_align_active");
+    const auto tunnel_align_angle_deg = blackboard_->get<float>("tunnel_align_angle_deg");
     const auto ammo_purchase_request = static_cast<uint16_t>(blackboard_->get<int>("ammo_purchase_total"));
     const auto yaw_min_deg = blackboard_->get<float>("scan_yaw_min_deg");
     const auto yaw_max_deg = blackboard_->get<float>("scan_yaw_max_deg");
@@ -125,6 +127,8 @@ ros_interface::ros_interface(std::shared_ptr<Blackboard> & blackboard_ptr)
     behavior_msg.tunnel_escape_wz = static_cast<float>(tunnel_escape_cmd_vel.angular.z);
     behavior_msg.tunnel_prepare_active = tunnel_prepare_active;
     behavior_msg.tunnel_ready = tunnel_ready;
+    behavior_msg.tunnel_align_active = tunnel_align_active;
+    behavior_msg.tunnel_align_angle_deg = tunnel_align_angle_deg;
     behavior_msg.desire_lifter_pos = static_cast<uint8_t>(desired_lifter_pos);
     behavior_msg.scan_yaw_min = yaw_min_deg;
     behavior_msg.scan_yaw_max = yaw_max_deg;
@@ -310,6 +314,7 @@ void ros_interface::sentryOfflineCallback(const ros_interfaces::msg::SentryInfoO
   blackboard_->set<bool>("is_transformable", msg->is_transformable);
   blackboard_->set<float>("transform_state", msg->transform_state);
   blackboard_->set<uint8_t>("capacitor_capacity", msg->capacitor_capacity);
+  blackboard_->set<bool>("tunnel_yaw_aligned", msg->tunnel_yaw_aligned);
   auto tf_utils = blackboard_->get<std::shared_ptr<Sentry_BT::TransformUtils>>("transform_utils");
   float gimbal_yaw_init = msg->yaw_camerainit_to_gimbal;
   if (tf_utils) {
