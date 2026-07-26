@@ -1,6 +1,6 @@
 #pragma once
-#define RMUC_AREA
-// #define TEST_AREA
+// #define RMUC_AREA
+#define TEST_AREA
 #include "bt_manager/utils/nav_zone.hpp"
 
 #include <array>
@@ -359,7 +359,7 @@ inline std::vector<PatrolList> normal_patrol_branches = {
     {{10.0, 2.7, 0.0}, 10000} 
   },
   {
-    {{3.9, 4.9, 0.0}, 10000},
+    // {{3.9, 4.9, 0.0}, 10000},
     {{10.0, 2.7, 0.0}, 10000}
   }
 };
