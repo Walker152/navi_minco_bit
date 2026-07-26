@@ -671,7 +671,9 @@ BT::NodeStatus CheckShouldEnhanceStance::tick()
   const int game_time_remaining = blackboard->get<int>("game_time_remaining");
 
   // 一级触发：普通姿态累计快到 180s（效果降级前续命）
-  const bool level1_trigger = accumulated_time >= static_cast<double>(acc_threshold);
+  // 暂时禁用一级触发，只保留二级保底触发
+  // const bool level1_trigger = accumulated_time >= static_cast<double>(acc_threshold);
+  const bool level1_trigger = false;  // 暂时禁用
 
   // 二级触发：比赛剩余 <= 保底时间，且配额 >= 5s（避免在最后几秒浪费开启）
   const bool level2_trigger = (game_time_remaining <= fallback_time && remaining_time >= 5);
