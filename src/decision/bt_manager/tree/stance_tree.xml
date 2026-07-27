@@ -55,25 +55,7 @@
               <SetGyroState use_gyro="false"
                             gyro_vel="0.0"
                             random_speed="false" />
-<<<<<<< HEAD
               <ChangeStance name="ChangeStanceApproachEnemyFortMove" stance="MOVE" />
-=======
-              <Fallback name="FortMoveStanceSelector">
-                <Sequence name="TryEnhancedMove">
-                  <CheckShouldEnhanceStance
-                    target_stance="MOVE"
-                    accumulated_threshold="170"
-                    fallback_game_time="60"
-                    min_remaining_sec="1"
-                    branch="FortMove_Enhanced" />
-                  <ChangeStance name="ChangeStanceApproachEnemyFortEnhancedMove" stance="ENHANCED_MOVE" />
-                </Sequence>
-                <ChangeStance name="ChangeStanceApproachEnemyFortMove" stance="MOVE" />
-              </Fallback>
-              <!-- 复用过洞分支已选定的航向目标,持续对齐直到该分支被 halt。 -->
-              <TunnelGyroAlignAction branch="ApproachEnemyFortMoveZeroGyro"
-                                     reuse_existing_target="true" />
->>>>>>> rog_map_work
             </Sequence>
           </ReactiveFallback>
         </ReactiveSequence>
@@ -128,13 +110,8 @@
           <CheckEngagedStatus expected="true" branch="DefendStanceBranch" />
           <CheckHealth threshold="50" mode="less" branch="DefendStanceBranch" />
           <!-- <CheckStanceEffectLimit target_stance="DEFEND" max_time_sec="180" /> -->
-<<<<<<< HEAD
           <SetGyroState use_gyro="true" 
                         gyro_vel="100.0" 
-=======
-          <SetGyroState use_gyro="true"
-                        gyro_vel="80.0"
->>>>>>> rog_map_work
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefendStanceBranch" /> -->
           <Fallback name="DefendStanceSelector">
@@ -156,13 +133,8 @@
             <CheckCapacitorCapacity threshold="30" mode="less" branch="MoveStanceGyroBranch" />
             <CheckEngagedStatus expected="false" branch="MoveStanceGyroBranch" />
           </Fallback>
-<<<<<<< HEAD
           <SetGyroState use_gyro="true" 
                         gyro_vel="50.0" 
-=======
-          <SetGyroState use_gyro="true"
-                        gyro_vel="40.0"
->>>>>>> rog_map_work
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
           <Fallback name="MoveStanceSelector">

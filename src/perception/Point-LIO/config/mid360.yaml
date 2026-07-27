@@ -37,11 +37,7 @@
             timestamp_unit: 3                               # the unit of time/t field in the PointCloud2 rostopic: 0-second, 1-milisecond, 2-microsecond, 3-nanosecond.
             blind: 0.35
             blind_center_enable: True
-<<<<<<< HEAD
             blind_center: [ 0.10689, -0.11304, 0.0 ]
-=======
-            blind_center: [ 0.0, 0.20, 0.0 ]
->>>>>>> rog_map_work
 
         mapping:
             imu_en: True
