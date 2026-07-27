@@ -1,6 +1,6 @@
 #pragma once
-#define RMUC_AREA
-// #define TEST_AREA
+// #define RMUC_AREA
+#define TEST_AREA
 #include "bt_manager/utils/nav_zone.hpp"
 
 #include <array>
@@ -267,7 +267,7 @@ inline std::array<TunnelYawAlignConfig, 4> tunnel_yaw_align_configs = {
   TunnelYawAlignConfig{TunnelAxis::Y, 2, 4},
   TunnelYawAlignConfig{TunnelAxis::Y, 2, 4},
   TunnelYawAlignConfig{TunnelAxis::Y, 2, 4},
-  TunnelYawAlignConfig{TunnelAxis::X, 3, 1},
+  TunnelYawAlignConfig{TunnelAxis::X,1, 3},
 };
 inline std::array<Area_Square, 2> stairs_zone{
   Area_Square{Point2D{11.5, 7.1}, Point2D{10.3, 6.2}},
