@@ -246,9 +246,11 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   last_manual_point = manual_point_2d;
   switch (msg->manual_key) {
   case 65:  // 'A'键切换控制模式
+  case 97:  // 'a'键（兼容小写）
     blackboard_->set<ControlMode>("control_mode", ControlMode::MANUAL_CONTROL);
     break;
-  case 66: {
+  case 66:  // 'B'键切换敌方前哨站摧毁状态
+  case 98: {  // 'b'键（兼容小写）
     const auto enemy_outpost_destroyed = blackboard_->get<bool>("enemy_outpost_destroyed");
     blackboard_->set<bool>("enemy_outpost_destroyed", !enemy_outpost_destroyed);
     break;
