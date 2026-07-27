@@ -18,21 +18,44 @@
 - SensorData QoS `keep_last(1)` 接收最新稠密点云。
 - 地图更新、投影、ESDF 与可视化频率可独立控制。
 
-## 🧠 数据链路
+## 🧠 模块流程图
 
 ```mermaid
 flowchart LR
-  C["/cloud_registered_full"] --> R[Range Filter / Raycast]
+  C["/cloud_registered_full"] --> R[距离过滤 / Raycast]
   O["/aft_mapped_to_init"] --> A[Active Window / Map Center]
-  A --> V[3D Probabilistic Occupancy]
+  A --> V[三维概率占据更新]
   R --> V
-  V --> D[Dirty Columns]
-  D --> P[2D Projection Layer]
-  V --> E[Signed ESDF]
-  P --> Q[MapQueryInterface]
+  V --> X[hit / miss / decay / inflation]
+  X --> D[Dirty Columns]
+  D --> P[二维单柱投影分类]
+  P --> F[在线结果 + 保守先验合并]
+  F --> E[Signed ESDF]
+  F --> Q[MapQueryInterface]
   E --> Q
-  Q --> M[Search / MINCO / Safety / Recovery]
+  Q --> U[Search / MINCO / Safety / Recovery]
 ```
+
+### 流程概述
+
+世界系稠密点云和 latest-state odom 分别进入独立回调组。更新 timer 使用最近一批有效观测执行 raycast、概率更新、衰减和膨胀，并标记受影响的 XY 柱；ProjectionLayer 对 dirty columns 或全图做二维分类，随后与 PGM/YAML 先验作保守合并并刷新 Signed ESDF。Planner 通过进程内 `MapQueryInterface` 查询结果，可视化只在存在订阅者时按独立频率构造。
+
+## 🧪 技术方向
+
+- 三维层以 hit/miss 概率更新表达 occupied/free/unknown，并通过滑动窗口限制局部有效范围。
+- ProjectionLayer 在固定 XY 柱内统计已观测体素、占据高度跨度和垂直占据率，输出 `FREE / PASSABLE / OCCUPIED / UNKNOWN`。
+- 先验融合只把先验 occupied 写入动态投影，先验 free 不会清除在线障碍。
+- Signed ESDF 为搜索、MINCO 软代价、发布前安全检查和恢复方向提供距离/梯度。
+- decay 通过 `keep_time → clear_time` 处理动态障碍残影，但仍依赖可靠的 miss ray 和持续观测。
+
+## ⚡ 性能方向
+
+- 点云订阅使用 `SensorDataQoS().keep_last(1)`、`UniquePtr` callback 和显式 intra-process，避免大点云排队并减少同进程复制。
+- odom 订阅使用 `KeepLast(1) + best_effort + volatile`，只维护地图中心所需的最新状态。
+- dirty-column 增量投影只刷新变化列；dirty 比例超过阈值时回退全量刷新，避免增量维护反而更慢。
+- raycast 可配置并行线程；当前比赛 YAML 中 `parallel_raycast_enable: false`，不能把并行 raycast 描述为默认启用。
+- 地图查询走内存接口；可视化 publisher 统一使用 `KeepLast(1) + best_effort + volatile`，且按订阅者需求构造消息。
+- `PerformanceMonitor` 支持 detailed/summary CSV 和终端摘要，覆盖输入、地图、投影、ESDF 与 snapshot 复制链路。
 
 ## 🧱 地图层语义
 
@@ -44,7 +67,7 @@ flowchart LR
 | ESDF | 到最近障碍的有符号距离及梯度 |
 | Active Window | 随机器人移动的局部有效地图范围 |
 
-投影层不是简单“取最高点”。它综合指定 Z 范围内的观测数量、表面高度变化、墙面/隧道判据、未知状态和迟滞保持，减少坡面、孔洞及稀疏回波导致的瞬时跳变。
+投影层不是简单“取最高点”。它综合指定 Z 范围内的观测数量、表面高度变化、墙面/隧道判据、未知状态和迟滞保持，减少孔洞及稀疏回波导致的瞬时跳变。但当前实现是**单柱高度统计分类，不是坡面分割或地面模型拟合**。
 
 ## 📡 ROS 接口
 
@@ -60,9 +83,9 @@ flowchart LR
 | Topic | 内容 |
 |---|---|
 | `/rog_map/occupied` | 占据点 |
-| `/rog_map/occupied_raw` | 未膨胀占据点 |
+| `/rog_map/raw_occupied` | 未膨胀占据点 |
 | `/rog_map/unknown` | 未知体素 |
-| `/rog_map/inflated` | 膨胀障碍 |
+| `/rog_map/inflated_occupied` | 膨胀障碍 |
 | `/rog_map/frontier` | 前沿区域 |
 | `/rog_map/esdf` | ESDF 可视化 |
 | `/rog_map/layer_value` | 动态与 PGM 静态先验融合后的二维障碍投影 |
@@ -158,11 +181,49 @@ projection:
 |---|---|
 | `field.max_distance`, `min_distance` | 距离场截断范围 |
 | `field.interpolation` | 插值方式，当前为 `quadratic` |
-| `field.update_rate` | ESDF 更新频率，典型为 50 Hz |
+| `field.update_rate` | ESDF 更新频率，当前比赛配置为 20 Hz |
 | `performance.dirty_column_enable` | 仅更新受影响的投影列 |
 | `performance.dirty_full_ratio` | dirty 比例过高时转为全量刷新的阈值 |
 | `performance.parallel_raycast_enable` | 是否并行 raycast |
 | `performance.raycast_num_threads` | raycast 并行线程数 |
+
+### 性能统计开关与字段
+
+`performance.enable` 是计时和聚合总开关；`detailed_csv_enable`、`summary_csv_enable` 与 `print_enable` 独立控制逐次 CSV、窗口 CSV 和终端摘要。默认路径为：
+
+```text
+/tmp/rog_map_perf_detailed.csv
+/tmp/rog_map_perf_summary.csv
+```
+
+统计覆盖：
+
+- 点云回调频率、点数、转换时间、队列延迟及 empty/no-odom/odom-timeout 丢弃计数；
+- odom 频率、年龄与查询时间；
+- raycast、概率更新、膨胀、decay、projection、field 和 query refresh 耗时；
+- dirty column 数量、全量/增量刷新原因与各类投影 cell 数量；
+- ESDF 正/负 EDT、mask、distance fill、copy 耗时与更新/跳过原因；
+- `MapSnapshot` 分配和各 vector copy 耗时。
+
+详细 CSV 字段很多，诊断时应先用 summary 确定瓶颈阶段，再短时开启 detailed CSV；长期比赛运行不建议无目的持续写盘。
+
+## ⚠️ 已知问题与改进方向
+
+### 地形分析强依赖雷达安装与地面点云
+
+ProjectionLayer 的分类证据来自指定绝对 Z 范围内的单柱体素，因此雷达高度、俯仰/横滚、车体遮挡和地面回波密度会直接改变观测体素数与高度跨度。地面点云不足时，柱更容易落入 `UNKNOWN` 或证据不足分支；单纯放宽 Z 范围又可能把车体、自身结构或高处噪声引入投影。
+
+### 尚未支持坡面分割
+
+当前没有跨 XY 邻域的坡面拟合、法向连续性分析或坡面实例分割；`surface_height_delta_max` 只判断单柱内的占据高度跨度，不能稳定区分普通可通行坡面、堡垒斜面和垂直结构。因此堡垒与普通坡面的区分仍依赖先验地图、场地区域知识和人工参数，不能把当前 ProjectionLayer 描述为通用地形分析器。
+
+后续改进应优先建立带雷达安装变化的坡面/堡垒数据集，再评估地面提取、邻域法向/坡度估计与先验融合，而不是只继续叠加单柱阈值。
+
+### 其他性能边界
+
+- ProjectionLayer 和二维 ESDF 仍可能是地图侧主要耗时；dirty-column 在大面积变化时会回退全量刷新。
+- Query snapshot 仍包含二维数组复制，并非严格零拷贝。
+- decay 只能处理“曾经命中后逐渐清除”的残影；遮挡区域没有新 free ray 时，动态障碍响应仍受保持时间与观测覆盖限制。
 
 ## 🚀 启动与检查
 
@@ -175,7 +236,7 @@ ros2 topic echo /rog_map/map_bound --once
 ros2 param list /planner_server | grep rog_map
 ```
 
-RViz 调试建议依次打开原始点云、`occupied_raw`、`inflated`、`layer_type` 和 `esdf`，避免只看最终轨迹反推地图问题。
+RViz 调试建议依次打开原始点云、`raw_occupied`、`inflated_occupied`、`layer_type` 和 `esdf`，避免只看最终轨迹反推地图问题。
 
 ## 🛠️ 常见问题
 

@@ -15,7 +15,7 @@
 - 驱动与 Point-LIO 同置于 `component_container_mt`，减少大点云 DDS 序列化开销。
 - 保留逐雷达 IMU topic，由 Point-LIO 选择主雷达 IMU。
 
-## 🔄 推荐数据链路
+## 🔄 模块流程图
 
 ```mermaid
 flowchart LR
@@ -29,7 +29,23 @@ flowchart LR
   I --> P
 ```
 
-驱动层只负责传感器接入、时间窗组合和双雷达几何变换；LIO 外参、去畸变、状态估计与世界系转换由 Point-LIO 完成。
+### 流程概述
+
+SDK 回调按设备 IP 接收两台 MID-360 数据，保留逐雷达点云/IMU topic。内部 merger 按 front/back IP 选择两路点云，在允许时间窗内配对，将后雷达点按 `back → front` 外参变换后组成统一 `livox/lidar`。融合消息以 `UniquePtr` 发布给同容器 Point-LIO；驱动不负责 LIO 去畸变、状态估计或世界系变换。
+
+## 🧪 技术方向
+
+- SDK 网络层负责发现设备、接收 packet，并按 IP 区分点云和 IMU。
+- 双雷达融合在驱动侧完成时间窗配对与刚体变换，Point-LIO 只消费统一点云和选定主雷达 IMU。
+- `multi_topic: 1` 保留来源信息，是当前 front/back merger 选择设备的前提。
+- 外参方向、时间窗和主 IMU topic 是跨 Driver/Point-LIO 的共同契约。
+
+## ⚡ 性能方向
+
+- 融合 `CustomMsg`/`PointCloud2` 通过 `std::unique_ptr` 构造并 `publish(std::move(...))`，避免驱动内部完整消息复制。
+- Driver 与 Point-LIO 同置 `component_container_mt` 并启用 intra-process，减少点云 DDS 序列化；是否真正少拷贝仍取决于发布/订阅类型和 QoS 兼容。
+- 合并频率和时间窗需要在双雷达完整性、运动畸变与下游算力之间权衡，不能只追求更高频率。
+- 本模块当前没有与 Planner/ROGMap/MPC 同型的 CSV `PerformanceMonitor`；网络/融合性能主要通过 topic 频率、时间戳和下游 Point-LIO 统计观察，文档不把它误写为已具备统一 CSV。
 
 ## 🌐 网络配置
 
@@ -146,6 +162,13 @@ ros2 topic info livox/lidar --verbose
 - 多线程容器允许雷达、IMU 与 LIO 回调并发，但仍需避免高频 debug 输出。
 - `max_merge_interval_ms` 越小，双雷达时间一致性越好，但在抖动或丢包时更容易缺帧；越大则运动场景空间误差更明显。
 - 不应为了“数据更多”盲目提高发布频率，需同时考虑 LIO、ROGMap 和 CPU 调度能力。
+
+## ⚠️ 已知问题与改进方向
+
+- 双雷达时间窗融合依赖两路 packet 到达抖动；时间窗过窄会缺帧，过宽会在高速运动中放大时差造成的空间错位。
+- 同容器中的未捕获异常会影响整个组件进程；Driver、Point-LIO 与加载到同一容器的其他组件需要分别保留故障定位证据。
+- 当前 driver publisher 主要使用配置的 queue depth，没有为所有点云/IMU topic 统一声明 latest-state QoS。诊断 QoS 时应以 `ros2 topic info --verbose` 和实际 publisher 源码为准。
+- 驱动没有统一 CSV 性能记录类；后续若增加统计，应优先聚合 packet 间隔、两雷达配对差、merge 丢弃和发布耗时，避免逐 packet 同步刷盘。
 
 ## 🛠️ 常见问题
 
