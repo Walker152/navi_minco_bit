@@ -29,7 +29,7 @@ class TimeBatchingContractTest(unittest.TestCase):
             mapping_cpp,
         )
         self.assertIn("build_time_batches", common_lib)
-        self.assertIn("pose_update_time_bin_ms: 0.25", mid360_yaml)
+        self.assertIn("pose_update_time_bin_ms: 2.0", mid360_yaml)
         self.assertIn("point_filter_num: 1", mid360_yaml)
         self.assertIn(
             "ament_add_gtest(time_batching_test test/time_batching_test.cpp)",

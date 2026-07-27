@@ -357,6 +357,7 @@ void readParameters(rclcpp::Node & nh)
 
     nh.declare_parameter<float>("mapping.ivox_grid_resolution", 0.2);
     nh.get_parameter("mapping.ivox_grid_resolution", ivox_options_.resolution_);
+    ivox_options_.point_resolution_ = static_cast<float>(filter_size_map_min);
 
     nh.declare_parameter<int>("ivox_nearby_type", 18);
     nh.get_parameter("ivox_nearby_type", ivox_nearby_type);
