@@ -26,7 +26,7 @@
         <Sequence name="ManualEnhancedStanceBranch">
           <CheckManualStanceOverride branch="ManualEnhancedStanceBranch" />
           <SetGyroState use_gyro="true"
-                        gyro_vel="80.0"
+                        gyro_vel="8.0"
                         random_speed="false" />
           <ApplyManualStanceOverride name="ApplyManualEnhancedStance" />
         </Sequence>
@@ -37,7 +37,7 @@
             <Sequence name="ArrivedEnemyFortDefendGyro">
               <CheckInEnemyFortZone branch="ArrivedEnemyFortDefendGyro" />
               <SetGyroState use_gyro="true"
-                            gyro_vel="80.0"
+                            gyro_vel="8.0"
                             random_speed="false" />
               <Fallback name="FortDefendStanceSelector">
                 <Sequence name="TryEnhancedDefend">
@@ -82,7 +82,7 @@
           </Fallback>
           <!-- <CheckStanceEffectLimit target_stance="ATTACK" max_time_sec="180" /> -->
           <SetGyroState use_gyro="true"
-                        gyro_vel="40.0"
+                        gyro_vel="4.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="AbsoluteAttackBranch" /> -->
           <Fallback name="AbsoluteAttackStanceSelector">
@@ -104,7 +104,7 @@
           <CheckHealth threshold="50" mode="greater" branch="CombatAttackBranch" />
           <!-- <CheckStanceEffectLimit target_stance="ATTACK" max_time_sec="180" /> -->
           <SetGyroState use_gyro="true"
-                        gyro_vel="80.0"
+                        gyro_vel="8.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="CombatAttackBranch" /> -->
           <Fallback name="CombatAttackStanceSelector">
@@ -126,7 +126,7 @@
           <CheckHealth threshold="50" mode="less" branch="DefendStanceBranch" />
           <!-- <CheckStanceEffectLimit target_stance="DEFEND" max_time_sec="180" /> -->
           <SetGyroState use_gyro="true"
-                        gyro_vel="80.0"
+                        gyro_vel="8.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefendStanceBranch" /> -->
           <Fallback name="DefendStanceSelector">
@@ -149,7 +149,7 @@
             <CheckEngagedStatus expected="false" branch="MoveStanceGyroBranch" />
           </Fallback>
           <SetGyroState use_gyro="true"
-                        gyro_vel="40.0"
+                        gyro_vel="4.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceGyroBranch" /> -->
           <Fallback name="MoveStanceSelector">
@@ -174,7 +174,7 @@
         
         <Sequence name="DefaultDefendBranch">
           <SetGyroState use_gyro="true"
-                        gyro_vel="80.0"
+                        gyro_vel="8.0"
                         random_speed="false" />
           <!-- <CheckStanceCooldown cooldown="5.0" branch="DefaultDefendBranch" /> -->
           <Fallback name="DefaultDefendStanceSelector">
