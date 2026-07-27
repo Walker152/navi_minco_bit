@@ -17,7 +17,7 @@
 
 > `UniquePtr + intra-process` 能显著减少同进程消息拷贝，但是否达到完全零拷贝还取决于 ROS 2 中间件、发布/订阅类型和容器部署方式。
 
-## 🔄 数据链路
+## 🔄 模块流程图
 
 ```mermaid
 flowchart LR
@@ -25,7 +25,9 @@ flowchart LR
   I[Livox IMU] --> Q
   Q --> P[预处理 / 时间排序]
   P --> U[IMU 传播与点云去畸变]
-  U --> E[ESIKF 状态更新]
+  U --> B[按 pose_update_time_bin_ms 时间分 batch]
+  B --> K[iVox KNN / 局部平面匹配]
+  K --> E[ESIKF 批次状态更新]
   E --> O["/aft_mapped_to_init"]
   E --> C["/cloud_registered"]
   U --> F[稠密帧状态快照与世界系变换]
@@ -33,7 +35,25 @@ flowchart LR
   CF --> R[ROGMap]
 ```
 
-定位主链路可以使用降采样点云控制计算量；`/cloud_registered_full` 则尽量保留当前扫描的完整有效点，为 ROGMap 的 raycast、占据更新与 ESDF 提供更充分的观测。
+### 流程概述
+
+LiDAR/IMU 回调先写入 pending 队列，mapping worker 完成同步、预处理和去畸变。定位点云经体素降采样后按点时间组成 batch；每个 batch 传播到末端时刻，以其中全部点执行 iVox 最近邻搜索、局部平面匹配和一次 ESIKF 更新。成功状态按传感器时间限频发布 odom/TF。完整点云链路独立保留预处理有效点，通过状态快照分段补偿后发布给 ROGMap，不因定位 batch 合并而删点。
+
+## 🧪 技术方向
+
+- 以 IMU 传播和点到局部平面残差完成高频激光惯性状态估计。
+- `pose_update_time_bin_ms` 将相邻点时间合并为状态更新 batch；当前比赛配置为 `2.0 ms`，`0.0` 可恢复逐时间戳更新。
+- 每个 batch 仍遍历该组全部定位点，调用 iVox KNN 并构造有效平面约束；batch 改变的是状态更新粒度，不是简单丢点。
+- odom 只在成功状态更新后按传感器时间限频发布；当前配置目标为 `100 Hz`。
+- `/cloud_registered_full` 使用独立状态快照完成完整点云去畸变和世界系变换，为地图保留更充分的观测。
+
+## ⚡ 性能方向
+
+- Livox driver 与 Point-LIO 部署在同一 `component_container_mt`，点云输入采用 `CustomMsg::UniquePtr`，降低大消息序列化和复制。
+- `/cloud_registered_full` 使用 `PointCloud2::UniquePtr` 移动发布和 `SensorDataQoS().keep_last(1)`，下游过载时优先丢旧帧。
+- 定位点云可降采样，完整地图点云单独发布；避免为了地图密度让所有原始点进入滤波更新。
+- 2 ms batch 减少 ESIKF 更新次数和状态发布调度，但 iVox 最近邻搜索仍按 batch 内点执行。
+- `RuntimeStatistics` 总开关控制 IMU、状态、逐帧性能 CSV 和低频摘要；关闭时不创建日志文件，也不执行新增阶段计时。
 
 ## 📡 ROS 接口
 
@@ -77,8 +97,8 @@ common:
 
 ```yaml
 preprocess:
-  blind: 0.45
-  blind_center_enabled: true
+  blind: 0.35
+  blind_center_enable: true
   blind_center: [0.0, 0.20, 0.0]
 ```
 
@@ -108,6 +128,17 @@ mapping:
 | `publish_accumulated_map` | 发布累积地图 |
 | `publish.accumulated_map_publish_hz` | 限制大地图发布频率 |
 | `pcd_save.pcd_save_en` | 保存 PCD；会产生磁盘开销 |
+
+### Batch、iVox 与 odom
+
+| 参数 | 当前配置 | 作用 |
+|---|---:|---|
+| `mapping.pose_update_time_bin_ms` | `2.0` ms | ESIKF 时间 batch；`0.0` 恢复逐时间戳更新 |
+| `mapping.ivox_grid_resolution` | `2.0` m | iVox 体素尺度，直接影响单体素点密度和邻域搜索 |
+| `ivox_nearby_type` | `6` | 搜索中心体素及 6 邻域；可选 0/6/18/26 |
+| `odometry.publish_frequency_hz` | `100` Hz | 成功状态更新上的传感器时间发布限频 |
+| `runtime_pos_log_enable` | `false` | 全部运行时日志、CSV 和统计摘要总开关 |
+| `runtime_log_path` | 空 | 空值写入 `ROOT_DIR/Log`，也可配置绝对/相对路径 |
 
 ## 🚀 推荐启动
 
@@ -139,6 +170,35 @@ ros2 run tf2_ros tf2_echo camera_init body
 5. 以 `UniquePtr` 发布，QoS 仅保留最新帧。
 
 这条链路针对高速小陀螺运动尤其重要：点时间、去畸变和姿态传播任何一项错误，都会把静态墙面拉成动态障碍。
+
+## 📈 性能统计
+
+开启 `runtime_pos_log_enable` 后，`RuntimeStatistics` 在 `runtime_log_path` 下统一生成：
+
+| 文件 | 内容 |
+|---|---|
+| `performance.csv` | LiDAR 积压、队列长度、点数、batch/状态/odom 次数、阶段耗时、地图规模和 iVox 统计 |
+| `imu_pbp.txt` | IMU 原始/校正时间、到达间隔、异常状态、六轴数据和 pending 队列 |
+| `mat_out.txt` | 状态矩阵日志 |
+| `pos_log.txt` | 位姿状态日志 |
+
+`performance.csv` 重点字段包括预处理/整帧处理/完整去畸变/地图增量/各类发布耗时，EKF batch 尝试、成功、失败、点数与耗时，以及每 20 个处理帧采样一次的 iVox 有效体素数、单体素点数均值/最大值/标准差和统计遍历耗时。
+
+该开关会增加文件 IO、互斥和低频 iVox 全图统计开销，只适合短时诊断；现场常态运行保持关闭。
+
+## ⚠️ 已知问题与改进方向
+
+### Batch 是有界近似
+
+当前每个 batch 使用组末状态处理组内点，相比逐点状态更新属于有界时间近似。它缓解了高频 EKF 更新和 odom 调度压力，但 batch 过大时会牺牲高速旋转场景的时序精度。完整点云仍保留全部预处理有效点，并不意味着定位状态也保持逐点更新。
+
+### iVox 搜索仍是主要风险点
+
+当前使用 `IVoxNodeType::DEFAULT`。其节点内 KNN 为线性候选搜索；每个 batch 的每个定位点仍会调用 `GetClosestPoint(..., NUM_MATCH_POINTS)`，在中心及所选邻域体素中收集候选。batch 只减少滤波更新次数，没有消除点级 iVox 搜索。
+
+当 `ivox_grid_resolution` 较大、单体素点数持续增长，或 `ivox_nearby_type` 扩大时，单次 KNN 候选数量和总搜索成本都会增加；过窄邻域又可能找不到足够近邻，降低有效匹配点数。当前统计已能观测体素密度和 EKF 总耗时，但尚未记录逐次 KNN 的 P95/P99，因此“积压是否主要由 iVox 搜索造成”仍需通过受控数据和更细粒度采样确认。
+
+后续应先关联 `ivox_points_per_grid_*`、`effective_feature_points`、batch 点数和 `ekf_update_ms`，再评估体素分辨率、邻域类型、单体素容量或 PHC 节点；不能仅凭降低 batch 宽度判断 iVox 问题已解决。
 
 ## 🛠️ 常见问题
 

@@ -14,8 +14,8 @@
 
         common:
             lid_topic: "livox/lidar"
-            imu_topic: "livox/imu"
-            # imu_topic: "livox/imu_192_168_1_135"
+            # imu_topic: "livox/imu"
+            imu_topic: "livox/imu_192_168_1_135"
             con_frame: False                                # True: if you need to combine several LiDAR frames into one
             con_frame_num: 1                                # the number of frames combined
             cut_frame: False                                # True: if you need to cut one LiDAR frame into several subframes
@@ -37,7 +37,11 @@
             timestamp_unit: 3                               # the unit of time/t field in the PointCloud2 rostopic: 0-second, 1-milisecond, 2-microsecond, 3-nanosecond.
             blind: 0.35
             blind_center_enable: True
+<<<<<<< HEAD
             blind_center: [ 0.10689, -0.11304, 0.0 ]
+=======
+            blind_center: [ 0.0, 0.20, 0.0 ]
+>>>>>>> rog_map_work
 
         mapping:
             imu_en: True
@@ -57,7 +61,7 @@
             gyr_cov_input: 0.01                             # for IMU as input model
             acc_cov_input: 0.1                              # for IMU as input model
             plane_thr: 0.1                                  # 0.05, the threshold for plane criteria, the smaller, the flatter a plane
-            pose_update_time_bin_ms: 0.25                   # EKF batch window only; 0.0 restores per-timestamp updates without dropping full-cloud points
+            pose_update_time_bin_ms: 2.0                   # EKF batch window only; 0.0 restores per-timestamp updates without dropping full-cloud points
             match_s: 81.0
             ivox_grid_resolution: 2.0
             gravity: [ 0.0, 0.0, -9.810 ]                   # [0.0, 9.810, 0.0] # gravity to be aligned
@@ -77,7 +81,7 @@
             scan_bodyframe_pub_en: False                    # True: output the point cloud scans in IMU-body-frame
             tf_send_en: True                                # True: send transform from 'camera_init' to 'aft_mapped'
 
-        pcd_save:
+        pcd_save:           
             pcd_save_en: False
             accumulated_map_publish_hz: 1.0                 # Low-rate publish frequency for /Laser_map when pcd_save_en is true
             interval: -1                                    # how many LiDAR frames saved in each pcd file;

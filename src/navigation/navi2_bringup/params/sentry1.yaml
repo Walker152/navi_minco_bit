@@ -129,9 +129,14 @@ controller_server:
 
       # Lidar extrinsic parameters
       lidar_offset_x: 0.0
+<<<<<<< HEAD
       lidar_offset_y: 0.155
       lidar_roll_offset: -0.2618
 
+=======
+      lidar_offset_y: -0.20
+      lidar_roll_offset: 0.1745
+>>>>>>> rog_map_work
 
       # Frame settings
       odom_frame: "camera_init"
@@ -323,7 +328,11 @@ planner_server:
       allow_unknown: false
       odom_topic: /aft_mapped_to_init
       lidar_offset_x: 0.0
+<<<<<<< HEAD
       lidar_offset_y: 0.155
+=======
+      lidar_offset_y: -0.20
+>>>>>>> rog_map_work
       performance:
         enable: false
         print_enable: false
