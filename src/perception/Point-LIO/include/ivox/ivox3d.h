@@ -65,6 +65,7 @@ public:
   {
     float resolution_ = 0.2;                        // ivox resolution
     float inv_resolution_ = 10.0;                   // inverse resolution
+    float point_resolution_ = 0.0;                  // map point voxel resolution
     NearbyType nearby_type_ = NearbyType::NEARBY6;  // nearby range
     std::size_t capacity_ = 1000000;                // capacity
   };
@@ -287,10 +288,15 @@ void IVox<dim, node_type, PointType>::AddPoints(const PointVector & points_to_ad
       Eigen::Matrix<float, dim, 1>(points_to_add[i].x, points_to_add[i].y, points_to_add[i].z));
     auto iter = grids_map_.find(key);
     if (iter == grids_map_.end()) {
-      PointType center;
-      center.getVector3fMap() = key.template cast<float>() * options_.resolution_;
+      PointType grid_origin;
+      grid_origin.getVector3fMap() = key.template cast<float>() * options_.resolution_;
 
-      grids_cache_.push_front({key, NodeType(center, options_.resolution_)});
+      if constexpr (node_type == IVoxNodeType::DEFAULT) {
+        grids_cache_.push_front(
+          {key, NodeType(grid_origin, options_.resolution_, options_.point_resolution_)});
+      } else {
+        grids_cache_.push_front({key, NodeType(grid_origin, options_.resolution_)});
+      }
       grids_map_.insert({key, grids_cache_.begin()});
 
       grids_cache_.front().second.InsertPoint(points_to_add[i]);

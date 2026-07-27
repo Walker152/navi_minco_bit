@@ -135,6 +135,7 @@ mapping:
 |---|---:|---|
 | `mapping.pose_update_time_bin_ms` | `2.0` ms | ESIKF 时间 batch；`0.0` 恢复逐时间戳更新 |
 | `mapping.ivox_grid_resolution` | `2.0` m | iVox 体素尺度，直接影响单体素点密度和邻域搜索 |
+| `filter_size_map` | `0.5` m | 地图代表点分辨率；默认 iVox 每个该尺度子栅格只保留一个靠近中心的代表点 |
 | `ivox_nearby_type` | `6` | 搜索中心体素及 6 邻域；可选 0/6/18/26 |
 | `odometry.publish_frequency_hz` | `100` Hz | 成功状态更新上的传感器时间发布限频 |
 | `runtime_pos_log_enable` | `false` | 全部运行时日志、CSV 和统计摘要总开关 |
@@ -192,13 +193,13 @@ ros2 run tf2_ros tf2_echo camera_init body
 
 当前每个 batch 使用组末状态处理组内点，相比逐点状态更新属于有界时间近似。它缓解了高频 EKF 更新和 odom 调度压力，但 batch 过大时会牺牲高速旋转场景的时序精度。完整点云仍保留全部预处理有效点，并不意味着定位状态也保持逐点更新。
 
-### iVox 搜索仍是主要风险点
+### iVox 搜索与单体素点数边界
 
 当前使用 `IVoxNodeType::DEFAULT`。其节点内 KNN 为线性候选搜索；每个 batch 的每个定位点仍会调用 `GetClosestPoint(..., NUM_MATCH_POINTS)`，在中心及所选邻域体素中收集候选。batch 只减少滤波更新次数，没有消除点级 iVox 搜索。
 
-当 `ivox_grid_resolution` 较大、单体素点数持续增长，或 `ivox_nearby_type` 扩大时，单次 KNN 候选数量和总搜索成本都会增加；过窄邻域又可能找不到足够近邻，降低有效匹配点数。当前统计已能观测体素密度和 EKF 总耗时，但尚未记录逐次 KNN 的 P95/P99，因此“积压是否主要由 iVox 搜索造成”仍需通过受控数据和更细粒度采样确认。
+默认节点现在按照 `filter_size_map` 对地图点做二级子栅格去重，同一子栅格只保留一个更靠近中心的代表点。当前 `2.0 m / 0.5 m` 配置下，每个 iVox 体素最多保存 `4³ = 64` 个地图点；重复经过同一区域不会再让单体素点数无界增长。该约束只作用于定位地图，不改变完整去畸变点云。
 
-后续应先关联 `ivox_points_per_grid_*`、`effective_feature_points`、batch 点数和 `ekf_update_ms`，再评估体素分辨率、邻域类型、单体素容量或 PHC 节点；不能仅凭降低 batch 宽度判断 iVox 问题已解决。
+现场验证应确认 `ivox_points_per_grid_max <= 64`，并继续关联 `ivox_points_per_grid_*`、`effective_feature_points`、batch 点数和 `ekf_update_ms`。若改变 `filter_size_map` 或 `ivox_grid_resolution`，单体素最大代表点数会随两者比例重新计算。
 
 ## 🛠️ 常见问题
 

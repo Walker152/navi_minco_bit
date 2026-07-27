@@ -407,7 +407,7 @@ inline std::vector<PatrolList> normal_patrol_branches = {
     {{10.0, 2.7, 0.0}, 10000} 
   },
   {
-    {{3.9, 4.9, 0.0}, 10000},
+    // {{3.9, 4.9, 0.0}, 10000},
     {{10.0, 2.7, 0.0}, 10000}
   }
 };
@@ -447,53 +447,53 @@ struct PatrolZoneTypeHash {
 };
 
 // 云台巡检区域映射表 (TacticalMode -> (PatrolZoneType -> GimbalPatrolConfig))
-// inline std::unordered_map<TacticalMode, std::unordered_map<PatrolZoneType, GimbalPatrolConfig, PatrolZoneTypeHash>> tactical_area_gimbal_map = {
-//   {TacticalMode::OFFENSIVE, {
-//     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
-//     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
-//     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
-//     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-//     {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
-//   }},
-//   {TacticalMode::DEFENSIVE, {
-//     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
-//     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
-//     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
-//     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-//     {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
-//   }},
-//   {TacticalMode::BALANCED, {
-//     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
-//     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
-//     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
-//     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-//     {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
-//   }}
-// };
-
 inline std::unordered_map<TacticalMode, std::unordered_map<PatrolZoneType, GimbalPatrolConfig, PatrolZoneTypeHash>> tactical_area_gimbal_map = {
   {TacticalMode::OFFENSIVE, {
-    {PatrolZoneType::ENEMY_DEFENSE, {-180.0f, 180.0f}},
-    {PatrolZoneType::OWN_DEFENSE,   {-180.0f, 180.0f}},
+    {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
+    {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-    {PatrolZoneType::STAIRZONE,     {-180.0f, 180.0f}}
+    {PatrolZoneType::STAIRZONE,     {-165.0f, -15.0f}}
   }},
   {TacticalMode::DEFENSIVE, {
-    {PatrolZoneType::ENEMY_DEFENSE, {-180.0f, 180.0f}},
-    {PatrolZoneType::OWN_DEFENSE,   {-180.0f, 180.0f}},
+    {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
+    {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-    {PatrolZoneType::STAIRZONE,     {-180.0f, 180.0f}}
+    {PatrolZoneType::STAIRZONE,     {-165.0f, -15.0f}}
   }},
   {TacticalMode::BALANCED, {
-    {PatrolZoneType::ENEMY_DEFENSE, {-180.0f, 180.0f}},
-    {PatrolZoneType::OWN_DEFENSE,   {-180.0f, 180.0f}},
+    {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
+    {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-    {PatrolZoneType::STAIRZONE,     {-180.0f, 180.0f}}
+    {PatrolZoneType::STAIRZONE,     {-165.0f, -15.0f}}
   }}
 };
+
+// inline std::unordered_map<TacticalMode, std::unordered_map<PatrolZoneType, GimbalPatrolConfig, PatrolZoneTypeHash>> tactical_area_gimbal_map = {
+//   {TacticalMode::OFFENSIVE, {
+//     {PatrolZoneType::ENEMY_DEFENSE, {-180.0f, 180.0f}},
+//     {PatrolZoneType::OWN_DEFENSE,   {-180.0f, 180.0f}},
+//     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
+//     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
+//     {PatrolZoneType::STAIRZONE,     {-180.0f, 180.0f}}
+//   }},
+//   {TacticalMode::DEFENSIVE, {
+//     {PatrolZoneType::ENEMY_DEFENSE, {-180.0f, 180.0f}},
+//     {PatrolZoneType::OWN_DEFENSE,   {-180.0f, 180.0f}},
+//     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
+//     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
+//     {PatrolZoneType::STAIRZONE,     {-180.0f, 180.0f}}
+//   }},
+//   {TacticalMode::BALANCED, {
+//     {PatrolZoneType::ENEMY_DEFENSE, {-180.0f, 180.0f}},
+//     {PatrolZoneType::OWN_DEFENSE,   {-180.0f, 180.0f}},
+//     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
+//     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
+//     {PatrolZoneType::STAIRZONE,     {-180.0f, 180.0f}}
+//   }}
+// };
 
 // 1. 底盘巡逻点映射表 (TacticalMode -> PatrolList)
 inline std::unordered_map<TacticalMode, std::vector<PatrolList>> tactical_patrol_branches = {

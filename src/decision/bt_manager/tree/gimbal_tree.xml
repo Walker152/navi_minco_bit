@@ -19,14 +19,14 @@
       <ReactiveSequence name="Priority3NormalScan">
         <SetGimbalPose name="SetNormalInspectPose" mode="1" />
         <ReactiveFallback name="GimbalScanStrategy">
-          <ReactiveSequence name="EnergyGimbalScan">
+          <!-- <ReactiveSequence name="EnergyGimbalScan">
             <CheckEnergyActive branch="EnergyGimbalScan" />
             <SetGimbalPoseByAreaAction name="SetEnergyGimbal" />
-          </ReactiveSequence>
-          <ReactiveSequence name="DefendScan">
+          </ReactiveSequence> -->
+          <!-- <ReactiveSequence name="DefendScan">
             <CheckTacticalModeCondition mode="defend" branch="DefendScan" />
             <SetGimbalPoseByAreaAction name="SetDefendGimbal" />
-          </ReactiveSequence>
+          </ReactiveSequence> -->
           <ReactiveSequence name="AttackScan">
             <CheckTacticalModeCondition mode="attack" branch="AttackScan" />
             <SetGimbalPoseByAreaAction name="SetAttackGimbal" />

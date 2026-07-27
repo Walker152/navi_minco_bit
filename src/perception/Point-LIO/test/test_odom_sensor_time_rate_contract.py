@@ -23,7 +23,7 @@ class OdomSensorTimeRateContractTest(unittest.TestCase):
             'declare_parameter<int>("odometry.publish_frequency_hz", 200)',
             parameters_cpp,
         )
-        self.assertIn("publish_frequency_hz: 200", mid360_yaml)
+        self.assertIn("publish_frequency_hz: 100", mid360_yaml)
         self.assertIn("SensorTimeRateLimiter", mapping_cpp)
         self.assertIn(
             "should_publish(odom_sensor_time, orig_odom_freq)", mapping_cpp
