@@ -165,6 +165,13 @@ if(BUILD_TESTING)
   target_include_directories(sensor_time_rate_limiter_test PRIVATE include)
 
   ament_add_gtest(
+    ivox_map_voxel_dedup_test
+    test/ivox_map_voxel_dedup_test.cpp
+  )
+  target_include_directories(ivox_map_voxel_dedup_test PRIVATE include)
+  target_link_libraries(ivox_map_voxel_dedup_test ${PCL_LIBRARIES})
+
+  ament_add_gtest(
     runtime_statistics_test
     test/runtime_statistics_test.cpp
     src/runtime_statistics.cpp
