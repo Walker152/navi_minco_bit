@@ -10,7 +10,7 @@
 
 模块使用 BehaviorTree.CPP v3。主程序以多线程执行器处理 ROS 回调，行为树以 **10 Hz** tick；多个子树共享同一 blackboard。
 
-## 🧠 决策架构
+## 🧠 模块流程图
 
 ```mermaid
 flowchart TD
@@ -30,6 +30,24 @@ flowchart TD
   G --> B
   B --> P[导航目标 / 姿态 / 通信指令]
 ```
+
+### 流程概述
+
+ROS Interface 持续把裁判系统、定位、轨迹、速度和人工输入写入共享 blackboard。主循环以 10 Hz tick 多棵行为树；每棵树按 XML 中当前未注释节点和响应式控制节点的顺序评估，写回战术模式、导航目标、姿态、资源或云台指令。导航目标交给 Nav2，姿态/资源等指令经 communication 发送到底盘和裁判链路。
+
+## 🧪 技术方向
+
+- 行为树 XML 是策略主入口，C++ 插件实现 condition/action/decorator，blackboard 是跨子树状态契约。
+- `ReactiveFallback` 的节点顺序即优先级；`ReactiveSequence` 中任一 condition 失败会阻断后续 action。
+- 裁判协议、blackboard 枚举、XML 端口和 communication 打包共同组成跨模块接口，不能只修改其中一处。
+- 行为树负责“选择行为”，不长期替代 Planner/Controller 的连续闭环。
+
+## ⚡ 性能方向
+
+- 10 Hz tick 与 ROS 多线程执行器分离；日志以状态变化为主，避免逐 tick 高频输出。
+- `bt_debug_logs`、`bt_debug_log_to_file` 和日志路径参数控制转移日志，文件日志默认关闭。
+- `/sentry/area_markers` 使用 `KeepLast(1) + reliable + transient_local`，RViz 后加入时仍能取得最近一组区域 Marker。
+- 本模块当前没有逐 tick CSV `PerformanceMonitor`；BT 的可观测性来自状态转移日志、ROS topic 和 Marker，不应与导航链路的性能 CSV 混为一谈。
 
 当前实际行为必须以 `tree/*.xml` 中**未注释的节点与顺序**为准。`ReactiveFallback` 从上到下表示优先级；高优先级条件重新满足时，会抢占低优先级分支。
 
@@ -144,6 +162,13 @@ ros2 topic echo /sentry/area_markers --once
 | 模式无法退出 | blackboard 状态是否刷新、退出分支是否恢复参数 |
 | 指令值与预期不符 | 裁判协议位段、枚举、打包与下位机约定 |
 | 日志过多影响运行 | 关闭文件日志，减少非状态变化类输出 |
+
+## ⚠️ 已知问题与改进方向
+
+- 多棵树共享 blackboard，同一 key 可能存在多个条件节点或 action 写入者；缺少字段级版本/所有权约束，修改时必须人工审计读写链。
+- XML 保留历史注释分支，命名也可能沿用旧策略；文档只能描述当前 active path，不能把注释节点当成已实现能力。
+- 行为树日志记录的是决策状态，不直接证明 Nav2、Planner、Controller 或底盘已经完成动作；跨模块故障需要结合对应 topic 与性能记录。
+- 若后续需要性能 CSV，应优先记录 tick 周期、超时 action 和 blackboard 关键状态变化，不应在每个节点每次 tick 同步写盘。
 
 ## 🗂️ 关键源码
 
