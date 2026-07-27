@@ -135,7 +135,7 @@
               <ForceSuccess>
                 <ReactiveSequence name="AutoOutpostEnableOnce">
                   <CheckGameTimeWindow name="CheckAutoOutpostEnableWindow"
-                                       min_remaining="390"
+                                       min_remaining="400"
                                        max_remaining="420"
                                        branch="AutoOutpostEnableOnce" />
                   <SetEnemyOutpostDestroyed name="SetAutoOutpostRemainedOnce"
@@ -146,7 +146,7 @@
               <ForceSuccess>
                 <ReactiveSequence name="AutoOutpostDisableOnce">
                   <CheckGameTimeWindow name="CheckAutoOutpostDisableWindow"
-                                       min_remaining="340"
+                                       min_remaining="360"
                                        max_remaining="370"
                                        require_game_started="false"
                                        branch="AutoOutpostDisableOnce" />
