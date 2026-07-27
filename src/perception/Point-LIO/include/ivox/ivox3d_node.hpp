@@ -49,6 +49,8 @@ public:
 
   IVoxNode() = default;
   IVoxNode(const PointT & center, const float & side_length) {}  /// same with phc
+  IVoxNode(
+    const PointT & grid_origin, const float & side_length, const float & point_resolution);
 
   void InsertPoint(const PointT & pt);
 
@@ -62,7 +64,13 @@ public:
     std::vector<DistPoint> & dis_points, const PointT & point, const int & K, const double & max_range);
 
 private:
+  static constexpr int kEmptyPointIndex = -1;
+
   std::vector<PointT> points_;
+  Eigen::Matrix<float, dim, 1> grid_origin_ = Eigen::Matrix<float, dim, 1>::Zero();
+  float point_resolution_ = 0.0F;
+  int subcells_per_axis_ = 0;
+  std::vector<int> subcell_to_point_index_;
 };
 
 template <typename PointT, int dim = 3> class IVoxNodePhc
@@ -125,7 +133,68 @@ template <typename PointT, int dim> struct IVoxNode<PointT, dim>::DistPoint
 
 template <typename PointT, int dim> void IVoxNode<PointT, dim>::InsertPoint(const PointT & pt)
 {
-  points_.template emplace_back(pt);
+  if (subcells_per_axis_ <= 0 || subcell_to_point_index_.empty()) {
+    points_.template emplace_back(pt);
+    return;
+  }
+
+  const Eigen::Matrix<float, dim, 1> local =
+    ((ToEigen<float, dim>(pt) - grid_origin_) / point_resolution_)
+      .array()
+      .floor()
+      .template cast<float>();
+  std::size_t subcell_index = 0;
+  std::size_t stride = 1;
+  for (int axis = 0; axis < dim; ++axis) {
+    const int coordinate = static_cast<int>(local[axis]);
+    if (coordinate < 0 || coordinate >= subcells_per_axis_) {
+      return;
+    }
+    subcell_index += static_cast<std::size_t>(coordinate) * stride;
+    stride *= static_cast<std::size_t>(subcells_per_axis_);
+  }
+
+  if (subcell_to_point_index_[subcell_index] == kEmptyPointIndex) {
+    subcell_to_point_index_[subcell_index] = static_cast<int>(points_.size());
+    points_.template emplace_back(pt);
+    return;
+  }
+
+  const int point_index = subcell_to_point_index_[subcell_index];
+  Eigen::Matrix<float, dim, 1> subcell_center = grid_origin_;
+  std::size_t remaining_index = subcell_index;
+  for (int axis = 0; axis < dim; ++axis) {
+    const int coordinate =
+      static_cast<int>(remaining_index % static_cast<std::size_t>(subcells_per_axis_));
+    remaining_index /= static_cast<std::size_t>(subcells_per_axis_);
+    subcell_center[axis] += (static_cast<float>(coordinate) + 0.5F) * point_resolution_;
+  }
+
+  const double new_distance = (ToEigen<float, dim>(pt) - subcell_center).squaredNorm();
+  const double old_distance =
+    (ToEigen<float, dim>(points_[point_index]) - subcell_center).squaredNorm();
+  if (new_distance < old_distance) {
+    points_[point_index] = pt;
+  }
+}
+
+template <typename PointT, int dim>
+IVoxNode<PointT, dim>::IVoxNode(
+  const PointT & grid_origin, const float & side_length, const float & point_resolution)
+: grid_origin_(ToEigen<float, dim>(grid_origin)), point_resolution_(point_resolution)
+{
+  if (side_length <= 0.0F || point_resolution_ <= 0.0F) {
+    return;
+  }
+
+  subcells_per_axis_ =
+    std::max(1, static_cast<int>(std::ceil(side_length / point_resolution_)));
+  std::size_t subcell_count = 1;
+  for (int axis = 0; axis < dim; ++axis) {
+    subcell_count *= static_cast<std::size_t>(subcells_per_axis_);
+  }
+  subcell_to_point_index_.assign(subcell_count, kEmptyPointIndex);
+  points_.reserve(subcell_count);
 }
 
 template <typename PointT, int dim> bool IVoxNode<PointT, dim>::Empty() const
