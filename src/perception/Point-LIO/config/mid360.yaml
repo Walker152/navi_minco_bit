@@ -9,7 +9,7 @@
         filter_size_surf: 0.5                               # Options: 0.5, 0.3, 0.2, 0.15, 0.1
         filter_size_map: 0.5                                # Options: 0.5, 0.3, 0.15, 0.1
         ivox_nearby_type: 6                                 # Options: 0, 6, 18, 26
-        runtime_pos_log_enable: True                       # 运行时统计总开关：IMU、状态和逐帧性能日志
+        runtime_pos_log_enable: False                       # 运行时统计总开关：IMU、状态和逐帧性能日志
         runtime_log_path: "/tmp/point_lio_log"              # 空值: ROOT_DIR/Log；支持绝对路径或相对 ROOT_DIR 的路径
 
         common:
