@@ -405,21 +405,21 @@ inline std::unordered_map<TacticalMode, std::unordered_map<PatrolZoneType, Gimba
     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-    {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
+    {PatrolZoneType::STAIRZONE,     {-165.0f, -15.0f}}
   }},
   {TacticalMode::DEFENSIVE, {
     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-    {PatrolZoneType::STAIRZONE,     {15.0f, 165.0f}}
+    {PatrolZoneType::STAIRZONE,     {-165.0f, -15.0f}}
   }},
   {TacticalMode::BALANCED, {
     {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
     {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-    {PatrolZoneType::STAIRZONE,     {-15.0f, -165.0f}}
+    {PatrolZoneType::STAIRZONE,     {-165.0f, -15.0f}}
   }}
 };
 
