@@ -135,6 +135,19 @@ private:
   bool deformation_started_{false};
 };
 
+// 冲击敌方堡垒时覆盖世界系yaw对齐；隧道相关状态生效时主动让出优先级。
+class EnemyFortYawOverride : public BT::ConditionNode
+{
+public:
+  EnemyFortYawOverride(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  bool latched_{false};
+};
+
 class CheckInEnemyFortZone : public BT::ConditionNode
 {
 public:
