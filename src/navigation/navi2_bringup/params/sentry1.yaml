@@ -394,7 +394,8 @@ planner_server:
           prior_map:
             enable: true
             # yaml_path: "src/navigation/navi2_bringup/maps/first_floor/first_floor_prior.yaml"
-            yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior.yaml"
+            # yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior.yaml"
+            yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior11.yaml"
             # 留空时使用 YAML 的 image 字段，并相对 YAML 所在目录解析。
             pgm_path: ""
             frame_id: map
