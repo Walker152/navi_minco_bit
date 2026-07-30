@@ -1,7 +1,15 @@
 <root main_tree_to_execute="StanceTree">
   <BehaviorTree ID="StanceTree">
     <ReactiveSequence name="StanceTreeRoot">
-      <CheckTunnelDeformation />
+      <ReactiveFallback name="YawPreparationSelector">
+        <!-- 赛前快速废弃：将 enabled 改为 false 并重启 bt_manager，原隧道节点即恢复为每拍执行。 -->
+        <EnemyFortYawOverride
+          name="EnemyFortYawOverride"
+          enabled="true"
+          exit_radius="3.7"
+          yaw_mode="1" />
+        <CheckTunnelDeformation />
+      </ReactiveFallback>
       <UpdateStanceDuration />
       
       <ReactiveFallback name="StancePriorityRoot">

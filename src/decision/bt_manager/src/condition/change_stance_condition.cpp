@@ -570,6 +570,110 @@ BT::NodeStatus CheckTunnelDeformation::tick()
   return BT::NodeStatus::SUCCESS;
 }
 
+// ------------------- EnemyFortYawOverride -------------------
+EnemyFortYawOverride::EnemyFortYawOverride(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList EnemyFortYawOverride::providedPorts()
+{
+  return {
+    BT::InputPort<bool>("enabled", false, "Enable enemy fort yaw override"),
+    BT::InputPort<double>("exit_radius", 3.7, "Release radius for boundary hysteresis"),
+    BT::InputPort<int>("yaw_mode", 1, "World yaw align mode: 1 means 0 degrees")};
+}
+
+BT::NodeStatus EnemyFortYawOverride::tick()
+{
+  const auto blackboard = config().blackboard;
+  const bool enabled = getInput<bool>("enabled").value_or(false);
+  const double exit_radius = std::max(
+    getInput<double>("exit_radius").value_or(3.7),
+    enemy_fort_yaw_align_zone.radius);
+  const int yaw_mode = getInput<int>("yaw_mode").value_or(1);
+
+  const auto tactical_mode = blackboard->get<TacticalMode>("tactical_mode");
+  const auto nav_goal = blackboard->get<Point2D>("nav_goal");
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const Point2D current_position{
+    current_pose.position.x, current_pose.position.y, 0.0};
+
+  const bool attacking_enemy_fort =
+    tactical_mode == TacticalMode::OFFENSIVE &&
+    enemy_fort_zone.contains(nav_goal);
+  const bool arrived_enemy_fort = enemy_fort_zone.contains(current_position);
+
+  const bool tunnel_escape_active =
+    blackboard->get<bool>("tunnel_escape_active");
+  const bool current_in_tunnel =
+    blackboard->get<bool>("current_in_tunnel");
+  const bool in_transform_zone =
+    blackboard->get<bool>("in_transform_zone");
+  const bool through_tunnel =
+    blackboard->get<bool>("through_tunnel");
+  const bool tunnel_was_preparing =
+    blackboard->get<bool>("tunnel_prepare_active");
+  const bool tunnel_has_priority =
+    tunnel_escape_active ||
+    current_in_tunnel ||
+    (in_transform_zone && through_tunnel) ||
+    tunnel_was_preparing;
+
+  const double distance_to_fort = std::hypot(
+    current_position.x - enemy_fort_yaw_align_zone.center.x,
+    current_position.y - enemy_fort_yaw_align_zone.center.y);
+  const bool yaw_mode_valid = yaw_mode >= 1 && yaw_mode <= 4;
+
+  if (!enabled || !yaw_mode_valid || !attacking_enemy_fort ||
+      arrived_enemy_fort || tunnel_has_priority) {
+    latched_ = false;
+  } else if (latched_) {
+    latched_ = distance_to_fort <= exit_radius;
+  } else {
+    latched_ = enemy_fort_yaw_align_zone.contains(current_position);
+  }
+
+  if (!latched_) {
+    std::ostringstream oss;
+    oss << "enabled=" << enabled
+        << ", attacking_enemy_fort=" << attacking_enemy_fort
+        << ", arrived_enemy_fort=" << arrived_enemy_fort
+        << ", tunnel_has_priority=" << tunnel_has_priority
+        << ", distance=" << distance_to_fort
+        << ", yaw_mode=" << yaw_mode;
+    detail::logTransition(
+      detail::TreeKind::STANCE,
+      "EnemyFortYawOverride",
+      false,
+      oss.str(),
+      "");
+    return BT::NodeStatus::FAILURE;
+  }
+
+  blackboard->set<uint8_t>(
+    "chassis_yaw_align_mode", static_cast<uint8_t>(yaw_mode));
+  blackboard->set<LifterPos>("desired_lifter_pos", LifterPos::TOP);
+  blackboard->set<bool>("tunnel_prepare_active", false);
+  blackboard->set<bool>("tunnel_ready", false);
+  blackboard->set<bool>("use_gyro_mode", false);
+  blackboard->set<float>("gyro_vel", 0.0f);
+
+  std::ostringstream oss;
+  oss << "distance=" << distance_to_fort
+      << ", enter_radius=" << enemy_fort_yaw_align_zone.radius
+      << ", exit_radius=" << exit_radius
+      << ", yaw_mode=" << yaw_mode;
+  detail::logTransition(
+    detail::TreeKind::STANCE,
+    "EnemyFortYawOverride",
+    true,
+    oss.str(),
+    "");
+  return BT::NodeStatus::SUCCESS;
+}
+
 // ------------------- CheckInEnemyFortZone -------------------
 CheckInEnemyFortZone::CheckInEnemyFortZone(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)
