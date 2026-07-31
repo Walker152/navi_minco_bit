@@ -116,7 +116,7 @@ inline AreaPolygon<8, Point2D> engineering_zone{
 };
 inline Area_Circle enemy_fort_zone{Point2D{22.0, 7.5}, 1.0};
 inline Area_Circle enemy_fort_engage_zone{Point2D{22.0, 7.5}, 0.4};
-inline Area_Circle enemy_fort_yaw_align_zone{Point2D{22.0, 7.5}, 3.5};
+inline Area_Circle enemy_fort_yaw_align_zone{Point2D{22.0, 7.5}, 4.3};
 
 inline AreaPolygon<6, Point2D> own_highland_buff_zone{
   Point2D{13.0, 12.5},
@@ -310,7 +310,7 @@ inline AreaPolygon<8, Point2D> enemy_defense_zone{
 };
 inline Area_Square enemy_outpost_watch_zone{Point2D{4.6, 6.6}, Point2D{3.2,5.2 }};
 inline Area_Circle enemy_fort_zone{Point2D{12.7, 3.3}, 0.4};
-inline Area_Circle enemy_fort_yaw_align_zone{Point2D{12.7, 3.3}, 3.5};
+inline Area_Circle enemy_fort_yaw_align_zone{Point2D{12.7, 3.3}, 4.3};
 inline AreaPolygon<8, Point2D> engineering_zone{
   Point2D{12.0, 2.0},
   Point2D{11.0, 2.0},

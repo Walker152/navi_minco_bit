@@ -581,7 +581,7 @@ BT::PortsList EnemyFortYawOverride::providedPorts()
 {
   return {
     BT::InputPort<bool>("enabled", false, "Enable enemy fort yaw override"),
-    BT::InputPort<double>("exit_radius", 3.7, "Release radius for boundary hysteresis"),
+    BT::InputPort<double>("exit_radius", 4.5, "Release radius for boundary hysteresis"),
     BT::InputPort<int>("yaw_mode", 1, "World yaw align mode: 1 means 0 degrees")};
 }
 
@@ -590,7 +590,7 @@ BT::NodeStatus EnemyFortYawOverride::tick()
   const auto blackboard = config().blackboard;
   const bool enabled = getInput<bool>("enabled").value_or(false);
   const double exit_radius = std::max(
-    getInput<double>("exit_radius").value_or(3.7),
+    getInput<double>("exit_radius").value_or(4.5),
     enemy_fort_yaw_align_zone.radius);
   const int yaw_mode = getInput<int>("yaw_mode").value_or(1);
 

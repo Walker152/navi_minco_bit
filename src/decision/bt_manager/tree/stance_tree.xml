@@ -6,7 +6,7 @@
         <EnemyFortYawOverride
           name="EnemyFortYawOverride"
           enabled="true"
-          exit_radius="3.7"
+          exit_radius="4.5"
           yaw_mode="1" />
         <CheckTunnelDeformation />
       </ReactiveFallback>
