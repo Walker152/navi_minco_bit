@@ -420,31 +420,31 @@ planner_server:
           # 同一 XY 柱中最高与最低占据体素的垂直高度差 H。
           # 不超过该值时，分类为地面或坡面薄表面。
           # 这是差值，不是 ROGMap frame 中的绝对 Z 坐标。
-          surface_height_delta_max: 0.1
+          surface_height_delta_max: 0.2
 
           # [vertical height difference, m]
           # 判定竖直墙所需的最小单柱垂直高度差 H。
           # 这是差值，不是绝对 Z 坐标。
-          wall_height_delta_min: 0.40
+          wall_height_delta_min: 0.60
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
-          wall_occupancy_ratio_min: 0.50
+          wall_occupancy_ratio_min: 0.70
 
           # [vertical height difference, m]
           # 可通行隧道所需的最小上下表面高度差。
           # 应包含机器人实际高度和安全余量。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_min: 0.26
+          tunnel_height_delta_min: 0.21
 
           # [vertical height difference, m]
           # 当前 RM 场景中允许识别为目标隧道的最大上下表面高度差。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_max: 0.35
+          tunnel_height_delta_max: 0.45
 
           # [dimensionless ratio, 0~1]
           # 隧道上下表面之间的最大垂直占据率。
-          tunnel_occupancy_ratio_max: 0.4
+          tunnel_occupancy_ratio_max: 0.6
 
           # PASSABLE 在 value layer 中的代价值。
           passable_cost: 50
@@ -456,10 +456,10 @@ planner_server:
           hysteresis_enable: false
           hysteresis_count: 2
           # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
-          obstacle_hold_time: 2.0
+          obstacle_hold_time: 1.0
 
           mask_filter_en: true
-          fill_occ_min: 4
+          fill_occ_min: 7
           denoise_occ_max: 0
         field:
           enable: true
@@ -519,7 +519,7 @@ planner_server:
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
         safe_dist: 0.35
-        collision_dist: 0.25
+        collision_dist: 0.2
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
         max_acceleration: 2.0
