@@ -210,6 +210,8 @@ int LdsLidar::DeInitLdsLidar(void)
   }
 
   if (lidar_summary_info_.lidar_type & kLivoxLidarType) {
+    // Stop the observer thread before unloading the SDK it calls into.
+    pub_handler().Uninit();
     LivoxLidarSdkUninit();
     printf("Livox Lidar SDK Deinit completely!\n");
   }
