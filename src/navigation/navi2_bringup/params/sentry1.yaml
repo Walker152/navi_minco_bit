@@ -428,7 +428,7 @@ planner_server:
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
-          wall_occupancy_ratio_min: 0.50
+          wall_occupancy_ratio_min: 0.80
 
           # [vertical height difference, m]
           # 可通行隧道所需的最小上下表面高度差。
@@ -439,11 +439,11 @@ planner_server:
           # [vertical height difference, m]
           # 当前 RM 场景中允许识别为目标隧道的最大上下表面高度差。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_max: 0.35
+          tunnel_height_delta_max: 0.40
 
           # [dimensionless ratio, 0~1]
           # 隧道上下表面之间的最大垂直占据率。
-          tunnel_occupancy_ratio_max: 0.4
+          tunnel_occupancy_ratio_max: 0.5
 
           # PASSABLE 在 value layer 中的代价值。
           passable_cost: 50
@@ -455,10 +455,10 @@ planner_server:
           hysteresis_enable: false
           hysteresis_count: 2
           # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
-          obstacle_hold_time: 1.5
+          obstacle_hold_time: 0.5
 
           mask_filter_en: true
-          fill_occ_min: 4
+          fill_occ_min: 8
           denoise_occ_max: 0
         field:
           enable: true
