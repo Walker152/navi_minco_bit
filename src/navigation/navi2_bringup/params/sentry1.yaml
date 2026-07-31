@@ -393,7 +393,8 @@ planner_server:
           prior_map:
             enable: true
             # yaml_path: "src/navigation/navi2_bringup/maps/first_floor/first_floor_prior.yaml"
-            yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior.yaml"
+            # yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior.yaml"
+            yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior11.yaml"
             # 留空时使用 YAML 的 image 字段，并相对 YAML 所在目录解析。
             pgm_path: ""
             frame_id: map
@@ -418,7 +419,7 @@ planner_server:
           # 同一 XY 柱中最高与最低占据体素的垂直高度差 H。
           # 不超过该值时，分类为地面或坡面薄表面。
           # 这是差值，不是 ROGMap frame 中的绝对 Z 坐标。
-          surface_height_delta_max: 0.2
+          surface_height_delta_max: 0.25
 
           # [vertical height difference, m]
           # 判定竖直墙所需的最小单柱垂直高度差 H。
@@ -427,18 +428,18 @@ planner_server:
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
-          wall_occupancy_ratio_min: 0.60
+          wall_occupancy_ratio_min: 0.50
 
           # [vertical height difference, m]
           # 可通行隧道所需的最小上下表面高度差。
           # 应包含机器人实际高度和安全余量。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_min: 0.25
+          tunnel_height_delta_min: 0.26
 
           # [vertical height difference, m]
           # 当前 RM 场景中允许识别为目标隧道的最大上下表面高度差。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_max: 0.40
+          tunnel_height_delta_max: 0.35
 
           # [dimensionless ratio, 0~1]
           # 隧道上下表面之间的最大垂直占据率。

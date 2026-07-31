@@ -13,17 +13,17 @@ namespace Sentry_BT {
 // for rmuc
 inline std::array<AreaPolygon<6, Point2D>, 4> transform_zone{
   AreaPolygon<6, Point2D>{
-    Point2D{8.0, 6.0}, Point2D{10.0, 6.0}, Point2D{12.0, 6.0},
-    Point2D{12.0, 0.1}, Point2D{10.0, 0.1}, Point2D{8.0, 0.1}}, // Home Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{8.5, 5.0}, Point2D{10.0, 5.0}, Point2D{11.0, 5.0},
+    Point2D{11.0, 0.1}, Point2D{10.0, 0.1}, Point2D{8.5, 0.1}}, // Home Right Tunnel 
   AreaPolygon<6, Point2D>{
-    Point2D{17.0, 15.0}, Point2D{18.75, 15.0}, Point2D{21.0, 15.0},
-    Point2D{21.0, 9.0}, Point2D{18.75, 9.0}, Point2D{17.0, 9.0}}, // Enemy Right Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{18.0, 15.0}, Point2D{18.75, 15.0}, Point2D{20.5, 15.0},
+    Point2D{20.5, 10.0}, Point2D{18.75, 10.0}, Point2D{18.0, 10.0}}, // Enemy Right Tunnel 
   AreaPolygon<6, Point2D>{
     Point2D{9.5, 12.0}, Point2D{11.0, 14.2}, Point2D{17.0, 14.2},
-    Point2D{17.0, 12.5}, Point2D{12.7, 12.5}, Point2D{12.3, 12.0}}, // Home Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{17.0, 12.5}, Point2D{12.7, 12.5}, Point2D{12.3, 12.0}}, // Home Left Tunnel 
   AreaPolygon<6, Point2D>{
     Point2D{19.5, 3.0}, Point2D{18.0, 0.8}, Point2D{12.0, 0.8},
-    Point2D{12.0, 2.5}, Point2D{16.3, 2.5}, Point2D{16.7, 3.0}}, // Enemy Left Tunnel TODO: replace with measured 6-point polygon vertices
+    Point2D{12.0, 2.5}, Point2D{16.3, 2.5}, Point2D{16.7, 3.0}}, // Enemy Left Tunnel 
 };
 inline std::array<Area_Square, 2> bonus_zone = {
   Area_Square{Point2D{12.8, 5.5}, Point2D{13.8, 6.5}},
@@ -32,8 +32,8 @@ inline std::array<Area_Square, 2> bonus_zone = {
 inline std::array<Area_Square, 4> tunnel_zone = {
   Area_Square{Point2D{10.2, 3.6}, Point2D{9.4, 1.7}},     // Home Right Tunnel
   Area_Square{Point2D{19.6, 13.3}, Point2D{18.8, 11.4}},  // Enemy Right Tunnel
-  Area_Square{Point2D{15.4, 13.8}, Point2D{12.1, 13.0}},  // Home Left Tunnel
-  Area_Square{Point2D{17.2, 2.0}, Point2D{13.6, 1.2}},    // Enemy Left Tunnel
+  Area_Square{Point2D{15.4, 14.0}, Point2D{12.1, 13.0}},  // Home Left Tunnel
+  Area_Square{Point2D{17.2, 2.0}, Point2D{13.6, 1.0}},    // Enemy Left Tunnel
 };
 // Per-tunnel recovery configuration, index-aligned with tunnel_zone.
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
