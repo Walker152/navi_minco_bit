@@ -12,21 +12,20 @@ slam_toolbox:
     map_frame: map
     base_frame: slambase
     scan_topic: /scan
-    mode: lifelong #localization
-    scan_queue_size: 50
+    mode: mapping # localization
+    scan_queue_size: 1
 
-    # if you'd like to start localizing on bringup in a map and pose
-    # 重点修改<map_file_name>和<map_start_pose>
-    map_file_name: /home/rm/slam_toolbox_map
-    map_start_pose: [0.0, 0.0, 0.0]
+    # Continuing an existing serialized pose graph is opt-in.
+    # map_file_name: /home/rm/slam_toolbox_map
+    # map_start_pose: [0.0, 0.0, 0.0]
 
     debug_logging: false
     throttle_scans: 1
     transform_publish_period: 0.02 #if 0 never publishes odometry
     map_update_interval: 1.0
     resolution: 0.05
-    min_laser_range: 0.2 #for rastering images
-    max_laser_range: 20.0 #for rastering images
+    min_laser_range: 0.4 # match pointcloud_to_laserscan range_min
+    max_laser_range: 10.0 # match pointcloud_to_laserscan range_max
     minimum_time_interval: 0.0
     transform_timeout: 0.1
     tf_buffer_duration: 60.
@@ -35,8 +34,8 @@ slam_toolbox:
     # General Parameters
     use_scan_matching: true
     use_scan_barycenter: true
-    minimum_travel_distance: 0.0
-    minimum_travel_heading: 0.0
+    minimum_travel_distance: 0.05
+    minimum_travel_heading: 0.05
     scan_buffer_size: 10
     scan_buffer_maximum_scan_distance: 10.0
     link_match_minimum_response_fine: 0.1  

@@ -29,12 +29,13 @@ def generate_launch_description():
         parameters=[{
             'target_frame': 'slambase',
             'transform_tolerance': 0.01,
+            'queue_size': 1,
             'min_height': -0.1,
             'max_height': 1.2,
             'angle_min': -3.14159,
             'angle_max': 3.14159,
             'angle_increment': 0.0087,
-            'scan_time': 0.3,
+            'scan_time': 0.1,
             'range_min': 0.4,
             'range_max': 10.0,
             'use_inf': True,
@@ -56,8 +57,9 @@ def generate_launch_description():
         parameters=[
             slam_params,
             {
-            'use_sim_time': use_sim_time,
-        }],
+                'use_sim_time': use_sim_time,
+                'scan_topic': scan_topic,
+            }],
         remappings=[
             ('/map', map_topic),
             ('/map_updates', map_updates_topic)
@@ -85,7 +87,7 @@ def generate_launch_description():
         description='Use simulation (Gazebo) clock if true'))
     ld.add_action(DeclareLaunchArgument(
         'cloud_topic',
-        default_value='/cloud_registered',
+        default_value='/cloud_registered_full',
         description='Input PointCloud2 topic'))
     ld.add_action(DeclareLaunchArgument(
         'scan_topic',
