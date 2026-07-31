@@ -25,34 +25,39 @@ gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"
 sleep 5
 
 # Decision
-gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
+# gnome-terminal -- bash -c "ros2 launch bt_manager bt_manager.launch.py; exec bash"
 sleep 3
 
 # Communication
-gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
+# gnome-terminal -- bash -c "ros2 launch communication com.launch.py; exec bash"
 
 # Rosbag record
 ROSBAG_TOPICS=(
-  /tf
-  /tf_static
-  /aft_mapped_to_init
-  /global_costmap/costmap_raw
-  /opt_path
-  /opt_path_vis
-  /astar_path_vis
-  /recover_goal
-  /mpc_predict_path
-  /cmd_vel_mpc
-  /sentry/behaivor_send
-  /sentry/area_markers
-  /cloud_registered_full
-  /rog_map/occupied
-  /rog_map/layer_value
-  /rog_map/field
-  /minco_control_points_vis
-  /rog_map/layer_height_delta
+  # /tf
+  # /tf_static
+  # /aft_mapped_to_init
+  # /global_costmap/costmap_raw
+  # /opt_path
+  # /opt_path_vis
+  # /astar_path_vis
+  # /recover_goal
+  # /mpc_predict_path
+  # /cmd_vel_mpc
+  # /sentry/behaivor_send
+  # /sentry/area_markers
+  # /cloud_registered_full
+  # /rog_map/occupied
+  # /rog_map/layer_value
+  # /rog_map/field
+  # /minco_control_points_vis
+  # /rog_map/layer_height_delta
   # /livox/lidar
   # /livox/imu_192_168_1_135
+  /livox/imu_192_168_1_122
+  /livox/imu_192_168_1_135
+  /livox/lidar_192_168_1_122
+  /livox/lidar_192_168_1_135
+
 )
 # gnome-terminal -- bash -c "mkdir -p ~/rosbag && ros2 bag record -o ~/rosbag/$(date +%Y%m%d_%H%M%S) ${ROSBAG_TOPICS[*]}; exec bash"
 

@@ -358,7 +358,7 @@ planner_server:
 
         # 入图前点云区域滤除；关闭时不创建过滤器，保持原始 ROGMap 数据链路。
         cloud_filter:
-          enable: false
+          enable: true
           z_offset: -1.0
           position_frame: map
           filter_mode: transform_center   # transform_cloud | transform_center
@@ -368,7 +368,7 @@ planner_server:
           publish_visualization: true
           visualization_topic: /cloud_registered_crop_filter/markers
           visualization_period_ms: 200     # 0: 每帧发布
-          z_plane_size: 12.0
+          z_plane_size: 10.0
           z_plane_thickness: 0.03
           box_padding: 0.1
           # positions.* 未配置或长度不一致时使用单框参数。
@@ -381,13 +381,13 @@ planner_server:
             y: 6.0
             z: 3.5
           positions:
-            x: [15.4, 19.2, 13.7, 9.8]
-            y: [1.5, 12.3, 13.4, 2.7]
-            z: [0.4, 0.4, 0.4, 0.4]
+            x: [15.7, 19.2, 13.3, 9.8]
+            y: [1.55, 12.9, 13.45, 2.1]
+            z: [0.1, 0.4, 0.1, 0.4]
           box_sizes:
-            x: [3.0, 2.0, 3.0, 2.0]
-            y: [2.0, 2.0, 2.0, 2.0]
-            z: [2.0, 2.0, 2.0, 2.0]
+            x: [0.7, 0.8, 0.7, 0.8]
+            y: [0.6, 0.4, 0.6, 0.4]
+            z: [0.5, 0.5, 0.5, 0.5]
 
         raycasting:
           enable: true
@@ -413,9 +413,9 @@ planner_server:
         decay:
           enable: true
           # [decay][s] 最后一次 hit 后保持 occupied 的最小时间；过短障碍闪烁，过长动态障碍残留。
-          keep_time: 0.8
+          keep_time: 0.4
           # [decay][s] 最后一次 hit 后强制衰减到 free 的最大时间；必须大于 keep_time。
-          clear_time: 1.2
+          clear_time: 0.8
           # [decay][bool] 只维护活跃 cell 衰减列表；开启通常降低计算量，若列表维护异常会影响动态清除完整性。
           active_list_enable: false
 
@@ -461,7 +461,7 @@ planner_server:
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
-          wall_occupancy_ratio_min: 0.50
+          wall_occupancy_ratio_min: 0.80
 
           # [vertical height difference, m]
           # 可通行隧道所需的最小上下表面高度差。
@@ -472,11 +472,11 @@ planner_server:
           # [vertical height difference, m]
           # 当前 RM 场景中允许识别为目标隧道的最大上下表面高度差。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_max: 0.35
+          tunnel_height_delta_max: 0.40
 
           # [dimensionless ratio, 0~1]
           # 隧道上下表面之间的最大垂直占据率。
-          tunnel_occupancy_ratio_max: 0.4
+          tunnel_occupancy_ratio_max: 0.5
 
           # PASSABLE 在 value layer 中的代价值。
           passable_cost: 50
@@ -488,10 +488,10 @@ planner_server:
           hysteresis_enable: false
           hysteresis_count: 2
           # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
-          obstacle_hold_time: 1.5
+          obstacle_hold_time: 0.5
 
           mask_filter_en: true
-          fill_occ_min: 4
+          fill_occ_min: 8
           denoise_occ_max: 0
         field:
           enable: true
