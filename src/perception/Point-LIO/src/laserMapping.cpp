@@ -42,7 +42,8 @@ string root_dir = ROOT_DIR;
 
 bool init_map = false, flg_first_scan = true;
 
-bool flg_reset = false, flg_exit = false;
+bool flg_reset = false;
+std::atomic_bool flg_exit{false};
 
 // surf feature in map
 PointCloudXYZI::Ptr feats_undistort(new PointCloudXYZI());
@@ -405,6 +406,18 @@ void publish_accumulated_map(
 
 PointCloudXYZI::Ptr pcl_wait_save(new PointCloudXYZI());
 
+void save_pending_pcd()
+{
+  if (!pcl_wait_save || pcl_wait_save->empty() || !pcd_save_en) {
+    return;
+  }
+
+  const string all_points_dir(string(ROOT_DIR) + "PCD/scans.pcd");
+  pcl::PCDWriter pcd_writer;
+  pcd_writer.writeBinary(all_points_dir, *pcl_wait_save);
+  pcl_wait_save->clear();
+}
+
 point_lio::StateLogRecord makeStateLogRecord()
 {
   point_lio::StateLogRecord record;
@@ -731,12 +744,7 @@ public:
   ~LaserMappingNode() override
   {
     stopWorker();
-    if (!pcl_wait_save->empty() && pcd_save_en) {
-      string file_name = string("scans.pcd");
-      string all_points_dir(string(string(ROOT_DIR) + "PCD/") + file_name);
-      pcl::PCDWriter pcd_writer;
-      pcd_writer.writeBinary(all_points_dir, *pcl_wait_save);
-    }
+    save_pending_pcd();
     RuntimeStatistics::instance().shutdown();
   }
 
@@ -1631,6 +1639,7 @@ void LaserMappingNode::processingLoop()
     }
     rate.sleep();
   }
+  save_pending_pcd();
 }
 
 }  // namespace point_lio
@@ -1649,7 +1658,10 @@ int main(int argc, char ** argv)
   auto node = std::make_shared<point_lio::LaserMappingNode>(options);
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(node);
-  executor.spin();
+  // Let the signal handler stop the worker first so the node destructor can flush scans.pcd.
+  while (rclcpp::ok() && !flg_exit.load()) {
+    executor.spin_once(std::chrono::milliseconds(100));
+  }
   rclcpp::shutdown();
   return 0;
 }
