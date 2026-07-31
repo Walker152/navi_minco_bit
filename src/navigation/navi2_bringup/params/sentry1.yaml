@@ -359,7 +359,7 @@ planner_server:
         # 入图前点云区域滤除；关闭时不创建过滤器，保持原始 ROGMap 数据链路。
         cloud_filter:
           enable: true
-          z_offset: 0.1
+          z_offset: -1.0
           position_frame: map
           filter_mode: transform_center   # transform_cloud | transform_center
           remove_inside: true             # true: 删除框内点，false: 仅保留框内点
@@ -368,7 +368,7 @@ planner_server:
           publish_visualization: true
           visualization_topic: /cloud_registered_crop_filter/markers
           visualization_period_ms: 200     # 0: 每帧发布
-          z_plane_size: 12.0
+          z_plane_size: 10.0
           z_plane_thickness: 0.03
           box_padding: 0.1
           # positions.* 未配置或长度不一致时使用单框参数。
@@ -381,13 +381,13 @@ planner_server:
             y: 6.0
             z: 3.5
           positions:
-            x: [15.8, 19.2, 13.2, 9.8]
+            x: [15.7, 19.2, 13.3, 9.8]
             y: [1.55, 12.9, 13.45, 2.1]
             z: [0.1, 0.4, 0.1, 0.4]
           box_sizes:
-            x: [0.5, 0.6, 0.5, 0.6]
+            x: [0.7, 0.8, 0.7, 0.8]
             y: [0.6, 0.4, 0.6, 0.4]
-            z: [0.4, 0.4, 0.4, 0.4]
+            z: [0.5, 0.5, 0.5, 0.5]
 
         raycasting:
           enable: true
