@@ -1,6 +1,7 @@
 #include "bt_manager/condition/change_stance_condition.hpp"
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <limits>
 
@@ -518,7 +519,7 @@ BT::NodeStatus CheckTunnelDeformation::tick()
 
   const bool yaw_aligned_delay_ok =
     yaw_aligned_timing_ &&
-    now - yaw_aligned_since_ >= std::chrono::seconds(1);
+    now - yaw_aligned_since_ >= std::chrono::milliseconds(500);
 
   if (!deformation_started_ &&
       yaw_aligned_delay_ok && yaw_request_valid && is_transformable) {
