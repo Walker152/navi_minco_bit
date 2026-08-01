@@ -164,6 +164,63 @@ public:
       update_period_ms = 1;
     }
 
+    cloud_filter_en = false;
+    cloud_filter_z_offset = 0.0;
+    cloud_filter_position_frame = "map";
+    cloud_filter_mode = "transform_center";
+    cloud_filter_remove_inside = true;
+    cloud_filter_log_stats = false;
+    cloud_filter_stats_log_period_ms = 1000;
+    cloud_filter_publish_visualization = false;
+    cloud_filter_visualization_topic = "/rog_map/cloud_filter/markers";
+    cloud_filter_visualization_period_ms = 200;
+    cloud_filter_z_plane_size = 12.0;
+    cloud_filter_z_plane_thickness = 0.03;
+    cloud_filter_box_padding = 0.0;
+    cloud_filter_center_x = 0.0;
+    cloud_filter_center_y = 0.0;
+    cloud_filter_center_z = 0.0;
+    cloud_filter_size_x = 12.0;
+    cloud_filter_size_y = 6.0;
+    cloud_filter_size_z = 3.5;
+    cloud_filter_centers_x.clear();
+    cloud_filter_centers_y.clear();
+    cloud_filter_centers_z.clear();
+    cloud_filter_sizes_x.clear();
+    cloud_filter_sizes_y.clear();
+    cloud_filter_sizes_z.clear();
+    load("cloud_filter.enable", cloud_filter_en);
+    load("cloud_filter.z_offset", cloud_filter_z_offset);
+    load("cloud_filter.position_frame", cloud_filter_position_frame);
+    load("cloud_filter.filter_mode", cloud_filter_mode);
+    load("cloud_filter.remove_inside", cloud_filter_remove_inside);
+    load("cloud_filter.log_stats", cloud_filter_log_stats);
+    load("cloud_filter.stats_log_period_ms", cloud_filter_stats_log_period_ms);
+    load("cloud_filter.publish_visualization", cloud_filter_publish_visualization);
+    load("cloud_filter.visualization_topic", cloud_filter_visualization_topic);
+    load("cloud_filter.visualization_period_ms", cloud_filter_visualization_period_ms);
+    load("cloud_filter.z_plane_size", cloud_filter_z_plane_size);
+    load("cloud_filter.z_plane_thickness", cloud_filter_z_plane_thickness);
+    load("cloud_filter.box_padding", cloud_filter_box_padding);
+    load("cloud_filter.position.x", cloud_filter_center_x);
+    load("cloud_filter.position.y", cloud_filter_center_y);
+    load("cloud_filter.position.z", cloud_filter_center_z);
+    load("cloud_filter.box_size.x", cloud_filter_size_x);
+    load("cloud_filter.box_size.y", cloud_filter_size_y);
+    load("cloud_filter.box_size.z", cloud_filter_size_z);
+    load("cloud_filter.positions.x", cloud_filter_centers_x);
+    load("cloud_filter.positions.y", cloud_filter_centers_y);
+    load("cloud_filter.positions.z", cloud_filter_centers_z);
+    load("cloud_filter.box_sizes.x", cloud_filter_sizes_x);
+    load("cloud_filter.box_sizes.y", cloud_filter_sizes_y);
+    load("cloud_filter.box_sizes.z", cloud_filter_sizes_z);
+    if (cloud_filter_mode != "transform_cloud" && cloud_filter_mode != "transform_center") {
+      RCLCPP_WARN(node->get_logger(),
+        "[ROGMap Config] cloud_filter.filter_mode='%s' is invalid, using transform_center.",
+        cloud_filter_mode.c_str());
+      cloud_filter_mode = "transform_center";
+    }
+
     visualization_en = false;
     frame_id = "world";
     load("frame_id", frame_id);
@@ -530,6 +587,32 @@ public:
   string prior_map_yaml_path{};
   string prior_map_pgm_path{};
   string prior_map_frame{"map"};
+
+  bool cloud_filter_en{false};
+  double cloud_filter_z_offset{0.0};
+  string cloud_filter_position_frame{"map"};
+  string cloud_filter_mode{"transform_center"};
+  bool cloud_filter_remove_inside{true};
+  bool cloud_filter_log_stats{false};
+  int cloud_filter_stats_log_period_ms{1000};
+  bool cloud_filter_publish_visualization{false};
+  string cloud_filter_visualization_topic{"/rog_map/cloud_filter/markers"};
+  int cloud_filter_visualization_period_ms{200};
+  double cloud_filter_z_plane_size{12.0};
+  double cloud_filter_z_plane_thickness{0.03};
+  double cloud_filter_box_padding{0.0};
+  double cloud_filter_center_x{0.0};
+  double cloud_filter_center_y{0.0};
+  double cloud_filter_center_z{0.0};
+  double cloud_filter_size_x{12.0};
+  double cloud_filter_size_y{6.0};
+  double cloud_filter_size_z{3.5};
+  vector<double> cloud_filter_centers_x{};
+  vector<double> cloud_filter_centers_y{};
+  vector<double> cloud_filter_centers_z{};
+  vector<double> cloud_filter_sizes_x{};
+  vector<double> cloud_filter_sizes_y{};
+  vector<double> cloud_filter_sizes_z{};
 
   bool field_en{true};
   double field_inflation_radius{0.33};

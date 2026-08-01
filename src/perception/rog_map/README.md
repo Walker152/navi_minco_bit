@@ -97,6 +97,7 @@ flowchart LR
 | `/rog_map/field` | 势场/距离场诊断 |
 | `/rog_map/decay_cells` | 衰减单元诊断 |
 | `/rog_map/map_bound` | 当前滑动地图边界 |
+| `/cloud_registered_crop_filter/markers` | 入图前区域过滤框与 Z 截断平面；仅在过滤和可视化均启用时发布 |
 
 ## ⚙️ 关键配置
 
@@ -118,6 +119,24 @@ planner_server.ros__parameters.MincoPlanner.rog_map
 | `map_sliding.center_offset` | `[0, 0.20, 0]` | 地图窗口相对 odom 参考点的中心偏移 |
 
 `center_offset` 用于移动局部地图窗口，不是雷达外参，也不改变点云坐标。它通常与车体几何中心相关，但必须根据实际参考点定义标定。
+
+### 入图前点云区域过滤
+
+`cloud_filter.enable` 默认关闭。启用后，ROGMap 在 raycast 和概率占据更新之前删除指定区域内的点，过滤结果会同时影响三维占据、Projection、Field 和 ESDF。参数语义与 `msg_convert/cloud_registered_crop_filter` 保持一致：
+
+| 参数 | 说明 |
+|---|---|
+| `position_frame` | 过滤框坐标系，当前配置为 `map` |
+| `filter_mode` | `transform_cloud` 转换检测点；`transform_center` 转换过滤框中心 |
+| `remove_inside` | `true` 删除框内点；`false` 仅保留框内点 |
+| `position.*`, `box_size.*` | 单框回退参数 |
+| `positions.*`, `box_sizes.*` | 多框中心与尺寸数组，三个轴的数组长度必须一致 |
+| `box_padding` | 各方向额外扩张量 |
+| `z_offset` | 删除低于 `odom.z + z_offset` 的点 |
+| `log_stats`, `stats_log_period_ms` | 过滤数量统计及节流周期 |
+| `publish_visualization`, `visualization_*` | 过滤框和 Z 截断平面可视化 |
+
+TF 查询失败时整帧不会进入地图，避免把 map 系过滤框错误应用到点云坐标系。关闭 `enable` 时不创建过滤器和 Marker publisher，原点云 topic、QoS 与回调链路保持不变。
 
 ### 概率更新与 raycast
 

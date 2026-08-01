@@ -43,6 +43,7 @@
 
 #include <rog_map/rog_map.h>
 #include <rog_map/rog_map_visualizer.hpp>
+#include <rog_map_ros/cloud_registered_crop_filter.hpp>
 #include <super_utils/color_msg_utils.hpp>
 
 #include <algorithm>
@@ -66,6 +67,7 @@ class ROGMapROS : public ROGMap
   rclcpp::node_interfaces::NodeParametersInterface::SharedPtr node_parameters_;
   std::shared_ptr<tf2_ros::Buffer> tf_;
   std::unique_ptr<ROGMapVisualizer> visualizer_driver_;
+  std::unique_ptr<CloudRegisteredCropFilter> cloud_filter_;
 
   const double getSystemWalltimeNow() override { return now().seconds(); }
 
@@ -223,6 +225,15 @@ class ROGMapROS : public ROGMap
       std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - convert_start).count();
     if (performance_monitor_) {
       performance_monitor_->recordCloudConvertTime(convert_time_ms);
+    }
+    if (temp_pc.empty()) {
+      if (performance_monitor_) {
+        performance_monitor_->recordCloudDropEmpty();
+      }
+      return;
+    }
+    if (cloud_filter_ && !cloud_filter_->filter(temp_pc, cloud_msg->header, robot_state_.p)) {
+      return;
     }
     if (temp_pc.empty()) {
       if (performance_monitor_) {
@@ -683,6 +694,15 @@ class ROGMapROS : public ROGMap
         prior_map_.height,
         prior_map_.resolution,
         cfg_.prior_map_frame.c_str());
+    }
+    if (cfg_.cloud_filter_en) {
+      CloudRegisteredCropFilter::MarkerPublisher::SharedPtr marker_publisher;
+      if (cfg_.cloud_filter_publish_visualization) {
+        marker_publisher = createPublisher<visualization_msgs::msg::MarkerArray>(
+          cfg_.cloud_filter_visualization_topic, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local());
+      }
+      cloud_filter_ = std::make_unique<CloudRegisteredCropFilter>(
+        cfg_, tf_, node_clock_->get_clock(), node_logging_->get_logger(), marker_publisher);
     }
     init();
     /// Initialize visualization module

@@ -1,0 +1,39 @@
+main_lidar_topic: /livox/lidar_192_168_1_135
+main_imu_topic: /livox/imu_192_168_1_135
+secondary_lidar_topic: /livox/lidar_192_168_1_122
+secondary_imu_topic: /livox/imu_192_168_1_122
+
+# [x, y, z, roll, pitch, yaw], secondary LiDAR -> main LiDAR, m/rad.
+initial_extrinsic: [0.0, 0.4, 0.0, -0.35453, 0.0, 0.0]
+
+# MID360 built-in IMU axes are assumed aligned with each LiDAR unless overridden.
+main_lidar_to_imu_rpy: [0.0, 0.0, 0.0]
+secondary_lidar_to_imu_rpy: [0.0, 0.0, 0.0]
+
+sync_tolerance_ms: 5.0
+frame_stride: 5
+max_frame_pairs: 200
+minimum_accepted_frames: 8
+point_stride: 1
+
+min_range: 0.5
+max_range: 20.0
+voxel_size: 0.10
+min_angular_speed: 0.05
+stationary_gyro_threshold: 0.03
+gravity_tolerance: 1.5
+
+translation_outlier_threshold: 0.15
+rotation_outlier_threshold_rad: 0.15
+max_translation_stddev: 0.05
+max_rotation_stddev_rad: 0.03
+
+gicp:
+  max_correspondence_distance: 0.50
+  max_iterations: 64
+  transformation_epsilon: 1.0e-6
+  min_overlap_ratio: 0.30
+  min_inliers: 500
+  max_rmse: 0.15
+  max_rotation_deviation_rad: 0.20
+  max_translation_deviation: 0.50
