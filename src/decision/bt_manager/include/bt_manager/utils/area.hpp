@@ -401,25 +401,25 @@ struct PatrolZoneTypeHash {
 // 云台巡检区域映射表 (TacticalMode -> (PatrolZoneType -> GimbalPatrolConfig))
 inline std::unordered_map<TacticalMode, std::unordered_map<PatrolZoneType, GimbalPatrolConfig, PatrolZoneTypeHash>> tactical_area_gimbal_map = {
   {TacticalMode::OFFENSIVE, {
-    {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
-    {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
+    {PatrolZoneType::ENEMY_DEFENSE, {-180.0f, 180.0f}},
+    {PatrolZoneType::OWN_DEFENSE,   {-180.0f, 180.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-    {PatrolZoneType::STAIRZONE,     {-165.0f, -15.0f}}
+    {PatrolZoneType::STAIRZONE,     {-180.0f, 180.0f}}
   }},
   {TacticalMode::DEFENSIVE, {
-    {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
-    {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
+    {PatrolZoneType::ENEMY_DEFENSE, {-180.0f, 180.0f}},
+    {PatrolZoneType::OWN_DEFENSE,   {-180.0f, 180.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-    {PatrolZoneType::STAIRZONE,     {-165.0f, -15.0f}}
+    {PatrolZoneType::STAIRZONE,     {-180.0f, 180.0f}}
   }},
   {TacticalMode::BALANCED, {
-    {PatrolZoneType::ENEMY_DEFENSE, {-60.0f, 60.0f}},
-    {PatrolZoneType::OWN_DEFENSE,   {-90.0f, 90.0f}},
+    {PatrolZoneType::ENEMY_DEFENSE, {-180.0f, 180.0f}},
+    {PatrolZoneType::OWN_DEFENSE,   {-180.0f, 180.0f}},
     {PatrolZoneType::HIGHLAND,      {-180.0f, 180.0f}},
     {PatrolZoneType::OWN_OUTPOST,   {-180.0f, 180.0f}},
-    {PatrolZoneType::STAIRZONE,     {-165.0f, -15.0f}}
+    {PatrolZoneType::STAIRZONE,     {-180.0f, 180.0f}}
   }}
 };
 
