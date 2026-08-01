@@ -76,29 +76,51 @@
           </ReactiveFallback>
         </ReactiveSequence>
 
-        <Sequence name="AbsoluteAttackBranch">
-          <Fallback name="AbsoluteAttackConditions">
-            <CheckHeat threshold="200" mode="greater" branch="AbsoluteAttackBranch" />
-            <CheckOutpostTarget goal_distance_threshold="0.5" branch="AbsoluteAttackBranch" />
-          </Fallback>
-          <!-- <CheckStanceEffectLimit target_stance="ATTACK" max_time_sec="180" /> -->
-          <SetGyroState use_gyro="true"
-                        gyro_vel="40.0"
-                        random_speed="false" />
-          <!-- <CheckStanceCooldown cooldown="5.0" branch="AbsoluteAttackBranch" /> -->
-          <Fallback name="AbsoluteAttackStanceSelector">
-            <Sequence name="TryEnhancedAttack">
-              <CheckShouldEnhanceStance
-                target_stance="ATTACK"
-                accumulated_threshold="170"
-                fallback_game_time="60"
-                min_remaining_sec="1"
-                branch="AbsoluteAttack_Enhanced" />
-              <ChangeStance name="ChangeStanceAbsoluteEnhancedAttack" stance="ENHANCED_ATTACK" />
-            </Sequence>
-            <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
-          </Fallback>
-        </Sequence>
+        <ReactiveFallback name="AbsoluteAttackBranch">
+          <!-- 前哨站特殊响应:云台抬起时优先消耗强化攻击时长,不可用则回退普通攻击。 -->
+          <Sequence name="OutpostEnhancedAttackBranch">
+            <CheckOutpostTarget goal_distance_threshold="0.5"
+                                require_pitch_up="true"
+                                branch="OutpostEnhancedAttackBranch" />
+            <SetGyroState use_gyro="true"
+                          gyro_vel="40.0"
+                          random_speed="false" />
+            <Fallback name="OutpostAttackStanceSelector">
+              <Sequence name="TryOutpostEnhancedAttack">
+                <CheckShouldEnhanceStance
+                  target_stance="ATTACK"
+                  accumulated_threshold="170"
+                  fallback_game_time="60"
+                  min_remaining_sec="1"
+                  force_if_available="true"
+                  branch="OutpostAttack_Enhanced" />
+                <ChangeStance name="ChangeStanceOutpostEnhancedAttack" stance="ENHANCED_ATTACK" />
+              </Sequence>
+              <ChangeStance name="ChangeStanceOutpostAttack" stance="ATTACK" />
+            </Fallback>
+          </Sequence>
+
+          <Sequence name="HeatAttackBranch">
+            <CheckHeat threshold="200" mode="greater" branch="HeatAttackBranch" />
+            <!-- <CheckStanceEffectLimit target_stance="ATTACK" max_time_sec="180" /> -->
+            <SetGyroState use_gyro="true"
+                          gyro_vel="40.0"
+                          random_speed="false" />
+            <!-- <CheckStanceCooldown cooldown="5.0" branch="HeatAttackBranch" /> -->
+            <Fallback name="AbsoluteAttackStanceSelector">
+              <Sequence name="TryEnhancedAttack">
+                <CheckShouldEnhanceStance
+                  target_stance="ATTACK"
+                  accumulated_threshold="170"
+                  fallback_game_time="60"
+                  min_remaining_sec="1"
+                  branch="AbsoluteAttack_Enhanced" />
+                <ChangeStance name="ChangeStanceAbsoluteEnhancedAttack" stance="ENHANCED_ATTACK" />
+              </Sequence>
+              <ChangeStance name="ChangeStanceAbsoluteAttack" stance="ATTACK" />
+            </Fallback>
+          </Sequence>
+        </ReactiveFallback>
 
         <Sequence name="CombatAttackBranch">
           <CheckEngagedStatus expected="true" branch="CombatAttackBranch" />

@@ -58,6 +58,7 @@ CheckOutpostTarget::CheckOutpostTarget(const std::string & name, const BT::NodeC
 BT::PortsList CheckOutpostTarget::providedPorts()
 {
   return {BT::InputPort<float>("goal_distance_threshold", 0.8f, "Goal close-to-outpost threshold"),
+    BT::InputPort<bool>("require_pitch_up", false, "Require gimbal pitch mode to be UP"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
@@ -80,11 +81,15 @@ BT::NodeStatus CheckOutpostTarget::tick()
   const auto & outpost = nav_points[static_cast<size_t>(Sentry_BT::NavGoal::ENEMY_OUTPOST)];
   const bool nav_goal_is_outpost =
     std::hypot(nav_goal.x - outpost.x, nav_goal.y - outpost.y) <= static_cast<double>(dist_threshold);
-  const bool active = (attacking_outpost_mode && in_outpost_zone) && nav_goal_is_outpost;
+  const bool require_pitch_up = getInput<bool>("require_pitch_up").value_or(false);
+  const bool pitch_up = blackboard->get<PitchPos>("pitch_mode") == PitchPos::UP;
+  const bool active = attacking_outpost_mode && in_outpost_zone && nav_goal_is_outpost &&
+                      (!require_pitch_up || pitch_up);
 
   std::ostringstream oss;
   oss << "mode=" << current_mode << ", in_outpost_zone=" << in_outpost_zone
-      << ", nav_goal_is_outpost=" << nav_goal_is_outpost;
+      << ", nav_goal_is_outpost=" << nav_goal_is_outpost
+      << ", require_pitch_up=" << require_pitch_up << ", pitch_up=" << pitch_up;
   detail::logTransition(detail::TreeKind::STANCE, "CheckOutpostTarget", active, oss.str(), branch);
 
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
@@ -604,6 +609,7 @@ BT::PortsList CheckShouldEnhanceStance::providedPorts()
     BT::InputPort<int>("accumulated_threshold", 170, "Accumulated time threshold for level-1 trigger (sec)"),
     BT::InputPort<int>("fallback_game_time", 60, "Game time threshold for level-2 trigger (sec)"),
     BT::InputPort<int>("min_remaining_sec", 1, "Minimum enhanced stance quota (sec)"),
+    BT::InputPort<bool>("force_if_available", false, "Enhance whenever energy and quota are available"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")
   };
 }
@@ -615,6 +621,7 @@ BT::NodeStatus CheckShouldEnhanceStance::tick()
   const int acc_threshold = getInput<int>("accumulated_threshold").value_or(170);
   const int fallback_time = getInput<int>("fallback_game_time").value_or(60);
   const int min_remaining = getInput<int>("min_remaining_sec").value_or(1);
+  const bool force_if_available = getInput<bool>("force_if_available").value_or(false);
   const std::string branch = getInput<std::string>("branch").value_or("");
 
   // 1. 获取对应的累计时间和强化姿态名称
@@ -664,6 +671,14 @@ BT::NodeStatus CheckShouldEnhanceStance::tick()
         << " < min=" << min_remaining;
     detail::logTransition(detail::TreeKind::STANCE, "CheckShouldEnhanceStance", false, oss.str(), branch);
     return BT::NodeStatus::FAILURE;
+  }
+
+  if (force_if_available) {
+    std::ostringstream oss;
+    oss << "target=" << target << ", should_enhance=true, quota=" << remaining_time
+        << ", trigger=forced_available";
+    detail::logTransition(detail::TreeKind::STANCE, "CheckShouldEnhanceStance", true, oss.str(), branch);
+    return BT::NodeStatus::SUCCESS;
   }
 
   // 5. 触发条件判断（两级）
