@@ -5,6 +5,31 @@
       <ForceSuccess>
         <CheckTargetLocked name="CheckEarlyTargetLocked" branch="EarlyTargetAttack" />
       </ForceSuccess>
+      <!-- 前哨状态窗口必须每 tick 刷新,不能被导航优先级分支短路。 -->
+      <ForceSuccess>
+        <ReactiveSequence name="AutoOutpostEnableOnce">
+          <CheckGameTimeWindow name="CheckAutoOutpostEnableWindow"
+                               min_remaining="400"
+                               max_remaining="420"
+                               branch="AutoOutpostEnableOnce" />
+          <SetEnemyOutpostDestroyed name="SetAutoOutpostRemainedOnce"
+                                    enemy_outpost_destroyed="false"
+                                    branch="AutoOutpostEnableOnce" />
+        </ReactiveSequence>
+      </ForceSuccess>
+      <ForceSuccess>
+        <ReactiveSequence name="AutoOutpostDisableOnce">
+          <CheckGameTimeWindow name="CheckAutoOutpostDisableWindow"
+                               min_remaining="360"
+                               max_remaining="370"
+                               require_game_started="false"
+                               branch="AutoOutpostDisableOnce" />
+          <SetEnemyOutpostDestroyed name="SetAutoOutpostDestroyedOnce"
+                                    enemy_outpost_destroyed="true"
+                                    exit_outpost_mode="true"
+                                    branch="AutoOutpostDisableOnce" />
+        </ReactiveSequence>
+      </ForceSuccess>
       <ReactiveFallback name="NavPriorityRoot">
         <!-- <ReactiveSequence name="Priority0EmergencyStop">
           <EmergencyStop name="EmergencyStop" enable_combat_stop="false" />
@@ -132,30 +157,6 @@
                                    max_remaining="420"
                                    require_game_started="false"
                                    branch="EarlyGameSpecialResponse" />
-              <ForceSuccess>
-                <ReactiveSequence name="AutoOutpostEnableOnce">
-                  <CheckGameTimeWindow name="CheckAutoOutpostEnableWindow"
-                                       min_remaining="400"
-                                       max_remaining="420"
-                                       branch="AutoOutpostEnableOnce" />
-                  <SetEnemyOutpostDestroyed name="SetAutoOutpostRemainedOnce"
-                                            enemy_outpost_destroyed="false"
-                                            branch="AutoOutpostEnableOnce" />
-                </ReactiveSequence>
-              </ForceSuccess>
-              <ForceSuccess>
-                <ReactiveSequence name="AutoOutpostDisableOnce">
-                  <CheckGameTimeWindow name="CheckAutoOutpostDisableWindow"
-                                       min_remaining="360"
-                                       max_remaining="370"
-                                       require_game_started="false"
-                                       branch="AutoOutpostDisableOnce" />
-                  <SetEnemyOutpostDestroyed name="SetAutoOutpostDestroyedOnce"
-                                            enemy_outpost_destroyed="true"
-                                            exit_outpost_mode="true"
-                                            branch="AutoOutpostDisableOnce" />
-                </ReactiveSequence>
-              </ForceSuccess>
               <ReactiveFallback name="EarlyGameSpecialSelector">
                 <ReactiveSequence name="AutoNormalOutpostResponse">
                   <CheckTacticalModeCondition name="CheckAutoOutpostNormalMode" mode="normal" branch="AutoNormalOutpostResponse" />

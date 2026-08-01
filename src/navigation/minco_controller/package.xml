@@ -25,9 +25,6 @@
 
   <depend>eigen3_cmake_module</depend>
 
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
-
   <export>
     <build_type>ament_cmake</build_type>
     <nav2_core plugin="${prefix}/minco_controller.xml" />

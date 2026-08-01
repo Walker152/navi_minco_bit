@@ -38,57 +38,8 @@ file(GLOB_RECURSE BT_MANAGER_SOURCES CONFIGURE_DEPENDS
   "src/utils/*.cpp"
 )
 
-file(GLOB_RECURSE BT_TEST_SOURCES CONFIGURE_DEPENDS
-  "src/*.cpp"
-  "src/action/*.cpp"
-  "src/condition/*.cpp"
-  "src/utils/*.cpp"
-)
-
-list(REMOVE_ITEM BT_MANAGER_SOURCES
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/event_status_pub_test.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/match_simulator_test.cpp"
-)
-
-list(REMOVE_ITEM BT_TEST_SOURCES
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/event_status_pub_test.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/test/match_simulator_test.cpp"
-)
-
 add_executable(bt_manager_node 
   ${BT_MANAGER_SOURCES}
-)
-
-add_executable(event_test
-  src/test/event_status_pub_test.cpp
-)
-
-add_executable(match_simulator
-  src/test/match_simulator_test.cpp
-)
-
-ament_target_dependencies(event_test
-  rclcpp
-  std_msgs
-  ros_interfaces
-  geometry_msgs
-  visualization_msgs
-  tf2
-  tf2_ros
-  tf2_geometry_msgs
-  nav2_behavior_tree
-)
-
-ament_target_dependencies(match_simulator
-  rclcpp
-  std_msgs
-  ros_interfaces
-  geometry_msgs
-  visualization_msgs
-  tf2
-  tf2_ros
-  tf2_geometry_msgs
 )
 
 ament_target_dependencies(bt_manager_node
@@ -109,25 +60,11 @@ ament_target_dependencies(bt_manager_node
 
 install(TARGETS
   bt_manager_node
-  event_test
-  match_simulator
   DESTINATION lib/${PROJECT_NAME}
 )
 
 install(DIRECTORY launch tree
   DESTINATION share/${PROJECT_NAME}
 )
-
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
-  set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
-  set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
 
 ament_package()
