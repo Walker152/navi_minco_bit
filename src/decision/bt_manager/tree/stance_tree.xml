@@ -77,7 +77,7 @@
         </ReactiveSequence>
 
         <ReactiveFallback name="AbsoluteAttackBranch">
-          <!-- 前哨站特殊响应:云台抬起时优先消耗强化攻击时长,不可用则回退普通攻击。 -->
+          <!-- 前哨站特殊响应:云台抬起且进入交战状态后优先消耗强化攻击时长,不可用则回退普通攻击。 -->
           <Sequence name="OutpostEnhancedAttackBranch">
             <CheckOutpostTarget goal_distance_threshold="0.5"
                                 require_pitch_up="true"
@@ -87,6 +87,7 @@
                           random_speed="false" />
             <Fallback name="OutpostAttackStanceSelector">
               <Sequence name="TryOutpostEnhancedAttack">
+                <CheckEngagedStatus expected="true" branch="OutpostAttack_Engaged" />
                 <CheckShouldEnhanceStance
                   target_stance="ATTACK"
                   accumulated_threshold="170"
