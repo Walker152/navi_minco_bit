@@ -204,6 +204,7 @@ flowchart LR
 - [Point-LIO](src/perception/Point-LIO/README.md)
 - [ROGMap / Projection / ESDF](src/perception/rog_map/README.md)
 - [Livox ROS Driver 2](src/perception/livox_ros_driver2/README.md)
+- [CloudLab 点云与地图编辑器](src/utils/pcd_trans/README.md)
 
 ## 🛠️ 安装与构建
 
