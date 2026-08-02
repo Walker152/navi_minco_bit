@@ -461,6 +461,8 @@ BT::NodeStatus CheckTunnelDeformation::tick()
   const auto lifter_current_pos = blackboard->get<LifterPos>("lifter_current_pos");
   const int tunnel_idx = blackboard->get<int>("nearest_tunnel_idx");
   const bool tunnel_escape_active = blackboard->get<bool>("tunnel_escape_active");
+  const uint8_t planned_yaw_align_mode =
+    blackboard->get<uint8_t>("planned_tunnel_yaw_align_mode");
 
   const bool tunnel_prepare_active =
     tunnel_escape_active ||
@@ -477,23 +479,30 @@ BT::NodeStatus CheckTunnelDeformation::tick()
     yaw_aligned_timing_ = false;
     deformation_started_ = false;
   } else if (valid_tunnel_idx && latched_yaw_align_mode_ == 0) {
-    const auto current_pose =
-      blackboard->get<geometry_msgs::msg::Pose>("current_pose");
-    const auto nav_goal = blackboard->get<Point2D>("nav_goal");
     const auto & config =
       tunnel_yaw_align_configs[static_cast<std::size_t>(tunnel_idx)];
+    const bool planned_mode_valid =
+      planned_yaw_align_mode == config.positive_mode ||
+      planned_yaw_align_mode == config.negative_mode;
 
-    const double travel_direction =
-      config.axis == TunnelAxis::X
-        ? nav_goal.x - current_pose.position.x
-        : nav_goal.y - current_pose.position.y;
-
-    constexpr double kDirectionEps = 0.05;
-
-    if (std::fabs(travel_direction) > kDirectionEps) {
-      latched_yaw_align_mode_ =
-        travel_direction > 0.0 ? config.positive_mode : config.negative_mode;
+    if (planned_mode_valid) {
+      latched_yaw_align_mode_ = planned_yaw_align_mode;
       latched_tunnel_idx_ = tunnel_idx;
+    } else if (current_in_tunnel && !through_tunnel) {
+      const auto current_pose =
+        blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+      const auto nav_goal = blackboard->get<Point2D>("nav_goal");
+      const double travel_direction =
+        config.axis == TunnelAxis::X
+          ? nav_goal.x - current_pose.position.x
+          : nav_goal.y - current_pose.position.y;
+
+      constexpr double kDirectionEps = 0.05;
+      if (std::fabs(travel_direction) > kDirectionEps) {
+        latched_yaw_align_mode_ =
+          travel_direction > 0.0 ? config.positive_mode : config.negative_mode;
+        latched_tunnel_idx_ = tunnel_idx;
+      }
     }
   }
 
@@ -556,6 +565,7 @@ BT::NodeStatus CheckTunnelDeformation::tick()
       << ", in_transform_zone=" << in_transform_zone
       << ", tunnel_idx=" << tunnel_idx
       << ", latched_idx=" << latched_tunnel_idx_
+      << ", planned_yaw_mode=" << static_cast<int>(planned_yaw_align_mode)
       << ", yaw_mode=" << static_cast<int>(chassis_yaw_align_mode)
       << ", chassis_yaw_aligned=" << chassis_yaw_aligned
       << ", is_transformable=" << is_transformable
@@ -697,7 +707,7 @@ BT::NodeStatus CheckInEnemyFortZone::tick()
   const std::string branch = getInput<std::string>("branch").value_or("");
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const Point2D p{current_pose.position.x, current_pose.position.y, 0.0};
-  const bool in_enemy_fort = enemy_fort_zone.contains(p);
+  const bool in_enemy_fort = enemy_fort_engage_zone.contains(p);
   // for test
   // const bool in_enemy_fort = enemy_fort_zone.contains(p);
 

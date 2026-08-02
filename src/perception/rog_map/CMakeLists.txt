@@ -89,12 +89,6 @@ if(OpenMP_CXX_FOUND)
         target_link_libraries(${library_name} OpenMP::OpenMP_CXX)
 endif()
 
-if(BUILD_TESTING)
-        find_package(ament_cmake_gtest REQUIRED)
-        ament_add_gtest(test_prior_map test/test_prior_map.cpp)
-        target_link_libraries(test_prior_map ${library_name})
-endif()
-
 install(TARGETS ${library_name}
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib

@@ -488,33 +488,82 @@ bool ros_interface::isTroughTunnel(const ros_interfaces::msg::MpcPositionCommand
     tunnel_detect_latched_ = false;
     active_tunnel_idx_ = -1;
     active_tunnel_entered_ = false;
+    blackboard_->set<uint8_t>("planned_tunnel_yaw_align_mode", 0);
   };
 
   constexpr int min_tunnel_hit_count = 5;
+  constexpr double kDirectionEps = 0.05;
   std::array<int, 4> tunnel_hit_counts{};
+  std::array<double, 4> first_axis_positions{};
+  std::array<double, 4> last_axis_positions{};
+  std::array<bool, 4> has_axis_position{};
   int matched_tunnel_idx = -1;
   if (msg) {
+    const bool normal_trajectory =
+      msg->command_flag == ros_interfaces::msg::MpcPositionCommand::NORMAL_COMMAND;
     for (const auto & cmd : msg->cmds) {
       const Point2D point{cmd.position.x, cmd.position.y};
+
+      if (matched_tunnel_idx >= 0) {
+        const auto matched_idx = static_cast<std::size_t>(matched_tunnel_idx);
+        if (!tunnel_areas[matched_idx].contains(point)) {
+          break;
+        }
+        if (normal_trajectory) {
+          const auto & direction_config = tunnel_yaw_align_configs[matched_idx];
+          last_axis_positions[matched_idx] =
+            direction_config.axis == TunnelAxis::X ? point.x : point.y;
+        }
+        continue;
+      }
+
       for (const int idx : current_transform_indices) {
         if (idx >= 0 && idx < static_cast<int>(tunnel_areas.size()) &&
             tunnel_areas[static_cast<std::size_t>(idx)].contains(point)) {
-          if (++tunnel_hit_counts[static_cast<std::size_t>(idx)] >= min_tunnel_hit_count) {
+          const auto tunnel_idx = static_cast<std::size_t>(idx);
+          if (normal_trajectory) {
+            const auto & direction_config = tunnel_yaw_align_configs[tunnel_idx];
+            const double axis_position =
+              direction_config.axis == TunnelAxis::X ? point.x : point.y;
+            if (!has_axis_position[tunnel_idx]) {
+              first_axis_positions[tunnel_idx] = axis_position;
+              has_axis_position[tunnel_idx] = true;
+            }
+            last_axis_positions[tunnel_idx] = axis_position;
+          }
+          if (++tunnel_hit_counts[tunnel_idx] >= min_tunnel_hit_count) {
             matched_tunnel_idx = idx;
             break;
           }
         }
       }
-      if (matched_tunnel_idx >= 0) {
-        break;
+    }
+  }
+
+  uint8_t detected_yaw_align_mode = 0;
+  if (matched_tunnel_idx >= 0) {
+    const auto matched_idx = static_cast<std::size_t>(matched_tunnel_idx);
+    if (has_axis_position[matched_idx]) {
+      const double axis_delta =
+        last_axis_positions[matched_idx] - first_axis_positions[matched_idx];
+      if (std::fabs(axis_delta) > kDirectionEps) {
+        const auto & direction_config = tunnel_yaw_align_configs[matched_idx];
+        detected_yaw_align_mode =
+          axis_delta > 0.0 ? direction_config.positive_mode : direction_config.negative_mode;
       }
     }
   }
 
   if (!tunnel_detect_latched_ && matched_tunnel_idx >= 0) {
+    blackboard_->set<uint8_t>("planned_tunnel_yaw_align_mode", detected_yaw_align_mode);
     tunnel_detect_latched_ = true;
     active_tunnel_idx_ = matched_tunnel_idx;
     active_tunnel_entered_ = current_tunnel_idx == active_tunnel_idx_;
+  } else if (tunnel_detect_latched_ &&
+             matched_tunnel_idx == active_tunnel_idx_ &&
+             detected_yaw_align_mode != 0 &&
+             blackboard_->get<uint8_t>("planned_tunnel_yaw_align_mode") == 0) {
+    blackboard_->set<uint8_t>("planned_tunnel_yaw_align_mode", detected_yaw_align_mode);
   }
 
   if (tunnel_detect_latched_) {
