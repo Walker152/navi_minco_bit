@@ -204,6 +204,7 @@ flowchart LR
 - [Point-LIO](src/perception/Point-LIO/README.md)
 - [ROGMap / Projection / ESDF](src/perception/rog_map/README.md)
 - [Livox ROS Driver 2](src/perception/livox_ros_driver2/README.md)
+- [CloudLab 点云与地图编辑器](src/utils/pcd_trans/README.md)
 
 ## 🛠️ 安装与构建
 
@@ -213,8 +214,8 @@ flowchart LR
 - ROS 2 Humble Desktop
 - GCC / G++ 与 C++17
 - Livox-SDK2
-- Nav2、BehaviorTree.CPP v3、PCL、Eigen3、OpenMP、yaml-cpp、glog、fmt
-- 可选：OpenCV（地图工具）、STVL（Nav2 动态体素层）
+- Nav2、STVL、BehaviorTree.CPP v3、PCL、Eigen3、OpenMP、yaml-cpp、glog、fmt
+- 可选：OpenCV（地图工具）
 
 > [!NOTE]
 > 仓库已经包含 qpOASES third-party 回退实现。部分包的 `package.xml` 仍未覆盖所有系统依赖，`rosdep` 之后可能仍需按报错安装系统库。
@@ -222,15 +223,30 @@ flowchart LR
 ### 2. 安装 ROS 依赖
 
 ```bash
-source /opt/ros/humble/setup.bash
+# 本仓库以 Humble 为基线；如使用其他 ROS 2 版本，请提前设置 ROS_DISTRO
+export ROS_DISTRO="${ROS_DISTRO:-humble}"
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
 sudo apt update
 sudo apt install -y \
   python3-colcon-common-extensions python3-rosdep \
   libeigen3-dev libpcl-dev libyaml-cpp-dev libgoogle-glog-dev \
-  libunwind-dev libfmt-dev libopencv-dev \
-  ros-humble-navigation2 ros-humble-nav2-bringup \
-  ros-humble-behaviortree-cpp-v3 \
-  ros-humble-spatio-temporal-voxel-layer
+  libunwind-dev libfmt-dev libopencv-dev libomp-dev \
+  ros-${ROS_DISTRO}-backward-ros \
+  ros-${ROS_DISTRO}-pcl-ros \
+  ros-${ROS_DISTRO}-pcl-conversions \
+  ros-${ROS_DISTRO}-ament-cmake \
+  ros-${ROS_DISTRO}-ament-cmake-core \
+  ros-${ROS_DISTRO}-ament-cmake-auto \
+  ros-${ROS_DISTRO}-behaviortree-cpp-v3 \
+  ros-${ROS_DISTRO}-spatio-temporal-voxel-layer
+
+# 安装当前 ROS 2 发行版仓库中所有 nav* / nav2* 二进制包，排除调试符号包
+mapfile -t ros_nav_packages < <(
+  apt-cache pkgnames \
+    | grep -E "^ros-${ROS_DISTRO}-(nav|nav2)" \
+    | grep -v -- '-dbgsym$'
+)
+sudo apt install -y "${ros_nav_packages[@]}"
 
 sudo rosdep init  # 仅首次安装 rosdep 时执行
 rosdep update
@@ -239,7 +255,16 @@ rosdep install --from-paths src --ignore-src -r -y
 
 若 `sudo rosdep init` 提示已初始化，直接继续 `rosdep update`。
 
-### 3. 安装 Livox-SDK2
+### 3. 安装 small_gicp 与 Sophus
+
+`small_gicp` 和 `Sophus` 需要按照各自仓库的源码安装教程安装到系统路径：
+
+- [small_gicp 官方安装教程](https://github.com/koide3/small_gicp#installation)
+- [Sophus 官方源码构建说明](https://github.com/strasdat/Sophus#how-to-build-sophus-from-source)
+
+请安装 C++ 版本；不要用同名 Python 包代替。安装完成后再构建本工作空间。
+
+### 4. 安装 Livox-SDK2
 
 按照 [Livox-SDK2 官方说明](https://github.com/Livox-SDK/Livox-SDK2) 安装。典型流程如下：
 
@@ -252,13 +277,14 @@ make -j"$(nproc)"
 sudo make install
 ```
 
-### 4. 获取仓库并构建
+### 5. 获取仓库并构建
 
 ```bash
 git clone --branch rog_map_work --single-branch \
   https://github.com/Walker152/navi_minco_bit.git ~/2025-sentry-navi
 cd ~/2025-sentry-navi
-source /opt/ros/humble/setup.bash
+export ROS_DISTRO="${ROS_DISTRO:-humble}"
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
 ./build.bash
 source install/setup.bash
 ```
@@ -453,7 +479,8 @@ scan_z_max_abs ≈ h_max - h_lidar
 
 ```bash
 cd ~/2025-sentry-navi
-source /opt/ros/humble/setup.bash
+export ROS_DISTRO="${ROS_DISTRO:-humble}"
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
 source install/setup.bash
 ```
 

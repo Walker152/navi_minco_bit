@@ -74,7 +74,10 @@ void ROGMap::init()
   performance_monitor_->configure(perf_cfg);
   MapRegistry::set(query_);
 
-  robot_state_.p = cfg_.fix_map_origin;
+  {
+    std::lock_guard<std::mutex> lock(robot_state_mutex_);
+    robot_state_.p = cfg_.fix_map_origin;
+  }
 
   if (cfg_.map_sliding_en) {
     slideAllMap(Vec3f(0, 0, 0));
@@ -97,7 +100,7 @@ void ROGMap::init()
     cur_pose.first = Vec3f(0, 0, 0);
     updateOccPointCloud(*pcd_map);
     if (cfg_.esdf_en) {
-      esdf_map_->updateESDF3D(robot_state_.p);
+      esdf_map_->updateESDF3D(cfg_.fix_map_origin);
     }
     refreshLayers();
     refreshQuery();
@@ -298,6 +301,7 @@ void ROGMap::updateMap(const PointCloud & cloud, const Pose & pose)
     return;
   }
 
+  updateRobotState(pose);
   updateMapInternal(cloud, pose);
 }
 
@@ -315,9 +319,6 @@ void ROGMap::updateMapInternal(const PointCloud & cloud, const Pose & pose)
     offset_world.z() = cfg_.map_center_offset.z();
     map_center_pos += offset_world;
   }
-  Pose map_center_pose = sensor_pose;
-  map_center_pose.first = map_center_pos;
-
   const auto total_start = std::chrono::steady_clock::now();
   const double update_stamp = getSystemWalltimeNow();
   static uint64_t update_sequence = 0;
@@ -325,14 +326,12 @@ void ROGMap::updateMapInternal(const PointCloud & cloud, const Pose & pose)
   const uint64_t projection_sequence_before = projection_sequence_;
   const uint64_t mask_sequence_before = mask_sequence_;
   const uint64_t field_sequence_before = field_sequence_;
-  updateRobotState(map_center_pose);
-  const double update_robot_state_ms = elapsedMs(total_start);
   const double now = getSystemWalltimeNow();
   setUpdateTime(now);
   updateProbMap(cloud, sensor_pose, map_center_pos);
   runtime_stats_.stamp = update_stamp;
   runtime_stats_.update_seq = static_cast<double>(this_update_sequence);
-  runtime_stats_.update_robot_state_time = update_robot_state_ms;
+  runtime_stats_.update_robot_state_time = 0.0;
   runtime_stats_.projection_sequence_delta =
     static_cast<double>(projection_sequence_ - projection_sequence_before);
   runtime_stats_.mask_sequence_delta = static_cast<double>(mask_sequence_ - mask_sequence_before);
@@ -348,7 +347,7 @@ void ROGMap::updateMapInternal(const PointCloud & cloud, const Pose & pose)
     runtime_stats_.decay_time = elapsedMs(decay_start);
   }
   if (decay_changed && cfg_.esdf_en) {
-    esdf_map_->updateESDF3D(robot_state_.p);
+    esdf_map_->updateESDF3D(map_center_pos);
   }
 
   const auto layers_start = std::chrono::steady_clock::now();
@@ -879,15 +878,16 @@ void ROGMap::refreshQuery()
 
 RobotState ROGMap::getRobotState() const
 {
+  std::lock_guard<std::mutex> lock(robot_state_mutex_);
   return robot_state_;
 }
 
 void ROGMap::updateRobotState(const Pose & pose)
 {
+  std::lock_guard<std::mutex> lock(robot_state_mutex_);
   robot_state_.p = pose.first;
   robot_state_.q = pose.second;
   robot_state_.rcv_time = getSystemWalltimeNow();
   robot_state_.rcv = true;
   robot_state_.yaw = get_yaw_from_quaternion<double>(pose.second);
-  updateLocalBox(pose.first);
 }
