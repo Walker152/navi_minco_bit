@@ -31,3 +31,5 @@ award/
 # AGENTS.md
 CLAUDE.md
 src/perception/Point-LIO/PCD/scans.pcd
+
+/src/perception/Point-LIO/Log/*.txt
