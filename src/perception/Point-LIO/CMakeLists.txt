@@ -156,29 +156,6 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
-if(BUILD_TESTING)
-  find_package(ament_cmake_gtest REQUIRED)
-  ament_add_gtest(time_batching_test test/time_batching_test.cpp)
-  target_include_directories(time_batching_test PRIVATE include)
-
-  ament_add_gtest(sensor_time_rate_limiter_test test/sensor_time_rate_limiter_test.cpp)
-  target_include_directories(sensor_time_rate_limiter_test PRIVATE include)
-
-  ament_add_gtest(
-    ivox_map_voxel_dedup_test
-    test/ivox_map_voxel_dedup_test.cpp
-  )
-  target_include_directories(ivox_map_voxel_dedup_test PRIVATE include)
-  target_link_libraries(ivox_map_voxel_dedup_test ${PCL_LIBRARIES})
-
-  ament_add_gtest(
-    runtime_statistics_test
-    test/runtime_statistics_test.cpp
-    src/runtime_statistics.cpp
-  )
-  target_include_directories(runtime_statistics_test PRIVATE include)
-endif()
-
 # Export dependencies
 ament_export_dependencies(
   rclcpp

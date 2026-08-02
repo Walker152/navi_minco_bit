@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web点云可视化处理工具 Pro v2.7 (Map Rotate Export)</title>
+    <title>CloudLab Studio - 专业点云与地图编辑器</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM -->
@@ -53,6 +53,93 @@
             border-radius: 5px; margin-bottom: 10px; pointer-events: auto;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3); max-width: 600px;
         }
+
+        :root {
+            --studio-bg: #071018;
+            --studio-panel: #0c1722;
+            --studio-panel-2: #101e2c;
+            --studio-border: #263849;
+            --studio-muted: #7890a3;
+            --studio-text: #dce8f2;
+            --studio-accent: #27b3ff;
+            --studio-green: #35d39a;
+            --studio-warn: #f7b955;
+        }
+        * { box-sizing: border-box; }
+        button, input, select, textarea { font: inherit; }
+        .studio-shell { position: fixed; inset: 0; display: grid; grid-template-rows: 46px 1fr 28px; background: var(--studio-bg); color: var(--studio-text); z-index: 50; }
+        .studio-topbar { display: flex; align-items: center; gap: 7px; padding: 0 10px; background: #09141e; border-bottom: 1px solid var(--studio-border); min-width: 0; }
+        .studio-brand { display: flex; align-items: center; gap: 8px; font-weight: 750; letter-spacing: .2px; white-space: nowrap; margin-right: 8px; }
+        .studio-logo { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 7px; color: #03121c; background: linear-gradient(135deg, #57d8ff, #2d7bff); font-weight: 900; }
+        .studio-version { color: var(--studio-muted); font-size: 10px; font-weight: 500; }
+        .studio-button { height: 30px; border: 1px solid var(--studio-border); border-radius: 5px; background: #112131; color: #c9d8e5; padding: 0 10px; cursor: pointer; transition: .15s; white-space: nowrap; }
+        .studio-button:hover:not(:disabled) { border-color: #3e6684; background: #162b3e; }
+        .studio-button:disabled { opacity: .4; cursor: not-allowed; }
+        .studio-button.primary { background: #12689b; border-color: #268dcc; color: white; }
+        .studio-button.success { background: #11674e; border-color: #21966f; color: white; }
+        .studio-button.danger { background: #71323a; border-color: #9f4653; color: white; }
+        .studio-spacer { flex: 1; min-width: 8px; }
+        .studio-mode { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--studio-muted); white-space: nowrap; }
+        .studio-dot { width: 7px; height: 7px; border-radius: 50%; background: #637381; box-shadow: 0 0 0 3px rgba(99,115,129,.12); }
+        .studio-dot.online { background: var(--studio-green); box-shadow: 0 0 0 3px rgba(53,211,154,.12); }
+        .studio-main { min-height: 0; display: flex; position: relative; }
+        .studio-dock { min-width: 0; height: 100%; display: flex; flex-direction: column; background: var(--studio-panel); overflow: hidden; }
+        .studio-left { border-right: 1px solid var(--studio-border); }
+        .studio-right { border-left: 1px solid var(--studio-border); }
+        .studio-dock-header { height: 38px; flex: 0 0 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 11px; border-bottom: 1px solid var(--studio-border); background: #0a151f; color: #b9cad7; font-size: 11px; text-transform: uppercase; letter-spacing: .9px; font-weight: 700; }
+        .studio-collapse { background: transparent; border: 0; color: #7d97aa; cursor: pointer; font-size: 15px; }
+        .studio-scroll { overflow: auto; min-height: 0; padding: 9px; }
+        .studio-resizer { width: 5px; flex: 0 0 5px; cursor: col-resize; background: transparent; position: relative; z-index: 4; }
+        .studio-resizer::after { content: ''; position: absolute; top: 0; bottom: 0; left: 2px; width: 1px; background: transparent; }
+        .studio-resizer:hover::after, .studio-resizer.dragging::after { background: var(--studio-accent); box-shadow: 0 0 8px rgba(39,179,255,.7); }
+        .studio-viewport { flex: 1; min-width: 180px; min-height: 0; position: relative; overflow: hidden; background: #071018; }
+        .studio-viewport .canvas-container { position: absolute; inset: 0; width: 100%; height: 100%; }
+        .studio-view-tools { position: absolute; z-index: 12; top: 9px; left: 9px; display: flex; gap: 4px; padding: 4px; background: rgba(7,16,24,.84); border: 1px solid rgba(55,79,99,.9); border-radius: 6px; backdrop-filter: blur(8px); }
+        .studio-view-tools button { background: transparent; border: 0; color: #9cb0c0; height: 26px; padding: 0 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+        .studio-view-tools button:hover, .studio-view-tools button.active { background: #17344a; color: #71d6ff; }
+        .studio-selection-note { position: absolute; z-index: 12; bottom: 10px; left: 10px; padding: 7px 9px; border-radius: 5px; background: rgba(7,16,24,.86); border: 1px solid #31485b; color: #9db3c4; font-size: 11px; pointer-events: none; }
+        .studio-section { border: 1px solid var(--studio-border); border-radius: 7px; background: var(--studio-panel-2); margin-bottom: 8px; overflow: hidden; }
+        .studio-section-title { display: flex; align-items: center; justify-content: space-between; padding: 9px 10px; font-size: 12px; font-weight: 650; border-bottom: 1px solid rgba(38,56,73,.75); }
+        .studio-section-body { padding: 10px; }
+        .studio-pipeline-item { width: 100%; display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #a9bdcc; padding: 8px; margin-bottom: 3px; text-align: left; cursor: pointer; }
+        .studio-pipeline-item:hover { background: #112536; }
+        .studio-pipeline-item.active { color: #e8f7ff; background: #12324a; border-color: #265b7c; }
+        .studio-step-icon { width: 21px; height: 21px; display: grid; place-items: center; border-radius: 5px; background: #182b3c; font-size: 11px; }
+        .studio-pipeline-item.active .studio-step-icon { background: #1475aa; }
+        .studio-step-meta { color: #648096; font-size: 9px; }
+        .studio-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .studio-stat { padding: 8px; background: #0a1620; border: 1px solid #213545; border-radius: 6px; }
+        .studio-stat span { display: block; color: var(--studio-muted); font-size: 9px; margin-bottom: 3px; }
+        .studio-stat strong { color: #d8e9f5; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .studio-field { margin-bottom: 10px; }
+        .studio-label { display: flex; align-items: center; justify-content: space-between; color: #92a8b8; font-size: 10px; margin-bottom: 5px; }
+        .studio-input, .studio-select { width: 100%; height: 30px; border: 1px solid #2a4357; border-radius: 5px; background: #08131c; color: #d9e6ef; padding: 0 8px; outline: none; }
+        .studio-input:focus, .studio-select:focus { border-color: #2d92ca; }
+        .studio-row { display: flex; gap: 6px; align-items: center; }
+        .studio-row > * { min-width: 0; flex: 1; }
+        .studio-range { width: 100%; }
+        .studio-check { display: flex; gap: 6px; align-items: center; color: #9cb0c0; font-size: 11px; margin: 6px 0; }
+        .studio-chip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .studio-chip { border: 1px solid #2b4355; border-radius: 5px; background: #0c1a25; color: #a9becc; padding: 6px 7px; font-size: 10px; cursor: pointer; text-align: left; }
+        .studio-chip.active { border-color: var(--chip); box-shadow: inset 3px 0 var(--chip); color: white; }
+        .studio-help { color: #6f899c; font-size: 10px; line-height: 1.45; }
+        .studio-history { padding: 6px 0 0; margin: 0; list-style: none; }
+        .studio-history li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 1px; color: #8fa5b5; font-size: 10px; border-bottom: 1px solid rgba(38,56,73,.45); }
+        .studio-history li:last-child { border-bottom: 0; }
+        .studio-progress { height: 3px; background: #172b3b; position: relative; overflow: hidden; }
+        .studio-progress > div { height: 100%; background: linear-gradient(90deg,#1f95d0,#47d6ff); transition: width .2s; }
+        .studio-task { position: absolute; z-index: 20; right: 12px; bottom: 40px; width: min(340px, calc(100% - 24px)); border: 1px solid #31546c; border-radius: 7px; background: rgba(8,20,30,.96); box-shadow: 0 10px 35px rgba(0,0,0,.42); overflow: hidden; }
+        .studio-task-body { padding: 9px 11px; display: flex; justify-content: space-between; gap: 10px; font-size: 11px; color: #a8c1d2; }
+        .studio-status { display: flex; align-items: center; gap: 16px; min-width: 0; padding: 0 10px; background: #07111a; border-top: 1px solid var(--studio-border); color: #6f8799; font-size: 10px; }
+        .studio-status strong { color: #a8bfce; font-weight: 500; }
+        .studio-map-preview { display: block; width: 100%; height: auto; max-height: 260px; object-fit: contain; image-rendering: pixelated; border: 1px solid #314a5c; border-radius: 5px; background: #111; }
+        .studio-warning { padding: 8px; border: 1px solid #6d5530; background: rgba(116,75,19,.18); color: #e6bd76; border-radius: 5px; font-size: 10px; line-height: 1.45; }
+        @media (max-width: 900px) {
+            .studio-left { position: absolute; z-index: 18; left: 0; top: 0; bottom: 0; box-shadow: 8px 0 25px rgba(0,0,0,.35); }
+            .studio-right { position: absolute; z-index: 18; right: 0; top: 0; bottom: 0; box-shadow: -8px 0 25px rgba(0,0,0,.35); }
+            .studio-resizer { display: none; }
+            .studio-topbar .studio-button.optional { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -67,6 +154,713 @@
             document.getElementById('error-boundary').appendChild(div);
             return false;
         };
+    </script>
+
+    <script id="cloudlab-core">
+    /* CLOUDLAB_CORE_START */
+    (() => {
+        'use strict';
+
+        const SEMANTIC = Object.freeze({
+            UNCLASSIFIED: 0,
+            GROUND: 1,
+            SLOPE: 2,
+            WALL: 3,
+            OBSTACLE: 4,
+            NOISE: 5,
+        });
+
+        const cameraGestureForButton = (button, selectionMode = 'none') => {
+            if (button === 0) return selectionMode === 'none' ? 'orbit' : 'select';
+            if (button === 1 || button === 2) return 'pan';
+            return 'none';
+        };
+
+        const finitePoints = (points) => {
+            const result = [];
+            for (let i = 0; i + 2 < points.length; i += 3) {
+                const x = points[i], y = points[i + 1], z = points[i + 2];
+                if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) result.push(x, y, z);
+            }
+            return new Float32Array(result);
+        };
+
+        const computeBounds = (points) => {
+            let minX = Infinity, minY = Infinity, minZ = Infinity;
+            let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+            for (let i = 0; i + 2 < points.length; i += 3) {
+                const x = points[i], y = points[i + 1], z = points[i + 2];
+                if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+                minX = Math.min(minX, x); minY = Math.min(minY, y); minZ = Math.min(minZ, z);
+                maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); maxZ = Math.max(maxZ, z);
+            }
+            if (!Number.isFinite(minX)) return { minX: 0, minY: 0, minZ: 0, maxX: 0, maxY: 0, maxZ: 0 };
+            return { minX, minY, minZ, maxX, maxY, maxZ };
+        };
+
+        const parsePcd = (buffer) => {
+            const bytes = new Uint8Array(buffer);
+            const decoder = new TextDecoder();
+            const header = { fields: [], size: [], type: [], count: [], points: 0, data: '', dataOffset: 0 };
+            let start = 0;
+            for (let cursor = 0; cursor < bytes.length; cursor++) {
+                if (bytes[cursor] !== 10) continue;
+                const line = decoder.decode(bytes.subarray(start, cursor)).trim();
+                start = cursor + 1;
+                if (!line || line.startsWith('#')) continue;
+                const parts = line.split(/\s+/);
+                const key = parts[0].toUpperCase();
+                if (key === 'FIELDS' || key === 'FIELD') header.fields = parts.slice(1).map(v => v.toLowerCase());
+                else if (key === 'SIZE') header.size = parts.slice(1).map(Number);
+                else if (key === 'TYPE') header.type = parts.slice(1).map(v => v.toUpperCase());
+                else if (key === 'COUNT') header.count = parts.slice(1).map(Number);
+                else if (key === 'POINTS') header.points = Number(parts[1]);
+                else if (key === 'WIDTH' && !header.points) header.points = Number(parts[1]);
+                else if (key === 'DATA') {
+                    header.data = (parts[1] || '').toLowerCase();
+                    header.dataOffset = cursor + 1;
+                    break;
+                }
+            }
+            if (!header.fields.length || !header.data) throw new Error('PCD 头部不完整');
+            if (header.data === 'binary_compressed') throw new Error('binary_compressed PCD 需要启动 Open3D 后端');
+            if (header.data !== 'ascii' && header.data !== 'binary') throw new Error(`不支持 PCD DATA ${header.data}`);
+            while (header.size.length < header.fields.length) header.size.push(4);
+            while (header.type.length < header.fields.length) header.type.push('F');
+            while (header.count.length < header.fields.length) header.count.push(1);
+            const xField = header.fields.indexOf('x'), yField = header.fields.indexOf('y'), zField = header.fields.indexOf('z');
+            if (xField < 0 || yField < 0 || zField < 0) throw new Error('PCD 文件缺少 x, y, z 字段');
+            const intensityField = header.fields.indexOf('intensity');
+            const labelField = header.fields.indexOf('label');
+            const points = [];
+            const intensity = [];
+            const labels = [];
+
+            const tokenOffsets = [];
+            const byteOffsets = [];
+            let tokenStride = 0, byteStride = 0;
+            for (let i = 0; i < header.fields.length; i++) {
+                tokenOffsets[i] = tokenStride;
+                byteOffsets[i] = byteStride;
+                tokenStride += header.count[i];
+                byteStride += header.size[i] * header.count[i];
+            }
+
+            if (header.data === 'ascii') {
+                const rows = decoder.decode(bytes.subarray(header.dataOffset)).split(/\r?\n/);
+                for (const row of rows) {
+                    const clean = row.trim();
+                    if (!clean || clean.startsWith('#')) continue;
+                    const values = clean.split(/\s+/);
+                    const x = Number(values[tokenOffsets[xField]]);
+                    const y = Number(values[tokenOffsets[yField]]);
+                    const z = Number(values[tokenOffsets[zField]]);
+                    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+                    points.push(x, y, z);
+                    if (intensityField >= 0) intensity.push(Number(values[tokenOffsets[intensityField]]) || 0);
+                    if (labelField >= 0) labels.push(Number(values[tokenOffsets[labelField]]) || 0);
+                }
+            } else {
+                const view = new DataView(buffer, header.dataOffset);
+                const readScalar = (offset, size, type) => {
+                    if (type === 'F') return size === 8 ? view.getFloat64(offset, true) : view.getFloat32(offset, true);
+                    if (type === 'I') {
+                        if (size === 1) return view.getInt8(offset);
+                        if (size === 2) return view.getInt16(offset, true);
+                        return view.getInt32(offset, true);
+                    }
+                    if (size === 1) return view.getUint8(offset);
+                    if (size === 2) return view.getUint16(offset, true);
+                    return view.getUint32(offset, true);
+                };
+                const available = Math.floor(view.byteLength / byteStride);
+                const count = Math.min(header.points || available, available);
+                for (let p = 0; p < count; p++) {
+                    const row = p * byteStride;
+                    const x = readScalar(row + byteOffsets[xField], header.size[xField], header.type[xField]);
+                    const y = readScalar(row + byteOffsets[yField], header.size[yField], header.type[yField]);
+                    const z = readScalar(row + byteOffsets[zField], header.size[zField], header.type[zField]);
+                    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+                    points.push(x, y, z);
+                    if (intensityField >= 0) intensity.push(readScalar(row + byteOffsets[intensityField], header.size[intensityField], header.type[intensityField]));
+                    if (labelField >= 0) labels.push(readScalar(row + byteOffsets[labelField], header.size[labelField], header.type[labelField]));
+                }
+            }
+            return {
+                points: new Float32Array(points),
+                intensity: intensityField >= 0 ? new Float32Array(intensity) : null,
+                labels: labelField >= 0 ? new Uint8Array(labels) : null,
+                header,
+            };
+        };
+
+        const voxelGridFilter = (points, leafSize) => {
+            if (!(leafSize > 0)) return new Float32Array(points);
+            const voxels = new Map();
+            const inv = 1 / leafSize;
+            for (let i = 0; i + 2 < points.length; i += 3) {
+                const x = points[i], y = points[i + 1], z = points[i + 2];
+                const key = `${Math.floor(x * inv)},${Math.floor(y * inv)},${Math.floor(z * inv)}`;
+                const cell = voxels.get(key);
+                if (cell) {
+                    cell.x += x; cell.y += y; cell.z += z; cell.count += 1;
+                } else {
+                    voxels.set(key, { x, y, z, count: 1 });
+                }
+            }
+            const result = new Float32Array(voxels.size * 3);
+            let offset = 0;
+            voxels.forEach(cell => {
+                result[offset++] = cell.x / cell.count;
+                result[offset++] = cell.y / cell.count;
+                result[offset++] = cell.z / cell.count;
+            });
+            return result;
+        };
+
+        const cropByBox = (points, box, keepInside = true) => {
+            const result = [];
+            for (let i = 0; i + 2 < points.length; i += 3) {
+                const x = points[i], y = points[i + 1], z = points[i + 2];
+                const inside = x >= box.minX && x <= box.maxX &&
+                    y >= box.minY && y <= box.maxY && z >= box.minZ && z <= box.maxZ;
+                if (inside === keepInside) result.push(x, y, z);
+            }
+            return new Float32Array(result);
+        };
+
+        const pointInOrientedBox = (x, y, z, box) => {
+            const centerX = box.centerX ?? (box.minX + box.maxX) / 2;
+            const centerY = box.centerY ?? (box.minY + box.maxY) / 2;
+            const centerZ = box.centerZ ?? (box.minZ + box.maxZ) / 2;
+            const halfX = (box.sizeX ?? (box.maxX - box.minX)) / 2;
+            const halfY = (box.sizeY ?? (box.maxY - box.minY)) / 2;
+            const halfZ = (box.sizeZ ?? (box.maxZ - box.minZ)) / 2;
+            const angle = -(box.yawDeg || 0) * Math.PI / 180;
+            const dx = x - centerX, dy = y - centerY;
+            const localX = dx * Math.cos(angle) - dy * Math.sin(angle);
+            const localY = dx * Math.sin(angle) + dy * Math.cos(angle);
+            return Math.abs(localX) <= halfX + 1e-8 && Math.abs(localY) <= halfY + 1e-8 && Math.abs(z - centerZ) <= halfZ + 1e-8;
+        };
+
+        const cropByOrientedBox = (points, box, keepInside = true) => {
+            const result = [];
+            for (let i = 0; i + 2 < points.length; i += 3) {
+                const inside = pointInOrientedBox(points[i], points[i + 1], points[i + 2], box);
+                if (inside === keepInside) result.push(points[i], points[i + 1], points[i + 2]);
+            }
+            return new Float32Array(result);
+        };
+
+        const pointOnSegment = (x, y, ax, ay, bx, by) => {
+            const cross = (x - ax) * (by - ay) - (y - ay) * (bx - ax);
+            if (Math.abs(cross) > 1e-8) return false;
+            const dot = (x - ax) * (x - bx) + (y - ay) * (y - by);
+            return dot <= 1e-8;
+        };
+
+        const pointInPolygon = (x, y, polygon) => {
+            if (!polygon || polygon.length < 3) return false;
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const [xi, yi] = polygon[i], [xj, yj] = polygon[j];
+                if (pointOnSegment(x, y, xi, yi, xj, yj)) return true;
+                const crosses = ((yi > y) !== (yj > y)) &&
+                    (x < (xj - xi) * (y - yi) / ((yj - yi) || Number.EPSILON) + xi);
+                if (crosses) inside = !inside;
+            }
+            return inside;
+        };
+
+        const cropByPolygon = (points, polygon, keepInside = true, minZ = -Infinity, maxZ = Infinity) => {
+            const result = [];
+            for (let i = 0; i + 2 < points.length; i += 3) {
+                const x = points[i], y = points[i + 1], z = points[i + 2];
+                const inside = z >= minZ && z <= maxZ && pointInPolygon(x, y, polygon);
+                if (inside === keepInside) result.push(x, y, z);
+            }
+            return new Float32Array(result);
+        };
+
+        const radiusOutlierFilter = (points, radius, minNeighbors) => {
+            if (!(radius > 0) || minNeighbors <= 0) return new Float32Array(points);
+            const inv = 1 / radius;
+            const buckets = new Map();
+            const keyOf = (x, y, z) => `${Math.floor(x * inv)},${Math.floor(y * inv)},${Math.floor(z * inv)}`;
+            for (let i = 0; i < points.length; i += 3) {
+                const key = keyOf(points[i], points[i + 1], points[i + 2]);
+                if (!buckets.has(key)) buckets.set(key, []);
+                buckets.get(key).push(i);
+            }
+            const radiusSq = radius * radius;
+            const result = [];
+            for (let i = 0; i < points.length; i += 3) {
+                const x = points[i], y = points[i + 1], z = points[i + 2];
+                const ix = Math.floor(x * inv), iy = Math.floor(y * inv), iz = Math.floor(z * inv);
+                let neighbors = 0;
+                outer: for (let dx = -1; dx <= 1; dx++) {
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dz = -1; dz <= 1; dz++) {
+                            const bucket = buckets.get(`${ix + dx},${iy + dy},${iz + dz}`) || [];
+                            for (const j of bucket) {
+                                if (j === i) continue;
+                                const qx = points[j] - x, qy = points[j + 1] - y, qz = points[j + 2] - z;
+                                if (qx * qx + qy * qy + qz * qz <= radiusSq && ++neighbors >= minNeighbors) break outer;
+                            }
+                        }
+                    }
+                }
+                if (neighbors >= minNeighbors) result.push(x, y, z);
+            }
+            return new Float32Array(result);
+        };
+
+        const classifyNormals = (normals, config = {}) => {
+            const groundMax = config.groundMaxDeg ?? 8;
+            const slopeMax = config.slopeMaxDeg ?? 38;
+            const wallMin = config.wallMinDeg ?? 70;
+            const labels = new Uint8Array(Math.floor(normals.length / 3));
+            for (let i = 0, p = 0; i + 2 < normals.length; i += 3, p++) {
+                const nx = normals[i], ny = normals[i + 1], nz = normals[i + 2];
+                const length = Math.hypot(nx, ny, nz) || 1;
+                const angle = Math.acos(Math.min(1, Math.max(0, Math.abs(nz) / length))) * 180 / Math.PI;
+                labels[p] = angle <= groundMax ? SEMANTIC.GROUND :
+                    angle <= slopeMax ? SEMANTIC.SLOPE :
+                    angle >= wallMin ? SEMANTIC.WALL : SEMANTIC.OBSTACLE;
+            }
+            return labels;
+        };
+
+        const classifySurface = (points, config = {}) => {
+            const cellSize = config.cellSize ?? 0.3;
+            if (!(cellSize > 0)) throw new Error('坡面网格必须大于 0');
+            const bounds = computeBounds(points);
+            const width = Math.max(1, Math.floor((bounds.maxX - bounds.minX) / cellSize) + 1);
+            const height = Math.max(1, Math.floor((bounds.maxY - bounds.minY) / cellSize) + 1);
+            const cells = new Map();
+            for (let i = 0, p = 0; i + 2 < points.length; i += 3, p++) {
+                const ix = Math.min(width - 1, Math.floor((points[i] - bounds.minX) / cellSize));
+                const iy = Math.min(height - 1, Math.floor((points[i + 1] - bounds.minY) / cellSize));
+                const idx = iy * width + ix;
+                const z = points[i + 2];
+                const cell = cells.get(idx) || { count: 0, sum: 0, sumSq: 0, min: Infinity, max: -Infinity };
+                cell.count++; cell.sum += z; cell.sumSq += z * z;
+                cell.min = Math.min(cell.min, z); cell.max = Math.max(cell.max, z);
+                cells.set(idx, cell);
+            }
+            cells.forEach(cell => {
+                cell.mean = cell.sum / cell.count;
+                cell.roughness = Math.sqrt(Math.max(0, cell.sumSq / cell.count - cell.mean * cell.mean));
+            });
+            const meanAt = (x, y) => {
+                if (x < 0 || y < 0 || x >= width || y >= height) return null;
+                const cell = cells.get(y * width + x);
+                return cell ? cell.mean : null;
+            };
+            const cellLabels = new Uint8Array(width * height);
+            cells.forEach((cell, idx) => {
+                const x = idx % width, y = Math.floor(idx / width);
+                const left = meanAt(x - 1, y), right = meanAt(x + 1, y);
+                const down = meanAt(x, y - 1), up = meanAt(x, y + 1);
+                const dzdx = left !== null && right !== null ? (right - left) / (2 * cellSize) :
+                    right !== null ? (right - cell.mean) / cellSize : left !== null ? (cell.mean - left) / cellSize : 0;
+                const dzdy = down !== null && up !== null ? (up - down) / (2 * cellSize) :
+                    up !== null ? (up - cell.mean) / cellSize : down !== null ? (cell.mean - down) / cellSize : 0;
+                const span = cell.max - cell.min;
+                if (span >= (config.wallHeightMin ?? 1.0)) cellLabels[idx] = SEMANTIC.WALL;
+                else if (cell.roughness > (config.roughnessMax ?? 0.2)) cellLabels[idx] = SEMANTIC.OBSTACLE;
+                else cellLabels[idx] = classifyNormals(new Float32Array([-dzdx, -dzdy, 1]), config)[0];
+            });
+            const labels = new Uint8Array(Math.floor(points.length / 3));
+            for (let i = 0, p = 0; i + 2 < points.length; i += 3, p++) {
+                const ix = Math.min(width - 1, Math.floor((points[i] - bounds.minX) / cellSize));
+                const iy = Math.min(height - 1, Math.floor((points[i + 1] - bounds.minY) / cellSize));
+                labels[p] = cellLabels[iy * width + ix] || SEMANTIC.UNCLASSIFIED;
+            }
+            return labels;
+        };
+
+        const gridDimensions = (config) => {
+            if (!(config.resolution > 0)) throw new Error('分辨率必须大于 0');
+            const width = Math.max(1, Math.ceil((config.maxX - config.minX) / config.resolution));
+            const height = Math.max(1, Math.ceil((config.maxY - config.minY) / config.resolution));
+            if (width * height > 100000000) throw new Error('地图栅格超过 1 亿，需提高分辨率或缩小范围');
+            return { width, height };
+        };
+
+        const cleanupOccupancy = (input, width, height, config = {}) => {
+            if (input.length !== width * height) throw new Error('占据图清理尺寸不匹配');
+            let data = new Uint8Array(input);
+            const neighborCounts = (source, row, column) => {
+                let occupied = 0, free = 0;
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (!dr && !dc) continue;
+                        const r = row + dr, c = column + dc;
+                        if (r < 0 || c < 0 || r >= height || c >= width) continue;
+                        const value = source[r * width + c];
+                        if (value === 0) occupied++;
+                        else if (value === 254) free++;
+                    }
+                }
+                return { occupied, free };
+            };
+            if (config.removeIsolated) {
+                const source = data, output = new Uint8Array(source);
+                const minimum = config.minOccupiedNeighbors ?? 1;
+                for (let row = 0; row < height; row++) for (let column = 0; column < width; column++) {
+                    const idx = row * width + column;
+                    if (source[idx] !== 0) continue;
+                    const counts = neighborCounts(source, row, column);
+                    if (counts.occupied < minimum) output[idx] = counts.free ? 254 : 205;
+                }
+                data = output;
+            }
+            if (config.fillHoles) {
+                const source = data, output = new Uint8Array(source);
+                const minimum = config.fillHoleNeighbors ?? 8;
+                for (let row = 0; row < height; row++) for (let column = 0; column < width; column++) {
+                    const idx = row * width + column;
+                    if (source[idx] !== 254) continue;
+                    if (neighborCounts(source, row, column).occupied >= minimum) output[idx] = 0;
+                }
+                data = output;
+            }
+            return data;
+        };
+
+        const buildOccupancyGrid = (points, labels, config) => {
+            const { width, height } = gridDimensions(config);
+            const cellCount = width * height;
+            const occupied = new Uint32Array(cellCount);
+            const free = new Uint32Array(cellCount);
+            const semanticFree = new Uint32Array(cellCount);
+            const minZ = config.minZ ?? -Infinity, maxZ = config.maxZ ?? Infinity;
+            const obstacleMinZ = config.obstacleMinZ ?? 0.15;
+            for (let i = 0, p = 0; i + 2 < points.length; i += 3, p++) {
+                const x = points[i], y = points[i + 1], z = points[i + 2];
+                if (z < minZ || z > maxZ) continue;
+                const ix = Math.floor((x - config.minX) / config.resolution);
+                const iy = Math.floor((y - config.minY) / config.resolution);
+                if (ix < 0 || iy < 0 || ix >= width || iy >= height) continue;
+                const row = height - iy - 1;
+                const idx = row * width + ix;
+                const label = labels && p < labels.length ? labels[p] : SEMANTIC.UNCLASSIFIED;
+                if (label === SEMANTIC.NOISE) continue;
+                if (label === SEMANTIC.WALL || label === SEMANTIC.OBSTACLE ||
+                    (label === SEMANTIC.UNCLASSIFIED && z >= obstacleMinZ)) occupied[idx] += 1;
+                else {
+                    free[idx] += 1;
+                    if (label === SEMANTIC.GROUND || label === SEMANTIC.SLOPE) semanticFree[idx] += 1;
+                }
+            }
+            const minimum = Math.max(1, config.minPointsPerCell || 1);
+            let data = new Uint8Array(cellCount);
+            data.fill(205);
+            for (let i = 0; i < cellCount; i++) {
+                if (occupied[i] >= minimum) data[i] = 0;
+                else if (free[i] >= minimum) data[i] = 254;
+            }
+            if (config.removeIsolated || config.fillHoles) data = cleanupOccupancy(data, width, height, config);
+            let estimatedCells = 0, estimatedMask;
+            if (config.estimateSemanticFree) {
+                const semanticFreeMask = new Uint8Array(cellCount);
+                for (let i = 0; i < cellCount; i++) if (semanticFree[i] >= minimum) semanticFreeMask[i] = 1;
+                const estimate = estimateSemanticFreeSpace(data, width, height, semanticFreeMask, {
+                    radiusCells: Math.ceil((config.estimateRadius ?? 0.25) / config.resolution),
+                    obstacleClearanceCells: Math.ceil((config.obstacleClearance ?? 0.15) / config.resolution),
+                });
+                data = estimate.data; estimatedCells = estimate.estimatedCells; estimatedMask = estimate.estimatedMask;
+            }
+            let occupiedCells = 0, freeCells = 0;
+            for (const value of data) { if (value === 0) occupiedCells++; else if (value === 254) freeCells++; }
+            let grid = {
+                width, height, data,
+                resolution: config.resolution,
+                originX: config.minX,
+                originY: config.minY,
+                estimatedMask,
+                stats: { occupied: occupiedCells, free: freeCells, unknown: cellCount - occupiedCells - freeCells, estimated: estimatedCells },
+            };
+            if (config.autoTrimUnknown) grid = trimUnknownBorder(grid, Math.ceil((config.trimPadding ?? 0.25) / config.resolution));
+            if (grid.width !== width || grid.height !== height) {
+                occupiedCells = 0; freeCells = 0;
+                for (const value of grid.data) { if (value === 0) occupiedCells++; else if (value === 254) freeCells++; }
+                grid.stats = { ...grid.stats, occupied: occupiedCells, free: freeCells, unknown: grid.data.length - occupiedCells - freeCells };
+            }
+            return grid;
+        };
+
+        const edt1d = (source) => {
+            const n = source.length;
+            const result = new Float64Array(n);
+            const sites = [];
+            for (let i = 0; i < n; i++) if (Number.isFinite(source[i])) sites.push(i);
+            if (!sites.length) { result.fill(Infinity); return result; }
+            const v = new Int32Array(n);
+            const z = new Float64Array(n + 1);
+            let k = 0;
+            v[0] = sites[0]; z[0] = -Infinity; z[1] = Infinity;
+            for (let sidx = 1; sidx < sites.length; sidx++) {
+                const q = sites[sidx];
+                let intersection;
+                do {
+                    const p = v[k];
+                    intersection = ((source[q] + q * q) - (source[p] + p * p)) / (2 * (q - p));
+                    if (intersection <= z[k]) k--;
+                    else break;
+                } while (k >= 0);
+                k++;
+                v[k] = q;
+                z[k] = intersection;
+                z[k + 1] = Infinity;
+            }
+            k = 0;
+            for (let q = 0; q < n; q++) {
+                while (z[k + 1] < q) k++;
+                const delta = q - v[k];
+                result[q] = delta * delta + source[v[k]];
+            }
+            return result;
+        };
+
+        const distanceTransform = (sourceMask, width, height) => {
+            const first = new Float64Array(width * height);
+            const output = new Float64Array(width * height);
+            for (let r = 0; r < height; r++) {
+                const row = new Float64Array(width);
+                for (let c = 0; c < width; c++) row[c] = sourceMask[r * width + c] ? 0 : Infinity;
+                first.set(edt1d(row), r * width);
+            }
+            for (let c = 0; c < width; c++) {
+                const column = new Float64Array(height);
+                for (let r = 0; r < height; r++) column[r] = first[r * width + c];
+                const transformed = edt1d(column);
+                for (let r = 0; r < height; r++) output[r * width + c] = transformed[r];
+            }
+            return output;
+        };
+
+        const estimateSemanticFreeSpace = (input, width, height, semanticFreeMask, config = {}) => {
+            if (input.length !== width * height || semanticFreeMask.length !== input.length) throw new Error('语义补全尺寸不匹配');
+            const data = new Uint8Array(input);
+            const radiusCells = Math.max(0, Math.round(config.radiusCells || 0));
+            const obstacleClearanceCells = Math.max(0, Math.round(config.obstacleClearanceCells || 0));
+            if (!radiusCells) return { data, estimatedCells: 0, estimatedMask: new Uint8Array(data.length) };
+            const occupiedMask = new Uint8Array(data.length);
+            let hasSemanticFree = false;
+            let observedTop = height, observedBottom = -1, observedLeft = width, observedRight = -1;
+            for (let i = 0; i < data.length; i++) {
+                occupiedMask[i] = data[i] === 0 ? 1 : 0;
+                if (semanticFreeMask[i]) hasSemanticFree = true;
+                if (data[i] !== 205) {
+                    const row = Math.floor(i / width), column = i % width;
+                    observedTop = Math.min(observedTop, row); observedBottom = Math.max(observedBottom, row);
+                    observedLeft = Math.min(observedLeft, column); observedRight = Math.max(observedRight, column);
+                }
+            }
+            const estimatedMask = new Uint8Array(data.length);
+            if (!hasSemanticFree) return { data, estimatedCells: 0, estimatedMask };
+            const freeDistance = distanceTransform(semanticFreeMask, width, height);
+            const occupiedDistance = distanceTransform(occupiedMask, width, height);
+            const radiusSquared = radiusCells * radiusCells;
+            const clearanceSquared = obstacleClearanceCells * obstacleClearanceCells;
+            let estimatedCells = 0;
+            for (let i = 0; i < data.length; i++) {
+                const row = Math.floor(i / width), column = i % width;
+                if (config.limitToObservedBounds !== false &&
+                    (row < observedTop || row > observedBottom || column < observedLeft || column > observedRight)) continue;
+                if (data[i] !== 205 || freeDistance[i] > radiusSquared || occupiedDistance[i] <= clearanceSquared) continue;
+                data[i] = 254;
+                estimatedMask[i] = 1;
+                estimatedCells++;
+            }
+            return { data, estimatedCells, estimatedMask };
+        };
+
+        const trimUnknownBorder = (grid, paddingCells = 0) => {
+            if (!grid || grid.data.length !== grid.width * grid.height) throw new Error('地图裁边尺寸不匹配');
+            let top = grid.height, bottom = -1, left = grid.width, right = -1;
+            for (let row = 0; row < grid.height; row++) for (let column = 0; column < grid.width; column++) {
+                if (grid.data[row * grid.width + column] === 205) continue;
+                top = Math.min(top, row); bottom = Math.max(bottom, row);
+                left = Math.min(left, column); right = Math.max(right, column);
+            }
+            if (bottom < 0) return { ...grid, data: new Uint8Array(grid.data) };
+            const padding = Math.max(0, Math.round(paddingCells || 0));
+            top = Math.max(0, top - padding); bottom = Math.min(grid.height - 1, bottom + padding);
+            left = Math.max(0, left - padding); right = Math.min(grid.width - 1, right + padding);
+            const width = right - left + 1, height = bottom - top + 1;
+            const data = new Uint8Array(width * height);
+            const estimatedMask = grid.estimatedMask ? new Uint8Array(width * height) : undefined;
+            for (let row = top; row <= bottom; row++) {
+                const sourceOffset = row * grid.width + left, targetOffset = (row - top) * width;
+                data.set(grid.data.subarray(sourceOffset, sourceOffset + width), targetOffset);
+                if (estimatedMask) estimatedMask.set(grid.estimatedMask.subarray(sourceOffset, sourceOffset + width), targetOffset);
+            }
+            const removedBottomRows = grid.height - bottom - 1;
+            return {
+                ...grid, width, height, data, estimatedMask,
+                originX: grid.originX + left * grid.resolution,
+                originY: grid.originY + removedBottomRows * grid.resolution,
+            };
+        };
+
+        const buildSignedEsdf = (pixels, width, height, config = {}) => {
+            if (pixels.length !== width * height) throw new Error('ESDF 输入尺寸不匹配');
+            const occupied = new Uint8Array(pixels.length);
+            const free = new Uint8Array(pixels.length);
+            for (let i = 0; i < pixels.length; i++) {
+                const isUnknown = pixels[i] === 205;
+                const isOccupied = pixels[i] < 128 || (isUnknown && config.treatUnknownAsObstacle);
+                occupied[i] = isOccupied ? 1 : 0;
+                free[i] = isOccupied ? 0 : 1;
+            }
+            const outward = distanceTransform(occupied, width, height);
+            const inward = distanceTransform(free, width, height);
+            const resolution = config.resolution ?? 0.05;
+            const maxDistance = config.maxDistance ?? 5;
+            const result = new Float32Array(pixels.length);
+            for (let i = 0; i < pixels.length; i++) {
+                const squared = occupied[i] ? inward[i] : outward[i];
+                const distance = Number.isFinite(squared) ? Math.sqrt(squared) * resolution : maxDistance;
+                result[i] = (occupied[i] ? -1 : 1) * Math.min(distance, maxDistance);
+            }
+            return result;
+        };
+
+        const buildElevationGrid = (points, config, aggregation = 'median') => {
+            const { width, height } = gridDimensions(config);
+            const buckets = new Map();
+            for (let i = 0; i + 2 < points.length; i += 3) {
+                const ix = Math.floor((points[i] - config.minX) / config.resolution);
+                const iy = Math.floor((points[i + 1] - config.minY) / config.resolution);
+                if (ix < 0 || iy < 0 || ix >= width || iy >= height) continue;
+                const idx = iy * width + ix;
+                if (!buckets.has(idx)) buckets.set(idx, []);
+                buckets.get(idx).push(points[i + 2]);
+            }
+            const values = new Float32Array(width * height);
+            values.fill(NaN);
+            buckets.forEach((samples, idx) => {
+                samples.sort((a, b) => a - b);
+                if (aggregation === 'min') values[idx] = samples[0];
+                else if (aggregation === 'max') values[idx] = samples[samples.length - 1];
+                else if (aggregation === 'p90') values[idx] = samples[Math.floor((samples.length - 1) * 0.9)];
+                else {
+                    const mid = Math.floor(samples.length / 2);
+                    values[idx] = samples.length % 2 ? samples[mid] : (samples[mid - 1] + samples[mid]) / 2;
+                }
+            });
+            return { width, height, values, resolution: config.resolution, originX: config.minX, originY: config.minY };
+        };
+
+        const concatBytes = (parts) => {
+            const size = parts.reduce((sum, part) => sum + part.length, 0);
+            const result = new Uint8Array(size);
+            let offset = 0;
+            for (const part of parts) { result.set(part, offset); offset += part.length; }
+            return result;
+        };
+
+        const serializePgm = (grid) => {
+            if (!grid || grid.data.length !== grid.width * grid.height) throw new Error('PGM 数据尺寸不匹配');
+            const header = new TextEncoder().encode(`P5\n${grid.width} ${grid.height}\n255\n`);
+            return concatBytes([header, new Uint8Array(grid.data)]);
+        };
+
+        const serializeMapYaml = (imageName, config) => [
+            `image: ${imageName}`,
+            'mode: trinary',
+            `resolution: ${config.resolution}`,
+            `origin: [${config.originX}, ${config.originY}, 0]`,
+            'negate: 0',
+            `occupied_thresh: ${config.occupiedThresh ?? 0.65}`,
+            `free_thresh: ${config.freeThresh ?? 0.25}`,
+            '',
+        ].join('\n');
+
+        const serializeEsdfPcd = (distances, config) => {
+            const count = config.width * config.height;
+            if (distances.length !== count) throw new Error('ESDF PCD 数据尺寸不匹配');
+            const header = new TextEncoder().encode(
+                '# .PCD v0.7 - Point Cloud Data file format\n' +
+                'VERSION 0.7\nFIELDS x y z intensity\nSIZE 4 4 4 4\nTYPE F F F F\nCOUNT 1 1 1 1\n' +
+                `WIDTH ${count}\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS ${count}\nDATA binary\n`
+            );
+            const body = new Uint8Array(count * 16);
+            const view = new DataView(body.buffer);
+            for (let r = 0; r < config.height; r++) {
+                for (let c = 0; c < config.width; c++) {
+                    const idx = r * config.width + c;
+                    const offset = idx * 16;
+                    view.setFloat32(offset, config.originX + c * config.resolution, true);
+                    view.setFloat32(offset + 4, config.originY + (config.height - r - 1) * config.resolution, true);
+                    view.setFloat32(offset + 8, 0, true);
+                    view.setFloat32(offset + 12, distances[idx], true);
+                }
+            }
+            return concatBytes([header, body]);
+        };
+
+        const serializeXyzPcd = (points, labels = null, binary = false) => {
+            const count = Math.floor(points.length / 3);
+            const withLabel = labels && labels.length === count;
+            const fields = withLabel ? 'x y z label' : 'x y z';
+            const sizes = withLabel ? '4 4 4 1' : '4 4 4';
+            const types = withLabel ? 'F F F U' : 'F F F';
+            const headerText = '# .PCD v0.7 - Point Cloud Data file format\nVERSION 0.7\n' +
+                `FIELDS ${fields}\nSIZE ${sizes}\nTYPE ${types}\nCOUNT ${withLabel ? '1 1 1 1' : '1 1 1'}\n` +
+                `WIDTH ${count}\nHEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS ${count}\nDATA ${binary ? 'binary' : 'ascii'}\n`;
+            const header = new TextEncoder().encode(headerText);
+            if (!binary) {
+                const rows = [];
+                for (let i = 0, p = 0; i < points.length; i += 3, p++) {
+                    rows.push(`${points[i]} ${points[i + 1]} ${points[i + 2]}${withLabel ? ` ${labels[p]}` : ''}\n`);
+                }
+                return concatBytes([header, new TextEncoder().encode(rows.join(''))]);
+            }
+            const stride = withLabel ? 13 : 12;
+            const body = new Uint8Array(count * stride);
+            const view = new DataView(body.buffer);
+            for (let i = 0, p = 0; p < count; i += 3, p++) {
+                const offset = p * stride;
+                view.setFloat32(offset, points[i], true);
+                view.setFloat32(offset + 4, points[i + 1], true);
+                view.setFloat32(offset + 8, points[i + 2], true);
+                if (withLabel) view.setUint8(offset + 12, labels[p]);
+            }
+            return concatBytes([header, body]);
+        };
+
+        globalThis.CloudLabCore = Object.freeze({
+            SEMANTIC,
+            cameraGestureForButton,
+            finitePoints,
+            computeBounds,
+            parsePcd,
+            voxelGridFilter,
+            cropByBox,
+            pointInOrientedBox,
+            cropByOrientedBox,
+            pointInPolygon,
+            cropByPolygon,
+            radiusOutlierFilter,
+            classifyNormals,
+            classifySurface,
+            cleanupOccupancy,
+            estimateSemanticFreeSpace,
+            trimUnknownBorder,
+            buildOccupancyGrid,
+            buildSignedEsdf,
+            buildElevationGrid,
+            serializePgm,
+            serializeMapYaml,
+            serializeEsdfPcd,
+            serializeXyzPcd,
+        });
+    })();
+    /* CLOUDLAB_CORE_END */
     </script>
 
     <script type="text/babel">
@@ -717,6 +1511,498 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
+    </script>
+
+    <script type="text/babel">
+        const Core = window.CloudLabCore;
+        const SEMANTIC_META = [
+            { name:'未分类', color:'#8aa0b2' },
+            { name:'地面', color:'#48d597' },
+            { name:'坡面', color:'#f0c65a' },
+            { name:'墙体', color:'#e67d62' },
+            { name:'障碍物', color:'#e34f67' },
+            { name:'噪点', color:'#8256a8' },
+        ];
+
+        const downloadBytes = (name, bytes, type='application/octet-stream') => {
+            const blob = bytes instanceof Blob ? bytes : new Blob([bytes], { type });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url; link.download = name; link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        };
+
+        const generateStudioDemo = () => {
+            const points = [];
+            for (let x=-12; x<=12; x+=0.22) {
+                for (let y=-9; y<=9; y+=0.22) {
+                    const ramp = x > 1 && x < 8 && Math.abs(y) < 3;
+                    const z = ramp ? (x-1)*0.28 : 0;
+                    points.push(x+(Math.random()-.5)*.025, y+(Math.random()-.5)*.025, z+(Math.random()-.5)*.018);
+                }
+            }
+            for (let i=0; i<6500; i++) {
+                const side = i % 2;
+                const x = side ? -7 : 10;
+                points.push(x+(Math.random()-.5)*.05, -7+Math.random()*14, Math.random()*3.2);
+            }
+            for (let i=0; i<1800; i++) points.push(-2+Math.random()*2, 2+Math.random()*2, Math.random()*1.7);
+            return new Float32Array(points);
+        };
+
+        const createCoreWorker = () => {
+            const coreScript = document.getElementById('cloudlab-core');
+            if (!coreScript) throw new Error('找不到 CloudLab Worker 核心');
+            const handler = `
+                self.onmessage = event => {
+                    const { id, type, payload } = event.data;
+                    try {
+                        self.postMessage({ id, progress: 8 });
+                        let result;
+                        if (type === 'parsePcd') result = self.CloudLabCore.parsePcd(payload.buffer);
+                        else if (type === 'voxel') result = self.CloudLabCore.voxelGridFilter(payload.points, payload.leaf);
+                        else if (type === 'radius') result = self.CloudLabCore.radiusOutlierFilter(payload.points, payload.radius, payload.neighbors);
+                        else if (type === 'classify') result = self.CloudLabCore.classifySurface(payload.points, payload.config);
+                        else if (type === 'occupancy') result = self.CloudLabCore.buildOccupancyGrid(payload.points, payload.labels, payload.config);
+                        else if (type === 'esdf') result = self.CloudLabCore.buildSignedEsdf(payload.data, payload.width, payload.height, payload.config);
+                        else if (type === 'elevation') result = self.CloudLabCore.buildElevationGrid(payload.points, payload.config, payload.method);
+                        else throw new Error('未知 Worker 任务: ' + type);
+                        self.postMessage({ id, progress: 100, result });
+                    } catch (error) {
+                        self.postMessage({ id, error: error.message || String(error) });
+                    }
+                };
+            `;
+            const blob = new Blob([coreScript.textContent, handler], { type:'text/javascript' });
+            return new Worker(URL.createObjectURL(blob));
+        };
+
+        const MapPreview = ({ grid }) => {
+            const ref = useRef(null);
+            useEffect(() => {
+                if (!grid || !ref.current) return;
+                const canvas = ref.current;
+                canvas.width = grid.width; canvas.height = grid.height;
+                const context = canvas.getContext('2d');
+                const image = context.createImageData(grid.width, grid.height);
+                for (let i=0; i<grid.data.length; i++) {
+                    const value = grid.data[i];
+                    const estimated = grid.estimatedMask?.[i];
+                    image.data[i*4] = estimated ? 95 : value;
+                    image.data[i*4+1] = estimated ? 205 : value;
+                    image.data[i*4+2] = estimated ? 235 : value;
+                    image.data[i*4+3] = 255;
+                }
+                context.putImageData(image, 0, 0);
+            }, [grid]);
+            return <canvas ref={ref} className="studio-map-preview" />;
+        };
+
+        const StudioViewer = ({ points, labels, colorMode, pointSize, crop, mapGrid, selection, selectionMode, onWorldPick, viewPreset }) => {
+            const mountRef = useRef(null);
+            const stateRef = useRef(null);
+            const pointObjectRef = useRef(null);
+            const overlayRefs = useRef({ crop:null, map:null, selection:null });
+            const cameraState = useRef({ radius:35, theta:Math.PI/4, phi:Math.PI/3, target:new THREE.Vector3() });
+            const drag = useRef({ orbit:false, pan:false, x:0, y:0 });
+
+            const updateCamera = useCallback(() => {
+                const state = stateRef.current;
+                if (!state) return;
+                const { radius, theta, phi, target } = cameraState.current;
+                state.camera.position.set(
+                    target.x + radius*Math.sin(phi)*Math.cos(theta),
+                    target.y + radius*Math.sin(phi)*Math.sin(theta),
+                    target.z + radius*Math.cos(phi),
+                );
+                state.camera.lookAt(target);
+            }, []);
+
+            useEffect(() => {
+                const mount = mountRef.current;
+                const scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x071018);
+                scene.fog = new THREE.FogExp2(0x071018, .0035);
+                const camera = new THREE.PerspectiveCamera(52, 1, .05, 3000);
+                camera.up.set(0,0,1);
+                const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance' });
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
+                mount.appendChild(renderer.domElement);
+                scene.add(new THREE.AmbientLight(0xffffff, 1));
+                const grid = new THREE.GridHelper(160, 160, 0x35526a, 0x162b3b);
+                grid.rotation.x = Math.PI/2; scene.add(grid);
+                scene.add(new THREE.AxesHelper(4));
+                stateRef.current = { scene, camera, renderer, animation:0 };
+                updateCamera();
+                const resize = () => {
+                    const width = Math.max(1, mount.clientWidth), height = Math.max(1, mount.clientHeight);
+                    camera.aspect = width/height; camera.updateProjectionMatrix(); renderer.setSize(width,height,false);
+                };
+                const observer = new ResizeObserver(resize); observer.observe(mount); resize();
+                const animate = () => { stateRef.current.animation=requestAnimationFrame(animate); renderer.render(scene,camera); };
+                animate();
+                return () => {
+                    observer.disconnect(); cancelAnimationFrame(stateRef.current.animation);
+                    renderer.dispose(); if (renderer.domElement.parentNode===mount) mount.removeChild(renderer.domElement);
+                    stateRef.current=null;
+                };
+            }, []);
+
+            useEffect(() => {
+                const state = stateRef.current; if (!state || !points) return;
+                if (pointObjectRef.current) {
+                    state.scene.remove(pointObjectRef.current);
+                    pointObjectRef.current.geometry.dispose(); pointObjectRef.current.material.dispose();
+                }
+                const count = points.length/3;
+                const displayBudget = 700000;
+                const stride = Math.max(1, Math.ceil(count/displayBudget));
+                const shownCount = Math.ceil(count/stride);
+                const displayPoints = new Float32Array(shownCount*3);
+                const colors = new Float32Array(shownCount*3);
+                const bounds = Core.computeBounds(points);
+                const zRange = bounds.maxZ-bounds.minZ || 1;
+                const low = new THREE.Color(0x28a9e8), high = new THREE.Color(0xf0c85d), color = new THREE.Color();
+                let targetOffset=0;
+                for (let p=0; p<count; p+=stride) {
+                    const src=p*3;
+                    displayPoints[targetOffset]=points[src]; displayPoints[targetOffset+1]=points[src+1]; displayPoints[targetOffset+2]=points[src+2];
+                    if (colorMode==='semantic' && labels) color.set(SEMANTIC_META[labels[p] || 0].color);
+                    else {
+                        const t=Math.max(0,Math.min(1,(points[src+2]-bounds.minZ)/zRange)); color.copy(low).lerp(high,t);
+                    }
+                    colors[targetOffset]=color.r; colors[targetOffset+1]=color.g; colors[targetOffset+2]=color.b;
+                    targetOffset+=3;
+                }
+                const geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position',new THREE.BufferAttribute(displayPoints,3));
+                geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
+                const material = new THREE.PointsMaterial({ size:pointSize, vertexColors:true, sizeAttenuation:true });
+                const object = new THREE.Points(geometry,material); pointObjectRef.current=object; state.scene.add(object);
+                const center = new THREE.Vector3((bounds.minX+bounds.maxX)/2,(bounds.minY+bounds.maxY)/2,(bounds.minZ+bounds.maxZ)/2);
+                const extent = Math.max(bounds.maxX-bounds.minX,bounds.maxY-bounds.minY,bounds.maxZ-bounds.minZ,5);
+                cameraState.current.target.copy(center); cameraState.current.radius=Math.max(8,extent*1.25); updateCamera();
+            }, [points, labels, colorMode, pointSize]);
+
+            useEffect(() => {
+                const state=stateRef.current; if (!state) return;
+                if (overlayRefs.current.crop) { state.scene.remove(overlayRefs.current.crop); overlayRefs.current.crop.geometry.dispose(); overlayRefs.current.crop.material.dispose(); }
+                overlayRefs.current.crop=null;
+                if (!crop?.active) return;
+                const width=Math.max(.001,crop.maxX-crop.minX), height=Math.max(.001,crop.maxY-crop.minY), depth=Math.max(.001,crop.maxZ-crop.minZ);
+                const object=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(width,height,depth)),new THREE.LineBasicMaterial({color:0xff5f69}));
+                object.position.set((crop.minX+crop.maxX)/2,(crop.minY+crop.maxY)/2,(crop.minZ+crop.maxZ)/2);
+                object.rotation.z=THREE.MathUtils.degToRad(crop.yawDeg||0);
+                overlayRefs.current.crop=object; state.scene.add(object);
+            }, [crop]);
+
+            useEffect(() => {
+                const state=stateRef.current; if (!state) return;
+                const previous=overlayRefs.current.map;
+                if (previous) { state.scene.remove(previous); previous.geometry.dispose(); previous.material.map?.dispose(); previous.material.dispose(); }
+                overlayRefs.current.map=null;
+                if (!mapGrid) return;
+                const rgba=new Uint8Array(mapGrid.data.length*4);
+                for(let i=0;i<mapGrid.data.length;i++) { const v=mapGrid.data[i]; rgba[i*4]=v;rgba[i*4+1]=v;rgba[i*4+2]=v;rgba[i*4+3]=v===205?35:135; }
+                const texture=new THREE.DataTexture(rgba,mapGrid.width,mapGrid.height,THREE.RGBAFormat); texture.flipY=true;texture.needsUpdate=true;
+                const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,side:THREE.DoubleSide,depthWrite:false});
+                const mesh=new THREE.Mesh(new THREE.PlaneGeometry(mapGrid.width*mapGrid.resolution,mapGrid.height*mapGrid.resolution),material);
+                mesh.position.set(mapGrid.originX+mapGrid.width*mapGrid.resolution/2,mapGrid.originY+mapGrid.height*mapGrid.resolution/2,-.025);
+                overlayRefs.current.map=mesh;state.scene.add(mesh);
+            },[mapGrid]);
+
+            useEffect(() => {
+                const state=stateRef.current;if(!state)return;
+                const previous=overlayRefs.current.selection;
+                if(previous){state.scene.remove(previous);previous.geometry.dispose();previous.material.dispose();}
+                overlayRefs.current.selection=null;
+                if(!selection?.length)return;
+                let vertices=selection;
+                if(selectionMode==='box'&&selection.length===2){
+                    const [a,b]=selection;vertices=[a,{x:b.x,y:a.y,z:0},b,{x:a.x,y:b.y,z:0},a];
+                }else if(selection.length>2)vertices=[...selection,selection[0]];
+                const array=[];vertices.forEach(p=>array.push(p.x,p.y,(p.z||0)+.05));
+                const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(array,3));
+                const line=new THREE.Line(geometry,new THREE.LineBasicMaterial({color:0x35d8ff,linewidth:2}));
+                overlayRefs.current.selection=line;state.scene.add(line);
+            },[selection,selectionMode]);
+
+            useEffect(() => {
+                if(!stateRef.current)return;
+                if(viewPreset==='top'){cameraState.current.theta=Math.PI/2;cameraState.current.phi=.001;}
+                else if(viewPreset==='front'){cameraState.current.theta=-Math.PI/2;cameraState.current.phi=Math.PI/2;}
+                else if(viewPreset==='side'){cameraState.current.theta=0;cameraState.current.phi=Math.PI/2;}
+                else {cameraState.current.theta=Math.PI/4;cameraState.current.phi=Math.PI/3;}
+                updateCamera();
+            },[viewPreset]);
+
+            const pickGround = event => {
+                const state=stateRef.current, rect=state.renderer.domElement.getBoundingClientRect();
+                const mouse=new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);
+                const raycaster=new THREE.Raycaster();raycaster.setFromCamera(mouse,state.camera);
+                const result=new THREE.Vector3();
+                return raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,0,1),0),result)?result:null;
+            };
+            const onMouseDown = event => {
+                const gesture=Core.cameraGestureForButton(event.button,selectionMode);
+                if(gesture==='select'){const point=pickGround(event);if(point)onWorldPick(point);return;}
+                if(gesture==='orbit')drag.current.orbit=true;
+                if(gesture==='pan')drag.current.pan=true;
+                if(gesture!=='none')event.preventDefault();
+                drag.current.x=event.clientX;drag.current.y=event.clientY;
+            };
+            const onMouseMove = event => {
+                const dx=event.clientX-drag.current.x,dy=event.clientY-drag.current.y;drag.current.x=event.clientX;drag.current.y=event.clientY;
+                if(drag.current.orbit){cameraState.current.theta-=dx*.008;cameraState.current.phi=Math.max(.03,Math.min(Math.PI-.03,cameraState.current.phi-dy*.008));updateCamera();}
+                else if(drag.current.pan){
+                    const state=stateRef.current,forward=new THREE.Vector3();state.camera.getWorldDirection(forward);forward.z=0;forward.normalize();
+                    const right=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,0,1));
+                    cameraState.current.target.addScaledVector(right,-dx*cameraState.current.radius*.0015);cameraState.current.target.addScaledVector(forward,dy*cameraState.current.radius*.0015);updateCamera();
+                }
+            };
+            const stop=()=>{drag.current.orbit=false;drag.current.pan=false;};
+            const onWheel=event=>{cameraState.current.radius=Math.max(.5,cameraState.current.radius*(1+event.deltaY*.001));updateCamera();};
+            return <div ref={mountRef} className="canvas-container" onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={stop} onMouseLeave={stop} onWheel={onWheel} onContextMenu={e=>e.preventDefault()} />;
+        };
+
+        const NumberField = ({ label, value, onChange, step=.01 }) => (
+            <div className="studio-field"><div className="studio-label"><span>{label}</span></div><input className="studio-input" type="number" step={step} value={Number.isFinite(value)?value:0} onChange={e=>onChange(Number(e.target.value))}/></div>
+        );
+
+        const StudioApp = () => {
+            const initialPoints=useMemo(generateStudioDemo,[]);
+            const [dataset,setDataset]=useState({points:initialPoints,labels:new Uint8Array(initialPoints.length/3),intensity:null,name:'arena_demo.pcd'});
+            const [activeTool,setActiveTool]=useState('file');
+            const [leftWidth,setLeftWidth]=useState(246),[rightWidth,setRightWidth]=useState(320);
+            const [leftOpen,setLeftOpen]=useState(true),[rightOpen,setRightOpen]=useState(true);
+            const [undoStack,setUndoStack]=useState([]),[redoStack,setRedoStack]=useState([]);
+            const [pipeline,setPipeline]=useState([{name:'示例点云',count:initialPoints.length/3,time:new Date().toLocaleTimeString()}]);
+            const [task,setTask]=useState(null),workerRef=useRef(null);
+            const [backendOnline,setBackendOnline]=useState(false);
+            const [colorMode,setColorMode]=useState('height'),[pointSize,setPointSize]=useState(.12),[viewPreset,setViewPreset]=useState('perspective');
+            const [selectionMode,setSelectionMode]=useState('none'),[selection,setSelection]=useState([]),[semanticLabel,setSemanticLabel]=useState(Core.SEMANTIC.SLOPE);
+            const [transform,setTransform]=useState({x:0,y:0,z:0,rx:0,ry:0,rz:0});
+            const [filter,setFilter]=useState({leaf:.12,radius:.22,neighbors:3,statisticalNeighbors:20,stdRatio:2});
+            const initialBounds=useMemo(()=>Core.computeBounds(initialPoints),[]);
+            const [crop,setCrop]=useState({...initialBounds,yawDeg:0,active:false,keep:true});
+            const [segment,setSegment]=useState({cellSize:.3,groundMaxDeg:8,slopeMaxDeg:38,wallMinDeg:70,roughnessMax:.2,wallHeightMin:1});
+            const [mapConfig,setMapConfig]=useState({minX:initialBounds.minX,minY:initialBounds.minY,maxX:initialBounds.maxX,maxY:initialBounds.maxY,minZ:initialBounds.minZ-.1,maxZ:initialBounds.maxZ+.1,resolution:.05,minPointsPerCell:1,obstacleMinZ:.15,occupiedThresh:.65,freeThresh:.25,removeIsolated:true,fillHoles:true,autoTrimUnknown:true,trimPadding:.25,estimateSemanticFree:true,estimateRadius:.25,obstacleClearance:.15});
+            const [mapGrid,setMapGrid]=useState(null),[esdfMax,setEsdfMax]=useState(5),[elevationMethod,setElevationMethod]=useState('median');
+            const [status,setStatus]=useState('就绪');
+
+            const bounds=useMemo(()=>Core.computeBounds(dataset.points),[dataset.points]);
+            const effectivePolygon=useMemo(()=>{
+                if(selectionMode==='box'&&selection.length===2){const [a,b]=selection;return [[a.x,a.y],[b.x,a.y],[b.x,b.y],[a.x,b.y]];}
+                return selection.map(p=>[p.x,p.y]);
+            },[selection,selectionMode]);
+            const selectedCount=useMemo(()=>{
+                if(effectivePolygon.length<3)return 0;let count=0;
+                for(let i=0;i<dataset.points.length;i+=3)if(Core.pointInPolygon(dataset.points[i],dataset.points[i+1],effectivePolygon))count++;
+                return count;
+            },[dataset.points,effectivePolygon]);
+
+            useEffect(()=>{
+                const onKeyDown=event=>{if(event.key==='Escape'){setSelectionMode('none');setSelection([]);}};
+                window.addEventListener('keydown',onKeyDown);
+                return()=>window.removeEventListener('keydown',onKeyDown);
+            },[]);
+
+            useEffect(()=>{
+                const controller=new AbortController();
+                const timer=setTimeout(()=>controller.abort(),900);
+                fetch('http://127.0.0.1:8765/health',{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject()).then(data=>setBackendOnline(Boolean(data.open3d))).catch(()=>setBackendOnline(false)).finally(()=>clearTimeout(timer));
+                return()=>{clearTimeout(timer);controller.abort();};
+            },[]);
+
+            const runWorker=(title,type,payload,transfer=[])=>new Promise((resolve,reject)=>{
+                const worker=createCoreWorker();workerRef.current=worker;const id=Date.now()+Math.random();
+                setTask({title,progress:1});setStatus(title);
+                worker.onmessage=event=>{
+                    if(event.data.id!==id)return;
+                    if(event.data.error){worker.terminate();workerRef.current=null;setTask(null);setStatus('失败');reject(new Error(event.data.error));return;}
+                    setTask({title,progress:event.data.progress||0});
+                    if(event.data.result!==undefined){worker.terminate();workerRef.current=null;setTask(null);setStatus('就绪');resolve(event.data.result);}
+                };
+                worker.onerror=event=>{worker.terminate();workerRef.current=null;setTask(null);setStatus('Worker 错误');reject(new Error(event.message));};
+                worker.postMessage({id,type,payload},transfer);
+            });
+            const cancelTask=()=>{workerRef.current?.terminate();workerRef.current=null;setTask(null);setStatus('任务已取消');};
+
+            const commitDataset=(name,next)=>{
+                setUndoStack(stack=>[...stack.slice(-3),dataset]);setRedoStack([]);setDataset(next);
+                setPipeline(items=>[...items,{name,count:next.points.length/3,time:new Date().toLocaleTimeString()}]);
+                setSelection([]);setSelectionMode('none');setMapGrid(null);
+            };
+            const undo=()=>{if(!undoStack.length)return;const previous=undoStack[undoStack.length-1];setRedoStack(stack=>[dataset,...stack].slice(0,4));setUndoStack(stack=>stack.slice(0,-1));setDataset(previous);setStatus('已撤销');};
+            const redo=()=>{if(!redoStack.length)return;const next=redoStack[0];setUndoStack(stack=>[...stack,dataset].slice(-4));setRedoStack(stack=>stack.slice(1));setDataset(next);setStatus('已重做');};
+            const reportError=error=>{console.error(error);setTask({title:error.message||String(error),progress:0,error:true});setStatus('操作失败');};
+
+            const handleFile=async event=>{
+                const file=event.target.files?.[0];if(!file)return;
+                try{
+                    let parsed;
+                    if(file.name.toLowerCase().endsWith('.pcd')){
+                        const buffer=await file.arrayBuffer();
+                        try{parsed=await runWorker('解析 PCD','parsePcd',{buffer},[buffer]);}
+                        catch(error){
+                            if(!/Open3D 后端/.test(error.message)||!backendOnline)throw error;
+                            const response=await fetch('http://127.0.0.1:8765/parse-pcd',{method:'POST',headers:{'X-Filename':encodeURIComponent(file.name)},body:file});
+                            if(!response.ok)throw new Error(await response.text());
+                            const raw=await response.arrayBuffer();parsed={points:new Float32Array(raw),labels:null,intensity:null};
+                        }
+                    }else{
+                        const rows=(await file.text()).split(/\r?\n/),values=[];
+                        for(const row of rows){if(!row.trim()||row.trim().startsWith('#'))continue;const v=row.trim().split(/\s+/).slice(0,3).map(Number);if(v.every(Number.isFinite))values.push(...v);}
+                        parsed={points:new Float32Array(values),labels:null,intensity:null};
+                    }
+                    if(!parsed.points.length)throw new Error('文件中没有有效点');
+                    const labels=parsed.labels?.length===parsed.points.length/3?parsed.labels:new Uint8Array(parsed.points.length/3);
+                    const next={points:parsed.points,labels,intensity:parsed.intensity,name:file.name};
+                    setDataset(next);setUndoStack([]);setRedoStack([]);setPipeline([{name:'导入 '+file.name,count:parsed.points.length/3,time:new Date().toLocaleTimeString()}]);
+                    const nextBounds=Core.computeBounds(parsed.points);setCrop({...nextBounds,yawDeg:0,active:false,keep:true});
+                    setMapConfig(config=>({...config,minX:nextBounds.minX,minY:nextBounds.minY,maxX:nextBounds.maxX,maxY:nextBounds.maxY,minZ:nextBounds.minZ,maxZ:nextBounds.maxZ,obstacleMinZ:nextBounds.minZ+.15}));
+                    setMapGrid(null);setStatus('导入完成');
+                }catch(error){reportError(error);}finally{event.target.value='';}
+            };
+
+            const applyTransform=()=>{
+                const euler=new THREE.Euler(THREE.MathUtils.degToRad(transform.rx),THREE.MathUtils.degToRad(transform.ry),THREE.MathUtils.degToRad(transform.rz));
+                const matrix=new THREE.Matrix4().makeRotationFromEuler(euler);matrix.setPosition(transform.x,transform.y,transform.z);
+                const output=new Float32Array(dataset.points.length),v=new THREE.Vector3();
+                for(let i=0;i<dataset.points.length;i+=3){v.set(dataset.points[i],dataset.points[i+1],dataset.points[i+2]).applyMatrix4(matrix);output[i]=v.x;output[i+1]=v.y;output[i+2]=v.z;}
+                commitDataset('应用坐标变换',{...dataset,points:output});setTransform({x:0,y:0,z:0,rx:0,ry:0,rz:0});
+            };
+            const applyVoxel=async()=>{try{const points=dataset.points.slice();const output=await runWorker('体素降采样','voxel',{points,leaf:filter.leaf},[points.buffer]);commitDataset('体素降采样',{...dataset,points:output,labels:new Uint8Array(output.length/3),intensity:null});}catch(error){reportError(error);}};
+            const applyRadius=async()=>{try{const points=dataset.points.slice();const output=await runWorker('半径离群点去噪','radius',{points,radius:filter.radius,neighbors:filter.neighbors},[points.buffer]);commitDataset('半径离群点去噪',{...dataset,points:output,labels:new Uint8Array(output.length/3),intensity:null});}catch(error){reportError(error);}};
+            const applyStatistical=async()=>{if(!backendOnline)return;try{
+                setTask({title:'Open3D 统计离群点去噪',progress:15});setStatus('后端统计滤波');
+                const response=await fetch('http://127.0.0.1:8765/statistical-outlier',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Nb-Neighbors':String(filter.statisticalNeighbors),'X-Std-Ratio':String(filter.stdRatio)},body:dataset.points.slice().buffer});
+                if(!response.ok){const message=await response.json().catch(()=>({error:'统计滤波失败'}));throw new Error(message.error);}
+                const output=new Float32Array(await response.arrayBuffer());setTask(null);setStatus('就绪');
+                commitDataset('Open3D 统计离群点',{...dataset,points:output,labels:new Uint8Array(output.length/3),intensity:null});
+            }catch(error){reportError(error);}};
+            const applyCrop=()=>{
+                const output=[],labels=[];
+                for(let i=0,p=0;i<dataset.points.length;i+=3,p++){
+                    const x=dataset.points[i],y=dataset.points[i+1],z=dataset.points[i+2];
+                    const inside=Core.pointInOrientedBox(x,y,z,crop);
+                    if(inside===crop.keep){output.push(x,y,z);labels.push(dataset.labels[p]);}
+                }
+                if(!output.length)return reportError(new Error('裁剪结果为空'));
+                commitDataset(crop.keep?'保留裁剪框':'删除裁剪框',{...dataset,points:new Float32Array(output),labels:new Uint8Array(labels),intensity:null});setCrop(value=>({...value,active:false}));
+            };
+            const applySelectionCrop=(keep=true)=>{
+                if(effectivePolygon.length<3)return;
+                const output=[],labels=[];
+                for(let i=0,p=0;i<dataset.points.length;i+=3,p++){
+                    const inside=Core.pointInPolygon(dataset.points[i],dataset.points[i+1],effectivePolygon);
+                    if(inside===keep){output.push(dataset.points[i],dataset.points[i+1],dataset.points[i+2]);labels.push(dataset.labels[p]);}
+                }
+                if(!output.length)return reportError(new Error('选区裁剪结果为空'));
+                commitDataset(keep?'保留可视选区':'删除可视选区',{...dataset,points:new Float32Array(output),labels:new Uint8Array(labels),intensity:null});
+            };
+            const classify=async()=>{try{
+                let labels;
+                if(backendOnline){
+                    setTask({title:'Open3D 精确法向分割',progress:15});setStatus('后端法向估计');
+                    const response=await fetch('http://127.0.0.1:8765/normal-labels',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Normal-Radius':String(segment.cellSize),'X-Max-Neighbors':'40','X-Ground-Max':String(segment.groundMaxDeg),'X-Slope-Max':String(segment.slopeMaxDeg),'X-Wall-Min':String(segment.wallMinDeg)},body:dataset.points.slice().buffer});
+                    if(!response.ok){const message=await response.json().catch(()=>({error:'法向分割失败'}));throw new Error(message.error);}
+                    labels=new Uint8Array(await response.arrayBuffer());setTask(null);setStatus('就绪');
+                }else{
+                    const points=dataset.points.slice();labels=await runWorker('坡面与几何语义分割','classify',{points,config:segment},[points.buffer]);
+                }
+                commitDataset(backendOnline?'Open3D 法向语义分割':'浏览器几何语义分割',{...dataset,labels});setColorMode('semantic');
+            }catch(error){reportError(error);}};
+            const assignSemantic=()=>{
+                if(effectivePolygon.length<3)return;const labels=dataset.labels.slice();
+                for(let i=0,p=0;i<dataset.points.length;i+=3,p++)if(Core.pointInPolygon(dataset.points[i],dataset.points[i+1],effectivePolygon))labels[p]=semanticLabel;
+                commitDataset('修订语义：'+SEMANTIC_META[semanticLabel].name,{...dataset,labels});setColorMode('semantic');
+            };
+            const generateMap=async()=>{try{
+                const points=dataset.points.slice(),labels=dataset.labels.slice();
+                const grid=await runWorker('生成 Nav2 投影地图','occupancy',{points,labels,config:mapConfig},[points.buffer,labels.buffer]);setMapGrid(grid);setStatus('地图预览已生成');
+            }catch(error){reportError(error);}};
+            const fitMapToCurrent=()=>setMapConfig(config=>({...config,minX:bounds.minX,minY:bounds.minY,maxX:bounds.maxX,maxY:bounds.maxY,minZ:bounds.minZ,maxZ:bounds.maxZ}));
+            const handleMapFile=async event=>{const file=event.target.files?.[0];if(!file)return;try{
+                const parsed=parsePGM(await file.arrayBuffer());let occupied=0,free=0;
+                for(const value of parsed.data){if(value<128)occupied++;else if(value===205){}else free++;}
+                setMapGrid({width:parsed.width,height:parsed.height,data:parsed.data,resolution:mapConfig.resolution,originX:mapConfig.minX,originY:mapConfig.minY,stats:{occupied,free,unknown:parsed.data.length-occupied-free}});
+                setStatus('已加载现有 PGM，请核对分辨率与 Origin');
+            }catch(error){reportError(error);}finally{event.target.value='';}};
+            const exportMap=()=>{
+                if(!mapGrid)return;downloadBytes('cloudlab_map.pgm',Core.serializePgm(mapGrid));
+                const yaml=Core.serializeMapYaml('cloudlab_map.pgm',{resolution:mapGrid.resolution,originX:mapGrid.originX,originY:mapGrid.originY,occupiedThresh:mapConfig.occupiedThresh,freeThresh:mapConfig.freeThresh});
+                setTimeout(()=>downloadBytes('cloudlab_map.yaml',yaml,'text/yaml'),150);
+            };
+            const exportEsdf=async()=>{if(!mapGrid)return;try{
+                const data=mapGrid.data.slice();const values=await runWorker('生成二维有符号 ESDF','esdf',{data,width:mapGrid.width,height:mapGrid.height,config:{resolution:mapGrid.resolution,maxDistance:esdfMax,treatUnknownAsObstacle:false}},[data.buffer]);
+                downloadBytes('cloudlab_esdf.pcd',Core.serializeEsdfPcd(values,mapGrid));
+            }catch(error){reportError(error);}};
+            const exportElevation=async()=>{try{
+                const points=dataset.points.slice();const grid=await runWorker('生成 Elevation Map','elevation',{points,config:{minX:mapConfig.minX,minY:mapConfig.minY,maxX:mapConfig.maxX,maxY:mapConfig.maxY,resolution:mapConfig.resolution},method:elevationMethod},[points.buffer]);
+                const output=[];for(let iy=0;iy<grid.height;iy++)for(let ix=0;ix<grid.width;ix++){const z=grid.values[iy*grid.width+ix];if(Number.isFinite(z))output.push(grid.originX+(ix+.5)*grid.resolution,grid.originY+(iy+.5)*grid.resolution,z);}
+                downloadBytes('cloudlab_elevation.pcd',Core.serializeXyzPcd(new Float32Array(output),null,true));
+                const metadata=`resolution: ${grid.resolution}\norigin: [${grid.originX}, ${grid.originY}, 0]\nwidth: ${grid.width}\nheight: ${grid.height}\naggregation: ${elevationMethod}\ninvalid_value: nan\n`;
+                setTimeout(()=>downloadBytes('cloudlab_elevation.yaml',metadata,'text/yaml'),150);
+            }catch(error){reportError(error);}};
+            const exportPcd=(binary=true)=>downloadBytes('cloudlab_processed.pcd',Core.serializeXyzPcd(dataset.points,null,binary));
+            const exportProject=()=>downloadBytes('cloudlab_project.json',JSON.stringify({version:3,source:dataset.name,pointCount:dataset.points.length/3,pipeline,mapConfig,segment},null,2),'application/json');
+
+            const onWorldPick=point=>setSelection(current=>selectionMode==='box'?(current.length>=2?[point]:[...current,point]):[...current,point]);
+            const startResize=(side,event)=>{
+                event.preventDefault();const start=event.clientX,left=leftWidth,right=rightWidth;
+                const move=e=>{if(side==='left')setLeftWidth(Math.max(180,Math.min(480,left+e.clientX-start)));else setRightWidth(Math.max(240,Math.min(560,right-(e.clientX-start))));};
+                const stop=()=>{window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',stop);};window.addEventListener('mousemove',move);window.addEventListener('mouseup',stop);
+            };
+
+            const tools=[
+                ['file','01','文件与工程'],['transform','02','坐标变换'],['filter','03','去噪与降采样'],['crop','04','区域裁剪'],['segment','05','坡面分割'],['semantic','06','语义修订'],['map','07','地图生成'],['export','08','验证与导出'],
+            ];
+            const semanticCounts=useMemo(()=>{const counts=new Uint32Array(6);dataset.labels.forEach(v=>{if(v<6)counts[v]++;});return counts;},[dataset.labels]);
+
+            const renderInspector=()=>{
+                if(activeTool==='file')return <>
+                    <div className="studio-section"><div className="studio-section-title">导入点云</div><div className="studio-section-body"><input type="file" accept=".pcd,.xyz,.txt" onChange={handleFile} className="studio-input"/><p className="studio-help mt-2">浏览器支持 ASCII/Binary PCD 与 XYZ；压缩 PCD 自动交给本地 Open3D 后端。</p></div></div>
+                    <div className="studio-section"><div className="studio-section-title">当前数据</div><div className="studio-section-body"><div className="studio-help">{dataset.name}</div><div className="studio-stat-grid mt-2"><div className="studio-stat"><span>点数</span><strong>{(dataset.points.length/3).toLocaleString()}</strong></div><div className="studio-stat"><span>内存估算</span><strong>{((dataset.points.byteLength+dataset.labels.byteLength)/1048576).toFixed(1)} MB</strong></div></div></div></div>
+                </>;
+                if(activeTool==='transform')return <div className="studio-section"><div className="studio-section-title">刚体变换</div><div className="studio-section-body"><div className="studio-row"><NumberField label="X (m)" value={transform.x} onChange={v=>setTransform({...transform,x:v})}/><NumberField label="Y (m)" value={transform.y} onChange={v=>setTransform({...transform,y:v})}/><NumberField label="Z (m)" value={transform.z} onChange={v=>setTransform({...transform,z:v})}/></div><div className="studio-row"><NumberField label="Roll °" value={transform.rx} onChange={v=>setTransform({...transform,rx:v})}/><NumberField label="Pitch °" value={transform.ry} onChange={v=>setTransform({...transform,ry:v})}/><NumberField label="Yaw °" value={transform.rz} onChange={v=>setTransform({...transform,rz:v})}/></div><button className="studio-button primary w-full" onClick={applyTransform}>应用并固化变换</button></div></div>;
+                if(activeTool==='filter')return <>
+                    <div className="studio-section"><div className="studio-section-title">体素降采样</div><div className="studio-section-body"><NumberField label="Leaf Size (m)" value={filter.leaf} onChange={v=>setFilter({...filter,leaf:v})}/><button className="studio-button primary w-full" onClick={applyVoxel}>应用体素滤波</button></div></div>
+                    <div className="studio-section"><div className="studio-section-title">半径离群点</div><div className="studio-section-body"><NumberField label="搜索半径 (m)" value={filter.radius} onChange={v=>setFilter({...filter,radius:v})}/><NumberField label="最少邻居数" value={filter.neighbors} step={1} onChange={v=>setFilter({...filter,neighbors:Math.max(1,Math.round(v))})}/><button className="studio-button primary w-full" onClick={applyRadius}>移除孤立噪点</button><p className="studio-help mt-2">百万点建议优先体素降采样，再执行半径去噪。</p></div></div>
+                    <div className="studio-section"><div className="studio-section-title">Open3D 统计离群点</div><div className="studio-section-body"><NumberField label="邻域点数" value={filter.statisticalNeighbors} step={1} onChange={v=>setFilter({...filter,statisticalNeighbors:Math.round(v)})}/><NumberField label="标准差倍率" value={filter.stdRatio} onChange={v=>setFilter({...filter,stdRatio:v})}/>{!backendOnline&&<div className="studio-warning mb-2">启动本地 Open3D 服务后可用。</div>}<button className="studio-button primary w-full" disabled={!backendOnline} onClick={applyStatistical}>执行统计滤波</button></div></div>
+                </>;
+                if(activeTool==='crop')return <>
+                    <div className="studio-section"><div className="studio-section-title">三维裁剪盒 <input type="checkbox" checked={crop.active} onChange={e=>setCrop({...crop,active:e.target.checked})}/></div><div className="studio-section-body">{['X','Y','Z'].map(axis=><div className="studio-row" key={axis}><NumberField label={`${axis} Min`} value={crop[`min${axis}`]} onChange={v=>setCrop({...crop,[`min${axis}`]:v})}/><NumberField label={`${axis} Max`} value={crop[`max${axis}`]} onChange={v=>setCrop({...crop,[`max${axis}`]:v})}/></div>)}<NumberField label="绕 Z 轴旋转 (Yaw °)" value={crop.yawDeg||0} onChange={v=>setCrop({...crop,yawDeg:v})}/><label className="studio-check"><input type="checkbox" checked={crop.keep} onChange={e=>setCrop({...crop,keep:e.target.checked})}/>保留框内点（取消则删除框内点）</label><button className="studio-button danger w-full" onClick={applyCrop}>执行三维裁剪</button></div></div>
+                    <div className="studio-section"><div className="studio-section-title">可视选区</div><div className="studio-section-body"><div className="studio-row"><button className={`studio-button ${selectionMode==='box'?'primary':''}`} onClick={()=>{setSelectionMode('box');setSelection([]);}}>矩形选区</button><button className={`studio-button ${selectionMode==='polygon'?'primary':''}`} onClick={()=>{setSelectionMode('polygon');setSelection([]);}}>多边形套索</button></div><p className="studio-help mt-2">建议切换顶视图后在点云上点击：矩形两点；套索至少三点。Esc 可退出选区。</p><div className="studio-stat mt-2"><span>当前选中</span><strong>{selectedCount.toLocaleString()} 点</strong></div><div className="studio-row mt-2"><button className="studio-button success" disabled={!selectedCount} onClick={()=>applySelectionCrop(true)}>保留选区</button><button className="studio-button danger" disabled={!selectedCount} onClick={()=>applySelectionCrop(false)}>删除选区</button></div><button className="studio-button w-full mt-2" onClick={()=>{setSelection([]);setSelectionMode('none');}}>退出并清空选区</button></div></div>
+                </>;
+                if(activeTool==='segment')return <div className="studio-section"><div className="studio-section-title">几何坡面分割</div><div className="studio-section-body"><NumberField label="局部网格 (m)" value={segment.cellSize} onChange={v=>setSegment({...segment,cellSize:v})}/><div className="studio-row"><NumberField label="地面最大坡度 °" value={segment.groundMaxDeg} onChange={v=>setSegment({...segment,groundMaxDeg:v})}/><NumberField label="坡面最大坡度 °" value={segment.slopeMaxDeg} onChange={v=>setSegment({...segment,slopeMaxDeg:v})}/></div><div className="studio-row"><NumberField label="墙面最小坡度 °" value={segment.wallMinDeg} onChange={v=>setSegment({...segment,wallMinDeg:v})}/><NumberField label="粗糙度上限 (m)" value={segment.roughnessMax} onChange={v=>setSegment({...segment,roughnessMax:v})}/></div><NumberField label="单格墙体高度差 (m)" value={segment.wallHeightMin} onChange={v=>setSegment({...segment,wallHeightMin:v})}/><button className="studio-button primary w-full" onClick={classify}>运行分割并预览语义</button><p className="studio-help mt-2">浏览器模式使用高程连续性与局部法向；Open3D 后端在线时可扩展为精确邻域法向。</p></div></div>;
+                if(activeTool==='semantic')return <div className="studio-section"><div className="studio-section-title">语义图层</div><div className="studio-section-body"><div className="studio-chip-grid">{SEMANTIC_META.map((meta,index)=><button key={meta.name} className={`studio-chip ${semanticLabel===index?'active':''}`} style={{'--chip':meta.color}} onClick={()=>setSemanticLabel(index)}><span style={{color:meta.color}}>●</span> {meta.name}<br/><small>{semanticCounts[index].toLocaleString()}</small></button>)}</div><div className="studio-row mt-3"><button className={`studio-button ${selectionMode==='box'?'primary':''}`} onClick={()=>{setSelectionMode('box');setSelection([]);}}>框选</button><button className={`studio-button ${selectionMode==='polygon'?'primary':''}`} onClick={()=>{setSelectionMode('polygon');setSelection([]);}}>套索</button></div><div className="studio-stat mt-2"><span>待标注选区</span><strong>{selectedCount.toLocaleString()} 点</strong></div><button className="studio-button success w-full mt-2" disabled={!selectedCount} onClick={assignSemantic}>赋值为“{SEMANTIC_META[semanticLabel].name}”</button><button className="studio-button w-full mt-2" onClick={()=>{setSelection([]);setSelectionMode('none');}}>退出并清空选区</button></div></div>;
+                if(activeTool==='map')return <>
+                    <div className="studio-section"><div className="studio-section-title">加载现有 PGM</div><div className="studio-section-body"><input className="studio-input" type="file" accept=".pgm" onChange={handleMapFile}/><p className="studio-help mt-2">加载后使用下方分辨率、Min X/Min Y 作为地图元数据，并覆盖到点云中检查对齐。</p></div></div>
+                    <div className="studio-section"><div className="studio-section-title">Nav2 投影参数</div><div className="studio-section-body"><NumberField label="分辨率 (m/px)" value={mapConfig.resolution} onChange={v=>setMapConfig({...mapConfig,resolution:v})}/><button className="studio-button w-full mb-2" onClick={fitMapToCurrent}>适配当前点云范围</button><div className="studio-row"><NumberField label="Min X" value={mapConfig.minX} onChange={v=>setMapConfig({...mapConfig,minX:v})}/><NumberField label="Max X" value={mapConfig.maxX} onChange={v=>setMapConfig({...mapConfig,maxX:v})}/></div><div className="studio-row"><NumberField label="Min Y" value={mapConfig.minY} onChange={v=>setMapConfig({...mapConfig,minY:v})}/><NumberField label="Max Y" value={mapConfig.maxY} onChange={v=>setMapConfig({...mapConfig,maxY:v})}/></div><div className="studio-row"><NumberField label="Min Z" value={mapConfig.minZ} onChange={v=>setMapConfig({...mapConfig,minZ:v})}/><NumberField label="Max Z" value={mapConfig.maxZ} onChange={v=>setMapConfig({...mapConfig,maxZ:v})}/></div><NumberField label="未分类点障碍高度阈值" value={mapConfig.obstacleMinZ} onChange={v=>setMapConfig({...mapConfig,obstacleMinZ:v})}/><label className="studio-check"><input type="checkbox" checked={mapConfig.removeIsolated} onChange={e=>setMapConfig({...mapConfig,removeIsolated:e.target.checked})}/>清除孤立占据像素</label><label className="studio-check"><input type="checkbox" checked={mapConfig.fillHoles} onChange={e=>setMapConfig({...mapConfig,fillHoles:e.target.checked})}/>填充单像素障碍孔洞</label><label className="studio-check"><input type="checkbox" checked={mapConfig.autoTrimUnknown} onChange={e=>setMapConfig({...mapConfig,autoTrimUnknown:e.target.checked})}/>自动裁掉外围未知区域</label>{mapConfig.autoTrimUnknown&&<NumberField label="外围保留边距 (m)" value={mapConfig.trimPadding} onChange={v=>setMapConfig({...mapConfig,trimPadding:Math.max(0,v)})}/>}<label className="studio-check"><input type="checkbox" checked={mapConfig.estimateSemanticFree} onChange={e=>setMapConfig({...mapConfig,estimateSemanticFree:e.target.checked})}/>根据地面/坡面补充局部空洞</label>{mapConfig.estimateSemanticFree&&<><div className="studio-row"><NumberField label="补全半径 (m)" value={mapConfig.estimateRadius} onChange={v=>setMapConfig({...mapConfig,estimateRadius:Math.max(0,v)})}/><NumberField label="障碍保护距离 (m)" value={mapConfig.obstacleClearance} onChange={v=>setMapConfig({...mapConfig,obstacleClearance:Math.max(0,v)})}/></div><p className="studio-help mt-2">仅从已分割的地面/坡面向邻近未知格估计；墙面和障碍附近不会补为可通行。</p></>}<button className="studio-button primary w-full" onClick={generateMap}>生成并覆盖预览</button></div></div>
+                    {mapGrid&&<div className="studio-section"><div className="studio-section-title">栅格预览 <span>{mapGrid.width} × {mapGrid.height}</span></div><div className="studio-section-body"><MapPreview grid={mapGrid}/><p className="studio-help mt-2">青色表示语义估计补全，导出 PGM 时按空闲栅格写入。</p><div className="studio-stat-grid mt-2"><div className="studio-stat"><span>占据</span><strong>{mapGrid.stats.occupied}</strong></div><div className="studio-stat"><span>空闲</span><strong>{mapGrid.stats.free}</strong></div><div className="studio-stat"><span>估计补全</span><strong>{mapGrid.stats.estimated||0}</strong></div><div className="studio-stat"><span>未知</span><strong>{mapGrid.stats.unknown}</strong></div><div className="studio-stat"><span>Origin</span><strong>{mapGrid.originX.toFixed(2)}, {mapGrid.originY.toFixed(2)}</strong></div></div></div></div>}
+                </>;
+                return <>
+                    <div className="studio-section"><div className="studio-section-title">ROGMap 点云</div><div className="studio-section-body"><button className="studio-button primary w-full" onClick={()=>exportPcd(true)}>导出 Binary PCD</button><button className="studio-button w-full mt-2" onClick={()=>exportPcd(false)}>导出 ASCII PCD</button></div></div>
+                    <div className="studio-section"><div className="studio-section-title">Nav2 / ESDF / Elevation</div><div className="studio-section-body">{!mapGrid&&<div className="studio-warning mb-2">请先在“地图生成”中生成 Nav2 栅格。</div>}<button className="studio-button success w-full" disabled={!mapGrid} onClick={exportMap}>导出 PGM + YAML</button><NumberField label="ESDF 最大距离 (m)" value={esdfMax} onChange={setEsdfMax}/><button className="studio-button primary w-full" disabled={!mapGrid} onClick={exportEsdf}>导出 x y z intensity ESDF</button><div className="studio-field mt-3"><div className="studio-label">Elevation 聚合</div><select className="studio-select" value={elevationMethod} onChange={e=>setElevationMethod(e.target.value)}><option value="min">最低值</option><option value="median">中位数</option><option value="p90">90% 分位</option><option value="max">最高值</option></select></div><button className="studio-button primary w-full" onClick={exportElevation}>导出 Elevation PCD + YAML</button></div></div>
+                    <div className="studio-section"><div className="studio-section-title">工程审计</div><div className="studio-section-body"><button className="studio-button w-full" onClick={exportProject}>导出处理记录 JSON</button></div></div>
+                </>;
+            };
+
+            return <div className="studio-shell">
+                <header className="studio-topbar"><div className="studio-brand"><span className="studio-logo">C</span><span>CloudLab Studio <span className="studio-version">v3.0</span></span></div><button className="studio-button" onClick={()=>setLeftOpen(v=>!v)}>☰ 管线</button><button className="studio-button" onClick={undo} disabled={!undoStack.length}>↶ 撤销</button><button className="studio-button" onClick={redo} disabled={!redoStack.length}>↷ 重做</button><button className="studio-button optional" onClick={()=>setColorMode(colorMode==='height'?'semantic':'height')}>着色：{colorMode==='height'?'高程':'语义'}</button><div className="studio-spacer"/><div className="studio-mode"><span className={`studio-dot ${backendOnline?'online':''}`}/>{backendOnline?'Open3D 后端在线':'浏览器 Worker 模式'}</div><button className="studio-button" onClick={()=>setRightOpen(v=>!v)}>参数面板</button><button className="studio-button primary" onClick={()=>setActiveTool('export')}>导出</button></header>
+                <main className="studio-main">
+                    {leftOpen&&<aside className="studio-dock studio-left" style={{width:leftWidth}}><div className="studio-dock-header"><span>处理管线</span><button className="studio-collapse" onClick={()=>setLeftOpen(false)}>‹</button></div><div className="studio-scroll"><div className="studio-section"><div className="studio-section-body">{tools.map(([id,index,name])=><button key={id} className={`studio-pipeline-item ${activeTool===id?'active':''}`} onClick={()=>setActiveTool(id)}><span className="studio-step-icon">{index}</span><span>{name}</span><span className="studio-step-meta">›</span></button>)}</div></div><div className="studio-section"><div className="studio-section-title">数据概览</div><div className="studio-section-body"><div className="studio-stat-grid"><div className="studio-stat"><span>总点数</span><strong>{(dataset.points.length/3).toLocaleString()}</strong></div><div className="studio-stat"><span>已选择</span><strong>{selectedCount.toLocaleString()}</strong></div><div className="studio-stat"><span>宽 × 深</span><strong>{(bounds.maxX-bounds.minX).toFixed(1)} × {(bounds.maxY-bounds.minY).toFixed(1)}</strong></div><div className="studio-stat"><span>高度</span><strong>{(bounds.maxZ-bounds.minZ).toFixed(2)} m</strong></div></div></div></div><div className="studio-section"><div className="studio-section-title">处理历史 <span>{pipeline.length}</span></div><div className="studio-section-body"><ul className="studio-history">{pipeline.slice(-8).reverse().map((item,index)=><li key={index}><span>{item.name}</span><span>{item.count.toLocaleString()}</span></li>)}</ul></div></div></div></aside>}
+                    {leftOpen&&<div data-testid="left-resizer" role="separator" aria-label="调整处理管线宽度" aria-orientation="vertical" className="studio-resizer" onMouseDown={e=>startResize('left',e)}/>}
+                    <section className="studio-viewport"><StudioViewer points={dataset.points} labels={dataset.labels} colorMode={colorMode} pointSize={pointSize} crop={crop} mapGrid={mapGrid} selection={selection} selectionMode={selectionMode} onWorldPick={onWorldPick} viewPreset={viewPreset}/><div className="studio-view-tools">{[['perspective','透视'],['top','顶视'],['front','前视'],['side','侧视']].map(([id,label])=><button key={id} className={viewPreset===id?'active':''} onClick={()=>setViewPreset(id)}>{label}</button>)}<button className={selectionMode==='box'?'active':''} onClick={()=>{setSelectionMode(selectionMode==='box'?'none':'box');setSelection([]);}}>框选</button><button className={selectionMode==='polygon'?'active':''} onClick={()=>{setSelectionMode(selectionMode==='polygon'?'none':'polygon');setSelection([]);}}>套索</button></div><div className="studio-selection-note">左键旋转 · 中键/右键平移 · 滚轮缩放{selectionMode!=='none'&&` · ${selectionMode==='box'?'点击两个角点':'逐点绘制套索'} · Esc 退出`}</div>{task&&<div className="studio-task"><div className="studio-task-body"><span>{task.error?'错误：':''}{task.title}</span>{!task.error&&<button className="studio-button" onClick={cancelTask}>取消</button>}</div><div className="studio-progress"><div style={{width:`${task.progress}%`,background:task.error?'#d05b68':undefined}}/></div></div>}</section>
+                    {rightOpen&&<div data-testid="right-resizer" role="separator" aria-label="调整参数面板宽度" aria-orientation="vertical" className="studio-resizer" onMouseDown={e=>startResize('right',e)}/>}
+                    {rightOpen&&<aside className="studio-dock studio-right" style={{width:rightWidth}}><div className="studio-dock-header"><span>{tools.find(item=>item[0]===activeTool)?.[2]}</span><button className="studio-collapse" onClick={()=>setRightOpen(false)}>›</button></div><div className="studio-scroll">{renderInspector()}</div></aside>}
+                </main>
+                <footer className="studio-status"><span><strong>{status}</strong></span><span>{(dataset.points.length/3).toLocaleString()} 点</span><span>选择 {selectedCount.toLocaleString()}</span><span>显示预算 700k</span><span>Frame: map / Z-up</span><span className="studio-spacer"/><span>{backendOnline?'增强处理可用':'离线单文件可用'}</span></footer>
+            </div>;
+        };
+
+        root.render(<StudioApp />);
     </script>
 </body>
 </html>

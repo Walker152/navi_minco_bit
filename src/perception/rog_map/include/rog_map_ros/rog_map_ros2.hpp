@@ -204,14 +204,15 @@ class ROGMapROS : public ROGMap
       }
       return;
     }
-    if (!robot_state_.rcv) {
+    const RobotState robot_state = getRobotState();
+    if (!robot_state.rcv) {
       if (performance_monitor_) {
         performance_monitor_->recordCloudDropNoOdom();
       }
       std::cout << YELLOW << " -- [ROS] No odom received, skip cloud callback." << RESET << std::endl;
       return;
     }
-    if (cbk_t - robot_state_.rcv_time > cfg_.odom_timeout) {
+    if (cbk_t - robot_state.rcv_time > cfg_.odom_timeout) {
       if (performance_monitor_) {
         performance_monitor_->recordCloudDropOdomTimeout();
       }
@@ -232,7 +233,7 @@ class ROGMapROS : public ROGMap
       }
       return;
     }
-    if (cloud_filter_ && !cloud_filter_->filter(temp_pc, cloud_msg->header, robot_state_.p)) {
+    if (cloud_filter_ && !cloud_filter_->filter(temp_pc, cloud_msg->header, robot_state.p)) {
       return;
     }
     if (temp_pc.empty()) {
@@ -243,8 +244,8 @@ class ROGMapROS : public ROGMap
     }
     rc_.updete_lock.lock();
     rc_.pc = temp_pc;
-    rc_.pc_pose = std::make_pair(robot_state_.p, robot_state_.q);
-    rc_.pc_odom_age_ms = std::max(0.0, cbk_t - robot_state_.rcv_time) * 1000.0;
+    rc_.pc_pose = std::make_pair(robot_state.p, robot_state.q);
+    rc_.pc_odom_age_ms = std::max(0.0, cbk_t - robot_state.rcv_time) * 1000.0;
     rc_.unfinished_frame_cnt++;
     map_empty_ = false;
     rc_.updete_lock.unlock();
@@ -299,8 +300,9 @@ class ROGMapROS : public ROGMap
       return;
     }
 
-    Vec3f box_max = robot_state_.p + cfg_.visualization_range / 2;
-    Vec3f box_min = robot_state_.p - cfg_.visualization_range / 2;
+    const RobotState robot_state = getRobotState();
+    Vec3f box_max = robot_state.p + cfg_.visualization_range / 2;
+    Vec3f box_min = robot_state.p - cfg_.visualization_range / 2;
 
     boundBoxByLocalMap(box_min, box_max);
     if ((box_max - box_min).minCoeff() <= 0) {
@@ -443,7 +445,7 @@ class ROGMapROS : public ROGMap
     if (cfg_.esdf_en) {
       if (vm_.esdf_pub && vm_.esdf_pub->get_subscription_count() >= 1) {
         PointCloud pc;
-        esdf_map_->getPositiveESDFPointCloud(box_min, box_max, robot_state_.p.z() - 0.5, pc);
+        esdf_map_->getPositiveESDFPointCloud(box_min, box_max, robot_state.p.z() - 0.5, pc);
         pcl::toROSMsg(pc, cloud_msg);
         cloud_msg.header.frame_id = cfg_.visualization_frame_id;
         cloud_msg.header.stamp = now();
@@ -452,7 +454,7 @@ class ROGMapROS : public ROGMap
 
       // if (vm_.esdf_neg_pub->get_subscription_count() >= 1) {
       //     PointCloud pc;
-      //     esdf_map_->getNegativeESDFPointCloud(box_min, box_max, robot_state_.p.z() - 0.5, pc);
+      //     esdf_map_->getNegativeESDFPointCloud(box_min, box_max, robot_state.p.z() - 0.5, pc);
       //     pcl::toROSMsg(pc, cloud_msg);
       //     cloud_msg.header.frame_id = "world";
       //     cloud_msg.header.stamp = now();
