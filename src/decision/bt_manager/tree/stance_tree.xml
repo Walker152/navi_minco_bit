@@ -75,7 +75,7 @@
                                 require_pitch_up="true"
                                 branch="OutpostEnhancedAttackBranch" />
             <SetGyroState use_gyro="true"
-                          gyro_vel="40.0"
+                          gyro_vel="50.0"
                           random_speed="false" />
             <Fallback name="OutpostAttackStanceSelector">
               <Sequence name="TryOutpostEnhancedAttack">
@@ -97,7 +97,7 @@
             <CheckHeat threshold="200" mode="greater" branch="HeatAttackBranch" />
             <!-- <CheckStanceEffectLimit target_stance="ATTACK" max_time_sec="180" /> -->
             <SetGyroState use_gyro="true"
-                          gyro_vel="40.0"
+                          gyro_vel="50.0"
                           random_speed="false" />
             <!-- <CheckStanceCooldown cooldown="5.0" branch="HeatAttackBranch" /> -->
             <Fallback name="AbsoluteAttackStanceSelector">
