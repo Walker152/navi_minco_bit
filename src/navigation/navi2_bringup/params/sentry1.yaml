@@ -462,11 +462,7 @@ planner_server:
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
-<<<<<<< HEAD
-          wall_occupancy_ratio_min: 0.70
-=======
           wall_occupancy_ratio_min: 0.80
->>>>>>> rog_map_work
 
           # [vertical height difference, m]
           # 可通行隧道所需的最小上下表面高度差。
