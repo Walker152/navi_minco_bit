@@ -24,6 +24,7 @@
 #pragma once
 
 #include <limits>
+#include <mutex>
 
 #include <rog_map/prob_map.h>
 #include <rog_map/field_layer.hpp>
@@ -164,6 +165,7 @@ namespace rog_map {
         bool findNearestInfCellThat(const bool & is, const GridType& target_type,
           const Vec3f & start_pos, Vec3f& nearest_pt, const double & max_dis) const ;
 
+        mutable std::mutex robot_state_mutex_;
         RobotState robot_state_;
     };
 }
