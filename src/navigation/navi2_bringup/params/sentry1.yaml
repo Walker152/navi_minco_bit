@@ -381,11 +381,11 @@ planner_server:
             y: 6.0
             z: 3.5
           positions:
-            x: [15.7, 19.2, 13.3, 9.8]
+            x: [15.6, 19.3, 13.4, 9.9]
             y: [1.55, 12.9, 13.45, 2.1]
-            z: [0.2, 0.4, 0.15, 0.4]
+            z: [0.15, 0.4, 0.15, 0.4]
           box_sizes:
-            x: [0.7, 0.8, 0.7, 0.8]
+            x: [0.8, 0.7, 0.8, 0.7]
             y: [0.8, 0.4, 0.8, 0.4]
             z: [0.5, 0.5, 0.5, 0.5]
 
@@ -413,9 +413,9 @@ planner_server:
         decay:
           enable: true
           # [decay][s] 最后一次 hit 后保持 occupied 的最小时间；过短障碍闪烁，过长动态障碍残留。
-          keep_time: 0.4
+          keep_time: 0.5
           # [decay][s] 最后一次 hit 后强制衰减到 free 的最大时间；必须大于 keep_time。
-          clear_time: 0.8
+          clear_time: 1.2
           # [decay][bool] 只维护活跃 cell 衰减列表；开启通常降低计算量，若列表维护异常会影响动态清除完整性。
           active_list_enable: false
 
