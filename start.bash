@@ -48,7 +48,11 @@ ROSBAG_TOPICS=(
   /minco_control_points_vis
   /rog_map/layer_height_delta
   # /livox/lidar
+  # /livox/imu_192_168_1_122
   # /livox/imu_192_168_1_135
+  # /livox/lidar_192_168_1_122
+  # /livox/lidar_192_168_1_135
+
 )
 # gnome-terminal -- bash -c "mkdir -p ~/rosbag && ros2 bag record -o ~/rosbag/$(date +%Y%m%d_%H%M%S) ${ROSBAG_TOPICS[*]}; exec bash"
 
