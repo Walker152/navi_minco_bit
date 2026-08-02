@@ -110,10 +110,22 @@ BT::NodeStatus TunnelTimeoutBackoutAction::onRunning()
   }
 
   if (!active_backout_) {
-    active_backout_ = true;
-    backout_start_time_ = now;
     active_yaw_align_mode_ =
       config().blackboard->get<uint8_t>("chassis_yaw_align_mode");
+    const auto & direction_config =
+      tunnel_yaw_align_configs[static_cast<std::size_t>(tunnel_idx)];
+    const bool yaw_align_mode_valid =
+      active_yaw_align_mode_ == direction_config.positive_mode ||
+      active_yaw_align_mode_ == direction_config.negative_mode;
+    if (!yaw_align_mode_valid) {
+      clearCmdVel();
+      geometry_msgs::msg::Twist stopped;
+      logState(false, tunnel_idx, duration, timeout_s, stopped,
+        "invalid_yaw_align_mode", branch);
+      return BT::NodeStatus::FAILURE;
+    }
+    active_backout_ = true;
+    backout_start_time_ = now;
   }
 
   const auto cmd_vel = computeBackoutVelocity(

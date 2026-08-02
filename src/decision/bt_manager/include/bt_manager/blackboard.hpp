@@ -44,6 +44,7 @@ public:
     blackboard_->set("through_tunnel", false);                                    // 是否通过隧道
     blackboard_->set("in_transform_zone", false);                                 // 是否在变形区
     blackboard_->set("nearest_tunnel_idx", -1);                                   // 最近隧道索引
+    blackboard_->set<uint8_t>("planned_tunnel_yaw_align_mode", 0);                 // 局部轨迹判定的隧道航向
     blackboard_->set("cmd_vel", geometry_msgs::msg::Twist());                     // 速度指令
     blackboard_->set("tunnel_escape_active", false);                              // 隧道逃逸速度接管
     blackboard_->set("tunnel_escape_cmd_vel", geometry_msgs::msg::Twist());        // 隧道逃逸速度
