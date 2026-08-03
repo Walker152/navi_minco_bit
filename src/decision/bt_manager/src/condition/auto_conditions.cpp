@@ -334,7 +334,8 @@ SetHeroGuardActive::SetHeroGuardActive(const std::string & name, const BT::NodeC
 BT::PortsList SetHeroGuardActive::providedPorts()
 {
   return {BT::InputPort<bool>("active", "Target hero guard state"),
-    BT::InputPort<bool>("once", false, "Apply automatic activation at most once"),
+    BT::InputPort<bool>(
+      "exit_nav_mode", false, "Set patrol mode when disabling hero guard"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
@@ -347,33 +348,20 @@ BT::NodeStatus SetHeroGuardActive::tick()
     throw BT::RuntimeError("missing required input [active]: ", target_active.error());
   }
 
-  const bool once = getInput<bool>("once").value_or(false);
-  if (once && blackboard->get<bool>("hero_guard_auto_enable_done")) {
-    detail::logTransition(detail::TreeKind::NAV,
-      "SetHeroGuardActive",
-      false,
-      "automatic hero guard activation already applied",
-      branch);
-    return BT::NodeStatus::FAILURE;
-  }
-
+  const bool exit_nav_mode = getInput<bool>("exit_nav_mode").value_or(false);
   const bool active = blackboard->get<bool>("hero_guard_active");
-  if (active == target_active.value()) {
-    if (once) {
-      blackboard->set<bool>("hero_guard_auto_enable_done", true);
-    }
-    detail::logTransition(
-      detail::TreeKind::NAV, "SetHeroGuardActive", false, "hero guard state unchanged", branch);
-    return BT::NodeStatus::FAILURE;
+  const bool changed = active != target_active.value();
+  if (changed) {
+    blackboard->set<bool>("hero_guard_active", target_active.value());
   }
-
-  blackboard->set<bool>("hero_guard_active", target_active.value());
-  if (once) {
-    blackboard->set<bool>("hero_guard_auto_enable_done", true);
+  if (!target_active.value() && exit_nav_mode) {
+    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
   }
   std::ostringstream oss;
-  oss << "hero_guard_active " << active << " -> " << target_active.value();
-  detail::logTransition(detail::TreeKind::NAV, "SetHeroGuardActive", true, oss.str(), branch);
+  oss << "hero_guard_active " << active << " -> " << target_active.value()
+      << (changed ? " (changed)" : " (unchanged)");
+  detail::logTransition(
+    detail::TreeKind::NAV, "SetHeroGuardActive", target_active.value(), oss.str(), branch);
   return BT::NodeStatus::SUCCESS;
 }
 
