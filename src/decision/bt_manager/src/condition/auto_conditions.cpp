@@ -296,6 +296,87 @@ BT::NodeStatus SetEnemyOutpostDestroyed::tick()
   return BT::NodeStatus::FAILURE;
 }
 
+// ------------------- CheckHeroGuardActive -------------------
+CheckHeroGuardActive::CheckHeroGuardActive(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckHeroGuardActive::providedPorts()
+{
+  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckHeroGuardActive::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const bool active = blackboard->get<bool>("hero_guard_active");
+
+  detail::logTransition(detail::TreeKind::NAV,
+    "CheckHeroGuardActive",
+    active,
+    active ? "hero guard enabled" : "hero guard disabled",
+    branch);
+  if (active) {
+    blackboard->set<NavMode>("current_mode", NavMode::RESPONSE);
+    return BT::NodeStatus::SUCCESS;
+  }
+  return BT::NodeStatus::FAILURE;
+}
+
+// ------------------- SetHeroGuardActive -------------------
+SetHeroGuardActive::SetHeroGuardActive(const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList SetHeroGuardActive::providedPorts()
+{
+  return {BT::InputPort<bool>("active", "Target hero guard state"),
+    BT::InputPort<bool>("once", false, "Apply automatic activation at most once"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus SetHeroGuardActive::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const auto target_active = getInput<bool>("active");
+  if (!target_active) {
+    throw BT::RuntimeError("missing required input [active]: ", target_active.error());
+  }
+
+  const bool once = getInput<bool>("once").value_or(false);
+  if (once && blackboard->get<bool>("hero_guard_auto_enable_done")) {
+    detail::logTransition(detail::TreeKind::NAV,
+      "SetHeroGuardActive",
+      false,
+      "automatic hero guard activation already applied",
+      branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  const bool active = blackboard->get<bool>("hero_guard_active");
+  if (active == target_active.value()) {
+    if (once) {
+      blackboard->set<bool>("hero_guard_auto_enable_done", true);
+    }
+    detail::logTransition(
+      detail::TreeKind::NAV, "SetHeroGuardActive", false, "hero guard state unchanged", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  blackboard->set<bool>("hero_guard_active", target_active.value());
+  if (once) {
+    blackboard->set<bool>("hero_guard_auto_enable_done", true);
+  }
+  std::ostringstream oss;
+  oss << "hero_guard_active " << active << " -> " << target_active.value();
+  detail::logTransition(detail::TreeKind::NAV, "SetHeroGuardActive", true, oss.str(), branch);
+  return BT::NodeStatus::SUCCESS;
+}
+
 // ------------------- CheckOwnOutpostAlive -------------------
 CheckOwnOutpostAlive::CheckOwnOutpostAlive(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)

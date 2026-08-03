@@ -153,7 +153,8 @@ inline std::vector<Point2D> nav_points = {
   {15.2, 11.2, 0.0}, // ENEMY_OUTPOST
   {7.2, 7.5, 0.0},   // OWN_FORT
   {22.0, 7.5, 0.0},  // ENEMY_FORT
-  {12.1, 3.9, 0.0}   // OWN_OUTPOST
+  {12.1, 3.9, 0.0},  // OWN_OUTPOST
+  {11.0, 10.9, 0.0}  // HERO_GUARD
 
   // for rmul
   // {1.2, 7.2, 0.0},  //HOME
@@ -355,7 +356,9 @@ inline std::vector<Point2D> nav_points = {
   // {9.1, 6.5, 0.0},  // OUTPOST
   {3.9, 5.9, 0.0},  // OUTPOST
   {12.6, 3.0, 0.0},  // OWN_FORT
-  {12.3, 3.3, 0.0}   // ENEMY_FORT
+  {12.3, 3.3, 0.0},  // ENEMY_FORT
+  {0.0, 0.0, 0.0},   // OWN_OUTPOST (test-area placeholder)
+  {11.0, 10.9, 0.0}  // HERO_GUARD
 };
 
 using PatrolList = std::vector<PatrolPoint>; 
