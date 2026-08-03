@@ -30,6 +30,30 @@
                                     branch="AutoOutpostDisableOnce" />
         </ReactiveSequence>
       </ForceSuccess>
+      <ForceSuccess>
+        <ReactiveSequence name="AutoHeroGuardEnableWindow">
+          <CheckGameTimeWindow name="CheckAutoHeroGuardEnableWindow"
+                               min_remaining="330"
+                               max_remaining="340"
+                               branch="AutoHeroGuardEnableWindow" />
+          <SetHeroGuardActive name="SetAutoHeroGuardActive"
+                              active="true"
+                              branch="AutoHeroGuardEnableWindow" />
+        </ReactiveSequence>
+      </ForceSuccess>
+      <ForceSuccess>
+        <ReactiveSequence name="AutoHeroGuardDisableWindow">
+          <CheckGameTimeWindow name="CheckAutoHeroGuardDisableWindow"
+                               min_remaining="280"
+                               max_remaining="290"
+                               require_game_started="false"
+                               branch="AutoHeroGuardDisableWindow" />
+          <SetHeroGuardActive name="SetAutoHeroGuardInactive"
+                              active="false"
+                              exit_nav_mode="true"
+                              branch="AutoHeroGuardDisableWindow" />
+        </ReactiveSequence>
+      </ForceSuccess>
       <ReactiveFallback name="NavPriorityRoot">
         <!-- <ReactiveSequence name="Priority0EmergencyStop">
           <EmergencyStop name="EmergencyStop" enable_combat_stop="false" />
@@ -39,6 +63,14 @@
         <SubTree ID="TunnelRecoverySubTree"
                  __shared_blackboard="true"
                  __autoremap="true" />
+
+        <ReactiveSequence name="Priority0HeroGuard">
+          <CheckHeroGuardActive name="CheckHeroGuardActive" branch="Priority0HeroGuard" />
+          <SetCoordinate name="SetHeroGuardCoordinate" goal="6" />
+          <ForceSuccess>
+            <NavigateToPoseAction name="NavigateHeroGuard" hold_after_success="true" />
+          </ForceSuccess>
+        </ReactiveSequence>
 
         <ReactiveSequence name="Priority0ManualOverride">
           <CheckManualOverride name="CheckManualOverride" branch="Priority0ManualOverride" />

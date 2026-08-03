@@ -273,8 +273,15 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
       "manual_override_stance", Sentry_BT::SentryStance::ENHANCED_MOVE);
     blackboard_->set<bool>("manual_stance_override_active", true);
     break;
+  case 71:   // 'G'键切换英雄守护模式
+  case 103: {  // 'g'键（兼容小写）
+    const bool hero_guard_active = blackboard_->get<bool>("hero_guard_active");
+    blackboard_->set<bool>("hero_guard_active", !hero_guard_active);
+    break;
+  }
   case 0:  // '0'键切换回自动模式,同时解除强化姿态覆盖
     blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);
+    blackboard_->set<bool>("hero_guard_active", false);
     blackboard_->set<bool>("manual_stance_override_active", false);
     break;
   default:

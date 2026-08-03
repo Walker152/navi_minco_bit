@@ -21,7 +21,9 @@ public:
 
   static BT::PortsList providedPorts()
   {
-    return providedBasicPorts({BT::InputPort<Sentry_BT::Point2D>("nav_goal")});
+    return providedBasicPorts({BT::InputPort<Sentry_BT::Point2D>("nav_goal"),
+      BT::InputPort<bool>(
+        "hold_after_success", false, "Keep this action RUNNING after a successful goal")});
   }
 
   bool readGoalFromBlackboard(Sentry_BT::Point2D & nav_goal)
@@ -117,6 +119,16 @@ public:
       std::cout << GREEN << "[NavigateToPoseAction:" << name() << "] send initial goal=(" << nav_goal.x
                 << ", " << nav_goal.y << ")" << RESET << std::endl;
     }
+  }
+
+  BT::NodeStatus on_success() override
+  {
+    // Keep the guard action active after arrival so the same goal is not resent every BT tick.
+    if (getInput<bool>("hold_after_success").value_or(false) &&
+        config().blackboard->get<bool>("hero_guard_active")) {
+      return BT::NodeStatus::RUNNING;
+    }
+    return BT::NodeStatus::SUCCESS;
   }
 
   void on_wait_for_result(
