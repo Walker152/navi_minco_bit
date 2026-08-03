@@ -91,6 +91,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckOutpostTarget>("CheckOutpostTarget");
   factory_.registerNodeType<CheckEngagedStatus>("CheckEngagedStatus");
   factory_.registerNodeType<CheckHealth>("CheckHealth");
+  factory_.registerNodeType<CheckEnemyAreaRecentlyHurt>("CheckEnemyAreaRecentlyHurt");
   factory_.registerNodeType<CheckTargetDistance>("CheckTargetDistance");
   factory_.registerNodeType<CheckCrossZoneTransition>("CheckCrossZoneTransition");
   factory_.registerNodeType<CheckCapacitorCapacity>("CheckCapacitorCapacity");
