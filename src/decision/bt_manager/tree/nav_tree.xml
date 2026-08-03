@@ -68,7 +68,7 @@
           <CheckHeroGuardActive name="CheckHeroGuardActive" branch="Priority0HeroGuard" />
           <SetCoordinate name="SetHeroGuardCoordinate" goal="6" />
           <ForceSuccess>
-            <NavigateToPoseAction name="NavigateHeroGuard" hold_after_success="true" />
+            <NavigateToPoseAction name="NavigateHeroGuard" />
           </ForceSuccess>
         </ReactiveSequence>
 
