@@ -4,6 +4,7 @@
 #include "bt_manager/utils/log.hpp"
 #include <behaviortree_cpp_v3/condition_node.h>
 
+#include <chrono>
 #include <string>
 
 namespace Sentry_BT {
@@ -54,6 +55,23 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+};
+
+// 敌方区域受击窗口：只在敌方区域内检测到血量下降时激活，持续时间由 XML 配置。
+class CheckEnemyAreaRecentlyHurt : public BT::ConditionNode
+{
+public:
+  CheckEnemyAreaRecentlyHurt(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  float last_health_ = 0.0f;
+  bool initialized_ = false;
+  bool hurt_window_active_ = false;
+  std::chrono::steady_clock::time_point last_hurt_time_{};
+  std::chrono::steady_clock::time_point last_tick_time_{};
 };
 
 class CheckTargetDistance : public BT::ConditionNode

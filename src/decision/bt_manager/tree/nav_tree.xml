@@ -54,6 +54,11 @@
                               branch="AutoHeroGuardDisableWindow" />
         </ReactiveSequence>
       </ForceSuccess>
+      <ForceSuccess>
+        <UpdateHighlandFallbackState name="UpdateHighlandFallbackState"
+                                     cutoff_remaining="340"
+                                     branch="HighlandFallbackState" />
+      </ForceSuccess>
       <ReactiveFallback name="NavPriorityRoot">
         <!-- <ReactiveSequence name="Priority0EmergencyStop">
           <EmergencyStop name="EmergencyStop" enable_combat_stop="false" />
@@ -64,11 +69,66 @@
                  __shared_blackboard="true"
                  __autoremap="true" />
 
-        <ReactiveSequence name="Priority0HeroGuard">
-          <CheckHeroGuardActive name="CheckHeroGuardActive" branch="Priority0HeroGuard" />
-          <SetCoordinate name="SetHeroGuardCoordinate" goal="6" />
+        <ReactiveSequence name="HighlandFallbackLine">
+          <CheckHighlandFallbackActive name="CheckHighlandFallbackActive"
+                                       branch="HighlandFallbackLine" />
+          <!-- 兜底分支必须闭合:内部导航失败时也不能落回原出门逻辑。 -->
           <ForceSuccess>
-            <NavigateToPoseAction name="NavigateHeroGuard" hold_after_success="true" />
+            <ReactiveFallback name="HighlandFallbackPriority">
+              <ReactiveSequence name="FallbackManualOverride">
+                <CheckManualOverride name="CheckFallbackManualOverride"
+                                     branch="FallbackManualOverride" />
+                <ReactiveFallback name="FallbackManualGoalSelector">
+                  <ReactiveSequence name="FallbackManualAttackFortResponse">
+                    <CheckTacticalModeCondition name="CheckFallbackManualAttackMode"
+                                                mode="attack"
+                                                branch="FallbackManualAttackFortResponse" />
+                    <SetCoordinate name="SetFallbackManualEnemyFortGoal" goal="4" />
+                    <ForceSuccess>
+                      <NavigateToPoseAction name="NavigateFallbackManualEnemyFort" />
+                    </ForceSuccess>
+                  </ReactiveSequence>
+                  <ReactiveSequence name="FallbackManualPointResponse">
+                    <SetManualOverrideGoal name="SetFallbackManualOverrideGoal"
+                                           wait_duration_s="10.0"
+                                           goal_radius="0.5"
+                                           fallback_timeout_s="60.0" />
+                    <ForceSuccess>
+                      <NavigateToPoseAction name="NavigateFallbackManualOverrideGoal" />
+                    </ForceSuccess>
+                  </ReactiveSequence>
+                </ReactiveFallback>
+              </ReactiveSequence>
+
+              <ReactiveSequence name="FallbackHealthRecovery">
+                <CheckRetreatCondition name="CheckFallbackHealthRecoveryCondition"
+                                       health_threshold="40"
+                                       recovery_threshold="90"
+                                       branch="FallbackHealthRecovery" />
+                <SetNavMode name="SetFallbackHealthRetreatNavMode" mode="retreat" />
+                <SetCoordinate name="SetFallbackHealthHomeGoal" goal="0" />
+                <ForceSuccess>
+                  <NavigateToPoseAction name="NavigateFallbackHealthHome" />
+                </ForceSuccess>
+              </ReactiveSequence>
+
+              <ReactiveSequence name="FallbackAmmoSupply">
+                <CheckAmmoLow ammo_threshold="50" branch="FallbackAmmoSupply" />
+                <SetNavMode name="SetFallbackAmmoRetreatNavMode" mode="retreat" />
+                <SetCoordinate name="SetFallbackAmmoHomeGoal" goal="0" />
+                <ForceSuccess>
+                  <NavigateToPoseAction name="NavigateFallbackAmmoHome" />
+                </ForceSuccess>
+              </ReactiveSequence>
+
+              <ReactiveSequence name="FallbackHeroGuard">
+                <SetNavMode name="SetFallbackHeroGuardNavMode" mode="response" />
+                <SetCoordinate name="SetFallbackHeroGuardCoordinate" goal="6" />
+                <ForceSuccess>
+                  <NavigateToPoseAction name="NavigateFallbackHeroGuard" />
+                </ForceSuccess>
+              </ReactiveSequence>
+            </ReactiveFallback>
           </ForceSuccess>
         </ReactiveSequence>
 
@@ -175,6 +235,15 @@
               </ReactiveFallback>
             </ReactiveSequence>
 
+            <ReactiveSequence name="NormalHeroGuardResponse">
+              <CheckHeroGuardActive name="CheckHeroGuardActive"
+                                    branch="NormalHeroGuardResponse" />
+              <SetCoordinate name="SetHeroGuardCoordinate" goal="6" />
+              <ForceSuccess>
+                <NavigateToPoseAction name="NavigateHeroGuard" />
+              </ForceSuccess>
+            </ReactiveSequence>
+
             <!-- <ReactiveSequence name="EarlyTargetAttack">
               <ReactiveSequence name="EarlyTargetPursuit">
                 <CheckTargetLocked name="CheckEarlyTargetLocked" branch="EarlyTargetAttack" />
@@ -182,7 +251,7 @@
                 <NavigateToPoseAction name="NavigateEarlyTrackingTarget" />
               </ReactiveSequence>
             </ReactiveSequence> -->
-            
+
             <ReactiveSequence name="EarlyGameSpecialResponse">
               <CheckGameTimeWindow name="CheckEarlyGameSpecialWindow"
                                    min_remaining="0"

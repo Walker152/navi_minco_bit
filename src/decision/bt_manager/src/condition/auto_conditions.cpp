@@ -353,9 +353,9 @@ BT::NodeStatus SetHeroGuardActive::tick()
   const bool changed = active != target_active.value();
   if (changed) {
     blackboard->set<bool>("hero_guard_active", target_active.value());
-  }
-  if (!target_active.value() && exit_nav_mode) {
-    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
+    if (!target_active.value() && exit_nav_mode) {
+      blackboard->set<NavMode>("current_mode", NavMode::PATROL);
+    }
   }
   std::ostringstream oss;
   oss << "hero_guard_active " << active << " -> " << target_active.value()
@@ -363,6 +363,110 @@ BT::NodeStatus SetHeroGuardActive::tick()
   detail::logTransition(
     detail::TreeKind::NAV, "SetHeroGuardActive", target_active.value(), oss.str(), branch);
   return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- UpdateHighlandFallbackState -------------------
+UpdateHighlandFallbackState::UpdateHighlandFallbackState(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList UpdateHighlandFallbackState::providedPorts()
+{
+  return {BT::InputPort<int>(
+            "cutoff_remaining", 340, "Enable fallback at or below this remaining match time"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus UpdateHighlandFallbackState::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const int cutoff_remaining = getInput<int>("cutoff_remaining").value_or(340);
+  const int game_time_remaining = blackboard->get<int>("game_time_remaining");
+  const int game_status = blackboard->get<int>("game_status");
+
+  bool highland_reached_once = blackboard->get<bool>("highland_reached_once");
+  bool highland_fallback_active = blackboard->get<bool>("highland_fallback_active");
+
+  // Clear the per-match latch around the referee pregame-to-running transition. The
+  // remaining-time guard prevents a transient status change later in the match from
+  // releasing an already active fallback.
+  const bool pregame_reset = game_status != 4 && game_time_remaining >= 410;
+  const bool new_match_started =
+    game_status == 4 && previous_game_status_ != 4 && game_time_remaining >= 410;
+  previous_game_status_ = game_status;
+  if (pregame_reset || new_match_started) {
+    highland_reached_once = false;
+    highland_fallback_active = false;
+    blackboard->set<bool>("highland_reached_once", false);
+    blackboard->set<bool>("highland_fallback_active", false);
+  }
+
+  if (game_status == 4 && !highland_fallback_active) {
+    const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+    const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
+
+    // Check the current pose before the cutoff so entering the highland exactly at
+    // the boundary is recorded as a successful climb.
+    if (!highland_reached_once && highland_zone.contains(current_point)) {
+      highland_reached_once = true;
+      blackboard->set<bool>("highland_reached_once", true);
+    }
+
+    if (!highland_reached_once && game_time_remaining <= cutoff_remaining) {
+      highland_fallback_active = true;
+      blackboard->set<bool>("highland_fallback_active", true);
+    }
+  }
+
+  std::ostringstream reached_detail;
+  reached_detail << "game_status=" << game_status << ", game_time_remaining=" << game_time_remaining
+                 << ", cutoff_remaining=" << cutoff_remaining;
+  detail::logTransition(detail::TreeKind::NAV,
+    "HighlandReachedOnce",
+    highland_reached_once,
+    reached_detail.str(),
+    branch);
+
+  std::ostringstream fallback_detail;
+  fallback_detail << "game_status=" << game_status << ", game_time_remaining=" << game_time_remaining
+                  << ", cutoff_remaining=" << cutoff_remaining
+                  << ", highland_reached_once=" << highland_reached_once;
+  detail::logTransition(detail::TreeKind::NAV,
+    "HighlandFallbackActive",
+    highland_fallback_active,
+    fallback_detail.str(),
+    branch);
+
+  return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- CheckHighlandFallbackActive -------------------
+CheckHighlandFallbackActive::CheckHighlandFallbackActive(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckHighlandFallbackActive::providedPorts()
+{
+  return {BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckHighlandFallbackActive::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const bool active = blackboard->get<bool>("highland_fallback_active");
+
+  detail::logTransition(detail::TreeKind::NAV,
+    "CheckHighlandFallbackActive",
+    active,
+    active ? "highland fallback enabled" : "highland fallback disabled",
+    branch);
+  return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckOwnOutpostAlive -------------------

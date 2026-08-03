@@ -52,6 +52,8 @@ public:
     blackboard_->set("current_pose", geometry_msgs::msg::Pose());                 // 当前位姿缓存
     blackboard_->set("manual_override_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});  // 手动接管目标点
     blackboard_->set("hero_guard_active", false);                                 // 英雄守护模式
+    blackboard_->set("highland_reached_once", false);                             // 本局是否曾进入高地区域
+    blackboard_->set("highland_fallback_active", false);                          // 未上高地兜底守护模式
     blackboard_->set("outpost_safe_cooldown_active", false);  // 前哨站安全期是否生效
     blackboard_->set("patrol_branch", 0);                     // 巡逻分支索引
 
