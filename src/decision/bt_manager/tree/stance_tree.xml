@@ -20,6 +20,19 @@
           <!-- <CheckStanceCooldown cooldown="5.0" branch="MoveStanceNoGyroBranch" /> -->
         </ReactiveSequence>
 
+        <!-- 敌方防守区受击后优先使用强化防御；连续5秒未再掉血后退出。
+             优先级低于过洞，高于其他姿态分支。强化不可用时回退现有正常姿态决策。 -->
+        <ReactiveSequence name="EnemyDefenseDamageDefendBranch">
+          <CheckEnemyDefenseHealthDrop stable_seconds="5.0"
+                                       branch="EnemyDefenseDamageDefendBranch" />
+          <CheckShouldEnhanceStance target_stance="DEFEND"
+                                    min_remaining_sec="1"
+                                    force_if_available="true"
+                                    branch="EnemyDefenseDamage_Enhanced" />
+          <ChangeStance name="ChangeStanceEnemyDefenseDamageEnhancedDefend"
+                        stance="ENHANCED_DEFEND" />
+        </ReactiveSequence>
+
         <!-- 强化姿态专门分支:非隧道场景下,若操作手强化覆盖生效(override_active && 能量 && 未超时),
              直接产出强化姿态并返回 SUCCESS,自动分支不会 tick。
              优先级:高于自动分支,低于隧道分支。
