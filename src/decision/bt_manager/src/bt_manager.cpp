@@ -45,6 +45,8 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<SetEnemyOutpostDestroyed>("SetEnemyOutpostDestroyed");
   factory_.registerNodeType<CheckHeroGuardActive>("CheckHeroGuardActive");
   factory_.registerNodeType<SetHeroGuardActive>("SetHeroGuardActive");
+  factory_.registerNodeType<UpdateHighlandFallbackState>("UpdateHighlandFallbackState");
+  factory_.registerNodeType<CheckHighlandFallbackActive>("CheckHighlandFallbackActive");
   factory_.registerNodeType<CheckOwnOutpostAlive>("CheckOwnOutpostAlive");
   factory_.registerNodeType<CheckTargetLocked>("CheckTargetLocked");
   factory_.registerBuilder<NavigateToPoseAction>(

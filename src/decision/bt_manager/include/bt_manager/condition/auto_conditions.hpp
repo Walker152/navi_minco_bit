@@ -73,6 +73,27 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class UpdateHighlandFallbackState : public BT::ConditionNode
+{
+public:
+  UpdateHighlandFallbackState(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  int previous_game_status_ = 0;
+};
+
+class CheckHighlandFallbackActive : public BT::ConditionNode
+{
+public:
+  CheckHighlandFallbackActive(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 class CheckOwnOutpostAlive : public BT::ConditionNode
 {
 public:
