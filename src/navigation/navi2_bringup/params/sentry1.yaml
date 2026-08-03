@@ -358,7 +358,7 @@ planner_server:
 
         # 入图前点云区域滤除；关闭时不创建过滤器，保持原始 ROGMap 数据链路。
         cloud_filter:
-          enable: true
+          enable: false
           z_offset: -1.0
           position_frame: map
           filter_mode: transform_center   # transform_cloud | transform_center
@@ -550,7 +550,7 @@ planner_server:
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
         safe_dist: 0.35
-        collision_dist: 0.25
+        collision_dist: 0.2
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
         max_acceleration: 2.0
