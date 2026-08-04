@@ -12,8 +12,8 @@ gnome-terminal -- bash -c "ros2 launch point_lio mixed_livox_pointlio_intra_proc
 sleep 5
 
 # ICP
-# gnome-terminal -- bash c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
-# sleep 1
+gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
+sleep 1
 
 # Navigation2
 gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"

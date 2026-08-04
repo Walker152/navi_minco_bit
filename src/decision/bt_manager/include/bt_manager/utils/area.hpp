@@ -154,7 +154,7 @@ inline std::vector<Point2D> nav_points = {
   {7.2, 7.5, 0.0},   // OWN_FORT
   {22.0, 7.5, 0.0},  // ENEMY_FORT
   {12.1, 3.9, 0.0},  // OWN_OUTPOST
-  {11.0, 10.9, 0.0}  // HERO_GUARD
+  {8.8, 14.1, 0.0}  // HERO_GUARD
 
   // for rmul
   // {1.2, 7.2, 0.0},  //HOME

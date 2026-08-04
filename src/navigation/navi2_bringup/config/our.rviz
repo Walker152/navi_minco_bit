@@ -7,6 +7,8 @@ Panels:
         - /Global Options1
         - /TF1/Frames1
         - /TF1/Tree1
+        - /GICP1
+        - /GICP1/Target Cropped1
         - /ROGMAP1
         - /PointCloud21/Topic1
       Splitter Ratio: 0.5833333134651184
@@ -528,8 +530,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 0.41999998688697815
-            Min Value: 0
+            Max Value: 2.9997897148132324
+            Min Value: 2.482766149114468e-06
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -537,7 +539,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: AxisColor
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Max Intensity: 4096
@@ -558,7 +560,7 @@ Visualization Manager:
             Value: /gicp_relocalization_node/debug/target_raw
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
@@ -630,14 +632,14 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 10
-            Min Value: -10
+            Max Value: 2.9997897148132324
+            Min Value: 8.66968932200507e-08
             Value: true
           Axis: Z
           Channel Name: intensity
           Class: rviz_default_plugins/PointCloud2
           Color: 255; 255; 255
-          Color Transformer: Intensity
+          Color Transformer: AxisColor
           Decay Time: 0
           Enabled: true
           Invert Rainbow: false
@@ -673,7 +675,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Max Intensity: 4096
@@ -694,8 +696,8 @@ Visualization Manager:
             Value: /gicp_relocalization_node/debug/source_cropped
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
-      Enabled: false
+          Value: false
+      Enabled: true
       Name: GICP
     - Class: rviz_common/Group
       Displays:
@@ -798,9 +800,9 @@ Visualization Manager:
           Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 2.1400935649871826
+          Max Intensity: 2.1708292961120605
           Min Color: 0; 0; 0
-          Min Intensity: -1.25
+          Min Intensity: -1.2257651090621948
           Name: 2DESDF
           Position Transformer: XYZ
           Selectable: true
@@ -854,8 +856,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 0.675000011920929
-            Min Value: -0.375
+            Max Value: 0.7250000238418579
+            Min Value: -0.2750000059604645
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -985,8 +987,7 @@ Visualization Manager:
           Enabled: true
           Name: Crop Boxs
           Namespaces:
-            crop_boxes: true
-            z_pass_plane: true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -1133,25 +1134,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 34.69889450073242
+      Distance: 29.429237365722656
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 9.221443176269531
-        Y: 6.404575824737549
-        Z: -8.192933082580566
+        X: 16.23378562927246
+        Y: 3.350111246109009
+        Z: -9.830328941345215
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5697963237762451
+      Pitch: 1.5297960042953491
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 3.203590154647827
+      Yaw: 3.113593339920044
     Saved: ~
 Window Geometry:
   Displays:

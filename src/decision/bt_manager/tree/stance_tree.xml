@@ -45,7 +45,7 @@
         <!-- 敌区受击强化防御：冲堡接近阶段继续执行 MOVE/零陀螺/航向对齐，
              只有到达堡垒交战圈后才允许该分支接管冲堡姿态。 -->
         <ReactiveSequence name="EnemyAreaHurtEnhancedDefendBranch">
-          <CheckEnemyAreaRecentlyHurt hold_seconds="3.0"
+          <CheckEnemyAreaRecentlyHurt hold_seconds="5.0"
                                       branch="EnemyAreaHurtEnhancedDefendBranch" />
           <CheckShouldEnhanceStance
             target_stance="DEFEND"

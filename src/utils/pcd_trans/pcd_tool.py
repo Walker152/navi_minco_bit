@@ -193,14 +193,14 @@ class PointCloudProcessor:
 def main():
     # ==================== 配置区域 (请在此处修改参数) ====================
     # 输入文件路径
-    INPUT_PCD = "src/navigation/navi2_bringup/maps/pcd/pcd_rmuc2026_jinan.pcd"
+    INPUT_PCD = "src/perception/icp_relocalization/pcd/cloudlab_processed.pcd"
     
     # 输出文件路径
-    OUTPUT_PCD = "src/navigation/navi2_bringup/maps/pcd/pcd_rmuc2026_jinan_trans.pcd"
+    OUTPUT_PCD = "src/perception/icp_relocalization/pcd/cloudlab_processed_.pcd"
     
     # 平移参数 (单位: 米)
-    TX = 14.5
-    TY = 7.5
+    TX = 0.5
+    TY = 0.0
     TZ = 0.0
     
     # 旋转参数 (单位: 度)

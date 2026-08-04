@@ -20,8 +20,8 @@
       <ForceSuccess>
         <ReactiveSequence name="AutoOutpostDisableOnce">
           <CheckGameTimeWindow name="CheckAutoOutpostDisableWindow"
-                               min_remaining="360"
-                               max_remaining="370"
+                               min_remaining="340"
+                               max_remaining="350"
                                require_game_started="false"
                                branch="AutoOutpostDisableOnce" />
           <SetEnemyOutpostDestroyed name="SetAutoOutpostDestroyedOnce"
@@ -33,8 +33,8 @@
       <ForceSuccess>
         <ReactiveSequence name="AutoHeroGuardEnableWindow">
           <CheckGameTimeWindow name="CheckAutoHeroGuardEnableWindow"
-                               min_remaining="330"
-                               max_remaining="340"
+                               min_remaining="260"
+                               max_remaining="280"
                                branch="AutoHeroGuardEnableWindow" />
           <SetHeroGuardActive name="SetAutoHeroGuardActive"
                               active="true"
@@ -44,8 +44,8 @@
       <ForceSuccess>
         <ReactiveSequence name="AutoHeroGuardDisableWindow">
           <CheckGameTimeWindow name="CheckAutoHeroGuardDisableWindow"
-                               min_remaining="280"
-                               max_remaining="290"
+                               min_remaining="180"
+                               max_remaining="190"
                                require_game_started="false"
                                branch="AutoHeroGuardDisableWindow" />
           <SetHeroGuardActive name="SetAutoHeroGuardInactive"
@@ -296,7 +296,7 @@
               <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
                                                           patrol_branch_balanced="0"
                                                           patrol_branch_offensive="0"/> -->
-              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="3" />
+              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="1" />
               <NavigateToPoseAction name="NavigatePatrolPoint" />
               <Wait name="WaitAtPatrolPoint" />
             </Sequence>
@@ -309,7 +309,7 @@
               <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
                                                           patrol_branch_balanced="0"
                                                           patrol_branch_offensive="0"/> -->
-              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="3" />
+              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="1" />
               <NavigateToPoseAction name="NavigatePatrolPoint" />
               <Wait name="WaitAtPatrolPoint" />
             </Sequence>
