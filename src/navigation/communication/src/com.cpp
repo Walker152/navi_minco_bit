@@ -261,13 +261,18 @@ void Communication::stm32_read_cb(ByteArray arr)
 
       case ENUM_PACKET_GAMESTATUS_DATA: {
         // std::cout << YELLOW << "[COM] Received GameInfo packet." << RESET << std::endl;
+        if (header->data_len < sizeof(GameInfo)) {
+          break;
+        }
         const GameInfo * game_data = (const GameInfo *)(buf + sizeof(PacketHeader));
 #ifdef COM_DEBUG
         LOG_DEBUG_BLOCK(std::string(REDPURPLE) + "[COM][Game] ",
           NV(static_cast<int>(game_data->coin_remaining)),
           NV(static_cast<int>(game_data->event_code)),
           NV(static_cast<int>(game_data->game_status)),
-          NV(static_cast<int>(game_data->game_time_remaining)));
+          NV(static_cast<int>(game_data->game_time_remaining)),
+          NV(static_cast<int>(game_data->enemy_outpost_hp)),
+          NV(static_cast<int>(game_data->enemy_base_hp)));
 #endif
         auto ros_ptr = ros_if_;
         if (ros_ptr)
