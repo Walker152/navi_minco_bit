@@ -165,7 +165,9 @@ inline std::vector<Point2D> nav_points = {
 using PatrolList = std::vector<PatrolPoint>; 
 inline std::vector<PatrolList> normal_patrol_branches = {
     {  
-        {{20.2, 14.0, 0.0}, 5000}  // 雷霆大坐点位
+        // {{20.2, 14.0, 0.0}, 5000},  // 雷霆大坐点位
+        {{9.8, 10.0, 0.0}, 5000},
+        {{9.4, 4.7, 0.0}, 5000},
     },
     {
         {{20.5, 7.3, 0.0}, 5000},
