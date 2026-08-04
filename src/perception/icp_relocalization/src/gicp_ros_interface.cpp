@@ -40,6 +40,8 @@ GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions & options)
   min_inlier_ratio_ = this->declare_parameter<double>("gicp.min_inlier_ratio", 0.3);
   min_overlap_ratio_ = this->declare_parameter<double>("gicp.min_overlap_ratio", 0.3);
   fine_alignment_enabled_ = this->declare_parameter<bool>("gicp.fine_alignment.enable", true);
+  coarse_first_window_only_ =
+    this->declare_parameter<bool>("gicp.fine_alignment.coarse_first_window_only", true);
   fine_max_correspondence_distance_ =
     this->declare_parameter<double>("gicp.fine_alignment.max_correspondence_distance", 0.2);
   planar_observability_check_enabled_ =
@@ -121,6 +123,7 @@ GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions & options)
     this->declare_parameter<double>("gicp.target_voxel_leaf_size", 0.1);
   gicp_options_.source_voxel_leaf_size =
     this->declare_parameter<double>("gicp.source_voxel_leaf_size", 0.1);
+  gicp_options_.local_map_radius = this->declare_parameter<double>("gicp.local_map_radius", 20.0);
   gicp_options_.max_correspondence_distance =
     this->declare_parameter<double>("gicp.max_correspondence_distance", 1.5);
   gicp_options_.max_iterations = this->declare_parameter<int>("gicp.max_iterations", 100);
@@ -128,6 +131,9 @@ GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions & options)
     this->declare_parameter<double>("gicp.transformation_epsilon", 1e-4);
   gicp_options_.euclidean_fitness_epsilon =
     this->declare_parameter<double>("gicp.euclidean_fitness_epsilon", 1e-4);
+  if (!(std::isfinite(gicp_options_.local_map_radius) && gicp_options_.local_map_radius > 0.0)) {
+    gicp_options_.local_map_radius = 20.0;
+  }
 
   // Height Filter Parameters (optional performance optimization)
   gicp_options_.height_filter_enabled = this->declare_parameter<bool>("height_filter.enable", false);
@@ -191,6 +197,7 @@ GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions & options)
             << ", target_pcd=" << target_pcd_file << color_text::RESET << std::endl;
   std::cout << color_text::BLUE
             << "[GICP] XY/Yaw validation: fine_alignment=" << (fine_alignment_enabled_ ? "true" : "false")
+            << ", coarse_first_window_only=" << (coarse_first_window_only_ ? "true" : "false")
             << ", fine_max_corr_dist=" << fine_max_correspondence_distance_
             << ", planar_check=" << (planar_observability_check_enabled_ ? "true" : "false")
             << ", min_planar_ratio=" << min_planar_eigen_ratio_
@@ -206,6 +213,7 @@ GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions & options)
             << color_text::RESET << std::endl;
   std::cout << color_text::BLUE << "[GICP] Options: target_leaf=" << gicp_options_.target_voxel_leaf_size
             << ", source_leaf=" << gicp_options_.source_voxel_leaf_size
+            << ", local_map_radius=" << gicp_options_.local_map_radius
             << ", max_corr_dist=" << gicp_options_.max_correspondence_distance
             << ", max_iter=" << gicp_options_.max_iterations
             << ", trans_eps=" << gicp_options_.transformation_epsilon
@@ -531,19 +539,19 @@ void GicpRosInterface::visualizationTimerCallback()
   }
 
   rclcpp::Time cloud_stamp = (last_cloud_stamp_.nanoseconds() == 0) ? now_stamp : last_cloud_stamp_;
+  const std::string source_frame = cloud_frame_id_.empty() ? map_frame_ : cloud_frame_id_;
 
-  gicp_utils::publishSourceCroppedDebug(visualization_en_,
+  PointCloud::Ptr source_cropped = gicp_utils::publishSourceCroppedDebug(visualization_en_,
     gicp_options_,
-    map_frame_,
+    source_frame,
     current_source_cloud_,
-    pose_snapshot,
     cloud_stamp,
     pub_source_cropped_);
 
   gicp_utils::publishTargetCroppedDebug(
     visualization_en_, map_frame_, cloud_stamp, gicp_filter_.get(), pub_target_cropped_);
 
-  gicp_utils::publishVisualization(current_source_cloud_,
+  gicp_utils::publishVisualization(source_cropped,
     cloud_stamp,
     visualization_en_,
     gicp_initialized_,
@@ -568,6 +576,13 @@ void GicpRosInterface::initializeResultsRecorder()
     return;
   }
 
+  const std::string results_header =
+    "ros_time,cloud_time,state,stage,converged,quality_accepted,initial_guard_accepted,"
+    "stability_ready,stability_accepted,localized,time_ms,source_preprocess_ms,"
+    "local_map_update_ms,coarse_registration_ms,fine_registration_ms,quality_evaluation_ms,"
+    "raw_score,normalized_score,num_inliers,source_points,inlier_ratio,overlap_ratio,"
+    "planar_min_eigenvalue,planar_eigen_ratio,planar_yaw_scale,x,y,z,yaw,initial_dxy,"
+    "initial_dyaw,stability_xy,stability_yaw";
   const std::filesystem::path results_path(results_path_);
   std::error_code error;
   if (results_path.has_parent_path()) {
@@ -589,6 +604,19 @@ void GicpRosInterface::initializeResultsRecorder()
     return;
   }
 
+  if (!write_header) {
+    std::ifstream existing_results(results_path_);
+    std::string existing_header;
+    std::getline(existing_results, existing_header);
+    if (existing_header != results_header) {
+      std::cerr << color_text::YELLOW
+                << "[GICP] Results CSV schema changed. Archive or rename the existing file: "
+                << results_path_ << color_text::RESET << std::endl;
+      results_recording_enabled_ = false;
+      return;
+    }
+  }
+
   results_stream_.open(results_path_, std::ios::out | std::ios::app);
   if (!results_stream_.is_open()) {
     std::cerr << color_text::YELLOW << "[GICP] Failed to open results file: " << results_path_
@@ -598,11 +626,7 @@ void GicpRosInterface::initializeResultsRecorder()
   }
 
   if (write_header) {
-    results_stream_ << "ros_time,cloud_time,state,stage,converged,quality_accepted,initial_guard_accepted,"
-                       "stability_ready,stability_accepted,localized,time_ms,raw_score,normalized_score,"
-                       "num_inliers,source_points,inlier_ratio,overlap_ratio,planar_min_eigenvalue,"
-                       "planar_eigen_ratio,planar_yaw_scale,x,y,z,yaw,initial_dxy,initial_dyaw,"
-                       "stability_xy,stability_yaw\n";
+    results_stream_ << results_header << '\n';
     results_stream_.flush();
   }
 
@@ -649,9 +673,12 @@ void GicpRosInterface::recordAlignmentResult(const std::string & stage,
                   << (result.converged ? 1 : 0) << ',' << (quality_accepted ? 1 : 0) << ','
                   << (initial_guard_accepted ? 1 : 0) << ',' << (stability_ready ? 1 : 0) << ','
                   << (stability_accepted ? 1 : 0) << ',' << (localized ? 1 : 0) << ',' << time_ms << ','
-                  << result.score << ',' << result.normalized_score << ',' << result.num_inliers << ','
-                  << result.source_points << ',' << result.inlier_ratio << ',' << result.overlap_ratio
-                  << ',' << result.planar_min_eigenvalue << ',' << result.planar_eigen_ratio << ','
+                  << result.source_preprocess_time_ms << ',' << result.local_map_update_time_ms << ','
+                  << result.coarse_registration_time_ms << ',' << result.fine_registration_time_ms << ','
+                  << result.quality_evaluation_time_ms << ',' << result.score << ','
+                  << result.normalized_score << ',' << result.num_inliers << ',' << result.source_points
+                  << ',' << result.inlier_ratio << ',' << result.overlap_ratio << ','
+                  << result.planar_min_eigenvalue << ',' << result.planar_eigen_ratio << ','
                   << result.planar_yaw_scale << ',' << pose(0, 3) << ',' << pose(1, 3) << ',' << pose(2, 3)
                   << ',' << poseYaw(pose) << ',' << initial_dxy << ',' << initial_dyaw << ','
                   << stability_xy << ',' << stability_yaw << '\n';
@@ -660,21 +687,49 @@ void GicpRosInterface::recordAlignmentResult(const std::string & stage,
 
 GicpFilter::Result GicpRosInterface::runTwoStageAlignment(const PointCloud::Ptr & source_cloud,
   const Eigen::Matrix4f & initial_guess,
+  const bool coarse_required,
   double & time_ms,
   std::string & final_stage)
 {
   const auto start_time = std::chrono::high_resolution_clock::now();
-  GicpFilter::Result result = gicp_filter_->align(source_cloud, initial_guess);
-  final_stage = "coarse";
+  const GicpFilter::PreparedSource prepared_source = gicp_filter_->prepareSource(source_cloud);
+  GicpFilter::Result result;
+  double coarse_registration_time_ms = 0.0;
+  double fine_registration_time_ms = 0.0;
+  double local_map_update_time_ms = 0.0;
+  double quality_evaluation_time_ms = 0.0;
 
-  if (fine_alignment_enabled_ && result.converged && result.final_transformation.allFinite()) {
+  if (coarse_required || !fine_alignment_enabled_) {
+    result = gicp_filter_->alignPrepared(prepared_source, initial_guess, -1.0, !fine_alignment_enabled_);
+    coarse_registration_time_ms = result.registration_time_ms;
+    local_map_update_time_ms += result.local_map_update_time_ms;
+    quality_evaluation_time_ms += result.quality_evaluation_time_ms;
+    final_stage = "coarse";
+
+    if (fine_alignment_enabled_ && result.converged && result.final_transformation.allFinite()) {
+      result = gicp_filter_->alignPrepared(
+        prepared_source, result.final_transformation, fine_max_correspondence_distance_, true);
+      fine_registration_time_ms = result.registration_time_ms;
+      local_map_update_time_ms += result.local_map_update_time_ms;
+      quality_evaluation_time_ms += result.quality_evaluation_time_ms;
+      final_stage = "coarse_fine";
+    }
+  } else {
     result =
-      gicp_filter_->align(source_cloud, result.final_transformation, fine_max_correspondence_distance_);
-    final_stage = "fine";
+      gicp_filter_->alignPrepared(prepared_source, initial_guess, fine_max_correspondence_distance_, true);
+    fine_registration_time_ms = result.registration_time_ms;
+    local_map_update_time_ms = result.local_map_update_time_ms;
+    quality_evaluation_time_ms = result.quality_evaluation_time_ms;
+    final_stage = "fine_only";
   }
 
   const auto end_time = std::chrono::high_resolution_clock::now();
   time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
+  result.source_preprocess_time_ms = prepared_source.preprocessing_time_ms;
+  result.local_map_update_time_ms = local_map_update_time_ms;
+  result.coarse_registration_time_ms = coarse_registration_time_ms;
+  result.fine_registration_time_ms = fine_registration_time_ms;
+  result.quality_evaluation_time_ms = quality_evaluation_time_ms;
   return result;
 }
 
@@ -856,13 +911,24 @@ void GicpRosInterface::runFSM()
               << color_text::RESET << std::endl;
 
     const auto start_time = std::chrono::high_resolution_clock::now();
-    auto result = gicp_filter_->initialAlign(current_source_cloud_, min_inlier_ratio_);
+    const GicpFilter::PreparedSource prepared_source = gicp_filter_->prepareSource(current_source_cloud_);
+    auto result = gicp_filter_->initialAlignPrepared(prepared_source, min_inlier_ratio_);
+    const double multi_guess_registration_time_ms = result.registration_time_ms;
+    double local_map_update_time_ms = result.local_map_update_time_ms;
+    double quality_evaluation_time_ms = result.quality_evaluation_time_ms;
     std::string final_stage = "multi_guess";
     if (fine_alignment_enabled_ && result.converged && result.final_transformation.allFinite()) {
-      result = gicp_filter_->align(
-        current_source_cloud_, result.final_transformation, fine_max_correspondence_distance_);
+      result = gicp_filter_->alignPrepared(
+        prepared_source, result.final_transformation, fine_max_correspondence_distance_, true);
+      local_map_update_time_ms += result.local_map_update_time_ms;
+      quality_evaluation_time_ms += result.quality_evaluation_time_ms;
+      result.coarse_registration_time_ms = multi_guess_registration_time_ms;
+      result.fine_registration_time_ms = result.registration_time_ms;
       final_stage = "multi_guess_fine";
     }
+    result.source_preprocess_time_ms = prepared_source.preprocessing_time_ms;
+    result.local_map_update_time_ms = local_map_update_time_ms;
+    result.quality_evaluation_time_ms = quality_evaluation_time_ms;
     const auto end_time = std::chrono::high_resolution_clock::now();
     const double time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
     const bool quality_accepted = isAlignmentAccepted(result);
@@ -939,7 +1005,10 @@ void GicpRosInterface::runFSM()
 
     double time_ms = 0.0;
     std::string final_stage;
-    auto result = runTwoStageAlignment(current_source_cloud_, initial_guess, time_ms, final_stage);
+    const bool coarse_required =
+      !fine_alignment_enabled_ || !coarse_first_window_only_ || convergence_poses_.empty();
+    auto result =
+      runTwoStageAlignment(current_source_cloud_, initial_guess, coarse_required, time_ms, final_stage);
     const bool quality_accepted = isAlignmentAccepted(result);
     double initial_dxy = std::numeric_limits<double>::quiet_NaN();
     double initial_dyaw = std::numeric_limits<double>::quiet_NaN();
@@ -1121,7 +1190,9 @@ void GicpRosInterface::runFSM()
     }
     double time_ms = 0.0;
     std::string final_stage;
-    auto result = runTwoStageAlignment(current_source_cloud_, initial_guess, time_ms, final_stage);
+    const bool coarse_required = !fine_alignment_enabled_ || !coarse_first_window_only_;
+    auto result =
+      runTwoStageAlignment(current_source_cloud_, initial_guess, coarse_required, time_ms, final_stage);
     const bool quality_accepted = isAlignmentAccepted(result);
     bool jump_accepted = false;
 

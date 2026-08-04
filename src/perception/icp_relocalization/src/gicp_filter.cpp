@@ -1,6 +1,7 @@
 #include "gicp_filter.hpp"
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -88,7 +89,8 @@ PointCloud::Ptr GicpFilter::cropSourceCloud(const PointCloud::Ptr & source_cloud
   return source_cropped;
 }
 
-GicpFilter::GicpFilter(const std::string & target_pcd_path, const Options & options) : options_(options)
+GicpFilter::GicpFilter(const std::string & target_pcd_path, const Options & options)
+: options_(options), local_map_radius_(options.local_map_radius)
 {
   PointCloud::Ptr target_cloud(new PointCloud());
   if (pcl::io::loadPCDFile<pcl::PointXYZ>(target_pcd_path, *target_cloud) == -1) {
@@ -97,7 +99,8 @@ GicpFilter::GicpFilter(const std::string & target_pcd_path, const Options & opti
   preprocessMap(target_cloud);
 }
 
-GicpFilter::GicpFilter(const PointCloud::Ptr & target_cloud, const Options & options) : options_(options)
+GicpFilter::GicpFilter(const PointCloud::Ptr & target_cloud, const Options & options)
+: options_(options), local_map_radius_(options.local_map_radius)
 {
   preprocessMap(target_cloud);
   local_map_cloud_ = target_cloud_filtered_;
@@ -298,38 +301,63 @@ void GicpFilter::updateResultQuality(Result & result,
     static_cast<double>(overlap_count) / static_cast<double>(transformed_source->size());
 }
 
-GicpFilter::Result GicpFilter::initialAlign(
-  const PointCloud::Ptr & source_cloud, const double min_inlier_ratio)
+GicpFilter::PreparedSource GicpFilter::prepareSource(const PointCloud::Ptr & source_cloud) const
 {
+  const auto start_time = std::chrono::high_resolution_clock::now();
+  PreparedSource prepared;
   PointCloud::Ptr source_filtered_height = applyHeightFilter(source_cloud);
-  PointCloud::Ptr source_cropped = cropSourceCloud(source_filtered_height);
+  prepared.cropped_cloud = cropSourceCloud(source_filtered_height);
 
-  if (!source_cropped || source_cropped->empty()) {
-    Result result;
-    result.converged = false;
-    result.final_transformation = Eigen::Matrix4f::Identity();
-    return result;
+  if (!prepared.cropped_cloud || prepared.cropped_cloud->empty()) {
+    prepared.preprocessing_time_ms =
+      std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time)
+        .count();
+    return prepared;
   }
 
   constexpr int kCovNeighbors = 20;
   constexpr int kCovThreads = 8;
+  prepared.registration_cloud =
+    buildSourceSmallGicpCloud(prepared.cropped_cloud, options_.source_voxel_leaf_size);
+  if (!prepared.registration_cloud || prepared.registration_cloud->empty()) {
+    prepared.preprocessing_time_ms =
+      std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time)
+        .count();
+    return prepared;
+  }
 
-  SmallGicpPointCloud::Ptr source_small =
-    buildSourceSmallGicpCloud(source_cropped, options_.source_voxel_leaf_size);
-  if (!source_small || source_small->empty()) {
+  small_gicp::estimate_covariances_omp(*prepared.registration_cloud, kCovNeighbors, kCovThreads);
+  prepared.preprocessing_time_ms =
+    std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start_time)
+      .count();
+  return prepared;
+}
+
+GicpFilter::Result GicpFilter::initialAlign(
+  const PointCloud::Ptr & source_cloud, const double min_inlier_ratio)
+{
+  return initialAlignPrepared(prepareSource(source_cloud), min_inlier_ratio);
+}
+
+GicpFilter::Result GicpFilter::initialAlignPrepared(
+  const PreparedSource & source, const double min_inlier_ratio)
+{
+  if (!source.cropped_cloud || source.cropped_cloud->empty() || !source.registration_cloud ||
+      source.registration_cloud->empty()) {
     Result result;
     result.converged = false;
     result.final_transformation = Eigen::Matrix4f::Identity();
+    result.source_preprocess_time_ms = source.preprocessing_time_ms;
     return result;
   }
 
-  small_gicp::estimate_covariances_omp(*source_small, kCovNeighbors, kCovThreads);
-  source_tree_ = std::make_shared<SmallGicpKdTree>(source_small, small_gicp::KdTreeBuilderOMP(kCovThreads));
+  constexpr int kCovThreads = 8;
 
   if (!small_gicp_target_ || small_gicp_target_->empty() || !target_tree_) {
     Result result;
     result.converged = false;
     result.final_transformation = Eigen::Matrix4f::Identity();
+    result.source_preprocess_time_ms = source.preprocessing_time_ms;
     return result;
   }
 
@@ -337,6 +365,7 @@ GicpFilter::Result GicpFilter::initialAlign(
     Result result;
     result.converged = false;
     result.final_transformation = Eigen::Matrix4f::Identity();
+    result.source_preprocess_time_ms = source.preprocessing_time_ms;
     return result;
   }
 
@@ -344,6 +373,7 @@ GicpFilter::Result GicpFilter::initialAlign(
     Result result;
     result.converged = false;
     result.final_transformation = Eigen::Matrix4f::Identity();
+    result.source_preprocess_time_ms = source.preprocessing_time_ms;
     return result;
   }
 
@@ -359,6 +389,7 @@ GicpFilter::Result GicpFilter::initialAlign(
   register_engine.rejector.max_dist_sq =
     options_.max_correspondence_distance * options_.max_correspondence_distance;
   register_engine.optimizer.max_iterations = options_.max_iterations;
+  const auto registration_start = std::chrono::high_resolution_clock::now();
 
   for (double z : options_.z_candidates) {
     for (const auto & area : options_.search_areas) {
@@ -369,8 +400,8 @@ GicpFilter::Result GicpFilter::initialAlign(
             init_guess_d.translation() << x, y, z;
             init_guess_d.linear() = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()).toRotationMatrix();
 
-            const small_gicp::RegistrationResult reg_result =
-              register_engine.align(*small_gicp_target_, *source_small, *target_tree_, init_guess_d);
+            const small_gicp::RegistrationResult reg_result = register_engine.align(
+              *small_gicp_target_, *source.registration_cloud, *target_tree_, init_guess_d);
 
             if (!reg_result.converged) {
               continue;
@@ -380,8 +411,8 @@ GicpFilter::Result GicpFilter::initialAlign(
               continue;
             }
 
-            const double inlier_ratio =
-              static_cast<double>(reg_result.num_inliers) / static_cast<double>(source_small->size());
+            const double inlier_ratio = static_cast<double>(reg_result.num_inliers) /
+                                        static_cast<double>(source.registration_cloud->size());
             const double normalized_score = reg_result.error / static_cast<double>(reg_result.num_inliers);
             if (inlier_ratio >= min_inlier_ratio && normalized_score < best_normalized_score) {
               best_error = reg_result.error;
@@ -403,7 +434,17 @@ GicpFilter::Result GicpFilter::initialAlign(
   result.num_inliers = best_num_inliers;
   result.information = best_information;
   result.final_transformation = best_pose;
-  updateResultQuality(result, source_cropped, source_small->size(), options_.max_correspondence_distance);
+  result.source_preprocess_time_ms = source.preprocessing_time_ms;
+  result.registration_time_ms = std::chrono::duration<double, std::milli>(
+    std::chrono::high_resolution_clock::now() - registration_start)
+                                  .count();
+  result.coarse_registration_time_ms = result.registration_time_ms;
+  const auto quality_start = std::chrono::high_resolution_clock::now();
+  updateResultQuality(
+    result, source.cropped_cloud, source.registration_cloud->size(), options_.max_correspondence_distance);
+  result.quality_evaluation_time_ms =
+    std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - quality_start)
+      .count();
   return result;
 }
 
@@ -411,41 +452,35 @@ GicpFilter::Result GicpFilter::align(const PointCloud::Ptr & source_cloud,
   const Eigen::Matrix4f & initial_guess,
   const double max_correspondence_distance)
 {
-  // 高度滤波
-  PointCloud::Ptr source_filtered_height = applyHeightFilter(source_cloud);
-  if (!source_filtered_height || source_filtered_height->empty() || !global_map_ || global_map_->empty()) {
+  return alignPrepared(prepareSource(source_cloud), initial_guess, max_correspondence_distance, true);
+}
+
+GicpFilter::Result GicpFilter::alignPrepared(const PreparedSource & source,
+  const Eigen::Matrix4f & initial_guess,
+  const double max_correspondence_distance,
+  const bool evaluate_quality)
+{
+  if (!source.cropped_cloud || source.cropped_cloud->empty() || !source.registration_cloud ||
+      source.registration_cloud->empty() || !global_map_ || global_map_->empty()) {
     Result result;
     result.converged = false;
+    result.source_preprocess_time_ms = source.preprocessing_time_ms;
     return result;
   }
 
-  constexpr int kCovNeighbors = 20;
   constexpr int kCovThreads = 8;
 
-  PointCloud::Ptr source_cropped = cropSourceCloud(source_filtered_height);
-
-  if (!source_cropped || source_cropped->empty()) {
-    Result result;
-    result.converged = false;
-    return result;
-  }
-
-  SmallGicpPointCloud::Ptr source_small =
-    buildSourceSmallGicpCloud(source_cropped, options_.source_voxel_leaf_size);
-  if (!source_small || source_small->empty()) {
-    Result result;
-    result.converged = false;
-    return result;
-  }
-
-  small_gicp::estimate_covariances_omp(*source_small, kCovNeighbors, kCovThreads);
-  source_tree_ = std::make_shared<SmallGicpKdTree>(source_small, small_gicp::KdTreeBuilderOMP(kCovThreads));
-
   // 在精配准前根据当前先验位姿更新局部地图
+  const auto local_map_start = std::chrono::high_resolution_clock::now();
   updateLocalMap(initial_guess);
+  const double local_map_update_time_ms =
+    std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - local_map_start)
+      .count();
   if (!small_gicp_target_ || small_gicp_target_->empty() || !target_tree_) {
     Result result;
     result.converged = false;
+    result.source_preprocess_time_ms = source.preprocessing_time_ms;
+    result.local_map_update_time_ms = local_map_update_time_ms;
     return result;
   }
 
@@ -462,8 +497,12 @@ GicpFilter::Result GicpFilter::align(const PointCloud::Ptr & source_cloud,
   Eigen::Isometry3d init_guess_d = Eigen::Isometry3d::Identity();
   init_guess_d.matrix() = initial_guess.cast<double>();
 
+  const auto registration_start = std::chrono::high_resolution_clock::now();
   const small_gicp::RegistrationResult small_gicp_result =
-    register_engine.align(*small_gicp_target_, *source_small, *target_tree_, init_guess_d);
+    register_engine.align(*small_gicp_target_, *source.registration_cloud, *target_tree_, init_guess_d);
+  const double registration_time_ms = std::chrono::duration<double, std::milli>(
+    std::chrono::high_resolution_clock::now() - registration_start)
+                                        .count();
 
   // 整理结果
   Result result;
@@ -472,7 +511,27 @@ GicpFilter::Result GicpFilter::align(const PointCloud::Ptr & source_cloud,
   result.num_inliers = small_gicp_result.num_inliers;
   result.information = small_gicp_result.H;
   result.final_transformation = small_gicp_result.T_target_source.matrix().cast<float>();
-  updateResultQuality(result, source_cropped, source_small->size(), effective_max_correspondence_distance);
+  result.source_preprocess_time_ms = source.preprocessing_time_ms;
+  result.local_map_update_time_ms = local_map_update_time_ms;
+  result.registration_time_ms = registration_time_ms;
+  result.source_points = source.registration_cloud->size();
+  if (result.num_inliers > 0 && std::isfinite(result.score)) {
+    result.normalized_score = result.score / static_cast<double>(result.num_inliers);
+  }
+  if (result.source_points > 0) {
+    result.inlier_ratio =
+      static_cast<double>(result.num_inliers) / static_cast<double>(result.source_points);
+  }
+  if (evaluate_quality) {
+    const auto quality_start = std::chrono::high_resolution_clock::now();
+    updateResultQuality(result,
+      source.cropped_cloud,
+      source.registration_cloud->size(),
+      effective_max_correspondence_distance);
+    result.quality_evaluation_time_ms =
+      std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - quality_start)
+        .count();
+  }
 
   return result;
 }

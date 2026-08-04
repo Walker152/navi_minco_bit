@@ -20,13 +20,15 @@ gicp_relocalization_node:
       # Coarse 0.5 m alignment is followed by a stricter 0.2 m refinement.
       fine_alignment:
         enable: true
+        coarse_first_window_only: true  # later stability windows use the accepted pose for fine-only GICP
         max_correspondence_distance: 0.2
       # Record first, then enable this gate after reviewing real-vehicle distributions.
       planar_observability:
         enable: false
         min_eigen_ratio: 0.001
       target_voxel_leaf_size: 0.05
-      source_voxel_leaf_size: 0.05  # -1.0 means no downsampling
+      source_voxel_leaf_size: 0.08  # keep the 0.05 m map while reducing full-cloud source cost
+      local_map_radius: 12.0        # covers the +/-8 m source ROI with margin
       max_correspondence_distance: 0.5
       max_iterations: 100
       transformation_epsilon: 0.01
@@ -74,7 +76,7 @@ gicp_relocalization_node:
 
     # Keep ground and ramp points. Source crop below remains only a broad sensor ROI.
     height_filter:
-      enable: false
+      enable: true
       min_z: -0.5
       max_z: 2.5
 
