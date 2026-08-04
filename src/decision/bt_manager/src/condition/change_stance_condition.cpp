@@ -155,6 +155,74 @@ BT::NodeStatus CheckHealth::tick()
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
+// ------------------- CheckEnemyAreaRecentlyHurt -------------------
+CheckEnemyAreaRecentlyHurt::CheckEnemyAreaRecentlyHurt(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckEnemyAreaRecentlyHurt::providedPorts()
+{
+  return {BT::InputPort<double>("hold_seconds", 3.0, "Hold time after the latest health drop"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckEnemyAreaRecentlyHurt::tick()
+{
+  const auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const double hold_seconds = std::max(0.0, getInput<double>("hold_seconds").value_or(3.0));
+  const float health = blackboard->get<float>("health");
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
+  const bool in_enemy_area = enemy_defense_zone.contains(current_point);
+  const auto now = std::chrono::steady_clock::now();
+
+  // 该节点可能被更高优先级的隧道/手动分支短路。长时间未 tick 后只重建血量基线，
+  // 避免把被短路期间的历史掉血误判为刚刚受击。
+  constexpr double kMaxTickGapSeconds = 1.0;
+  const bool tick_gap_too_large =
+    initialized_ &&
+    std::chrono::duration<double>(now - last_tick_time_).count() > kMaxTickGapSeconds;
+  if (!initialized_ || tick_gap_too_large) {
+    initialized_ = true;
+    last_health_ = health;
+    last_tick_time_ = now;
+    hurt_window_active_ = false;
+    detail::logTransition(detail::TreeKind::STANCE, "CheckEnemyAreaRecentlyHurt", false,
+      tick_gap_too_large ? "reset baseline after tick gap" : "init health baseline", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  const float health_drop = last_health_ - health;
+  const bool health_dropped = health_drop > 1e-3f;
+  last_health_ = health;
+  last_tick_time_ = now;
+
+  if (health_dropped && in_enemy_area && health > 0.0f) {
+    last_hurt_time_ = now;
+    hurt_window_active_ = true;
+  }
+
+  double elapsed_since_hurt = 0.0;
+  if (hurt_window_active_) {
+    elapsed_since_hurt = std::chrono::duration<double>(now - last_hurt_time_).count();
+    if (!in_enemy_area || health <= 0.0f || elapsed_since_hurt >= hold_seconds) {
+      hurt_window_active_ = false;
+    }
+  }
+
+  std::ostringstream oss;
+  oss << "health=" << health << ", health_drop=" << health_drop
+      << ", in_enemy_area=" << in_enemy_area << ", elapsed=" << elapsed_since_hurt
+      << ", hold_seconds=" << hold_seconds;
+  detail::logTransition(
+    detail::TreeKind::STANCE, "CheckEnemyAreaRecentlyHurt", hurt_window_active_, oss.str(), branch);
+
+  return hurt_window_active_ ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
 // ------------------- CheckTargetDistance -------------------
 CheckTargetDistance::CheckTargetDistance(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)

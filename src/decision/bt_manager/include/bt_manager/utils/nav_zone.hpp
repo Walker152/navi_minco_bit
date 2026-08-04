@@ -222,7 +222,8 @@ typedef enum _NavGoal
   ENEMY_OUTPOST = 2,
   OWN_FORT = 3,
   ENEMY_FORT = 4,
-  OWN_OUTPOST = 5
+  OWN_OUTPOST = 5,
+  HERO_GUARD = 6
 } NavGoal;
 
 typedef enum _SentryStance

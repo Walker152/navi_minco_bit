@@ -42,6 +42,43 @@
           <ApplyManualStanceOverride name="ApplyManualEnhancedStance" />
         </Sequence>
 
+        <!-- 敌区受击强化防御：冲堡接近阶段继续执行 MOVE/零陀螺/航向对齐，
+             只有到达堡垒交战圈后才允许该分支接管冲堡姿态。 -->
+        <ReactiveSequence name="EnemyAreaHurtEnhancedDefendBranch">
+          <CheckEnemyAreaRecentlyHurt hold_seconds="3.0"
+                                      branch="EnemyAreaHurtEnhancedDefendBranch" />
+          <CheckShouldEnhanceStance
+            target_stance="DEFEND"
+            accumulated_threshold="170"
+            fallback_game_time="60"
+            min_remaining_sec="1"
+            force_if_available="true"
+            branch="EnemyAreaHurt_EnhancedDefend" />
+          <ReactiveFallback name="EnemyAreaHurtContextSelector">
+            <Sequence name="ArrivedEnemyFortHurtEnhancedDefend">
+              <CheckTacticalModeCondition mode="attack"
+                                          branch="ArrivedEnemyFortHurtEnhancedDefend" />
+              <CheckInEnemyFortZone branch="ArrivedEnemyFortHurtEnhancedDefend" />
+              <SetGyroState use_gyro="true"
+                            gyro_vel="80.0"
+                            random_speed="false" />
+              <ChangeStance name="ChangeStanceArrivedEnemyFortHurtEnhancedDefend"
+                            stance="ENHANCED_DEFEND" />
+            </Sequence>
+            <Sequence name="NonAttackEnemyAreaHurtEnhancedDefend">
+              <Inverter>
+                <CheckTacticalModeCondition mode="attack"
+                                            branch="NonAttackEnemyAreaHurtEnhancedDefend" />
+              </Inverter>
+              <SetGyroState use_gyro="true"
+                            gyro_vel="80.0"
+                            random_speed="false" />
+              <ChangeStance name="ChangeStanceEnemyAreaHurtEnhancedDefend"
+                            stance="ENHANCED_DEFEND" />
+            </Sequence>
+          </ReactiveFallback>
+        </ReactiveSequence>
+
         <ReactiveSequence name="AttackFortDefendGyroBranch">
           <CheckTacticalModeCondition mode="attack" branch="AttackFortDefendGyroBranch" />
           <ReactiveFallback name="EnemyFortStanceSelector">
