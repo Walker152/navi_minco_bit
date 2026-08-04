@@ -451,7 +451,7 @@ planner_server:
           # 同一 XY 柱中最高与最低占据体素的垂直高度差 H。
           # 不超过该值时，分类为地面或坡面薄表面。
           # 这是差值，不是 ROGMap frame 中的绝对 Z 坐标。
-          surface_height_delta_max: 0.25
+          surface_height_delta_max: 0.20
 
           # [vertical height difference, m]
           # 判定竖直墙所需的最小单柱垂直高度差 H。

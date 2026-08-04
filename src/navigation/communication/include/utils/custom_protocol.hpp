@@ -228,6 +228,8 @@ struct __attribute__((packed)) _GameInfo
   float manual_point_x{};  // 手动指定的目标点x坐标，单位m，坐标系minimap
   float manual_point_y{};  // 手动指定的目标点y坐标，单位m，坐标系minimap
   uint8_t manual_key{};    // 手动指定的目标点快捷键
+  uint16_t enemy_outpost_hp{};  // 敌方前哨站血量
+  uint16_t enemy_base_hp{};     // 敌方基地血量
 
   _GameInfo(
     uint16_t _game_time_remaining, uint16_t _coin_remaining, uint32_t _event_code, uint8_t _game_status)

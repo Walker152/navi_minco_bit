@@ -209,6 +209,9 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   // 存储比赛基本信息
   blackboard_->set<int>("game_time_remaining", static_cast<int>(msg->game_time_remaining));
   blackboard_->set<int>("coin_remaining", static_cast<int>(msg->coin_remaining));
+  blackboard_->set<int>("enemy_outpost_health", static_cast<int>(msg->enemy_outpost_hp));
+  blackboard_->set<int>("enemy_base_health", static_cast<int>(msg->enemy_base_hp));
+  // 行为树与ROS回调运行在不同线程。最后写比赛状态，避免开赛瞬间读到已开赛但建筑血量仍为默认值。
   blackboard_->set<int>("game_status", static_cast<int>(msg->game_status));
 
   // 解码event_code字段

@@ -5,30 +5,14 @@
       <ForceSuccess>
         <CheckTargetLocked name="CheckEarlyTargetLocked" branch="EarlyTargetAttack" />
       </ForceSuccess>
-      <!-- 前哨状态窗口必须每 tick 刷新,不能被导航优先级分支短路。 -->
       <ForceSuccess>
-        <ReactiveSequence name="AutoOutpostEnableOnce">
-          <CheckGameTimeWindow name="CheckAutoOutpostEnableWindow"
-                               min_remaining="410"
-                               max_remaining="420"
-                               branch="AutoOutpostEnableOnce" />
-          <SetEnemyOutpostDestroyed name="SetAutoOutpostRemainedOnce"
-                                    enemy_outpost_destroyed="false"
-                                    branch="AutoOutpostEnableOnce" />
-        </ReactiveSequence>
-      </ForceSuccess>
-      <ForceSuccess>
-        <ReactiveSequence name="AutoOutpostDisableOnce">
-          <CheckGameTimeWindow name="CheckAutoOutpostDisableWindow"
-                               min_remaining="340"
-                               max_remaining="350"
-                               require_game_started="false"
-                               branch="AutoOutpostDisableOnce" />
-          <SetEnemyOutpostDestroyed name="SetAutoOutpostDestroyedOnce"
-                                    enemy_outpost_destroyed="true"
-                                    exit_outpost_mode="true"
-                                    branch="AutoOutpostDisableOnce" />
-        </ReactiveSequence>
+        <!-- 每 tick 更新自动前哨攻击/撤退状态，不能被导航优先级分支短路。 -->
+        <UpdateOutpostAttackState name="UpdateOutpostAttackState"
+                                  retreat_health_threshold="25"
+                                  recovery_health_threshold="90"
+                                  enhanced_defend_seconds="5.0"
+                                  max_retreat_count="3"
+                                  branch="OutpostAttackState" />
       </ForceSuccess>
       <ForceSuccess>
         <ReactiveSequence name="AutoHeroGuardEnableWindow">
@@ -68,6 +52,16 @@
         <SubTree ID="TunnelRecoverySubTree"
                  __shared_blackboard="true"
                  __autoremap="true" />
+
+        <!-- 前哨专项撤退一旦触发就保持高优先级；回血至上限且5秒防御结束后退出。 -->
+        <ReactiveSequence name="Priority0OutpostHealthRecovery">
+          <CheckOutpostAttackState name="CheckOutpostRetreatActive"
+                                   state="retreat"
+                                   branch="Priority0OutpostHealthRecovery" />
+          <SetNavMode name="SetOutpostHealthRetreatNavMode" mode="retreat" />
+          <SetCoordinate name="SetOutpostHealthHomeGoal" goal="0" />
+          <NavigateToPoseAction name="NavigateOutpostHealthHome" />
+        </ReactiveSequence>
 
         <ReactiveSequence name="HighlandFallbackLine">
           <CheckHighlandFallbackActive name="CheckHighlandFallbackActive"
@@ -148,6 +142,19 @@
               <NavigateToPoseAction name="NavigateManualOverrideGoal" />
             </ReactiveSequence>
           </ReactiveFallback>
+        </ReactiveSequence>
+
+        <!-- 自动前哨攻击优先于通用40血撤退，确保XML中的25血专项阈值实际生效。 -->
+        <ReactiveSequence name="Priority1AutoOutpostAttack">
+          <CheckOutpostAttackState name="CheckAutoOutpostAttackActive"
+                                   state="auto_attack"
+                                   branch="Priority1AutoOutpostAttack" />
+          <CheckTacticalModeCondition name="CheckAutoOutpostStrategyNormalMode"
+                                      mode="normal"
+                                      branch="Priority1AutoOutpostAttack" />
+          <SetNavMode name="SetAutoOutpostResponseNavMode" mode="response" />
+          <SetCoordinate name="SetAutoEnemyOutpostGoal" goal="2" />
+          <NavigateToPoseAction name="NavigateAutoEnemyOutpost" />
         </ReactiveSequence>
 
         <ReactiveSequence name="Priority1AttackEnemyFortAfter2Min">
@@ -261,13 +268,9 @@
               <ReactiveFallback name="EarlyGameSpecialSelector">
                 <ReactiveSequence name="AutoNormalOutpostResponse">
                   <CheckTacticalModeCondition name="CheckAutoOutpostNormalMode" mode="normal" branch="AutoNormalOutpostResponse" />
-                  <CheckOutpostRemained name="CheckAutoOutpostRemained"
-                                        branch="AutoNormalOutpostResponse" />
-                  <CheckEngagedSafeResponse name="CheckAutoOutpostSafeResponseForNav"
-                                             stable_seconds="5.0"
-                                             exit_mode="0"
-                                             exit_blackboard_key="outpost_safe_cooldown_active"
-                                             branch="AutoNormalOutpostResponse" />
+                  <CheckOutpostAttackState name="CheckManualOutpostAttackActive"
+                                           state="manual_attack"
+                                           branch="AutoNormalOutpostResponse" />
                   <SetNavMode name="SetEarlyOutpostResponseNavMode" mode="response" />
                   <SetCoordinate name="SetEarlyEnemyOutpostGoal" goal="2" />
                   <NavigateToPoseAction name="NavigateEarlyEnemyOutpost" />

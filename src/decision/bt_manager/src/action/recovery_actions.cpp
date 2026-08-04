@@ -5,7 +5,6 @@
 
 #include <geometry_msgs/msg/twist.hpp>
 
-#include <cmath>
 #include <sstream>
 
 namespace Sentry_BT {
@@ -20,7 +19,6 @@ BT::PortsList TunnelTimeoutBackoutAction::providedPorts()
 {
   return {
     BT::InputPort<double>("timeout_s", 6.0, "Time in tunnel before backout starts"),
-    BT::InputPort<double>("speed", 0.5, "Backout speed"),
     BT::InputPort<double>("max_backout_s", 12.0, "Maximum backout duration"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
   };
@@ -35,7 +33,6 @@ BT::NodeStatus TunnelTimeoutBackoutAction::onStart()
 BT::NodeStatus TunnelTimeoutBackoutAction::onRunning()
 {
   const double timeout_s = getInput<double>("timeout_s").value_or(6.0);
-  const double speed = getInput<double>("speed").value_or(0.5);
   const double max_backout_s = getInput<double>("max_backout_s").value_or(12.0);
   const std::string branch = getInput<std::string>("branch").value_or("");
 
@@ -94,7 +91,7 @@ BT::NodeStatus TunnelTimeoutBackoutAction::onRunning()
     return BT::NodeStatus::FAILURE;
   }
 
-  const auto cmd_vel = computeBackoutVelocity(tunnel_idx, speed, current_pose);
+  const auto cmd_vel = computeBackoutVelocity(tunnel_idx);
   setTunnelEscapeCommand(true, cmd_vel);
   logState(true, tunnel_idx, duration, timeout_s, cmd_vel, "active_backout", branch);
   return BT::NodeStatus::RUNNING;
@@ -123,28 +120,18 @@ int TunnelTimeoutBackoutAction::findTunnelIndexByPose(
   return -1;
 }
 
-geometry_msgs::msg::Twist TunnelTimeoutBackoutAction::computeBackoutVelocity(
-  const int tunnel_idx, const double speed,
-  const geometry_msgs::msg::Pose & current_pose) const
+geometry_msgs::msg::Twist TunnelTimeoutBackoutAction::computeBackoutVelocity(const int tunnel_idx) const
 {
   geometry_msgs::msg::Twist cmd_vel;
   const bool valid_tunnel_idx =
     tunnel_idx >= 0 && tunnel_idx < static_cast<int>(tunnel_recovery_configs.size());
-
-  double yaw = 0.0;
-  if (valid_tunnel_idx) {
-    yaw = static_cast<double>(
-      tunnel_recovery_configs[static_cast<std::size_t>(tunnel_idx)].tunnel_pass_yaw_target_rad);
-  } else {
-    const auto & q = current_pose.orientation;
-    yaw = std::atan2(
-      2.0 * (q.w * q.z + q.x * q.y),
-      1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+  if (!valid_tunnel_idx) {
+    return cmd_vel;
   }
 
-  const double v = std::abs(speed);
-  cmd_vel.linear.x = -v * std::cos(yaw);
-  cmd_vel.linear.y = -v * std::sin(yaw);
+  const auto & recovery_config = tunnel_recovery_configs[static_cast<std::size_t>(tunnel_idx)];
+  cmd_vel.linear.x = recovery_config.recovery_vx_mps;
+  cmd_vel.linear.y = recovery_config.recovery_vy_mps;
   cmd_vel.angular.z = 0.0;
   return cmd_vel;
 }

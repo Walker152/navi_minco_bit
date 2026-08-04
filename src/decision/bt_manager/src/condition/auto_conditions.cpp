@@ -251,6 +251,189 @@ BT::NodeStatus CheckOutpostRemained::tick()
   return BT::NodeStatus::FAILURE;
 }
 
+// ------------------- UpdateOutpostAttackState -------------------
+UpdateOutpostAttackState::UpdateOutpostAttackState(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList UpdateOutpostAttackState::providedPorts()
+{
+  return {
+    BT::InputPort<float>(
+      "retreat_health_threshold", 25.0f, "Retreat threshold of sentry health percentage"),
+    BT::InputPort<float>(
+      "recovery_health_threshold", 90.0f, "Health percentage required to finish retreat"),
+    BT::InputPort<double>(
+      "enhanced_defend_seconds", 5.0, "Enhanced defend duration for each retreat"),
+    BT::InputPort<int>("max_retreat_count", 3, "Maximum automatic outpost retreat count"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
+  };
+}
+
+BT::NodeStatus UpdateOutpostAttackState::tick()
+{
+  auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const float retreat_health_threshold =
+    getInput<float>("retreat_health_threshold").value_or(25.0f);
+  const float recovery_health_threshold =
+    getInput<float>("recovery_health_threshold").value_or(90.0f);
+  const double enhanced_defend_seconds =
+    getInput<double>("enhanced_defend_seconds").value_or(5.0);
+  const int max_retreat_count = getInput<int>("max_retreat_count").value_or(3);
+
+  const int game_status = blackboard->get<int>("game_status");
+  const int game_time_remaining = blackboard->get<int>("game_time_remaining");
+  const int enemy_outpost_health = blackboard->get<int>("enemy_outpost_health");
+  const float health = blackboard->get<float>("health");
+  const auto now = std::chrono::steady_clock::now();
+
+  const bool pregame_reset = game_status != 4 && game_time_remaining >= 410;
+  const bool new_match_started =
+    game_status == 4 && previous_game_status_ != 4 && game_time_remaining >= 410;
+  previous_game_status_ = game_status;
+
+  if ((pregame_reset && !pregame_reset_done_) || new_match_started) {
+    phase_ = Phase::WAITING;
+    retreat_count_ = 0;
+    retreat_start_time_ = std::chrono::steady_clock::time_point{};
+    blackboard->set<bool>("enemy_outpost_destroyed", false);
+    blackboard->set<NavMode>("current_mode", NavMode::PATROL);
+    pregame_reset_done_ = true;
+  } else if (game_status == 4) {
+    pregame_reset_done_ = false;
+  }
+
+  bool enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
+
+  if (game_status == 4) {
+    if (phase_ == Phase::WAITING) {
+      if (enemy_outpost_health > 0 && !enemy_outpost_destroyed) {
+        phase_ = Phase::AUTO_ATTACK;
+      } else if (enemy_outpost_health <= 0) {
+        blackboard->set<bool>("enemy_outpost_destroyed", true);
+        enemy_outpost_destroyed = true;
+        phase_ = Phase::DONE;
+      }
+    } else if (phase_ == Phase::AUTO_ATTACK) {
+      if (enemy_outpost_destroyed) {
+        // Preserve the existing B-key toggle: an external true stops automatic attack.
+        phase_ = Phase::DONE;
+      } else if (enemy_outpost_health <= 0) {
+        blackboard->set<bool>("enemy_outpost_destroyed", true);
+        enemy_outpost_destroyed = true;
+        blackboard->set<NavMode>("current_mode", NavMode::PATROL);
+        phase_ = Phase::DONE;
+      } else if (health <= retreat_health_threshold) {
+        ++retreat_count_;
+        retreat_start_time_ = now;
+        phase_ = Phase::RETREAT;
+      }
+    } else if (phase_ == Phase::RETREAT) {
+      if (enemy_outpost_health <= 0 && !enemy_outpost_destroyed) {
+        blackboard->set<bool>("enemy_outpost_destroyed", true);
+        enemy_outpost_destroyed = true;
+      }
+
+      const double retreat_elapsed =
+        std::chrono::duration<double>(now - retreat_start_time_).count();
+      const bool defend_finished = retreat_elapsed >= enhanced_defend_seconds;
+      const bool health_recovered = health >= recovery_health_threshold;
+      if (defend_finished && health_recovered) {
+        const bool auto_attack_finished = enemy_outpost_health <= 0 || enemy_outpost_destroyed ||
+                                          retreat_count_ >= max_retreat_count;
+        blackboard->set<bool>("enemy_outpost_destroyed", auto_attack_finished);
+        blackboard->set<NavMode>("current_mode", NavMode::PATROL);
+        phase_ = auto_attack_finished ? Phase::DONE : Phase::AUTO_ATTACK;
+      }
+    }
+  }
+
+  bool auto_attack_active = false;
+  bool manual_attack_active = false;
+  bool retreat_active = false;
+  bool enhanced_defend_active = false;
+  if (game_status == 4) {
+    auto_attack_active = phase_ == Phase::AUTO_ATTACK;
+    manual_attack_active = phase_ == Phase::DONE &&
+                           !blackboard->get<bool>("enemy_outpost_destroyed");
+    retreat_active = phase_ == Phase::RETREAT;
+    if (retreat_active) {
+      const double retreat_elapsed =
+        std::chrono::duration<double>(now - retreat_start_time_).count();
+      enhanced_defend_active = retreat_elapsed < enhanced_defend_seconds;
+    }
+  }
+
+  blackboard->set<bool>("outpost_auto_attack_active", auto_attack_active);
+  blackboard->set<bool>("outpost_manual_attack_active", manual_attack_active);
+  blackboard->set<bool>("outpost_retreat_active", retreat_active);
+  blackboard->set<bool>("outpost_enhanced_defend_active", enhanced_defend_active);
+  blackboard->set<int>("outpost_retreat_count", retreat_count_);
+
+  const char * phase_name = "waiting";
+  if (phase_ == Phase::AUTO_ATTACK) {
+    phase_name = "auto_attack";
+  } else if (phase_ == Phase::RETREAT) {
+    phase_name = "retreat";
+  } else if (phase_ == Phase::DONE) {
+    phase_name = "done";
+  }
+  std::ostringstream oss;
+  oss << "phase=" << phase_name << ", self_health=" << health
+      << ", enemy_outpost_health=" << enemy_outpost_health
+      << ", retreat_count=" << retreat_count_
+      << ", enemy_outpost_destroyed=" << blackboard->get<bool>("enemy_outpost_destroyed");
+  detail::logTransition(
+    detail::TreeKind::NAV, "UpdateOutpostAttackState", retreat_active, oss.str(), branch);
+
+  return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- CheckOutpostAttackState -------------------
+CheckOutpostAttackState::CheckOutpostAttackState(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckOutpostAttackState::providedPorts()
+{
+  return {
+    BT::InputPort<std::string>("state", "Outpost strategy state to check"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
+  };
+}
+
+BT::NodeStatus CheckOutpostAttackState::tick()
+{
+  auto blackboard = config().blackboard;
+  const auto state = getInput<std::string>("state");
+  if (!state) {
+    throw BT::RuntimeError("missing required input [state]: ", state.error());
+  }
+  const std::string branch = getInput<std::string>("branch").value_or("");
+
+  bool active = false;
+  if (state.value() == "auto_attack") {
+    active = blackboard->get<bool>("outpost_auto_attack_active");
+  } else if (state.value() == "manual_attack") {
+    active = blackboard->get<bool>("outpost_manual_attack_active");
+  } else if (state.value() == "retreat") {
+    active = blackboard->get<bool>("outpost_retreat_active");
+  } else if (state.value() == "enhanced_defend") {
+    active = blackboard->get<bool>("outpost_enhanced_defend_active");
+  } else {
+    throw BT::RuntimeError("unsupported outpost attack state: ", state.value());
+  }
+
+  detail::logTransition(
+    detail::TreeKind::NAV, "CheckOutpostAttackState", active, "state=" + state.value(), branch);
+  return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
 // ------------------- SetEnemyOutpostDestroyed -------------------
 SetEnemyOutpostDestroyed::SetEnemyOutpostDestroyed(
   const std::string & name, const BT::NodeConfiguration & config)
