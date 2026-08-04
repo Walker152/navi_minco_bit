@@ -41,11 +41,10 @@ void publishTargetCroppedDebug(bool visualization_en,
   const GicpFilter * gicp_filter,
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_target_cropped);
 
-void publishSourceCroppedDebug(bool visualization_en,
+PointCloud::Ptr publishSourceCroppedDebug(bool visualization_en,
   const GicpFilter::Options & gicp_options,
-  const std::string & map_frame,
+  const std::string & cloud_frame,
   const PointCloud::Ptr & source,
-  const Eigen::Matrix4f & initial_guess,
   const rclcpp::Time & stamp,
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_source_cropped);
 

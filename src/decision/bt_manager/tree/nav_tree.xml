@@ -14,6 +14,7 @@
                                   max_retreat_count="3"
                                   branch="OutpostAttackState" />
       </ForceSuccess>
+      <!-- TEMP_DISABLED_HIGHLAND_GUARD: 暂停普通英雄守护的自动开启/关闭时间窗。
       <ForceSuccess>
         <ReactiveSequence name="AutoHeroGuardEnableWindow">
           <CheckGameTimeWindow name="CheckAutoHeroGuardEnableWindow"
@@ -38,11 +39,14 @@
                               branch="AutoHeroGuardDisableWindow" />
         </ReactiveSequence>
       </ForceSuccess>
+      -->
+      <!-- TEMP_DISABLED_HIGHLAND_GUARD: 暂停前80秒未上高地后的兜底状态锁存。
       <ForceSuccess>
         <UpdateHighlandFallbackState name="UpdateHighlandFallbackState"
                                      cutoff_remaining="340"
                                      branch="HighlandFallbackState" />
       </ForceSuccess>
+      -->
       <ReactiveFallback name="NavPriorityRoot">
         <!-- <ReactiveSequence name="Priority0EmergencyStop">
           <EmergencyStop name="EmergencyStop" enable_combat_stop="false" />
@@ -63,10 +67,10 @@
           <NavigateToPoseAction name="NavigateOutpostHealthHome" />
         </ReactiveSequence>
 
+        <!-- TEMP_DISABLED_HIGHLAND_GUARD: 暂停整条高地兜底导航，避免进入兜底后阻断原导航逻辑。
         <ReactiveSequence name="HighlandFallbackLine">
           <CheckHighlandFallbackActive name="CheckHighlandFallbackActive"
                                        branch="HighlandFallbackLine" />
-          <!-- 兜底分支必须闭合:内部导航失败时也不能落回原出门逻辑。 -->
           <ForceSuccess>
             <ReactiveFallback name="HighlandFallbackPriority">
               <ReactiveSequence name="FallbackManualOverride">
@@ -125,6 +129,7 @@
             </ReactiveFallback>
           </ForceSuccess>
         </ReactiveSequence>
+        -->
 
         <ReactiveSequence name="Priority0ManualOverride">
           <CheckManualOverride name="CheckManualOverride" branch="Priority0ManualOverride" />
@@ -299,7 +304,7 @@
               <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
                                                           patrol_branch_balanced="0"
                                                           patrol_branch_offensive="0"/> -->
-              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="1" />
+              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0" />
               <NavigateToPoseAction name="NavigatePatrolPoint" />
               <Wait name="WaitAtPatrolPoint" />
             </Sequence>
@@ -312,7 +317,7 @@
               <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
                                                           patrol_branch_balanced="0"
                                                           patrol_branch_offensive="0"/> -->
-              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="1" />
+              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0" />
               <NavigateToPoseAction name="NavigatePatrolPoint" />
               <Wait name="WaitAtPatrolPoint" />
             </Sequence>

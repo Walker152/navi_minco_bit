@@ -163,7 +163,7 @@ void publishVisualization(const PointCloud::Ptr & cloud,
   const Eigen::Matrix4f & map_to_camera_init,
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & aligned_cloud_pub)
 {
-  if (!visualization_en || !cloud) {
+  if (!visualization_en || !cloud || cloud->empty()) {
     return;
   }
 
@@ -229,35 +229,26 @@ void publishTargetCroppedDebug(bool visualization_en,
   pub_target_cropped->publish(target_cropped_msg);
 }
 
-void publishSourceCroppedDebug(bool visualization_en,
+PointCloud::Ptr publishSourceCroppedDebug(bool visualization_en,
   const GicpFilter::Options & gicp_options,
-  const std::string & map_frame,
+  const std::string & cloud_frame,
   const PointCloud::Ptr & source,
-  const Eigen::Matrix4f & initial_guess,
   const rclcpp::Time & stamp,
   const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr & pub_source_cropped)
 {
-  if (!visualization_en || !pub_source_cropped || !source || source->empty()) {
-    return;
+  if (!visualization_en || !source || source->empty()) {
+    return std::make_shared<PointCloud>();
   }
 
   PointCloud::Ptr source_finite = removeNonFinitePoints(source);
   if (!source_finite || source_finite->empty()) {
-    return;
+    return std::make_shared<PointCloud>();
   }
 
-  const double safe_leaf = computeSafeLeafSize(source_finite, gicp_options.source_voxel_leaf_size);
-
-  PointCloud::Ptr source_voxel(new PointCloud());
-  pcl::VoxelGrid<pcl::PointXYZ> vg;
-  vg.setLeafSize(safe_leaf, safe_leaf, safe_leaf);
-  vg.setInputCloud(source_finite);
-  vg.filter(*source_voxel);
-
-  PointCloud::Ptr source_height(new PointCloud(*source_voxel));
+  PointCloud::Ptr source_height(new PointCloud(*source_finite));
   if (gicp_options.height_filter_enabled) {
     pcl::PassThrough<pcl::PointXYZ> pass;
-    pass.setInputCloud(source_voxel);
+    pass.setInputCloud(source_finite);
     pass.setFilterFieldName("z");
     pass.setFilterLimits(gicp_options.height_filter_min_z, gicp_options.height_filter_max_z);
     source_height = std::make_shared<PointCloud>();
@@ -281,17 +272,29 @@ void publishSourceCroppedDebug(bool visualization_en,
   }
 
   if (!source_cropped || source_cropped->empty()) {
-    return;
+    return std::make_shared<PointCloud>();
   }
 
-  PointCloud::Ptr source_cropped_in_map(new PointCloud());
-  pcl::transformPointCloud(*source_cropped, *source_cropped_in_map, initial_guess);
+  const double safe_leaf = computeSafeLeafSize(source_cropped, gicp_options.source_voxel_leaf_size);
 
-  sensor_msgs::msg::PointCloud2 source_cropped_msg;
-  pcl::toROSMsg(*source_cropped_in_map, source_cropped_msg);
-  source_cropped_msg.header.frame_id = map_frame;
-  source_cropped_msg.header.stamp = stamp;
-  pub_source_cropped->publish(source_cropped_msg);
+  PointCloud::Ptr source_voxel(new PointCloud());
+  pcl::VoxelGrid<pcl::PointXYZ> vg;
+  vg.setLeafSize(safe_leaf, safe_leaf, safe_leaf);
+  vg.setInputCloud(source_cropped);
+  vg.filter(*source_voxel);
+  if (!source_voxel || source_voxel->empty()) {
+    return std::make_shared<PointCloud>();
+  }
+
+  if (pub_source_cropped && pub_source_cropped->get_subscription_count() > 0) {
+    sensor_msgs::msg::PointCloud2 source_cropped_msg;
+    pcl::toROSMsg(*source_voxel, source_cropped_msg);
+    source_cropped_msg.header.frame_id = cloud_frame;
+    source_cropped_msg.header.stamp = stamp;
+    pub_source_cropped->publish(source_cropped_msg);
+  }
+
+  return source_voxel;
 }
 
 }  // namespace icp_relocalization::gicp_utils

@@ -93,6 +93,7 @@ private:
   bool isAlignmentAccepted(const GicpFilter::Result & result) const;
   GicpFilter::Result runTwoStageAlignment(const PointCloud::Ptr & source_cloud,
     const Eigen::Matrix4f & initial_guess,
+    bool coarse_required,
     double & time_ms,
     std::string & final_stage);
   bool isInitialCorrectionAccepted(
@@ -162,6 +163,7 @@ private:
   double min_inlier_ratio_ = 0.3;            // GICP 有效对应点最小比例
   double min_overlap_ratio_ = 0.3;           // 几何重叠率最小值
   bool fine_alignment_enabled_ = true;
+  bool coarse_first_window_only_ = true;
   double fine_max_correspondence_distance_ = 0.2;
   bool planar_observability_check_enabled_ = false;
   double min_planar_eigen_ratio_ = 1.0e-3;
