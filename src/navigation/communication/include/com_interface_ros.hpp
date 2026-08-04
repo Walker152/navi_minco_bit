@@ -63,6 +63,8 @@ public:
     msg.manual_point_x = in.manual_point_x;
     msg.manual_point_y = in.manual_point_y;
     msg.manual_key = in.manual_key;
+    msg.enemy_outpost_hp = in.enemy_outpost_hp;
+    msg.enemy_base_hp = in.enemy_base_hp;
     msg.header.stamp = now();
     game_info_pub_->publish(msg);
   }

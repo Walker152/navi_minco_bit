@@ -86,6 +86,8 @@ public:
     blackboard_->set("big_energy_status", 0);       // 大能量机关状态
     blackboard_->set("fort_occupation_status", 0);  // 堡垒占领状态
     blackboard_->set("game_status", 0);             // 比赛状态
+    blackboard_->set("enemy_outpost_health", 0);    // 敌方前哨站血量
+    blackboard_->set("enemy_base_health", 0);       // 敌方基地血量
 
     // --- Radar Info ---
     blackboard_->set("enemy_coin_left", 0);                           // 敌方金币剩余数量

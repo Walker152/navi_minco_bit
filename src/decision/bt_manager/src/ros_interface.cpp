@@ -210,6 +210,8 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   blackboard_->set<int>("game_time_remaining", static_cast<int>(msg->game_time_remaining));
   blackboard_->set<int>("coin_remaining", static_cast<int>(msg->coin_remaining));
   blackboard_->set<int>("game_status", static_cast<int>(msg->game_status));
+  blackboard_->set<int>("enemy_outpost_health", static_cast<int>(msg->enemy_outpost_hp));
+  blackboard_->set<int>("enemy_base_health", static_cast<int>(msg->enemy_base_hp));
 
   // 解码event_code字段
   uint32_t event_code = msg->event_code;
