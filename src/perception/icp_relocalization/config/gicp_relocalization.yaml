@@ -2,7 +2,8 @@ gicp_relocalization_node:
   ros__parameters:
     # General Configuration
     mode: "initial_guess" # Options: "multi_guess", "initial_guess"
-    target_pcd_file: "src/perception/icp_relocalization/pcd/cloudlab_processed.pcd"
+    # target_pcd_file: "src/perception/icp_relocalization/pcd/cloudlab_processed.pcd"
+    target_pcd_file: "src/perception/Point-LIO/PCD/scans_1.pcd"
     map_frame: "map"
     visualization_en: true
     source_cloud_topic: "/cloud_registered_full"
@@ -14,8 +15,8 @@ gicp_relocalization_node:
       # Raw small_gicp error is point-count dependent. <= 0 disables this legacy safety limit.
       score_threshold: -1.0
       # Primary quality gates, shared by sparse /cloud_registered and dense full clouds.
-      normalized_score_threshold: 0.1  # raw score / GICP inliers
-      min_inlier_ratio: 0.3            # GICP inliers / downsampled source points
+      normalized_score_threshold: 0.2  # raw score / GICP inliers
+      min_inlier_ratio: 0.1            # GICP inliers / downsampled source points
       min_overlap_ratio: 0.3           # source points within max correspondence distance
       # Coarse 0.5 m alignment is followed by a stricter 0.2 m refinement.
       fine_alignment:
@@ -25,7 +26,7 @@ gicp_relocalization_node:
       planar_observability:
         enable: false
         min_eigen_ratio: 0.001
-      target_voxel_leaf_size: 0.05
+      target_voxel_leaf_size: 0.1
       source_voxel_leaf_size: 0.05  # -1.0 means no downsampling
       max_correspondence_distance: 0.5
       max_iterations: 100
@@ -41,12 +42,12 @@ gicp_relocalization_node:
     initial_pose_guard:
       enable: true
       max_translation_correction: 0.5  # meter, XY only
-      max_yaw_correction: 0.1         # rad
+      max_yaw_correction: 0.2         # rad
 
     # Switchable CSV output for real-vehicle threshold verification.
     results:
       enable: true
-      path: "/tmp/gicp_relocalization_results.csv"
+      path: "src/perception/icp_relocalization/gicp_relocalization_results.csv"
 
     # Continuous low-frequency relocalization
     enable_continuous_relocalization: false
@@ -61,9 +62,9 @@ gicp_relocalization_node:
     # default_pose_on_timeout: [13.5, 4.8, 0.0, 0.0, 0.0, 3.14]  # 超时后发布的默认位姿
 
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
-    initial_pose: [4.234, 7.3, 0.0, 0.0, 0.0, 0.04]
+    # initial_pose: [4.234, 7.3, 0.0, 0.0, 0.0, 0.04]
     # initial_pose: [13.5, 4.8, 0.0, 0.0, 0.0, 3.14]
-    # initial_pose: [5.0, 7.0, 0.0, 0.0, 0.0, 0.4]
+    initial_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     # Multi-Guess Parameters
     multi_guess:
       search_rectangles: [0.0, 3.0, 0.0, 3.0, -2.0, 0.0, -1.0, 1.0]
@@ -74,7 +75,7 @@ gicp_relocalization_node:
 
     # Keep ground and ramp points. Source crop below remains only a broad sensor ROI.
     height_filter:
-      enable: false
+      enable: true
       min_z: -0.5
       max_z: 2.5
 
