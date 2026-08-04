@@ -29,6 +29,15 @@
           <ApplyManualStanceOverride name="ApplyManualEnhancedStance" />
         </Sequence>
 
+        <!-- 自动攻击前哨站撤退时，仅在每次撤退最初5秒请求强化防御姿态。 -->
+        <ReactiveSequence name="OutpostRetreatEnhancedDefendBranch">
+          <CheckOutpostAttackState name="CheckOutpostEnhancedDefendActive"
+                                   state="enhanced_defend"
+                                   branch="OutpostRetreatEnhancedDefendBranch" />
+          <ChangeStance name="ChangeStanceOutpostRetreatEnhancedDefend"
+                        stance="ENHANCED_DEFEND" />
+        </ReactiveSequence>
+
         <!-- 敌区受击强化防御：冲堡接近阶段继续执行 MOVE/零陀螺/航向对齐，
              只有到达堡垒交战圈后才允许该分支接管冲堡姿态。 -->
         <ReactiveSequence name="EnemyAreaHurtEnhancedDefendBranch">

@@ -79,9 +79,10 @@ Blackboard 是决策树与 ROS 接口间的状态契约。修改 key 名称、�
 | `cmd_vel` | 当前速度信息 | ROS 回调 → 恢复/状态判断 |
 | `use_gyro_mode`, `gyro_vel` | 小陀螺开关与角速度 | 决策节点 → 控制/通信 |
 | `target_valid`, `target_pose` | 目标有效性与位置 | 感知/裁判回调 → 导航决策 |
-| `outpost_safe_cooldown_active` | 前哨站安全冷却 | 条件节点与进攻逻辑 |
+| `outpost_auto_attack_active`, `outpost_retreat_active` | 自动前哨攻击及专项回血阶段 | 前哨状态节点 → 导航树 |
+| `outpost_enhanced_defend_active` | 每次前哨撤退最初5秒强化防御窗口 | 前哨状态节点 → 姿态树 |
 | `enemy_outpost_health`, `enemy_base_health` | 敌方前哨站与基地血量 | `GameInfo` 回调 → 黑板 |
-| `enemy_outpost_destroyed` | 是否停止前哨站进攻/响应的策略标志 | 时间窗口/人工按键 → 战术分支 |
+| `enemy_outpost_destroyed` | 是否停止前哨站进攻/响应的策略标志 | 前哨状态节点/B键 → 导航树 |
 
 新增或修改 key 前，应同时搜索 XML 端口、C++ `get/set` 和默认值，避免隐式类型不一致。
 
