@@ -11,7 +11,7 @@ gicp_relocalization_node:
     tf_publish_frequency: 100.0
     # Convergence Criteria (small_gicp score, lower is better)
     gicp:
-      score_threshold: 100.0
+      score_threshold: 50.0
       target_voxel_leaf_size: 0.05
       source_voxel_leaf_size: 0.05  # -1.0 means no downsampling
       max_correspondence_distance: 0.5
@@ -29,11 +29,11 @@ gicp_relocalization_node:
 
     timeout_seconds: 10.0  # 超时时间（秒）
     # default_pose_on_timeout: [5.0, 7.0, 0.0, 0.0, 0.0, 0.0]  # 超时后发布的默认位姿
-    default_pose_on_timeout: [4.034, 7.3, 0.0, 0.0, 0.0, 0.04]  # 超时后发布的默认位姿
+    default_pose_on_timeout: [4.034, 7.3, 0.0, 0.0, 0.0, -0.04]  # 超时后发布的默认位姿
     # default_pose_on_timeout: [13.5, 4.8, 0.0, 0.0, 0.0, 3.14]  # 超时后发布的默认位姿
 
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
-    initial_pose: [4.034, 7.3, 0.0, 0.0, 0.0, 0.04]
+    initial_pose: [4.034, 7.3, 0.0, 0.0, 0.0, -0.04]
     # initial_pose: [13.5, 4.8, 0.0, 0.0, 0.0, 3.14]
     # initial_pose: [5.0, 7.0, 0.0, 0.0, 0.0, 0.4]
     # Multi-Guess Parameters
@@ -47,7 +47,7 @@ gicp_relocalization_node:
     # Height Filter (PassThrough on z) - optional performance optimization
     height_filter:
       enable: true
-      min_z: -0.5
+      min_z: 0.0
       max_z: 2.5
 
     # Source Crop Parameters

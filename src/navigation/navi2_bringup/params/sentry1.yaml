@@ -425,8 +425,8 @@ planner_server:
           # 标准 Nav2 YAML/PGM 静态先验；启用后只增加二维硬障碍，不清除在线障碍。
           prior_map:
             enable: true
-            # yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior.yaml"
-            yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior11.yaml"
+            yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior.yaml"
+            # yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior11.yaml"
             # 留空时使用 YAML 的 image 字段，并相对 YAML 所在目录解析。
             pgm_path: ""
             frame_id: map
