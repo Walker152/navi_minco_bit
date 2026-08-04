@@ -26,21 +26,21 @@ def generate_launch_description():
 
     return launch.LaunchDescription([
         # 静态TF: map -> camera_init
-        launch_ros.actions.Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='static_tf_map_to_camera_init',
-            # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
-            # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
-            # arguments=['1', '3', '0', '0', '0', '0', 'map', 'camera_init'],
-            # arguments=['6.7', '4.0', '0', '0', '0', '0', 'map', 'camera_init'],
-            # arguments=['9.0', '13.0', '0', '0', '0', '0', 'map', 'camera_init'],
-            # 2026 rmuc
-            # x坐标：台阶到基地边缘1655mm+基地长1881mm+车身y半长198.5mm+地图投影边缘300mm=4036mm
-            # y坐标：场地y半长7500mm-半车宽191mm+场地偏差40～50cm=7709mm
-            # 蓝方启动点
-            arguments=['4.034', '7.7', '0', '0', '0', '0', 'map', 'camera_init'],
-            output='screen'),
+        # launch_ros.actions.Node(
+        #     package='tf2_ros',
+        #     executable='static_transform_publisher',
+        #     name='static_tf_map_to_camera_init',
+        #     # arguments=['1.73', '6.4', '0', '0.0', '0', '0.0', 'map', 'camera_init'],
+        #     # arguments=['5', '7', '0', '0', '0', '0', 'map', 'camera_init'],
+        #     # arguments=['1', '3', '0', '0', '0', '0', 'map', 'camera_init'],
+        #     # arguments=['6.7', '4.0', '0', '0', '0', '0', 'map', 'camera_init'],
+        #     # arguments=['9.0', '13.0', '0', '0', '0', '0', 'map', 'camera_init'],
+        #     # 2026 rmuc
+        #     # x坐标：台阶到基地边缘1655mm+基地长1881mm+车身y半长198.5mm+地图投影边缘300mm=4036mm
+        #     # y坐标：场地y半长7500mm-半车宽191mm+场地偏差40～50cm=7709mm
+        #     # 蓝方启动点
+        #     arguments=['4.034', '7.3', '0', '0', '0', '0', 'map', 'camera_init'],
+        #     output='screen'),
 
         # 静态TF: map -> minimap
         launch_ros.actions.Node(
@@ -48,8 +48,8 @@ def generate_launch_description():
             executable='static_transform_publisher',
             name='static_tf_map_to_minimap',
             # 红方使用全0，蓝方使用28,15
-            # arguments=['0.3', '0', '0', '0', '0', '0', 'map', 'minimap'],
-            arguments=['28.7', '15', '0', '3.14', '0', '0', 'map', 'minimap'],
+            arguments=['0.3', '0', '0', '0', '0', '0', 'map', 'minimap'],
+            # arguments=['28.7', '15', '0', '3.14', '0', '0', 'map', 'minimap'],
             output='screen'),
 
         # 静态TF: camera_init -> body
