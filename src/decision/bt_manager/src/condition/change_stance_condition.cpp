@@ -588,6 +588,72 @@ BT::NodeStatus CheckInEnemyFortZone::tick()
   return in_enemy_fort ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
+// ------------------- CheckEnemyDefenseHealthDrop -------------------
+CheckEnemyDefenseHealthDrop::CheckEnemyDefenseHealthDrop(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckEnemyDefenseHealthDrop::providedPorts()
+{
+  return {
+    BT::InputPort<double>("stable_seconds", 5.0, "Stable-health duration before response exits"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckEnemyDefenseHealthDrop::tick()
+{
+  const auto blackboard = config().blackboard;
+  const double stable_seconds = getInput<double>("stable_seconds").value_or(5.0);
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const float health = blackboard->get<float>("health");
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
+  const bool in_enemy_defense = enemy_defense_zone.contains(current_point);
+  const auto now = std::chrono::steady_clock::now();
+
+  // 首次 tick 仅建立血量基线，避免启动时误判为掉血。
+  if (!initialized_) {
+    initialized_ = true;
+    last_health_ = health;
+    last_health_drop_time_ = now;
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckEnemyDefenseHealthDrop", false, "init baseline", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  const bool health_dropped = (last_health_ - health) > 1e-3f;
+  last_health_ = health;
+
+  if (!in_enemy_defense) {
+    response_active_ = false;
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckEnemyDefenseHealthDrop", false,
+      "outside enemy_defense_zone", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  if (health_dropped) {
+    last_health_drop_time_ = now;
+    response_active_ = true;
+  }
+
+  double stable_duration = 0.0;
+  if (response_active_) {
+    stable_duration = std::chrono::duration<double>(now - last_health_drop_time_).count();
+    response_active_ = stable_duration < stable_seconds;
+  }
+
+  std::ostringstream oss;
+  oss << "health=" << health << ", health_dropped=" << health_dropped
+      << ", stable_duration=" << stable_duration << ", stable_seconds=" << stable_seconds;
+  detail::logTransition(
+    detail::TreeKind::STANCE, "CheckEnemyDefenseHealthDrop", response_active_, oss.str(), branch);
+
+  return response_active_ ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
 // ------------------- CheckManualStanceOverride -------------------
 CheckManualStanceOverride::CheckManualStanceOverride(
   const std::string & name, const BT::NodeConfiguration & config)

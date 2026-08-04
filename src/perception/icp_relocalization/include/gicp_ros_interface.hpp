@@ -15,6 +15,8 @@
 #include "std_srvs/srv/trigger.hpp"
 
 #include <chrono>
+#include <deque>
+#include <fstream>
 #include <mutex>
 
 #include "color_text.hpp"
@@ -88,6 +90,30 @@ private:
   void fsmTimerCallback();
   void visualizationTimerCallback();
   void runFSM();
+  bool isAlignmentAccepted(const GicpFilter::Result & result) const;
+  GicpFilter::Result runTwoStageAlignment(const PointCloud::Ptr & source_cloud,
+    const Eigen::Matrix4f & initial_guess,
+    double & time_ms,
+    std::string & final_stage);
+  bool isInitialCorrectionAccepted(
+    const Eigen::Matrix4f & candidate, double & translation_correction, double & yaw_correction) const;
+  bool evaluatePoseStability(
+    Eigen::Matrix4f & representative, double & max_xy_spread, double & max_yaw_spread) const;
+  void initializeResultsRecorder();
+  void recordAlignmentResult(const std::string & stage,
+    const GicpFilter::Result & result,
+    bool quality_accepted,
+    bool initial_guard_accepted,
+    bool stability_ready,
+    bool stability_accepted,
+    bool localized,
+    double time_ms,
+    double initial_dxy,
+    double initial_dyaw,
+    double stability_xy,
+    double stability_yaw);
+  static double poseYaw(const Eigen::Matrix4f & pose);
+  static double wrappedYawDifference(double lhs, double rhs);
   void startFsmTimer();
   void relocalizeServiceCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
     std::shared_ptr<std_srvs::srv::Trigger::Response> response);
@@ -113,6 +139,9 @@ private:
   double max_yaw_jump_ = 0.35;             // 连续更新允许的最大航向跳变(rad)
   bool has_last_successful_pose_ = false;  // 是否已有成功发布并确认的位姿
   Eigen::Matrix4f last_successful_pose_ = Eigen::Matrix4f::Identity();
+  Eigen::Matrix4f initial_reference_pose_ = Eigen::Matrix4f::Identity();
+  bool has_initial_reference_pose_ = false;
+  std::deque<Eigen::Matrix4f> convergence_poses_;
 
   Eigen::Matrix4f latest_odom_pose_ = Eigen::Matrix4f::Identity();
   std::mutex odom_mtx_;
@@ -123,12 +152,27 @@ private:
 
   // 默认参数
   std::string map_frame_;
-  bool visualization_en_ = true;      // 是否启用可视化
-  std::string source_cloud_topic_;    // 激光雷达点云话题
-  double alignment_frequency_;        // 地图对齐(GICP)低频执行频率
-  Mode mode_ = Mode::MULTI_GUESS;     // 重定位模式
-  int accumulate_frames_;             // 参与配准的累积帧数
-  double score_threshold_ = 20;       // small_gicp score阈值（越小越好）
+  bool visualization_en_ = true;             // 是否启用可视化
+  std::string source_cloud_topic_;           // 激光雷达点云话题
+  double alignment_frequency_;               // 地图对齐(GICP)低频执行频率
+  Mode mode_ = Mode::MULTI_GUESS;            // 重定位模式
+  int accumulate_frames_;                    // 参与配准的累积帧数
+  double score_threshold_ = -1.0;            // 可选 raw score 安全上限，<=0 时禁用
+  double normalized_score_threshold_ = 0.1;  // 平均内点 GICP 误差上限
+  double min_inlier_ratio_ = 0.3;            // GICP 有效对应点最小比例
+  double min_overlap_ratio_ = 0.3;           // 几何重叠率最小值
+  bool fine_alignment_enabled_ = true;
+  double fine_max_correspondence_distance_ = 0.2;
+  bool planar_observability_check_enabled_ = false;
+  double min_planar_eigen_ratio_ = 1.0e-3;
+  bool initial_pose_guard_enabled_ = true;
+  double max_initial_translation_correction_ = 0.5;
+  double max_initial_yaw_correction_ = 0.15;
+  double max_stability_xy_spread_ = 0.05;
+  double max_stability_yaw_spread_ = 0.01;
+  bool results_recording_enabled_ = false;
+  std::string results_path_ = "/tmp/gicp_relocalization_results.csv";
+  std::ofstream results_stream_;
   int converged_count_threshold_;     // 收敛次数阈值
   int converged_count_ = 0;           // 当前收敛次数
   bool has_localized_once_ = false;   // 是否曾经成功进入LOCALIZED

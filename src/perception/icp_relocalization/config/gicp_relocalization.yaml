@@ -5,20 +5,48 @@ gicp_relocalization_node:
     target_pcd_file: "src/perception/icp_relocalization/pcd/cloudlab_processed.pcd"
     map_frame: "map"
     visualization_en: true
-    source_cloud_topic: "/cloud_registered"
+    source_cloud_topic: "/cloud_registered_full"
     alignment_frequency: 5.0
     accumulate_frames: 3
     tf_publish_frequency: 100.0
-    # Convergence Criteria (small_gicp score, lower is better)
+    # Convergence Criteria
     gicp:
-      score_threshold: 100.0
+      # Raw small_gicp error is point-count dependent. <= 0 disables this legacy safety limit.
+      score_threshold: -1.0
+      # Primary quality gates, shared by sparse /cloud_registered and dense full clouds.
+      normalized_score_threshold: 0.1  # raw score / GICP inliers
+      min_inlier_ratio: 0.3            # GICP inliers / downsampled source points
+      min_overlap_ratio: 0.3           # source points within max correspondence distance
+      # Coarse 0.5 m alignment is followed by a stricter 0.2 m refinement.
+      fine_alignment:
+        enable: true
+        max_correspondence_distance: 0.2
+      # Record first, then enable this gate after reviewing real-vehicle distributions.
+      planar_observability:
+        enable: false
+        min_eigen_ratio: 0.001
       target_voxel_leaf_size: 0.05
       source_voxel_leaf_size: 0.05  # -1.0 means no downsampling
       max_correspondence_distance: 0.5
       max_iterations: 100
       transformation_epsilon: 0.01
       euclidean_fitness_epsilon: 0.01
-    converged_count_threshold: 2
+    # Three independent accumulated windows must agree in XY and yaw.
+    converged_count_threshold: 3
+    convergence:
+      max_xy_spread: 0.2   # meter, maximum pairwise XY distance
+      max_yaw_spread: 0.04  # rad, maximum pairwise yaw difference
+
+    # Static power-on relocation must remain near the supplied initial pose.
+    initial_pose_guard:
+      enable: true
+      max_translation_correction: 0.5  # meter, XY only
+      max_yaw_correction: 0.1         # rad
+
+    # Switchable CSV output for real-vehicle threshold verification.
+    results:
+      enable: true
+      path: "/tmp/gicp_relocalization_results.csv"
 
     # Continuous low-frequency relocalization
     enable_continuous_relocalization: false
@@ -29,11 +57,11 @@ gicp_relocalization_node:
 
     timeout_seconds: 10.0  # 超时时间（秒）
     # default_pose_on_timeout: [5.0, 7.0, 0.0, 0.0, 0.0, 0.0]  # 超时后发布的默认位姿
-    default_pose_on_timeout: [4.034, 7.3, 0.0, 0.0, 0.0, 0.04]  # 超时后发布的默认位姿
+    default_pose_on_timeout: [4.234, 7.3, 0.0, 0.0, 0.0, 0.04]  # 超时后发布的默认位姿
     # default_pose_on_timeout: [13.5, 4.8, 0.0, 0.0, 0.0, 3.14]  # 超时后发布的默认位姿
 
     # Initial Pose (x, y, z, roll, pitch, yaw) - Used if mode is "initial_guess"
-    initial_pose: [4.034, 7.3, 0.0, 0.0, 0.0, 0.04]
+    initial_pose: [4.234, 7.3, 0.0, 0.0, 0.0, 0.04]
     # initial_pose: [13.5, 4.8, 0.0, 0.0, 0.0, 3.14]
     # initial_pose: [5.0, 7.0, 0.0, 0.0, 0.0, 0.4]
     # Multi-Guess Parameters
@@ -44,9 +72,9 @@ gicp_relocalization_node:
       step_y: 2.0
       step_yaw: 0.785398
 
-    # Height Filter (PassThrough on z) - optional performance optimization
+    # Keep ground and ramp points. Source crop below remains only a broad sensor ROI.
     height_filter:
-      enable: true
+      enable: false
       min_z: -0.5
       max_z: 2.5
 

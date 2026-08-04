@@ -156,6 +156,21 @@ public:
   BT::NodeStatus tick() override;
 };
 
+// 敌方防守区受击响应：掉血后保持激活，连续一段时间未再掉血后退出。
+class CheckEnemyDefenseHealthDrop : public BT::ConditionNode
+{
+public:
+  CheckEnemyDefenseHealthDrop(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  float last_health_ = std::numeric_limits<float>::max();
+  std::chrono::steady_clock::time_point last_health_drop_time_{};
+  bool response_active_ = false;
+  bool initialized_ = false;
+};
+
 // 检查操作手手动强化姿态覆盖是否应当生效。
 // 判断 3 个条件:override_active && 能量达标 && 该强化姿态未超时。
 // 隧道判断不在此,由树结构的优先级保证(隧道分支在前,短路后面分支)。

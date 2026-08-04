@@ -20,9 +20,7 @@ public:
 
 private:
   int findTunnelIndexByPose(const geometry_msgs::msg::Pose & pose) const;
-  geometry_msgs::msg::Twist computeBackoutVelocity(
-    int tunnel_idx, double speed,
-    const geometry_msgs::msg::Pose & current_pose) const;
+  geometry_msgs::msg::Twist computeBackoutVelocity(int tunnel_idx) const;
   void setTunnelEscapeCommand(
     bool active,
     const geometry_msgs::msg::Twist & cmd_vel);
