@@ -181,14 +181,16 @@ BT::NodeStatus TunnelGyroAlignAction::tick()
       return BT::NodeStatus::FAILURE;
     }
 
-    const double configured_target_yaw = static_cast<double>(
-      tunnel_recovery_configs[static_cast<std::size_t>(active_tunnel_idx)].tunnel_pass_yaw_target_rad);
+    const auto & tunnel_config = tunnel_recovery_configs[static_cast<std::size_t>(active_tunnel_idx)];
+    const double configured_target_yaw = static_cast<double>(tunnel_config.tunnel_pass_yaw_target_rad);
     const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
     if (!target_yaw_selected_) {
       selected_target_yaw_ =
-        (enemy_defense_zone.contains(current_point) || own_defense_zone.contains(current_point))
+        tunnel_config.fixed_alignment
           ? configured_target_yaw
-          : wrapAngle(configured_target_yaw + M_PI);
+          : ((enemy_defense_zone.contains(current_point) || own_defense_zone.contains(current_point))
+                ? configured_target_yaw
+                : wrapAngle(configured_target_yaw + M_PI));
       target_yaw_selected_ = true;
     }
     target_yaw_deg = static_cast<float>(selected_target_yaw_ * 180.0 / M_PI);

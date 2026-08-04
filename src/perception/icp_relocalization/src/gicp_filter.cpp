@@ -185,7 +185,49 @@ void GicpFilter::updateLocalMap(const Eigen::Matrix4f & current_pose)
   local_map_initialized_ = true;
 }
 
-GicpFilter::Result GicpFilter::initialAlign(const PointCloud::Ptr & source_cloud)
+void GicpFilter::updateResultQuality(
+  Result & result, const PointCloud::Ptr & source_cropped, const std::size_t source_points) const
+{
+  result.source_points = source_points;
+  if (result.num_inliers > 0 && std::isfinite(result.score)) {
+    result.normalized_score = result.score / static_cast<double>(result.num_inliers);
+  }
+  if (source_points > 0) {
+    result.inlier_ratio = static_cast<double>(result.num_inliers) / static_cast<double>(source_points);
+  }
+
+  if (!result.converged || !source_cropped || source_cropped->empty() || !local_map_cloud_ ||
+      local_map_cloud_->empty()) {
+    return;
+  }
+
+  PointCloud::Ptr transformed_source(new PointCloud());
+  pcl::transformPointCloud(*source_cropped, *transformed_source, result.final_transformation);
+  if (!transformed_source || transformed_source->empty()) {
+    return;
+  }
+
+  pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+  kdtree.setInputCloud(local_map_cloud_);
+
+  const float max_dist_sq =
+    static_cast<float>(options_.max_correspondence_distance * options_.max_correspondence_distance);
+  std::vector<int> nearest_indices(1);
+  std::vector<float> nearest_dist_sq(1);
+  std::size_t overlap_count = 0;
+  for (const auto & point : transformed_source->points) {
+    if (kdtree.nearestKSearch(point, 1, nearest_indices, nearest_dist_sq) > 0 &&
+        nearest_dist_sq[0] < max_dist_sq) {
+      ++overlap_count;
+    }
+  }
+
+  result.overlap_ratio =
+    static_cast<double>(overlap_count) / static_cast<double>(transformed_source->size());
+}
+
+GicpFilter::Result GicpFilter::initialAlign(
+  const PointCloud::Ptr & source_cloud, const double min_inlier_ratio)
 {
   PointCloud::Ptr source_filtered_height = applyHeightFilter(source_cloud);
   PointCloud::Ptr source_cropped = cropSourceCloud(source_filtered_height);
@@ -234,6 +276,7 @@ GicpFilter::Result GicpFilter::initialAlign(const PointCloud::Ptr & source_cloud
   }
 
   double best_error = std::numeric_limits<double>::infinity();
+  double best_normalized_score = std::numeric_limits<double>::infinity();
   std::size_t best_num_inliers = 0;
   Eigen::Matrix4f best_pose = Eigen::Matrix4f::Identity();
   bool best_converged = false;
@@ -260,8 +303,16 @@ GicpFilter::Result GicpFilter::initialAlign(const PointCloud::Ptr & source_cloud
               continue;
             }
 
-            if (std::isfinite(reg_result.error) && reg_result.error < best_error) {
+            if (!std::isfinite(reg_result.error) || reg_result.num_inliers == 0) {
+              continue;
+            }
+
+            const double inlier_ratio =
+              static_cast<double>(reg_result.num_inliers) / static_cast<double>(source_small->size());
+            const double normalized_score = reg_result.error / static_cast<double>(reg_result.num_inliers);
+            if (inlier_ratio >= min_inlier_ratio && normalized_score < best_normalized_score) {
               best_error = reg_result.error;
+              best_normalized_score = normalized_score;
               best_num_inliers = reg_result.num_inliers;
               best_pose = reg_result.T_target_source.matrix().cast<float>();
               best_converged = true;
@@ -277,6 +328,7 @@ GicpFilter::Result GicpFilter::initialAlign(const PointCloud::Ptr & source_cloud
   result.score = best_error;
   result.num_inliers = best_num_inliers;
   result.final_transformation = best_pose;
+  updateResultQuality(result, source_cropped, source_small->size());
   return result;
 }
 
@@ -339,31 +391,7 @@ GicpFilter::Result GicpFilter::align(
   result.score = small_gicp_result.error;
   result.num_inliers = small_gicp_result.num_inliers;
   result.final_transformation = small_gicp_result.T_target_source.matrix().cast<float>();
-
-  if (small_gicp_result.converged && local_map_cloud_ && !local_map_cloud_->empty()) {
-    PointCloud::Ptr transformed_source(new PointCloud());
-    pcl::transformPointCloud(*source_cropped, *transformed_source, result.final_transformation);
-
-    if (transformed_source && !transformed_source->empty()) {
-      pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
-      kdtree.setInputCloud(local_map_cloud_);
-
-      std::vector<int> nearest_indices(1);
-      std::vector<float> nearest_dist_sq(1);
-      size_t inlier_count = 0;
-
-      for (const auto & point : transformed_source->points) {
-        if (kdtree.nearestKSearch(point, 1, nearest_indices, nearest_dist_sq) > 0 &&
-            nearest_dist_sq[0] < 0.25f)  // 放宽内点判定距离 (0.5m)
-        {
-          ++inlier_count;
-        }
-      }
-
-      result.overlap_ratio =
-        static_cast<double>(inlier_count) / static_cast<double>(transformed_source->points.size());
-    }
-  }
+  updateResultQuality(result, source_cropped, source_small->size());
 
   return result;
 }

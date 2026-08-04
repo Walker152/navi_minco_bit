@@ -37,7 +37,7 @@ flowchart RL
         B --> C["FSM 定时器"]
         C --> D["初始化</br>mode=SAC-IA/initial_guess"]
         D --> E["GICP 精配准"]
-        E --> F["收敛判断</br>fitness_score < threshold</br>连续次数计数"]
+        E --> F["组合质量判断</br>归一化 score / 内点率 / 重叠率</br>连续次数计数"]
         F -->|"满足"| G["发布静态 TFmap -> camera_init停止订阅与定时器"]
         F -->|"不满足"| H["回到 UNINITIALIZED等待下一批累积"]
     end
@@ -73,7 +73,7 @@ flowchart RL
 
 1) 每次取一批累积点云作为 `source_cloud`
 2) 以当前 `map_to_camera_init_` 作为 `initial_guess` 运行 GICP
-3) 若 `converged && fitness_score < fitness_score_threshold`，`converged_count_++`
+3) 若 GICP 收敛，且同时满足归一化 score、内点率和几何重叠率阈值，`converged_count_++`
 4) 连续达到 `converged_count_threshold`：
 - 发布静态 TF：`map_frame -> cloud_frame_id`
 - 取消 FSM timer，并 `reset()` 激光订阅，停止后续计算
@@ -102,7 +102,6 @@ flowchart RL
 | `map_frame` | string | `map` | 发布静态 TF 的父坐标系。 |
 | `alignment_frequency` | double | 1.0 | FSM 执行频率（Hz）。 |
 | `accumulate_frames` | int | 5 | 每次参与配准的累积帧数。 |
-| `fitness_score_threshold` | double | 0.5 | 配准得分阈值（越小越严格）。 |
 | `converged_count_threshold` | int | 5 | 连续满足阈值的次数。 |
 | `initial_pose` | double[6] | `[0,0,0,0,0,0]` | 初始位姿（仅 `mode=initial_guess` 使用）。 |
 | `feature_k_search` | int | 20 | 法线/FPFH 邻域 K 值。 |
@@ -119,6 +118,10 @@ flowchart RL
 
 | 参数 | 类型 | 默认值 | 说明 |
 |---|---:|---:|---|
+| `gicp.score_threshold` | double | -1.0 | 可选 raw score 安全上限；该值与内点数相关，`<=0` 时禁用。 |
+| `gicp.normalized_score_threshold` | double | 0.1 | `raw score / num_inliers` 上限，主要质量判据。 |
+| `gicp.min_inlier_ratio` | double | 0.3 | `num_inliers / source_points` 下限。 |
+| `gicp.min_overlap_ratio` | double | 0.3 | 最大对应距离内的源点比例下限。 |
 | `gicp.target_voxel_leaf_size` | double | 0.1 | 地图点云体素滤波分辨率。 |
 | `gicp.source_voxel_leaf_size` | double | 0.1 | 源点云体素滤波分辨率。 |
 | `gicp.max_correspondence_distance` | double | 1.5 | 最大对应距离。 |
@@ -187,6 +190,6 @@ ros2 launch icp_relocalization gicp_relocalization.launch.py
 
 ## 8. 常见问题
 
-- `fitness_score` 一直很高：尝试增大 `gicp.max_correspondence_distance`、增大体素分辨率（leaf size 更大 → 点更少）、或启用 `height_filter` 去掉地面/天花板干扰。
+- raw score 在 full 点云下明显增大：这是总误差随内点数增长的正常现象，应优先检查 `normalized_score`、`inlier_ratio` 和 `overlap_ratio`，不要只调大 raw score 阈值。
 - `mode=sac_ia` 初始化不稳定：提高 `accumulate_frames`，适当增大 `sac_ia.max_correspondence_distance`，确保地图与在线点云尺度/坐标系一致。
 - TF 没发布：需要达到连续收敛阈值；同时 `cloud_frame_id` 来自输入点云 header 的 `frame_id`，上游转换节点要填对。

@@ -88,6 +88,7 @@ private:
   void fsmTimerCallback();
   void visualizationTimerCallback();
   void runFSM();
+  bool isAlignmentAccepted(const GicpFilter::Result & result) const;
   void startFsmTimer();
   void relocalizeServiceCallback(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
     std::shared_ptr<std_srvs::srv::Trigger::Response> response);
@@ -123,16 +124,19 @@ private:
 
   // 默认参数
   std::string map_frame_;
-  bool visualization_en_ = true;      // 是否启用可视化
-  std::string source_cloud_topic_;    // 激光雷达点云话题
-  double alignment_frequency_;        // 地图对齐(GICP)低频执行频率
-  Mode mode_ = Mode::MULTI_GUESS;     // 重定位模式
-  int accumulate_frames_;             // 参与配准的累积帧数
-  double score_threshold_ = 20;       // small_gicp score阈值（越小越好）
-  int converged_count_threshold_;     // 收敛次数阈值
-  int converged_count_ = 0;           // 当前收敛次数
-  bool has_localized_once_ = false;   // 是否曾经成功进入LOCALIZED
-  std::vector<double> initial_pose_;  // 初始位姿猜测 [x, y, z, roll, pitch, yaw]
+  bool visualization_en_ = true;             // 是否启用可视化
+  std::string source_cloud_topic_;           // 激光雷达点云话题
+  double alignment_frequency_;               // 地图对齐(GICP)低频执行频率
+  Mode mode_ = Mode::MULTI_GUESS;            // 重定位模式
+  int accumulate_frames_;                    // 参与配准的累积帧数
+  double score_threshold_ = -1.0;            // 可选 raw score 安全上限，<=0 时禁用
+  double normalized_score_threshold_ = 0.1;  // 平均内点 GICP 误差上限
+  double min_inlier_ratio_ = 0.3;            // GICP 有效对应点最小比例
+  double min_overlap_ratio_ = 0.3;           // 几何重叠率最小值
+  int converged_count_threshold_;            // 收敛次数阈值
+  int converged_count_ = 0;                  // 当前收敛次数
+  bool has_localized_once_ = false;          // 是否曾经成功进入LOCALIZED
+  std::vector<double> initial_pose_;         // 初始位姿猜测 [x, y, z, roll, pitch, yaw]
 
   std::chrono::duration<double> fsm_period_{1.0};
   double tf_publish_frequency_ = 10.0;

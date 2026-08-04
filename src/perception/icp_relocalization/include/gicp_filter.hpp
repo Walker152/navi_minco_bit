@@ -77,8 +77,11 @@ public:
   {
     bool converged = false;
     double score = std::numeric_limits<double>::infinity();
+    double normalized_score = std::numeric_limits<double>::infinity();
     double overlap_ratio = 0.0;
+    double inlier_ratio = 0.0;
     std::size_t num_inliers = 0;
+    std::size_t source_points = 0;
     Eigen::Matrix4f final_transformation = Eigen::Matrix4f::Identity();
   };
 
@@ -89,7 +92,7 @@ public:
   GicpFilter(const PointCloud::Ptr & target_cloud, const Options & options);
 
   // 全局初始定位：由上层提供初值策略，再进行GICP精细定位
-  Result initialAlign(const PointCloud::Ptr & source_cloud);
+  Result initialAlign(const PointCloud::Ptr & source_cloud, double min_inlier_ratio = 0.0);
 
   // 增量定位：使用给定的初始猜测进行GICP定位
   Result align(const PointCloud::Ptr & source_cloud, const Eigen::Matrix4f & initial_guess);
@@ -112,6 +115,10 @@ private:
 
   // 根据当前位姿更新局部地图
   void updateLocalMap(const Eigen::Matrix4f & current_pose);
+
+  // 计算与点数无关的配准质量指标
+  void updateResultQuality(
+    Result & result, const PointCloud::Ptr & source_cropped, std::size_t source_points) const;
 
   Options options_;
   PointCloud::Ptr target_cloud_filtered_;

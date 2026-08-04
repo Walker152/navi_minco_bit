@@ -4,6 +4,7 @@
 #include <cmath>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <iostream>
+#include <pcl/filters/voxel_grid.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <tf2_eigen/tf2_eigen.hpp>
 
@@ -30,7 +31,10 @@ GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions & options)
   alignment_frequency_ = this->declare_parameter<double>("alignment_frequency", 1.0);
   tf_publish_frequency_ = this->declare_parameter<double>("tf_publish_frequency", 10.0);
   accumulate_frames_ = this->declare_parameter<int>("accumulate_frames", 5);
-  score_threshold_ = this->declare_parameter<double>("gicp.score_threshold", 0.5);
+  score_threshold_ = this->declare_parameter<double>("gicp.score_threshold", -1.0);
+  normalized_score_threshold_ = this->declare_parameter<double>("gicp.normalized_score_threshold", 0.1);
+  min_inlier_ratio_ = this->declare_parameter<double>("gicp.min_inlier_ratio", 0.3);
+  min_overlap_ratio_ = this->declare_parameter<double>("gicp.min_overlap_ratio", 0.3);
   converged_count_threshold_ = this->declare_parameter<int>("converged_count_threshold", 5);
   enable_continuous_relocalization_ =
     this->declare_parameter<bool>("enable_continuous_relocalization", false);
@@ -44,6 +48,18 @@ GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions & options)
   }
   if (!(std::isfinite(max_yaw_jump_) && max_yaw_jump_ > 0.0)) {
     max_yaw_jump_ = 0.35;
+  }
+  if (!std::isfinite(score_threshold_)) {
+    score_threshold_ = -1.0;
+  }
+  if (!(std::isfinite(normalized_score_threshold_) && normalized_score_threshold_ > 0.0)) {
+    normalized_score_threshold_ = 0.1;
+  }
+  if (!(std::isfinite(min_inlier_ratio_) && min_inlier_ratio_ >= 0.0 && min_inlier_ratio_ <= 1.0)) {
+    min_inlier_ratio_ = 0.3;
+  }
+  if (!(std::isfinite(min_overlap_ratio_) && min_overlap_ratio_ >= 0.0 && min_overlap_ratio_ <= 1.0)) {
+    min_overlap_ratio_ = 0.3;
   }
 
   std::string target_pcd_file = this->declare_parameter<std::string>("target_pcd_file", "map.pcd");
@@ -121,7 +137,9 @@ GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions & options)
   std::cout << color_text::BLUE << "[GICP] Relocalization initialized: mode=" << mode_str
             << ", map_frame=" << map_frame_ << ", source_topic=" << source_cloud_topic_
             << ", alignment_hz=" << alignment_frequency_ << ", tf_hz=" << tf_publish_frequency_
-            << ", accumulate_frames=" << accumulate_frames_ << ", score_threshold=" << score_threshold_
+            << ", accumulate_frames=" << accumulate_frames_ << ", raw_score_limit=" << score_threshold_
+            << ", normalized_score_limit=" << normalized_score_threshold_
+            << ", min_inlier_ratio=" << min_inlier_ratio_ << ", min_overlap_ratio=" << min_overlap_ratio_
             << ", target_pcd=" << target_pcd_file << color_text::RESET << std::endl;
   std::cout << color_text::BLUE << "[GICP] Timeout config: " << timeout_seconds_ << " s, default_pose=["
             << default_pose_on_timeout_[0] << ", " << default_pose_on_timeout_[1] << ", "
@@ -379,10 +397,16 @@ void GicpRosInterface::lidarCallback(const sensor_msgs::msg::PointCloud2::Shared
     last_cloud_stamp_ = msg->header.stamp;
     cloud_frame_id_ = msg->header.frame_id;
 
-    // Reset if too large (safety)
-    if (accumulated_cloud_->size() > 100000) {
-      accumulated_cloud_->clear();
-      current_accumulated_frames_ = 0;
+    // Full cloud 输入可能超过 10 万点：用已有 source leaf 压缩，不再清空整个累积窗口。
+    if (accumulated_cloud_->size() > 100000 && std::isfinite(gicp_options_.source_voxel_leaf_size) &&
+        gicp_options_.source_voxel_leaf_size > 0.0) {
+      pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
+      const float leaf = static_cast<float>(gicp_options_.source_voxel_leaf_size);
+      voxel_filter.setLeafSize(leaf, leaf, leaf);
+      voxel_filter.setInputCloud(accumulated_cloud_);
+      PointCloud::Ptr compacted_cloud(new PointCloud());
+      voxel_filter.filter(*compacted_cloud);
+      accumulated_cloud_.swap(compacted_cloud);
     }
   }
 }
@@ -465,6 +489,16 @@ void GicpRosInterface::visualizationTimerCallback()
     map_frame_,
     pose_snapshot,
     pub_source_aligned_);
+}
+
+bool GicpRosInterface::isAlignmentAccepted(const GicpFilter::Result & result) const
+{
+  const bool raw_score_ok = score_threshold_ <= 0.0 || result.score <= score_threshold_;
+  return result.converged && result.num_inliers > 0 && result.source_points > 0 &&
+         std::isfinite(result.score) && std::isfinite(result.normalized_score) &&
+         std::isfinite(result.inlier_ratio) && std::isfinite(result.overlap_ratio) && raw_score_ok &&
+         result.normalized_score <= normalized_score_threshold_ &&
+         result.inlier_ratio >= min_inlier_ratio_ && result.overlap_ratio >= min_overlap_ratio_;
 }
 
 void GicpRosInterface::runFSM()
@@ -563,11 +597,13 @@ void GicpRosInterface::runFSM()
     std::cout << color_text::BLUE << "[GICP] Starting initial alignment (MULTI_GUESS)..."
               << color_text::RESET << std::endl;
 
-    auto result = gicp_filter_->initialAlign(current_source_cloud_);
+    auto result = gicp_filter_->initialAlign(current_source_cloud_, min_inlier_ratio_);
 
-    if (result.converged && std::isfinite(result.score) && result.score < score_threshold_) {
-      std::cout << color_text::GREEN << "[GICP] Initial alignment accepted: score=" << result.score
-                << " (threshold=" << score_threshold_ << ")" << color_text::RESET << std::endl;
+    if (isAlignmentAccepted(result)) {
+      std::cout << color_text::GREEN << "[GICP] Initial alignment accepted: raw_score=" << result.score
+                << ", normalized_score=" << result.normalized_score << ", inliers=" << result.num_inliers
+                << "/" << result.source_points << ", inlier_ratio=" << result.inlier_ratio
+                << ", overlap=" << result.overlap_ratio << color_text::RESET << std::endl;
 
       // GICP 计算的是 Source(camera_init) -> Target(map) 的变换
       {
@@ -582,8 +618,12 @@ void GicpRosInterface::runFSM()
     } else {
       std::cout << color_text::YELLOW
                 << "[GICP] Initial alignment rejected: converged=" << (result.converged ? "true" : "false")
-                << ", score=" << result.score << " (required<" << score_threshold_ << "). Retrying..."
-                << color_text::RESET << std::endl;
+                << ", raw_score=" << result.score << ", normalized_score=" << result.normalized_score
+                << " (required<=" << normalized_score_threshold_ << "), inliers=" << result.num_inliers
+                << "/" << result.source_points << ", inlier_ratio=" << result.inlier_ratio
+                << " (required>=" << min_inlier_ratio_ << "), overlap=" << result.overlap_ratio
+                << " (required>=" << min_overlap_ratio_ << "). Retrying..." << color_text::RESET
+                << std::endl;
       state_ = State::UNINITIALIZED;
     }
     break;
@@ -608,7 +648,7 @@ void GicpRosInterface::runFSM()
     auto end_time = std::chrono::high_resolution_clock::now();
     double time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
 
-    if (result.converged && std::isfinite(result.score) && result.score < score_threshold_) {
+    if (isAlignmentAccepted(result)) {
       if (has_localized_once_ && has_last_successful_pose_) {
         const Eigen::Matrix4f prev = last_successful_pose_;
         const Eigen::Matrix4f candidate = result.final_transformation;
@@ -637,8 +677,10 @@ void GicpRosInterface::runFSM()
 
       gicp_utils::printEvaluation(initial_guess, result.final_transformation, time_ms);
 
-      std::cout << color_text::GREEN << "[GICP] Converged: score=" << result.score
-                << " (threshold=" << score_threshold_ << ")" << color_text::RESET << std::endl;
+      std::cout << color_text::GREEN << "[GICP] Converged: raw_score=" << result.score
+                << ", normalized_score=" << result.normalized_score << ", inliers=" << result.num_inliers
+                << "/" << result.source_points << ", inlier_ratio=" << result.inlier_ratio
+                << ", overlap=" << result.overlap_ratio << color_text::RESET << std::endl;
 
       {
         std::lock_guard<std::mutex> lock(pose_mtx_);
@@ -682,8 +724,12 @@ void GicpRosInterface::runFSM()
     } else {
       std::cout << color_text::YELLOW
                 << "[GICP] Rejected: converged=" << (result.converged ? "true" : "false")
-                << ", score=" << result.score << " (required<" << score_threshold_ << "). Resetting count."
-                << color_text::RESET << std::endl;
+                << ", raw_score=" << result.score << ", normalized_score=" << result.normalized_score
+                << " (required<=" << normalized_score_threshold_ << "), inliers=" << result.num_inliers
+                << "/" << result.source_points << ", inlier_ratio=" << result.inlier_ratio
+                << " (required>=" << min_inlier_ratio_ << "), overlap=" << result.overlap_ratio
+                << " (required>=" << min_overlap_ratio_ << "). Resetting count." << color_text::RESET
+                << std::endl;
       converged_count_ = 0;
       state_ = State::UNINITIALIZED;
       gicp_initialized_ = false;
@@ -702,7 +748,7 @@ void GicpRosInterface::runFSM()
     }
     auto result = gicp_filter_->align(current_source_cloud_, initial_guess);
 
-    if (result.converged && std::isfinite(result.score) && result.score < score_threshold_) {
+    if (isAlignmentAccepted(result)) {
       const Eigen::Matrix4f prev = has_last_successful_pose_ ? last_successful_pose_ : map_to_camera_init_;
       const Eigen::Matrix4f candidate = result.final_transformation;
 
