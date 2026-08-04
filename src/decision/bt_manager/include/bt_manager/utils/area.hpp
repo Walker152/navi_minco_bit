@@ -148,13 +148,13 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 };
 
 inline std::vector<Point2D> nav_points = {
-  {3.0, 3.2, 0.0},   // HOME
+  {3.0, 2.9, 0.0},   // HOME
   {12.8, 5.5, 0.0},  // BONUS
   {15.2, 11.2, 0.0}, // ENEMY_OUTPOST
   {7.2, 7.5, 0.0},   // OWN_FORT
   {22.0, 7.5, 0.0},  // ENEMY_FORT
   {12.1, 3.9, 0.0},  // OWN_OUTPOST
-  {8.8, 14.1, 0.0}  // HERO_GUARD
+  {8.8, 13.6, 0.0}  // HERO_GUARD
 
   // for rmul
   // {1.2, 7.2, 0.0},  //HOME

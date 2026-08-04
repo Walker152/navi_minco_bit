@@ -1,8 +1,11 @@
 #include "gicp_filter.hpp"
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
 #include <limits>
 
+#include <Eigen/Eigenvalues>
 #include <Eigen/Geometry>
 
 #include <pcl/common/transforms.h>
@@ -185,8 +188,10 @@ void GicpFilter::updateLocalMap(const Eigen::Matrix4f & current_pose)
   local_map_initialized_ = true;
 }
 
-void GicpFilter::updateResultQuality(
-  Result & result, const PointCloud::Ptr & source_cropped, const std::size_t source_points) const
+void GicpFilter::updateResultQuality(Result & result,
+  const PointCloud::Ptr & source_cropped,
+  const std::size_t source_points,
+  const double max_correspondence_distance) const
 {
   result.source_points = source_points;
   if (result.num_inliers > 0 && std::isfinite(result.score)) {
@@ -201,6 +206,74 @@ void GicpFilter::updateResultQuality(
     return;
   }
 
+  Eigen::Vector2d source_center = Eigen::Vector2d::Zero();
+  for (const auto & point : source_cropped->points) {
+    source_center += Eigen::Vector2d(point.x, point.y);
+  }
+  source_center /= static_cast<double>(source_cropped->size());
+
+  double squared_radius_sum = 0.0;
+  for (const auto & point : source_cropped->points) {
+    const Eigen::Vector2d offset = Eigen::Vector2d(point.x, point.y) - source_center;
+    squared_radius_sum += offset.squaredNorm();
+  }
+  result.planar_yaw_scale =
+    std::max(1.0, std::sqrt(squared_radius_sum / static_cast<double>(source_cropped->size())));
+
+  if (result.num_inliers > 0 && result.information.allFinite()) {
+    constexpr std::array<int, 3> kPlanarIndices = {2, 3, 4};    // yaw, x, y
+    constexpr std::array<int, 3> kNuisanceIndices = {0, 1, 5};  // roll, pitch, z
+    Eigen::Matrix<double, 6, 6> normalized_information =
+      result.information / static_cast<double>(result.num_inliers);
+    normalized_information = 0.5 * (normalized_information + normalized_information.transpose()).eval();
+
+    Eigen::Matrix3d planar_information = Eigen::Matrix3d::Zero();
+    Eigen::Matrix3d nuisance_information = Eigen::Matrix3d::Zero();
+    Eigen::Matrix3d planar_nuisance_information = Eigen::Matrix3d::Zero();
+    for (std::size_t row = 0; row < kPlanarIndices.size(); ++row) {
+      for (std::size_t col = 0; col < kPlanarIndices.size(); ++col) {
+        planar_information(row, col) = normalized_information(kPlanarIndices[row], kPlanarIndices[col]);
+        nuisance_information(row, col) =
+          normalized_information(kNuisanceIndices[row], kNuisanceIndices[col]);
+        planar_nuisance_information(row, col) =
+          normalized_information(kPlanarIndices[row], kNuisanceIndices[col]);
+      }
+    }
+
+    // Marginalize roll/pitch/z so a strong ground constraint cannot hide weak XY/yaw geometry.
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> nuisance_solver(nuisance_information);
+    if (nuisance_solver.info() == Eigen::Success && nuisance_solver.eigenvalues().allFinite()) {
+      const double max_nuisance_eigenvalue = nuisance_solver.eigenvalues().cwiseAbs().maxCoeff();
+      const double inverse_threshold = std::max(1.0e-12, max_nuisance_eigenvalue * 1.0e-9);
+      Eigen::Vector3d inverse_eigenvalues = Eigen::Vector3d::Zero();
+      for (Eigen::Index i = 0; i < inverse_eigenvalues.size(); ++i) {
+        if (nuisance_solver.eigenvalues()(i) > inverse_threshold) {
+          inverse_eigenvalues(i) = 1.0 / nuisance_solver.eigenvalues()(i);
+        }
+      }
+      const Eigen::Matrix3d nuisance_inverse = nuisance_solver.eigenvectors() *
+                                               inverse_eigenvalues.asDiagonal() *
+                                               nuisance_solver.eigenvectors().transpose();
+      planar_information -=
+        planar_nuisance_information * nuisance_inverse * planar_nuisance_information.transpose();
+    }
+
+    Eigen::Matrix3d unit_scale = Eigen::Matrix3d::Identity();
+    unit_scale(0, 0) = 1.0 / result.planar_yaw_scale;
+    planar_information = unit_scale.transpose() * planar_information * unit_scale;
+    planar_information = 0.5 * (planar_information + planar_information.transpose()).eval();
+
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigen_solver(planar_information);
+    if (eigen_solver.info() == Eigen::Success && eigen_solver.eigenvalues().allFinite()) {
+      const double min_eigenvalue = eigen_solver.eigenvalues().minCoeff();
+      const double max_eigenvalue = eigen_solver.eigenvalues().maxCoeff();
+      if (min_eigenvalue >= 0.0 && max_eigenvalue > 0.0) {
+        result.planar_min_eigenvalue = min_eigenvalue;
+        result.planar_eigen_ratio = min_eigenvalue / max_eigenvalue;
+      }
+    }
+  }
+
   PointCloud::Ptr transformed_source(new PointCloud());
   pcl::transformPointCloud(*source_cropped, *transformed_source, result.final_transformation);
   if (!transformed_source || transformed_source->empty()) {
@@ -210,8 +283,7 @@ void GicpFilter::updateResultQuality(
   pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
   kdtree.setInputCloud(local_map_cloud_);
 
-  const float max_dist_sq =
-    static_cast<float>(options_.max_correspondence_distance * options_.max_correspondence_distance);
+  const float max_dist_sq = static_cast<float>(max_correspondence_distance * max_correspondence_distance);
   std::vector<int> nearest_indices(1);
   std::vector<float> nearest_dist_sq(1);
   std::size_t overlap_count = 0;
@@ -279,6 +351,7 @@ GicpFilter::Result GicpFilter::initialAlign(
   double best_normalized_score = std::numeric_limits<double>::infinity();
   std::size_t best_num_inliers = 0;
   Eigen::Matrix4f best_pose = Eigen::Matrix4f::Identity();
+  Eigen::Matrix<double, 6, 6> best_information = Eigen::Matrix<double, 6, 6>::Zero();
   bool best_converged = false;
 
   SmallGicpRegister register_engine;
@@ -315,6 +388,7 @@ GicpFilter::Result GicpFilter::initialAlign(
               best_normalized_score = normalized_score;
               best_num_inliers = reg_result.num_inliers;
               best_pose = reg_result.T_target_source.matrix().cast<float>();
+              best_information = reg_result.H;
               best_converged = true;
             }
           }
@@ -327,13 +401,15 @@ GicpFilter::Result GicpFilter::initialAlign(
   result.converged = best_converged;
   result.score = best_error;
   result.num_inliers = best_num_inliers;
+  result.information = best_information;
   result.final_transformation = best_pose;
-  updateResultQuality(result, source_cropped, source_small->size());
+  updateResultQuality(result, source_cropped, source_small->size(), options_.max_correspondence_distance);
   return result;
 }
 
-GicpFilter::Result GicpFilter::align(
-  const PointCloud::Ptr & source_cloud, const Eigen::Matrix4f & initial_guess)
+GicpFilter::Result GicpFilter::align(const PointCloud::Ptr & source_cloud,
+  const Eigen::Matrix4f & initial_guess,
+  const double max_correspondence_distance)
 {
   // 高度滤波
   PointCloud::Ptr source_filtered_height = applyHeightFilter(source_cloud);
@@ -375,8 +451,12 @@ GicpFilter::Result GicpFilter::align(
 
   SmallGicpRegister register_engine;
   register_engine.reduction.num_threads = kCovThreads;
+  const double effective_max_correspondence_distance =
+    std::isfinite(max_correspondence_distance) && max_correspondence_distance > 0.0
+      ? max_correspondence_distance
+      : options_.max_correspondence_distance;
   register_engine.rejector.max_dist_sq =
-    options_.max_correspondence_distance * options_.max_correspondence_distance;
+    effective_max_correspondence_distance * effective_max_correspondence_distance;
   register_engine.optimizer.max_iterations = options_.max_iterations;
 
   Eigen::Isometry3d init_guess_d = Eigen::Isometry3d::Identity();
@@ -390,8 +470,9 @@ GicpFilter::Result GicpFilter::align(
   result.converged = small_gicp_result.converged;
   result.score = small_gicp_result.error;
   result.num_inliers = small_gicp_result.num_inliers;
+  result.information = small_gicp_result.H;
   result.final_transformation = small_gicp_result.T_target_source.matrix().cast<float>();
-  updateResultQuality(result, source_cropped, source_small->size());
+  updateResultQuality(result, source_cropped, source_small->size(), effective_max_correspondence_distance);
 
   return result;
 }
