@@ -359,7 +359,7 @@ planner_server:
 
         # 入图前点云区域滤除；关闭时不创建过滤器，保持原始 ROGMap 数据链路。
         cloud_filter:
-          enable: true
+          enable: false
           z_offset: -1.0
           position_frame: map
           filter_mode: transform_center   # transform_cloud | transform_center
@@ -384,11 +384,11 @@ planner_server:
           positions:
             x: [15.6, 19.3, 13.4, 9.9]
             y: [1.55, 12.9, 13.45, 2.1]
-            z: [0.15, 0.4, 0.15, 0.4]
+            z: [0.2, 0.4, 0.2, 0.4]
           box_sizes:
             x: [0.8, 0.7, 0.8, 0.7]
-            y: [0.8, 0.4, 0.8, 0.4]
-            z: [0.5, 0.5, 0.5, 0.5]
+            y: [0.6, 0.4, 0.6, 0.4]
+            z: [0.1, 0.1, 0.1, 0.1]
 
         raycasting:
           enable: true
@@ -426,7 +426,6 @@ planner_server:
           # 标准 Nav2 YAML/PGM 静态先验；启用后只增加二维硬障碍，不清除在线障碍。
           prior_map:
             enable: true
-            # yaml_path: "src/navigation/navi2_bringup/maps/first_floor/first_floor_prior.yaml"
             # yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior.yaml"
             yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior11.yaml"
             # 留空时使用 YAML 的 image 字段，并相对 YAML 所在目录解析。
@@ -458,7 +457,7 @@ planner_server:
           # [vertical height difference, m]
           # 判定竖直墙所需的最小单柱垂直高度差 H。
           # 这是差值，不是绝对 Z 坐标。
-          wall_height_delta_min: 0.60
+          wall_height_delta_min: 0.50
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
@@ -473,7 +472,7 @@ planner_server:
           # [vertical height difference, m]
           # 当前 RM 场景中允许识别为目标隧道的最大上下表面高度差。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_max: 0.55
+          tunnel_height_delta_max: 0.6
 
           # [dimensionless ratio, 0~1]
           # 隧道上下表面之间的最大垂直占据率。

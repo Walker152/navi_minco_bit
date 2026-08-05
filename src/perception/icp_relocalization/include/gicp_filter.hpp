@@ -67,6 +67,7 @@ public:
     double step_yaw = 0.2;
 
     // GICP
+    double local_map_radius = 20.0;
     double max_correspondence_distance = 10.0;
     int max_iterations = 100;
     double transformation_epsilon = 0.01;
@@ -77,9 +78,29 @@ public:
   {
     bool converged = false;
     double score = std::numeric_limits<double>::infinity();
+    double normalized_score = std::numeric_limits<double>::infinity();
     double overlap_ratio = 0.0;
+    double inlier_ratio = 0.0;
     std::size_t num_inliers = 0;
+    std::size_t source_points = 0;
+    double planar_min_eigenvalue = 0.0;
+    double planar_eigen_ratio = 0.0;
+    double planar_yaw_scale = 1.0;
+    double source_preprocess_time_ms = 0.0;
+    double local_map_update_time_ms = 0.0;
+    double registration_time_ms = 0.0;
+    double coarse_registration_time_ms = 0.0;
+    double fine_registration_time_ms = 0.0;
+    double quality_evaluation_time_ms = 0.0;
+    Eigen::Matrix<double, 6, 6> information = Eigen::Matrix<double, 6, 6>::Zero();
     Eigen::Matrix4f final_transformation = Eigen::Matrix4f::Identity();
+  };
+
+  struct PreparedSource
+  {
+    PointCloud::Ptr cropped_cloud;
+    SmallGicpPointCloud::Ptr registration_cloud;
+    double preprocessing_time_ms = 0.0;
   };
 
   // 构造函数，加载地图并进行预处理
@@ -89,10 +110,18 @@ public:
   GicpFilter(const PointCloud::Ptr & target_cloud, const Options & options);
 
   // 全局初始定位：由上层提供初值策略，再进行GICP精细定位
-  Result initialAlign(const PointCloud::Ptr & source_cloud);
+  Result initialAlign(const PointCloud::Ptr & source_cloud, double min_inlier_ratio = 0.0);
+  Result initialAlignPrepared(const PreparedSource & source, double min_inlier_ratio = 0.0);
 
   // 增量定位：使用给定的初始猜测进行GICP定位
-  Result align(const PointCloud::Ptr & source_cloud, const Eigen::Matrix4f & initial_guess);
+  Result align(const PointCloud::Ptr & source_cloud,
+    const Eigen::Matrix4f & initial_guess,
+    double max_correspondence_distance = -1.0);
+  PreparedSource prepareSource(const PointCloud::Ptr & source_cloud) const;
+  Result alignPrepared(const PreparedSource & source,
+    const Eigen::Matrix4f & initial_guess,
+    double max_correspondence_distance = -1.0,
+    bool evaluate_quality = true);
 
   // 获取预处理后的目标点云（地图）
   PointCloud::Ptr getTargetCloud() const { return target_cloud_filtered_; }
@@ -113,12 +142,16 @@ private:
   // 根据当前位姿更新局部地图
   void updateLocalMap(const Eigen::Matrix4f & current_pose);
 
+  // 计算与点数无关的配准质量指标
+  void updateResultQuality(Result & result,
+    const PointCloud::Ptr & source_cropped,
+    std::size_t source_points,
+    double max_correspondence_distance) const;
+
   Options options_;
   PointCloud::Ptr target_cloud_filtered_;
   SmallGicpPointCloud::Ptr small_gicp_target_;
   SmallGicpKdTree::Ptr target_tree_;
-  SmallGicpKdTree::Ptr source_tree_;
-
   Eigen::Vector3f last_local_map_center_ = Eigen::Vector3f::Zero();
   bool local_map_initialized_ = false;
   double local_map_radius_ = 20.0;

@@ -50,7 +50,16 @@ public:
     blackboard_->set("tunnel_escape_cmd_vel", geometry_msgs::msg::Twist());        // 隧道逃逸速度
     blackboard_->set("current_pose", geometry_msgs::msg::Pose());                 // 当前位姿缓存
     blackboard_->set("manual_override_goal", Sentry_BT::Point2D{0.0, 0.0, 0.0});  // 手动接管目标点
+    blackboard_->set("hero_guard_active", false);                                 // 英雄守护模式
+    blackboard_->set("highland_reached_once", false);                             // 本局是否曾进入高地区域
+    blackboard_->set("highland_fallback_active", false);                          // 未上高地兜底守护模式
     blackboard_->set("outpost_safe_cooldown_active", false);  // 前哨站安全期是否生效
+    blackboard_->set("outpost_auto_attack_active", false);    // 是否处于自动攻击前哨站阶段
+    blackboard_->set("outpost_manual_attack_active", false);  // B键是否在自动流程结束后重新允许攻击
+    blackboard_->set("outpost_retreat_active", false);        // 是否处于前哨专项撤退回血阶段
+    blackboard_->set("outpost_enhanced_defend_active", false);  // 前哨撤退的5秒强化防御窗口
+    blackboard_->set("outpost_retreat_count", 0);              // 本局前哨自动撤退累计次数
+    blackboard_->set("enemy_outpost_destroyed", false);        // 是否停止攻击敌方前哨站
     blackboard_->set("patrol_branch", 0);                     // 巡逻分支索引
 
     // --- Gimbal Tree ---
@@ -82,12 +91,13 @@ public:
     blackboard_->set("big_energy_status", 0);       // 大能量机关状态
     blackboard_->set("fort_occupation_status", 0);  // 堡垒占领状态
     blackboard_->set("game_status", 0);             // 比赛状态
+    blackboard_->set("enemy_outpost_health", 0);    // 敌方前哨站血量
+    blackboard_->set("enemy_base_health", 0);       // 敌方基地血量
 
     // --- Radar Info ---
     blackboard_->set("enemy_coin_left", 0);                           // 敌方金币剩余数量
     blackboard_->set("enemy_coin_accumulated", 0);                    // 敌方金币累计数量
     blackboard_->set("enemies_info", std::vector<EnemyRobotInfo>());  // 敌方信息列表
-    blackboard_->set("enemy_outpost_destroyed", true);                // 敌方前哨站是否被摧毁
 
     // --- Sentry Offline Info ---
     blackboard_->set("target_valid", false);                                     // 目标锁定状态

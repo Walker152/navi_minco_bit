@@ -3,7 +3,7 @@
 #include "bt_manager/utils/area.hpp"
 #include "bt_manager/utils/log.hpp"
 #include <behaviortree_cpp_v3/condition_node.h>
-#include <chrono>
+
 #include <string>
 
 namespace Sentry_BT {
@@ -54,6 +54,23 @@ public:
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+};
+
+// 敌方区域受击窗口：只在敌方区域内检测到血量下降时激活，持续时间由 XML 配置。
+class CheckEnemyAreaRecentlyHurt : public BT::ConditionNode
+{
+public:
+  CheckEnemyAreaRecentlyHurt(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  float last_health_ = 0.0f;
+  bool initialized_ = false;
+  bool hurt_window_active_ = false;
+  std::chrono::steady_clock::time_point last_hurt_time_{};
+  std::chrono::steady_clock::time_point last_tick_time_{};
 };
 
 class CheckTargetDistance : public BT::ConditionNode
@@ -154,6 +171,21 @@ public:
   CheckInEnemyFortZone(const std::string & name, const BT::NodeConfiguration & config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
+};
+
+// 敌方防守区受击响应：掉血后保持激活，连续一段时间未再掉血后退出。
+class CheckEnemyDefenseHealthDrop : public BT::ConditionNode
+{
+public:
+  CheckEnemyDefenseHealthDrop(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  float last_health_ = std::numeric_limits<float>::max();
+  std::chrono::steady_clock::time_point last_health_drop_time_{};
+  bool response_active_ = false;
+  bool initialized_ = false;
 };
 
 // 检查操作手手动强化姿态覆盖是否应当生效。

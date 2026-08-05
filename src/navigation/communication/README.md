@@ -58,7 +58,7 @@ MPC 世界系速度和行为树指令分别写入缓存；odom 以最新状态�
 
 | Topic | 内容 |
 |---|---|
-| `/sentry/game_info` | 比赛阶段、剩余时间、资源与人工点 |
+| `/sentry/game_info` | 比赛阶段、剩余时间、资源、人工点与敌方前哨站/基地血量 |
 | `/sentry/offline_info` | 底盘离线数据、装甲板、升降、姿态与底盘 IMU |
 | `/sentry/online_info` | 血量、弹量、热量和能量等在线信息 |
 | `/sentry/team_info` | 友方机器人、基地和前哨站状态 |

@@ -46,10 +46,82 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class UpdateOutpostAttackState : public BT::ConditionNode
+{
+public:
+  UpdateOutpostAttackState(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  enum class Phase
+  {
+    WAITING,
+    AUTO_ATTACK,
+    RETREAT,
+    DONE
+  };
+
+  Phase phase_ = Phase::WAITING;
+  int retreat_count_ = 0;
+  int previous_game_status_ = 0;
+  bool pregame_reset_done_ = false;
+  std::chrono::steady_clock::time_point retreat_start_time_{};
+};
+
+class CheckOutpostAttackState : public BT::ConditionNode
+{
+public:
+  CheckOutpostAttackState(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 class SetEnemyOutpostDestroyed : public BT::ConditionNode
 {
 public:
   SetEnemyOutpostDestroyed(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckHeroGuardActive : public BT::ConditionNode
+{
+public:
+  CheckHeroGuardActive(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class SetHeroGuardActive : public BT::ConditionNode
+{
+public:
+  SetHeroGuardActive(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class UpdateHighlandFallbackState : public BT::ConditionNode
+{
+public:
+  UpdateHighlandFallbackState(const std::string & name, const BT::NodeConfiguration & config);
+
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+
+private:
+  int previous_game_status_ = 0;
+};
+
+class CheckHighlandFallbackActive : public BT::ConditionNode
+{
+public:
+  CheckHighlandFallbackActive(const std::string & name, const BT::NodeConfiguration & config);
 
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;

@@ -207,6 +207,9 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
   // 存储比赛基本信息
   blackboard_->set<int>("game_time_remaining", static_cast<int>(msg->game_time_remaining));
   blackboard_->set<int>("coin_remaining", static_cast<int>(msg->coin_remaining));
+  blackboard_->set<int>("enemy_outpost_health", static_cast<int>(msg->enemy_outpost_hp));
+  blackboard_->set<int>("enemy_base_health", static_cast<int>(msg->enemy_base_hp));
+  // 行为树与ROS回调运行在不同线程。最后写比赛状态，避免开赛瞬间读到已开赛但建筑血量仍为默认值。
   blackboard_->set<int>("game_status", static_cast<int>(msg->game_status));
 
   // 解码event_code字段
@@ -271,8 +274,13 @@ void ros_interface::gameInfoCallback(const ros_interfaces::msg::GameInfo::Shared
       "manual_override_stance", Sentry_BT::SentryStance::ENHANCED_MOVE);
     blackboard_->set<bool>("manual_stance_override_active", true);
     break;
+  case 71:   // 'G'键开启英雄守护模式
+  case 103:  // 'g'键（兼容小写）
+    blackboard_->set<bool>("hero_guard_active", true);
+    break;
   case 0:  // '0'键切换回自动模式,同时解除强化姿态覆盖
     blackboard_->set<ControlMode>("control_mode", ControlMode::AUTO);
+    blackboard_->set<bool>("hero_guard_active", false);
     blackboard_->set<bool>("manual_stance_override_active", false);
     break;
   default:
