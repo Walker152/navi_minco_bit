@@ -67,6 +67,7 @@
           <NavigateToPoseAction name="NavigateOutpostHealthHome" />
         </ReactiveSequence>
 
+        <!-- TEMP_DISABLED_HIGHLAND_GUARD: 暂停整条高地兜底导航，避免进入兜底后阻断原导航逻辑。 -->
         <ReactiveSequence name="HighlandFallbackLine">
           <CheckHighlandFallbackActive name="CheckHighlandFallbackActive"
                                        branch="HighlandFallbackLine" />
@@ -122,26 +123,20 @@
                 <ReactiveFallback name="PatrolSelector">
                   <Sequence name="PatrolByTacticalMode">
                     <CheckGameTimeWindow name="CheckPatrolNormalWindow"
-                                        min_remaining="360"
-                                        max_remaining="420"
-                                        require_game_started="false"
-                                        branch="Priority5TrackPatrol" />
-                    <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
-                                                                patrol_branch_balanced="0"
-                                                                patrol_branch_offensive="0"/> -->
+                                         min_remaining="360"
+                                         max_remaining="420"
+                                         require_game_started="false"
+                                         branch="Priority5TrackPatrol" />
                     <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0" />
                     <NavigateToPoseAction name="NavigatePatrolPoint" />
                     <Wait name="WaitAtPatrolPoint" />
                   </Sequence>
                   <Sequence name="PatrolByTacticalMode">
                     <CheckGameTimeWindow name="CheckPatrolAttackWindow"
-                                        min_remaining="0"
-                                        max_remaining="360"
-                                        require_game_started="false"
-                                        branch="Priority5TrackPatrol" />
-                    <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
-                                                                patrol_branch_balanced="0"
-                                                                patrol_branch_offensive="0"/> -->
+                                         min_remaining="0"
+                                         max_remaining="360"
+                                         require_game_started="false"
+                                         branch="Priority5TrackPatrol" />
                     <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0" />
                     <NavigateToPoseAction name="NavigatePatrolPoint" />
                     <Wait name="WaitAtPatrolPoint" />
@@ -155,7 +150,7 @@
                 <ForceSuccess>
                   <NavigateToPoseAction name="NavigateFallbackHeroGuard" />
                 </ForceSuccess>
-              </ReactiveSequence> -->
+              </ReactiveSequence>  -->
             </ReactiveFallback>
           </ForceSuccess>
         </ReactiveSequence>       
