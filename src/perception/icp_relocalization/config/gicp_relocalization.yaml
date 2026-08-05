@@ -38,8 +38,8 @@ gicp_relocalization_node:
     # Three independent accumulated windows must agree in XY and yaw.
     converged_count_threshold: 3
     convergence:
-      max_xy_spread: 0.2   # meter, maximum pairwise XY distance
-      max_yaw_spread: 0.04  # rad, maximum pairwise yaw difference
+      max_xy_spread: 0.15   # meter, maximum pairwise XY distance
+      max_yaw_spread: 0.02  # rad, maximum pairwise yaw difference
 
     # Static power-on relocation must remain near the supplied initial pose.
     initial_pose_guard:

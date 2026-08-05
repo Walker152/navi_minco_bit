@@ -39,7 +39,7 @@ def generate_launch_description():
         #     # x坐标：台阶到基地边缘1655mm+基地长1881mm+车身y半长198.5mm+地图投影边缘300mm=4036mm
         #     # y坐标：场地y半长7500mm-半车宽191mm+场地偏差40～50cm=7709mm
         #     # 蓝方启动点
-        #     arguments=['4.034', '7.1', '0', '0.04', '0', '0', 'map', 'camera_init'],
+        #     arguments=['4.234', '7.1', '0', '0.04', '0', '0', 'map', 'camera_init'],
         #     output='screen'),
 
         # 静态TF: map -> minimap

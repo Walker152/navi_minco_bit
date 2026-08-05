@@ -39,8 +39,8 @@ inline std::array<Area_Square, 4> tunnel_zone = {
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
   TunnelRecoveryConfig{-1.57f, 0.0f, 0.5f, false},   // Home Right Tunnel
   TunnelRecoveryConfig{1.57f, 0.0f, -0.5f, false},   // Enemy Right Tunnel
-  TunnelRecoveryConfig{1.57f, -0.5f, 0.0f, true},    // Home Left Tunnel
-  TunnelRecoveryConfig{-1.57f, 0.5f, 0.0f, true},    // Enemy Left Tunnel
+  TunnelRecoveryConfig{0.0f, -0.5f, 0.0f, true},    // Home Left Tunnel
+  TunnelRecoveryConfig{3.14f, 0.5f, 0.0f, true},    // Enemy Left Tunnel
 };
 inline std::array<Area_Square, 2> stairs_zone{
   Area_Square{Point2D{9.4, 1.8}, Point2D{8.0, 0.2}},
@@ -148,7 +148,7 @@ inline AreaPolygon<6, Point2D> enemy_outpost_buff_zone{
 };
 
 inline std::vector<Point2D> nav_points = {
-  {3.0, 2.9, 0.0},   // HOME
+  {3.0, 2.6, 0.0},   // HOME
   {12.8, 5.5, 0.0},  // BONUS
   {15.2, 11.2, 0.0}, // ENEMY_OUTPOST
   {7.2, 7.5, 0.0},   // OWN_FORT
@@ -166,7 +166,7 @@ using PatrolList = std::vector<PatrolPoint>;
 inline std::vector<PatrolList> normal_patrol_branches = {
     {  
         // {{20.2, 14.0, 0.0}, 5000},  // 雷霆大坐点位
-        {{9.8, 10.0, 0.0}, 5000},
+        {{11.0, 12.2, 0.0}, 5000},
         {{9.4, 4.7, 0.0}, 5000},
     },
     {
