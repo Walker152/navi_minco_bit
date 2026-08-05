@@ -42,7 +42,13 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckManualOverride>("CheckManualOverride");
   factory_.registerNodeType<CheckOutpostSafeResponse>("CheckOutpostSafeResponse");
   factory_.registerNodeType<CheckOutpostRemained>("CheckOutpostRemained");
+  factory_.registerNodeType<UpdateOutpostAttackState>("UpdateOutpostAttackState");
+  factory_.registerNodeType<CheckOutpostAttackState>("CheckOutpostAttackState");
   factory_.registerNodeType<SetEnemyOutpostDestroyed>("SetEnemyOutpostDestroyed");
+  factory_.registerNodeType<CheckHeroGuardActive>("CheckHeroGuardActive");
+  factory_.registerNodeType<SetHeroGuardActive>("SetHeroGuardActive");
+  factory_.registerNodeType<UpdateHighlandFallbackState>("UpdateHighlandFallbackState");
+  factory_.registerNodeType<CheckHighlandFallbackActive>("CheckHighlandFallbackActive");
   factory_.registerNodeType<CheckOwnOutpostAlive>("CheckOwnOutpostAlive");
   factory_.registerNodeType<CheckTargetLocked>("CheckTargetLocked");
   factory_.registerBuilder<NavigateToPoseAction>(
@@ -87,6 +93,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckOutpostTarget>("CheckOutpostTarget");
   factory_.registerNodeType<CheckEngagedStatus>("CheckEngagedStatus");
   factory_.registerNodeType<CheckHealth>("CheckHealth");
+  factory_.registerNodeType<CheckEnemyAreaRecentlyHurt>("CheckEnemyAreaRecentlyHurt");
   factory_.registerNodeType<CheckTargetDistance>("CheckTargetDistance");
   factory_.registerNodeType<CheckCrossZoneTransition>("CheckCrossZoneTransition");
   factory_.registerNodeType<CheckCapacitorCapacity>("CheckCapacitorCapacity");
@@ -103,6 +110,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<EnemyFortYawOverride>("EnemyFortYawOverride");
   factory_.registerNodeType<CheckTunnelDeformation>("CheckTunnelDeformation");
   factory_.registerNodeType<CheckInEnemyFortZone>("CheckInEnemyFortZone");
+  factory_.registerNodeType<CheckEnemyDefenseHealthDrop>("CheckEnemyDefenseHealthDrop");
 
   // gimbal
   factory_.registerNodeType<CheckTargetVisible>("CheckTargetVisible");

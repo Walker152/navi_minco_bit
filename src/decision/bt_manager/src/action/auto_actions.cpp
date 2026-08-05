@@ -32,8 +32,8 @@ BT::NodeStatus SetCoordinate::tick()
     return BT::NodeStatus::FAILURE;
   }
 
-  static const std::array<std::string, 6> goal_names = {
-    "HOME", "BONUS", "ENEMY_OUTPOST", "OWN_FORT", "ENEMY_FORT", "OWN_OUTPOST"};
+  static const std::array<std::string, 7> goal_names = {
+    "HOME", "BONUS", "ENEMY_OUTPOST", "OWN_FORT", "ENEMY_FORT", "OWN_OUTPOST", "HERO_GUARD"};
   Sentry_BT::Point2D point = nav_points[idx];
 
   auto blackboard = config().blackboard;
