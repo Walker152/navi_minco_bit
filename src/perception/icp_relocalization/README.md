@@ -190,7 +190,7 @@ source install/setup.bash
 
 ### 6.3 启动与话题适配
 
-启动（launch 会包含 `msg_convert` 的 livox 转换）：
+启动：
 
 ```bash
 ros2 launch icp_relocalization gicp_relocalization.launch.py 
