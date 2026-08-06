@@ -65,6 +65,7 @@ private:
 
   Phase phase_ = Phase::WAITING;
   int retreat_count_ = 0;
+  int previous_enemy_outpost_health_ = -1;
   int previous_game_status_ = 0;
   bool pregame_reset_done_ = false;
   std::chrono::steady_clock::time_point retreat_start_time_{};

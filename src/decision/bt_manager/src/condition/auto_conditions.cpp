@@ -328,6 +328,7 @@ BT::NodeStatus UpdateOutpostAttackState::tick()
   if ((pregame_reset && !pregame_reset_done_) || new_match_started) {
     phase_ = Phase::WAITING;
     retreat_count_ = 0;
+    previous_enemy_outpost_health_ = enemy_outpost_health;
     retreat_start_time_ = std::chrono::steady_clock::time_point{};
     blackboard->set<bool>("enemy_outpost_destroyed", false);
     blackboard->set<NavMode>("current_mode", NavMode::PATROL);
@@ -337,6 +338,16 @@ BT::NodeStatus UpdateOutpostAttackState::tick()
   }
 
   bool enemy_outpost_destroyed = blackboard->get<bool>("enemy_outpost_destroyed");
+  const bool outpost_rebuilt = game_status == 4 && previous_enemy_outpost_health_ == 0 &&
+                               enemy_outpost_health > 0;
+
+  if (outpost_rebuilt) {
+    blackboard->set<bool>("enemy_outpost_destroyed", false);
+    enemy_outpost_destroyed = false;
+    if (phase_ == Phase::DONE) {
+      phase_ = Phase::WAITING;
+    }
+  }
 
   if (game_status == 4) {
     if (phase_ == Phase::WAITING) {
@@ -402,6 +413,7 @@ BT::NodeStatus UpdateOutpostAttackState::tick()
   blackboard->set<bool>("outpost_retreat_active", retreat_active);
   blackboard->set<bool>("outpost_enhanced_defend_active", enhanced_defend_active);
   blackboard->set<int>("outpost_retreat_count", retreat_count_);
+  previous_enemy_outpost_health_ = enemy_outpost_health;
 
   const char * phase_name = "waiting";
   if (phase_ == Phase::AUTO_ATTACK) {
