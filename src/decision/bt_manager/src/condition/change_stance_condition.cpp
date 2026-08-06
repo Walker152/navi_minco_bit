@@ -95,6 +95,79 @@ BT::NodeStatus CheckOutpostTarget::tick()
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
+// ------------------- CheckOutpostLowHealthDefend -------------------
+CheckOutpostLowHealthDefend::CheckOutpostLowHealthDefend(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckOutpostLowHealthDefend::providedPorts()
+{
+  return {
+    BT::InputPort<float>("health_threshold", 90.0f, "Health threshold for one-shot defend"),
+    BT::InputPort<double>("hold_seconds", 5.0, "Fixed enhanced-defend duration"),
+    BT::InputPort<float>("goal_distance_threshold", 0.5f, "Enemy outpost goal threshold"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckOutpostLowHealthDefend::tick()
+{
+  const auto blackboard = config().blackboard;
+  const float health_threshold = getInput<float>("health_threshold").value_or(90.0f);
+  const double hold_seconds = getInput<double>("hold_seconds").value_or(5.0);
+  const float goal_distance_threshold =
+    getInput<float>("goal_distance_threshold").value_or(0.5f);
+  const std::string branch = getInput<std::string>("branch").value_or("");
+
+  const int game_time_remaining = blackboard->get<int>("game_time_remaining");
+  const bool pregame_reset = game_time_remaining >= 410;
+
+  if (pregame_reset && !pregame_reset_done_) {
+    triggered_ = false;
+    active_ = false;
+    active_start_time_ = std::chrono::steady_clock::time_point{};
+    pregame_reset_done_ = true;
+  } else if (!pregame_reset) {
+    pregame_reset_done_ = false;
+  }
+
+  const auto now = std::chrono::steady_clock::now();
+  double active_elapsed = 0.0;
+  if (active_) {
+    active_elapsed = std::chrono::duration<double>(now - active_start_time_).count();
+    if (active_elapsed >= hold_seconds) {
+      active_ = false;
+    }
+  }
+
+  const float health = blackboard->get<float>("health");
+  const auto current_mode = blackboard->get<NavMode>("current_mode");
+  const Point2D nav_goal = blackboard->get<Point2D>("nav_goal");
+  const auto & outpost = nav_points[static_cast<size_t>(NavGoal::ENEMY_OUTPOST)];
+  const bool nav_goal_is_outpost =
+    std::hypot(nav_goal.x - outpost.x, nav_goal.y - outpost.y) <=
+    static_cast<double>(goal_distance_threshold);
+  const bool outpost_response = current_mode == NavMode::RESPONSE && nav_goal_is_outpost;
+
+  if (!triggered_ && outpost_response && health < health_threshold) {
+    triggered_ = true;
+    active_ = true;
+    active_start_time_ = now;
+    active_elapsed = 0.0;
+  }
+
+  std::ostringstream oss;
+  oss << "health=" << health << ", threshold=" << health_threshold
+      << ", current_mode=" << current_mode << ", nav_goal_is_outpost=" << nav_goal_is_outpost
+      << ", triggered=" << triggered_ << ", active_elapsed=" << active_elapsed
+      << ", hold_seconds=" << hold_seconds;
+  detail::logTransition(
+    detail::TreeKind::STANCE, "CheckOutpostLowHealthDefend", active_, oss.str(), branch);
+
+  return active_ ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
 // ------------------- CheckEngagedStatus -------------------
 CheckEngagedStatus::CheckEngagedStatus(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)

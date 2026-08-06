@@ -92,6 +92,7 @@ void SentryBTManager::registerNodes()
   // stance
   factory_.registerNodeType<CheckHeat>("CheckHeat");
   factory_.registerNodeType<CheckOutpostTarget>("CheckOutpostTarget");
+  factory_.registerNodeType<CheckOutpostLowHealthDefend>("CheckOutpostLowHealthDefend");
   factory_.registerNodeType<CheckEngagedStatus>("CheckEngagedStatus");
   factory_.registerNodeType<CheckHealth>("CheckHealth");
   factory_.registerNodeType<CheckEnemyAreaRecentlyHurt>("CheckEnemyAreaRecentlyHurt");

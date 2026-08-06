@@ -168,8 +168,13 @@
           </ReactiveFallback>
         </ReactiveSequence>
 
-        <!-- 自动前哨攻击优先于通用40血撤退，确保XML中的25血专项阈值实际生效。 -->
+        <!-- 自动前哨攻击在开局120秒后启用，并优先于通用40血撤退。 -->
         <ReactiveSequence name="Priority1AutoOutpostAttack">
+          <CheckGameTimeWindow name="CheckAutoOutpostAttackWindow"
+                               min_remaining="0"
+                               max_remaining="300"
+                               require_game_started="false"
+                               branch="Priority1AutoOutpostAttack" />
           <CheckOutpostAttackState name="CheckAutoOutpostAttackActive"
                                    state="auto_attack"
                                    branch="Priority1AutoOutpostAttack" />

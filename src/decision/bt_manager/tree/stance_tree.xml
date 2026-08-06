@@ -56,11 +56,18 @@
           <ApplyManualStanceOverride name="ApplyManualEnhancedStance" />
         </Sequence>
 
-        <!-- 自动攻击前哨站撤退时，仅在每次撤退最初5秒请求强化防御姿态。 -->
-        <ReactiveSequence name="OutpostRetreatEnhancedDefendBranch">
-          <CheckOutpostAttackState name="CheckOutpostEnhancedDefendActive"
-                                   state="enhanced_defend"
-                                   branch="OutpostRetreatEnhancedDefendBranch" />
+        <!-- 前哨强化防御共用分支：保留每次撤退最初5秒；前哨RESPONSE目标下血量低于90%时，本局额外触发一次固定5秒。 -->
+        <ReactiveSequence name="OutpostEnhancedDefendBranch">
+          <Fallback name="OutpostEnhancedDefendTriggerSelector">
+            <CheckOutpostAttackState name="CheckOutpostRetreatEnhancedDefendActive"
+                                     state="enhanced_defend"
+                                     branch="OutpostEnhancedDefendBranch" />
+            <CheckOutpostLowHealthDefend name="CheckOutpostLowHealthDefend"
+                                         health_threshold="90"
+                                         hold_seconds="5.0"
+                                         goal_distance_threshold="0.5"
+                                         branch="OutpostEnhancedDefendBranch" />
+          </Fallback>
           <ChangeStance name="ChangeStanceOutpostRetreatEnhancedDefend"
                         stance="ENHANCED_DEFEND" />
         </ReactiveSequence>
