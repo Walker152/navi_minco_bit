@@ -3,7 +3,10 @@
 
 The ``match`` mode avoids subscriptions to large point-cloud messages.  The
 ``test`` mode additionally observes the merged Livox input and Point-LIO full
-cloud.  An explicit ``--with-bag`` option is available only in test mode.
+cloud, with one isolated worker process per large topic so those copies cannot
+distort the primary odom/map timing executor.  It also records bond/lifecycle
+events, node presence, monitor scheduling lag, map CRC samples and Linux PSI.
+An explicit ``--with-bag`` option is available only in test mode.
 
 Run after sourcing the workspace:
 
@@ -27,6 +30,7 @@ import subprocess
 import sys
 import threading
 import time
+import zlib
 from pathlib import Path
 from typing import Dict, Iterable, List, NamedTuple, Optional, Sequence, TextIO
 
@@ -55,6 +59,23 @@ TEST_ONLY_TOPICS = (
     TopicSpec("/cloud_registered_full", "pointcloud2", True),
 )
 
+LIFECYCLE_NODES = (
+    "/controller_server",
+    "/smoother_server",
+    "/planner_server",
+    "/behavior_server",
+    "/bt_navigator",
+    "/waypoint_follower",
+    "/velocity_smoother",
+)
+
+CRITICAL_NODES = (
+    "/lifecycle_manager_navigation",
+    "/livox_driver_node",
+    "/laserMapping",
+    *LIFECYCLE_NODES,
+)
+
 ROSOUT_KEYWORDS = (
     "point-lio",
     "point_lio",
@@ -74,6 +95,11 @@ ROSOUT_KEYWORDS = (
     "ptp",
     "dds",
     "component_container",
+    "bond",
+    "heartbeat",
+    "lifecycle",
+    "transition",
+    "shutting down related nodes",
 )
 
 
@@ -83,6 +109,59 @@ def mode_topics(mode: str) -> Sequence[TopicSpec]:
     if mode == "test":
         return MATCH_TOPICS + TEST_ONLY_TOPICS
     raise ValueError(f"unsupported mode: {mode}")
+
+
+def primary_topics(mode: str) -> Sequence[TopicSpec]:
+    """Topics handled by the latency-sensitive primary executor."""
+    if mode in ("match", "test"):
+        return MATCH_TOPICS
+    raise ValueError(f"unsupported mode: {mode}")
+
+
+def large_worker_topics(mode: str) -> Sequence[TopicSpec]:
+    """Large topics isolated from primary timing observations."""
+    if mode == "match":
+        return ()
+    if mode == "test":
+        return TEST_ONLY_TOPICS
+    raise ValueError(f"unsupported mode: {mode}")
+
+
+def large_worker_output_stem(topic: str) -> str:
+    stem = topic.strip("/").replace("/", "_")
+    return stem or "root"
+
+
+def large_worker_command(
+    session: Path,
+    spec: TopicSpec,
+    duration: float,
+    summary_interval: float,
+) -> List[str]:
+    return [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "--mode",
+        "test",
+        "--duration",
+        str(duration),
+        "--summary-interval",
+        str(summary_interval),
+        "--_large-worker-topic",
+        spec.topic,
+        "--_session-dir",
+        str(session),
+    ]
+
+
+def fully_qualified_node_names(
+    names_and_namespaces: Iterable[tuple[str, str]],
+) -> set[str]:
+    result = set()
+    for name, namespace in names_and_namespaces:
+        prefix = namespace.rstrip("/")
+        result.add(f"{prefix}/{name}" if prefix else f"/{name}")
+    return result
 
 
 def topology_topics() -> Sequence[TopicSpec]:
@@ -99,6 +178,8 @@ def bag_topics() -> Sequence[str]:
         "/rog_map/layer_value",
         "/tf",
         "/tf_static",
+        "/bond",
+        *(f"{node}/transition_event" for node in LIFECYCLE_NODES),
     )
 
 
@@ -284,6 +365,81 @@ def stamp_to_ns(stamp: object) -> int:
     return sec * NSEC_PER_SEC + nanosec
 
 
+def bond_status_to_row(msg: object, arrival_ns: int, wall_time: str) -> Dict[str, object]:
+    return {
+        "wall_time": wall_time,
+        "arrival_unix_ns": arrival_ns,
+        "bond_id": getattr(msg, "id", ""),
+        "instance_id": getattr(msg, "instance_id", ""),
+        "active": bool(getattr(msg, "active", False)),
+        "heartbeat_period_sec": float(getattr(msg, "heartbeat_period", math.nan)),
+        "heartbeat_timeout_sec": float(getattr(msg, "heartbeat_timeout", math.nan)),
+    }
+
+
+def transition_event_to_row(
+    topic: str,
+    msg: object,
+    arrival_ns: int,
+    wall_time: str,
+) -> Dict[str, object]:
+    transition = getattr(msg, "transition", object())
+    start_state = getattr(msg, "start_state", object())
+    goal_state = getattr(msg, "goal_state", object())
+    timestamp = getattr(msg, "timestamp", 0)
+    event_stamp_ns = (
+        int(timestamp) if isinstance(timestamp, (int, float)) else stamp_to_ns(timestamp)
+    )
+    return {
+        "wall_time": wall_time,
+        "arrival_unix_ns": arrival_ns,
+        "event_stamp_ns": event_stamp_ns,
+        "topic": topic,
+        "node": topic.removesuffix("/transition_event"),
+        "transition_id": int(getattr(transition, "id", 0)),
+        "transition_label": getattr(transition, "label", ""),
+        "start_state_id": int(getattr(start_state, "id", 0)),
+        "start_state_label": getattr(start_state, "label", ""),
+        "goal_state_id": int(getattr(goal_state, "id", 0)),
+        "goal_state_label": getattr(goal_state, "label", ""),
+    }
+
+
+class MapContentSampler:
+    """Rate-limited CRC for distinguishing publication from map progress."""
+
+    def __init__(self, interval_sec: float):
+        self._interval_ns = max(1, int(interval_sec * NSEC_PER_SEC))
+        self._last_sample_ns: Optional[int] = None
+        self._last_crc: Optional[int] = None
+
+    @staticmethod
+    def _crc32(data: object) -> int:
+        try:
+            view = memoryview(data).cast("B")
+            return zlib.crc32(view) & 0xFFFFFFFF
+        except (TypeError, ValueError):
+            packed = bytes(int(value) & 0xFF for value in data)
+            return zlib.crc32(packed) & 0xFFFFFFFF
+
+    def observe(self, data: object, monotonic_ns: int) -> Dict[str, object]:
+        if (
+            self._last_sample_ns is not None
+            and monotonic_ns - self._last_sample_ns < self._interval_ns
+        ):
+            return {"map_hash_sampled": False, "map_crc32": "", "map_changed": ""}
+
+        crc = self._crc32(data)
+        changed: object = "" if self._last_crc is None else crc != self._last_crc
+        self._last_sample_ns = monotonic_ns
+        self._last_crc = crc
+        return {
+            "map_hash_sampled": True,
+            "map_crc32": f"{crc:08x}",
+            "map_changed": changed,
+        }
+
+
 def create_session_dir(root: Path, mode: str) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     base = dt.datetime.now().strftime(f"%Y%m%d_%H%M%S_{mode}")
@@ -343,6 +499,15 @@ def write_manifest(path: Path, args: argparse.Namespace, topics: Sequence[TopicS
         "interface": args.interface,
         "with_bag": args.with_bag,
         "topics": [item._asdict() for item in topics],
+        "monitor_architecture": {
+            "primary_topics": [item.topic for item in primary_topics(args.mode)],
+            "isolated_large_topic_workers": [
+                item.topic for item in large_worker_topics(args.mode)
+            ],
+            "map_hash_interval_sec": args.map_hash_interval,
+            "monitor_health_interval_sec": args.monitor_health_interval,
+            "node_liveness_interval_sec": args.node_liveness_interval,
+        },
         "hostname": platform.node(),
         "platform": platform.platform(),
         "python": sys.version,
@@ -360,11 +525,20 @@ def write_manifest(path: Path, args: argparse.Namespace, topics: Sequence[TopicS
     path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def update_manifest_end(path: Path, reason: str) -> None:
+def update_manifest_end(
+    path: Path,
+    reason: str,
+    diagnostic_sources: Optional[Sequence[Dict[str, object]]] = None,
+    large_workers: Optional[Sequence[Dict[str, object]]] = None,
+) -> None:
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
         manifest["end_time"] = iso_now()
         manifest["stop_reason"] = reason
+        if diagnostic_sources is not None:
+            manifest["diagnostic_sources"] = list(diagnostic_sources)
+        if large_workers is not None:
+            manifest["large_topic_workers"] = list(large_workers)
         path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     except (OSError, json.JSONDecodeError):
         pass
@@ -407,6 +581,63 @@ def read_meminfo() -> Dict[str, int]:
         except (ValueError, IndexError):
             continue
     return result
+
+
+def parse_pressure_text(raw: str) -> Dict[str, object]:
+    """Parse Linux PSI ``some``/``full`` lines without external dependencies."""
+    result: Dict[str, object] = {}
+    for line in raw.splitlines():
+        fields = line.split()
+        if not fields or fields[0] not in ("some", "full"):
+            continue
+        prefix = fields[0]
+        for field in fields[1:]:
+            if "=" not in field:
+                continue
+            key, value = field.split("=", 1)
+            output_key = f"{prefix}_{'total_us' if key == 'total' else key}"
+            try:
+                result[output_key] = int(value) if key == "total" else float(value)
+            except ValueError:
+                continue
+    return result
+
+
+def read_pressure(resource: str) -> Dict[str, object]:
+    try:
+        raw = (Path("/proc/pressure") / resource).read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    return parse_pressure_text(raw)
+
+
+def summarize_cpu_frequencies_khz(values: Iterable[int]) -> Dict[str, float]:
+    valid = [float(value) / 1000.0 for value in values if value > 0]
+    if not valid:
+        return {"min_mhz": math.nan, "mean_mhz": math.nan, "max_mhz": math.nan}
+    return {
+        "min_mhz": min(valid),
+        "mean_mhz": sum(valid) / len(valid),
+        "max_mhz": max(valid),
+    }
+
+
+def read_cpu_frequency_summary() -> Dict[str, float]:
+    paths = Path("/sys/devices/system/cpu").glob("cpu[0-9]*/cpufreq/scaling_cur_freq")
+    return summarize_cpu_frequencies_khz(read_int(path, -1) for path in paths)
+
+
+def read_thermal_throttle_count() -> int:
+    total = 0
+    found = False
+    root = Path("/sys/devices/system/cpu")
+    for name in ("core_throttle_count", "package_throttle_count"):
+        for path in root.glob(f"cpu[0-9]*/thermal_throttle/{name}"):
+            value = read_int(path, -1)
+            if value >= 0:
+                total += value
+                found = True
+    return total if found else -1
 
 
 def read_net_stats(interface: str) -> Dict[str, int]:
@@ -475,6 +706,7 @@ PROCESS_PATTERNS = (
     "rviz2",
     "ptp4l",
     "phc2sys",
+    "monitor_odom_rogmap.py",
 )
 
 
@@ -506,7 +738,20 @@ class SystemRecorder(threading.Thread):
     SYSTEM_FIELDS = (
         "wall_time",
         "monotonic_ns",
+        "sample_interval_ms",
+        "sample_lag_ms",
         "cpu_percent",
+        "cpu_freq_min_mhz",
+        "cpu_freq_mean_mhz",
+        "cpu_freq_max_mhz",
+        "thermal_throttle_count",
+        "thermal_throttle_delta",
+        "cpu_pressure_some_avg10",
+        "cpu_pressure_full_avg10",
+        "memory_pressure_some_avg10",
+        "memory_pressure_full_avg10",
+        "io_pressure_some_avg10",
+        "io_pressure_full_avg10",
         "load_1m",
         "load_5m",
         "load_15m",
@@ -570,6 +815,8 @@ class SystemRecorder(threading.Thread):
         self._last_cpu = read_cpu_snapshot()
         self._last_net = read_net_stats(interface)
         self._last_time = time.monotonic()
+        self._expected_sample_time = self._last_time
+        self._last_throttle_count = read_thermal_throttle_count()
         self._last_process: Dict[int, tuple[int, float]] = {}
         self._last_thread: Dict[tuple[int, int], tuple[int, float]] = {}
 
@@ -590,6 +837,12 @@ class SystemRecorder(threading.Thread):
             for key, value in net.items()
         }
         mem = read_meminfo()
+        frequencies = read_cpu_frequency_summary()
+        throttle_count = read_thermal_throttle_count()
+        throttle_delta: object = ""
+        if throttle_count >= 0 and self._last_throttle_count >= 0:
+            throttle_delta = safe_counter_delta(throttle_count, self._last_throttle_count)
+        pressures = {name: read_pressure(name) for name in ("cpu", "memory", "io")}
         try:
             loads = os.getloadavg()
         except OSError:
@@ -602,7 +855,22 @@ class SystemRecorder(threading.Thread):
             {
                 "wall_time": iso_now(),
                 "monotonic_ns": now_ns,
+                "sample_interval_ms": elapsed * MSEC_PER_SEC,
+                "sample_lag_ms": max(
+                    0.0, (now_mono - self._expected_sample_time) * MSEC_PER_SEC
+                ),
                 "cpu_percent": cpu_percent,
+                "cpu_freq_min_mhz": frequencies["min_mhz"],
+                "cpu_freq_mean_mhz": frequencies["mean_mhz"],
+                "cpu_freq_max_mhz": frequencies["max_mhz"],
+                "thermal_throttle_count": throttle_count if throttle_count >= 0 else "",
+                "thermal_throttle_delta": throttle_delta,
+                "cpu_pressure_some_avg10": pressures["cpu"].get("some_avg10", ""),
+                "cpu_pressure_full_avg10": pressures["cpu"].get("full_avg10", ""),
+                "memory_pressure_some_avg10": pressures["memory"].get("some_avg10", ""),
+                "memory_pressure_full_avg10": pressures["memory"].get("full_avg10", ""),
+                "io_pressure_some_avg10": pressures["io"].get("some_avg10", ""),
+                "io_pressure_full_avg10": pressures["io"].get("full_avg10", ""),
                 "load_1m": loads[0],
                 "load_5m": loads[1],
                 "load_15m": loads[2],
@@ -624,6 +892,8 @@ class SystemRecorder(threading.Thread):
         self._last_cpu = cpu
         self._last_net = net
         self._last_time = now_mono
+        self._expected_sample_time = now_mono + self._interval_sec
+        self._last_throttle_count = throttle_count
 
     def _record_processes(self, now_mono: float, now_ns: int) -> None:
         clock_ticks = float(os.sysconf(os.sysconf_names["SC_CLK_TCK"]))
@@ -737,9 +1007,21 @@ class FileFollower(threading.Thread):
         self._destination = destination
         self._stop_event = threading.Event()
         self._source_existed_at_start = source.exists()
+        self._new_bytes = 0
+        self._new_lines = 0
 
     def stop(self) -> None:
         self._stop_event.set()
+
+    def status(self) -> Dict[str, object]:
+        return {
+            "source": str(self._source),
+            "destination": str(self._destination),
+            "source_existed_at_start": self._source_existed_at_start,
+            "source_exists_at_end": self._source.exists(),
+            "new_bytes": self._new_bytes,
+            "new_lines": self._new_lines,
+        }
 
     def run(self) -> None:
         offset = 0
@@ -769,6 +1051,8 @@ class FileFollower(threading.Thread):
                         if content:
                             output.write(content)
                             output.flush()
+                            self._new_bytes += len(content.encode("utf-8"))
+                            self._new_lines += len(content.splitlines())
                 except OSError:
                     pass
                 self._stop_event.wait(0.5)
@@ -819,6 +1103,7 @@ class TopologyRecorder(threading.Thread):
         ]
         for item in self._topics:
             commands.append(("ros2", "topic", "info", item.topic, "--verbose"))
+        commands.append(("ros2", "topic", "info", "/bond", "--verbose"))
         commands.extend(
             [
                 ("ip", "-s", "link", "show", "dev", self._interface),
@@ -832,8 +1117,10 @@ class TopologyRecorder(threading.Thread):
                 [
                     ("ros2", "param", "dump", "/laserMapping"),
                     ("ros2", "param", "dump", "/planner_server"),
+                    ("ros2", "param", "dump", "/lifecycle_manager_navigation"),
                 ]
             )
+            commands.extend(("ros2", "lifecycle", "get", node) for node in LIFECYCLE_NODES)
         return commands
 
     def run(self) -> None:
@@ -885,6 +1172,72 @@ class BagRecorder:
             self._log.close()
 
 
+class LargeTopicWorkers:
+    """Run each large-message subscription in its own Python process."""
+
+    def __init__(
+        self,
+        session: Path,
+        specs: Sequence[TopicSpec],
+        duration: float,
+        summary_interval: float,
+    ):
+        self._workers: List[Dict[str, object]] = []
+        for spec in specs:
+            stem = large_worker_output_stem(spec.topic)
+            log = (session / f"{stem}_worker.log").open("w", encoding="utf-8")
+            try:
+                process = subprocess.Popen(
+                    large_worker_command(session, spec, duration, summary_interval),
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    start_new_session=True,
+                )
+            except OSError:
+                log.close()
+                raise
+            self._workers.append({"topic": spec.topic, "process": process, "log": log})
+
+    def stop(self) -> None:
+        for worker in self._workers:
+            process = worker["process"]
+            if isinstance(process, subprocess.Popen) and process.poll() is None:
+                try:
+                    os.killpg(process.pid, signal.SIGINT)
+                except OSError:
+                    pass
+        for worker in self._workers:
+            process = worker["process"]
+            if isinstance(process, subprocess.Popen) and process.poll() is None:
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    try:
+                        os.killpg(process.pid, signal.SIGTERM)
+                        process.wait(timeout=5)
+                    except (OSError, subprocess.TimeoutExpired):
+                        pass
+            log = worker["log"]
+            if hasattr(log, "close"):
+                log.close()
+
+    def status(self) -> List[Dict[str, object]]:
+        result = []
+        for worker in self._workers:
+            process = worker["process"]
+            result.append(
+                {
+                    "topic": worker["topic"],
+                    "pid": process.pid if isinstance(process, subprocess.Popen) else "",
+                    "returncode": (
+                        process.poll() if isinstance(process, subprocess.Popen) else ""
+                    ),
+                }
+            )
+        return result
+
+
 EVENT_FIELDS = (
     "wall_time",
     "arrival_unix_ns",
@@ -904,6 +1257,12 @@ EVENT_FIELDS = (
     "origin_x",
     "origin_y",
     "origin_z",
+    "map_width",
+    "map_height",
+    "map_resolution",
+    "map_hash_sampled",
+    "map_crc32",
+    "map_changed",
 )
 
 SUMMARY_FIELDS = (
@@ -931,6 +1290,47 @@ ROSOUT_FIELDS = (
     "message",
 )
 
+BOND_FIELDS = (
+    "wall_time",
+    "arrival_unix_ns",
+    "bond_id",
+    "instance_id",
+    "active",
+    "heartbeat_period_sec",
+    "heartbeat_timeout_sec",
+)
+
+LIFECYCLE_FIELDS = (
+    "wall_time",
+    "arrival_unix_ns",
+    "event_stamp_ns",
+    "topic",
+    "node",
+    "transition_id",
+    "transition_label",
+    "start_state_id",
+    "start_state_label",
+    "goal_state_id",
+    "goal_state_label",
+)
+
+NODE_LIVENESS_FIELDS = (
+    "wall_time",
+    "monotonic_ns",
+    "node",
+    "present",
+    "observed_node_count",
+)
+
+MONITOR_HEALTH_FIELDS = (
+    "wall_time",
+    "monotonic_ns",
+    "actual_interval_ms",
+    "timer_lag_ms",
+    "primary_event_total",
+    "primary_event_delta",
+)
+
 
 def _message_details(kind: str, msg: object) -> Dict[str, object]:
     header = getattr(msg, "header", None)
@@ -946,6 +1346,12 @@ def _message_details(kind: str, msg: object) -> Dict[str, object]:
         "origin_x": "",
         "origin_y": "",
         "origin_z": "",
+        "map_width": "",
+        "map_height": "",
+        "map_resolution": "",
+        "map_hash_sampled": "",
+        "map_crc32": "",
+        "map_changed": "",
     }
     if kind == "odom":
         position = msg.pose.pose.position
@@ -963,19 +1369,143 @@ def _message_details(kind: str, msg: object) -> Dict[str, object]:
     elif kind == "occupancy_grid":
         origin = msg.info.origin.position
         result.update(origin_x=origin.x, origin_y=origin.y, origin_z=origin.z)
+        result.update(
+            map_width=int(msg.info.width),
+            map_height=int(msg.info.height),
+            map_resolution=float(msg.info.resolution),
+        )
         result["payload_bytes"] = len(getattr(msg, "data", []))
         result["points"] = int(msg.info.width) * int(msg.info.height)
     return result
 
 
+def run_large_topic_worker(args: argparse.Namespace) -> int:
+    spec = next(
+        (item for item in TEST_ONLY_TOPICS if item.topic == args._large_worker_topic),
+        None,
+    )
+    if spec is None or not args._session_dir:
+        print("[ERROR] invalid isolated large-topic worker arguments", file=sys.stderr)
+        return 2
+    try:
+        import rclpy
+        from rclpy.executors import ExternalShutdownException
+        from rclpy.node import Node
+        from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+        if spec.kind == "livox_custom":
+            from livox_ros_driver2.msg import CustomMsg
+
+            message_type = CustomMsg
+        else:
+            from sensor_msgs.msg import PointCloud2
+
+            message_type = PointCloud2
+    except ImportError as exc:
+        print(f"[ERROR] large-topic worker dependency unavailable: {exc}", file=sys.stderr)
+        return 2
+
+    session = Path(args._session_dir).resolve()
+    stem = large_worker_output_stem(spec.topic)
+    event_csv = CsvRecorder(session / f"{stem}_events.csv", EVENT_FIELDS)
+    summary_csv = CsvRecorder(session / f"{stem}_summary.csv", SUMMARY_FIELDS)
+    tracker = TopicStats(spec.topic)
+    stop_requested = threading.Event()
+    stop_reason = "normal"
+
+    def request_stop(signum: int, _frame: object) -> None:
+        nonlocal stop_reason
+        stop_reason = f"signal_{signum}"
+        stop_requested.set()
+
+    previous_sigint = signal.getsignal(signal.SIGINT)
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
+    rclpy.init(args=None)
+    signal.signal(signal.SIGINT, request_stop)
+    signal.signal(signal.SIGTERM, request_stop)
+    node = Node(f"odom_rogmap_large_{stem}_{os.getpid()}")
+    qos = QoSProfile(
+        history=HistoryPolicy.KEEP_LAST,
+        depth=10,
+        reliability=ReliabilityPolicy.BEST_EFFORT,
+        durability=DurabilityPolicy.VOLATILE,
+    )
+
+    def callback(msg: object) -> None:
+        arrival_ns = time.time_ns()
+        monotonic_ns = time.monotonic_ns()
+        details = _message_details(spec.kind, msg)
+        event = tracker.observe(
+            arrival_ns,
+            int(details["header_stamp_ns"]),
+            int(details["payload_bytes"]),
+            int(details["points"]),
+        )
+        event_csv.write(
+            {
+                "wall_time": iso_now(),
+                "arrival_unix_ns": arrival_ns,
+                "arrival_monotonic_ns": monotonic_ns,
+                "topic": spec.topic,
+                **details,
+                **event,
+            }
+        )
+
+    def write_window_summary() -> None:
+        summary_csv.write(
+            {
+                "wall_time": iso_now(),
+                "topic": spec.topic,
+                "scope": "window",
+                **tracker.window_summary(),
+            }
+        )
+        event_csv.flush()
+        summary_csv.flush()
+
+    subscription = node.create_subscription(message_type, spec.topic, callback, qos)
+    timer = node.create_timer(args.summary_interval, write_window_summary)
+    _ = subscription, timer
+    start_mono = time.monotonic()
+    try:
+        while rclpy.ok() and not stop_requested.is_set():
+            rclpy.spin_once(node, timeout_sec=0.2)
+            if args.duration > 0 and time.monotonic() - start_mono >= args.duration:
+                stop_reason = "duration_elapsed"
+                break
+    except ExternalShutdownException:
+        stop_reason = "rclpy_shutdown"
+    finally:
+        write_window_summary()
+        summary_csv.write(
+            {
+                "wall_time": iso_now(),
+                "topic": spec.topic,
+                "scope": "total",
+                **tracker.summary(),
+            }
+        )
+        event_csv.close()
+        summary_csv.close()
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+        signal.signal(signal.SIGINT, previous_sigint)
+        signal.signal(signal.SIGTERM, previous_sigterm)
+        print(f"[INFO] worker topic={spec.topic} stopped reason={stop_reason}")
+    return 0
+
+
 def run_monitor(args: argparse.Namespace) -> int:
     try:
         import rclpy
+        from bond.msg import Status
+        from lifecycle_msgs.msg import TransitionEvent
         from nav_msgs.msg import OccupancyGrid, Odometry
         from rcl_interfaces.msg import Log
         from rclpy.node import Node
         from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
-        from sensor_msgs.msg import Imu, PointCloud2
+        from sensor_msgs.msg import Imu
     except ImportError as exc:
         print(
             f"[ERROR] ROS 2 Python dependency unavailable: {exc}\n"
@@ -984,34 +1514,31 @@ def run_monitor(args: argparse.Namespace) -> int:
         )
         return 2
 
-    topics = mode_topics(args.mode)
+    topics = primary_topics(args.mode)
     message_types = {
         "odom": Odometry,
         "imu": Imu,
         "occupancy_grid": OccupancyGrid,
-        "pointcloud2": PointCloud2,
     }
-    if args.mode == "test":
-        try:
-            from livox_ros_driver2.msg import CustomMsg
-        except ImportError as exc:
-            print(f"[ERROR] Cannot import livox CustomMsg: {exc}", file=sys.stderr)
-            return 2
-        message_types["livox_custom"] = CustomMsg
 
     session = create_session_dir(Path(args.output_dir).expanduser().resolve(), args.mode)
     manifest_path = session / "manifest.json"
-    write_manifest(manifest_path, args, topics)
+    write_manifest(manifest_path, args, mode_topics(args.mode))
     print(f"[INFO] monitor mode={args.mode} output={session}")
     if args.mode == "test":
-        print("[WARN] test mode subscribes to large point clouds; do not use it in a formal match.")
+        print("[INFO] test-only large topics use isolated worker processes.")
 
     rclpy.init(args=None)
     node = Node(f"odom_rogmap_monitor_{os.getpid()}")
     event_csv = CsvRecorder(session / "topic_events.csv", EVENT_FIELDS)
     summary_csv = CsvRecorder(session / "topic_summary.csv", SUMMARY_FIELDS)
     rosout_csv = CsvRecorder(session / "rosout.csv", ROSOUT_FIELDS)
+    bond_csv = CsvRecorder(session / "bond.csv", BOND_FIELDS)
+    lifecycle_csv = CsvRecorder(session / "lifecycle.csv", LIFECYCLE_FIELDS)
+    liveness_csv = CsvRecorder(session / "node_liveness.csv", NODE_LIVENESS_FIELDS)
+    health_csv = CsvRecorder(session / "monitor_health.csv", MONITOR_HEALTH_FIELDS)
     trackers = {item.topic: TopicStats(item.topic) for item in topics}
+    map_sampler = MapContentSampler(args.map_hash_interval)
 
     sensor_qos = QoSProfile(
         history=HistoryPolicy.KEEP_LAST,
@@ -1025,6 +1552,12 @@ def run_monitor(args: argparse.Namespace) -> int:
         reliability=ReliabilityPolicy.RELIABLE,
         durability=DurabilityPolicy.VOLATILE,
     )
+    control_qos = QoSProfile(
+        history=HistoryPolicy.KEEP_LAST,
+        depth=100,
+        reliability=ReliabilityPolicy.RELIABLE,
+        durability=DurabilityPolicy.VOLATILE,
+    )
 
     subscriptions = []
     for spec in topics:
@@ -1034,6 +1567,8 @@ def run_monitor(args: argparse.Namespace) -> int:
             arrival_ns = time.time_ns()
             monotonic_ns = time.monotonic_ns()
             details = _message_details(topic_spec.kind, msg)
+            if topic_spec.kind == "occupancy_grid":
+                details.update(map_sampler.observe(msg.data, monotonic_ns))
             event = topic_tracker.observe(
                 arrival_ns,
                 int(details["header_stamp_ns"]),
@@ -1073,6 +1608,28 @@ def run_monitor(args: argparse.Namespace) -> int:
 
     subscriptions.append(node.create_subscription(Log, "/rosout", rosout_callback, rosout_qos))
 
+    def bond_callback(msg: object) -> None:
+        bond_csv.write(bond_status_to_row(msg, time.time_ns(), iso_now()))
+
+    subscriptions.append(node.create_subscription(Status, "/bond", bond_callback, control_qos))
+
+    for lifecycle_node in LIFECYCLE_NODES:
+        transition_topic = f"{lifecycle_node}/transition_event"
+
+        def transition_callback(
+            msg: object,
+            topic: str = transition_topic,
+        ) -> None:
+            lifecycle_csv.write(
+                transition_event_to_row(topic, msg, time.time_ns(), iso_now())
+            )
+
+        subscriptions.append(
+            node.create_subscription(
+                TransitionEvent, transition_topic, transition_callback, control_qos
+            )
+        )
+
     def write_summaries() -> None:
         wall_time = iso_now()
         for topic, tracker in trackers.items():
@@ -1082,9 +1639,59 @@ def run_monitor(args: argparse.Namespace) -> int:
         event_csv.flush()
         summary_csv.flush()
         rosout_csv.flush()
+        bond_csv.flush()
+        lifecycle_csv.flush()
 
     summary_timer = node.create_timer(args.summary_interval, write_summaries)
-    _ = summary_timer, subscriptions
+
+    def write_node_liveness() -> None:
+        monotonic_ns = time.monotonic_ns()
+        discovered = fully_qualified_node_names(node.get_node_names_and_namespaces())
+        wall_time = iso_now()
+        for critical_node in CRITICAL_NODES:
+            liveness_csv.write(
+                {
+                    "wall_time": wall_time,
+                    "monotonic_ns": monotonic_ns,
+                    "node": critical_node,
+                    "present": critical_node in discovered,
+                    "observed_node_count": len(discovered),
+                }
+            )
+        liveness_csv.flush()
+
+    health_last_ns = time.monotonic_ns()
+    health_expected_ns = health_last_ns + int(args.monitor_health_interval * NSEC_PER_SEC)
+    health_last_event_total = 0
+
+    def write_monitor_health() -> None:
+        nonlocal health_last_ns, health_expected_ns, health_last_event_total
+        now_ns = time.monotonic_ns()
+        event_total = sum(int(tracker.summary()["count"]) for tracker in trackers.values())
+        health_csv.write(
+            {
+                "wall_time": iso_now(),
+                "monotonic_ns": now_ns,
+                "actual_interval_ms": (now_ns - health_last_ns) / 1.0e6,
+                "timer_lag_ms": max(0.0, (now_ns - health_expected_ns) / 1.0e6),
+                "primary_event_total": event_total,
+                "primary_event_delta": safe_counter_delta(
+                    event_total, health_last_event_total
+                ),
+            }
+        )
+        health_csv.flush()
+        health_last_ns = now_ns
+        health_expected_ns += int(args.monitor_health_interval * NSEC_PER_SEC)
+        if health_expected_ns < now_ns:
+            health_expected_ns = now_ns + int(
+                args.monitor_health_interval * NSEC_PER_SEC
+            )
+        health_last_event_total = event_total
+
+    liveness_timer = node.create_timer(args.node_liveness_interval, write_node_liveness)
+    health_timer = node.create_timer(args.monitor_health_interval, write_monitor_health)
+    _ = summary_timer, liveness_timer, health_timer, subscriptions
 
     system_recorder = SystemRecorder(session, args.interface, args.system_interval)
     topology_recorder = TopologyRecorder(
@@ -1125,6 +1732,18 @@ def run_monitor(args: argparse.Namespace) -> int:
     for follower in followers:
         follower.start()
 
+    large_workers: Optional[LargeTopicWorkers] = None
+    if large_worker_topics(args.mode):
+        try:
+            large_workers = LargeTopicWorkers(
+                session,
+                large_worker_topics(args.mode),
+                args.duration,
+                args.summary_interval,
+            )
+        except OSError as exc:
+            print(f"[ERROR] failed to start large-topic workers: {exc}", file=sys.stderr)
+
     bag: Optional[BagRecorder] = None
     if args.with_bag:
         try:
@@ -1160,6 +1779,8 @@ def run_monitor(args: argparse.Namespace) -> int:
             )
         if bag is not None:
             bag.stop()
+        if large_workers is not None:
+            large_workers.stop()
         topology_recorder.stop()
         system_recorder.stop()
         for follower in followers:
@@ -1171,9 +1792,30 @@ def run_monitor(args: argparse.Namespace) -> int:
         event_csv.close()
         summary_csv.close()
         rosout_csv.close()
+        bond_csv.close()
+        lifecycle_csv.close()
+        liveness_csv.close()
+        health_csv.close()
         node.destroy_node()
         rclpy.shutdown()
-        update_manifest_end(manifest_path, stop_reason)
+        diagnostic_sources = [follower.status() for follower in followers]
+        for status in diagnostic_sources:
+            source = str(status["source"])
+            if ("performance" in source or "perf_" in source) and not status["new_bytes"]:
+                print(f"[WARN] no new internal performance evidence: {source}")
+        worker_status = large_workers.status() if large_workers is not None else []
+        for status in worker_status:
+            if status["returncode"] != 0:
+                print(
+                    f"[WARN] large-topic worker failed: "
+                    f"topic={status['topic']} returncode={status['returncode']}"
+                )
+        update_manifest_end(
+            manifest_path,
+            stop_reason,
+            diagnostic_sources=diagnostic_sources,
+            large_workers=worker_status,
+        )
         print(f"[INFO] monitor stopped reason={stop_reason} output={session}")
     return 0
 
@@ -1203,6 +1845,9 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--system-interval", type=float, default=1.0)
     parser.add_argument("--summary-interval", type=float, default=1.0)
     parser.add_argument("--snapshot-interval", type=float, default=30.0)
+    parser.add_argument("--map-hash-interval", type=float, default=1.0)
+    parser.add_argument("--monitor-health-interval", type=float, default=0.1)
+    parser.add_argument("--node-liveness-interval", type=float, default=1.0)
     parser.add_argument(
         "--with-bag",
         action="store_true",
@@ -1213,27 +1858,45 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="print selected topics and exit without creating subscriptions",
     )
+    parser.add_argument("--_large-worker-topic", default="", help=argparse.SUPPRESS)
+    parser.add_argument("--_session-dir", default="", help=argparse.SUPPRESS)
     return parser
 
 
 def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     if args.duration < 0:
         parser.error("--duration must be non-negative")
-    for name in ("system_interval", "summary_interval", "snapshot_interval"):
+    for name in (
+        "system_interval",
+        "summary_interval",
+        "snapshot_interval",
+        "map_hash_interval",
+        "monitor_health_interval",
+        "node_liveness_interval",
+    ):
         if getattr(args, name) <= 0:
             parser.error(f"--{name.replace('_', '-')} must be positive")
     if args.with_bag and args.mode != "test":
         parser.error("--with-bag is available only with --mode test")
+    if args._large_worker_topic:
+        if args._large_worker_topic not in {item.topic for item in TEST_ONLY_TOPICS}:
+            parser.error("invalid isolated large-topic worker")
+        if not args._session_dir:
+            parser.error("--_session-dir is required for isolated large-topic worker")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_argument_parser()
     args = parser.parse_args(argv)
     validate_args(parser, args)
+    if args._large_worker_topic:
+        return run_large_topic_worker(args)
     if args.dry_run:
         print(f"mode={args.mode}")
-        for item in mode_topics(args.mode):
-            print(f"{item.topic}\t{item.kind}\tlarge={item.large}")
+        for item in primary_topics(args.mode):
+            print(f"{item.topic}\t{item.kind}\tlane=primary")
+        for item in large_worker_topics(args.mode):
+            print(f"{item.topic}\t{item.kind}\tlane=isolated-worker")
         if args.with_bag:
             print("bag_topics=" + ",".join(bag_topics()))
         return 0

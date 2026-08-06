@@ -217,6 +217,36 @@ BT::NodeStatus CheckTargetLocked::tick()
   return condition_met ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
+// ------------------- CheckTargetArmorId -------------------
+CheckTargetArmorId::CheckTargetArmorId(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckTargetArmorId::providedPorts()
+{
+  return {BT::InputPort<int>("target_id", "Expected target armor ID"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckTargetArmorId::tick()
+{
+  const auto blackboard = config().blackboard;
+  const int expected_id = getInput<int>("target_id").value_or(-1);
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const bool target_valid = blackboard->get<bool>("target_valid");
+  const int target_id = blackboard->get<int>("target_armor_id");
+  const bool matched = target_valid && target_id == expected_id;
+
+  std::ostringstream oss;
+  oss << "target_valid=" << target_valid << ", target_id=" << target_id
+      << ", expected_id=" << expected_id;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckTargetArmorId", matched, oss.str(), branch);
+
+  return matched ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
 // ------------------- CheckOutpostRemained -------------------
 CheckOutpostRemained::CheckOutpostRemained(const std::string & name, const BT::NodeConfiguration & config)
 : BT::ConditionNode(name, config)

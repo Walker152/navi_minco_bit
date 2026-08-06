@@ -169,6 +169,14 @@ public:
   BT::NodeStatus tick() override;
 };
 
+class CheckTargetArmorId : public BT::ConditionNode
+{
+public:
+  CheckTargetArmorId(const std::string & name, const BT::NodeConfiguration & config);
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
 // 检查是否在台阶区域的条件节点
 class CheckInStairsZone : public BT::ConditionNode
 {

@@ -8,7 +8,7 @@
       <ForceSuccess>
         <!-- 每 tick 更新自动前哨攻击/撤退状态，不能被导航优先级分支短路。 -->
         <UpdateOutpostAttackState name="UpdateOutpostAttackState"
-                                  retreat_health_threshold="25"
+                                  retreat_health_threshold="50"
                                   recovery_health_threshold="90"
                                   enhanced_defend_seconds="5.0"
                                   max_retreat_count="3"
@@ -38,8 +38,8 @@
                               exit_nav_mode="true"
                               branch="AutoHeroGuardDisableWindow" />
         </ReactiveSequence>
-      </ForceSuccess> -->
-     
+      </ForceSuccess>
+      -->
       <!-- TEMP_DISABLED_HIGHLAND_GUARD: 暂停前80秒未上高地后的兜底状态锁存。 -->
       <ForceSuccess>
         <UpdateHighlandFallbackState name="UpdateHighlandFallbackState"
@@ -48,11 +48,6 @@
       </ForceSuccess>
      
       <ReactiveFallback name="NavPriorityRoot">
-        <!-- <ReactiveSequence name="Priority0EmergencyStop">
-          <EmergencyStop name="EmergencyStop" enable_combat_stop="false" />
-          <NavigateToPoseAction name="NavigateEmergencyStop" />
-        </ReactiveSequence> -->
-
         <SubTree ID="TunnelRecoverySubTree"
                  __shared_blackboard="true"
                  __autoremap="true" />
@@ -119,6 +114,14 @@
                 </ForceSuccess>
               </ReactiveSequence>
 
+              <!-- <ReactiveSequence name="FallbackHeroGuard">
+                <SetNavMode name="SetFallbackHeroGuardNavMode" mode="response" />
+                <SetCoordinate name="SetFallbackHeroGuardCoordinate" goal="6" />
+                <ForceSuccess>
+                  <NavigateToPoseAction name="NavigateFallbackHeroGuard" />
+                </ForceSuccess>
+              </ReactiveSequence> -->
+
               <ReactiveSequence name="Priority5TrackPatrol">
                 <ReactiveFallback name="PatrolSelector">
                   <Sequence name="PatrolByTacticalMode">
@@ -127,7 +130,7 @@
                                          max_remaining="420"
                                          require_game_started="false"
                                          branch="Priority5TrackPatrol" />
-                    <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0" />
+                    <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="3" />
                     <NavigateToPoseAction name="NavigatePatrolPoint" />
                     <Wait name="WaitAtPatrolPoint" />
                   </Sequence>
@@ -137,23 +140,15 @@
                                          max_remaining="360"
                                          require_game_started="false"
                                          branch="Priority5TrackPatrol" />
-                    <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0" />
+                    <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="3" />
                     <NavigateToPoseAction name="NavigatePatrolPoint" />
                     <Wait name="WaitAtPatrolPoint" />
                   </Sequence>
                 </ReactiveFallback>
               </ReactiveSequence>
-
-              <!-- <ReactiveSequence name="FallbackHeroGuard">
-                <SetNavMode name="SetFallbackHeroGuardNavMode" mode="response" />
-                <SetCoordinate name="SetFallbackHeroGuardCoordinate" goal="6" />
-                <ForceSuccess>
-                  <NavigateToPoseAction name="NavigateFallbackHeroGuard" />
-                </ForceSuccess>
-              </ReactiveSequence>  -->
             </ReactiveFallback>
           </ForceSuccess>
-        </ReactiveSequence>       
+        </ReactiveSequence>
 
         <ReactiveSequence name="Priority0ManualOverride">
           <CheckManualOverride name="CheckManualOverride" branch="Priority0ManualOverride" />
@@ -232,7 +227,7 @@
           <ReactiveFallback name="GlobalResourceAndEarlySpecialSelector">
             <ReactiveSequence name="GlobalHealthRecovery">
               <CheckRetreatCondition name="CheckGlobalHealthRecoveryCondition"
-                                     health_threshold="40"
+                                     health_threshold="50"
                                      recovery_threshold="90"
                                      branch="GlobalHealthRecovery" />
               <SetNavMode name="SetGlobalHealthRetreatNavMode" mode="retreat" />
@@ -304,8 +299,8 @@
           <ReactiveFallback name="PatrolSelector">
             <Sequence name="PatrolByTacticalMode">
               <CheckGameTimeWindow name="CheckPatrolNormalWindow"
-                                   min_remaining="360"
-                                   max_remaining="420"
+                                   min_remaining="301"
+                                   max_remaining="390"
                                    require_game_started="false"
                                    branch="Priority5TrackPatrol" />
               <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
@@ -318,13 +313,13 @@
             <Sequence name="PatrolByTacticalMode">
               <CheckGameTimeWindow name="CheckPatrolAttackWindow"
                                    min_remaining="0"
-                                   max_remaining="360"
+                                   max_remaining="300"
                                    require_game_started="false"
                                    branch="Priority5TrackPatrol" />
               <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
                                                           patrol_branch_balanced="0"
                                                           patrol_branch_offensive="0"/> -->
-              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0" />
+              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="3" />
               <NavigateToPoseAction name="NavigatePatrolPoint" />
               <Wait name="WaitAtPatrolPoint" />
             </Sequence>
