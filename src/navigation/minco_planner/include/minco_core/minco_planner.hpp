@@ -61,6 +61,7 @@ public:
   double getTrajectoryRemainTime() const;
   bool isTrajectoryTimeExpired(double now_s) const;
   double getLookaheadDist() const { return lookahead_dist_; }
+  double getTrajGoalTolerance() const { return traj_goal_tolerance_; }
   bool getRobotPose(geometry_msgs::msg::PoseStamped & pose) const;
   bool checkGoalReached(const geometry_msgs::msg::PoseStamped & current_pose);
   bool consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out);

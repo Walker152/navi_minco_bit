@@ -45,10 +45,15 @@ void MincoFsm::callMainFsmOnce()
   if (state_ != State::RECOVERING) {
     geometry_msgs::msg::PoseStamped new_goal;
     if (planner_->consumePendingGoal(new_goal)) {
-      goal_ = new_goal;
-      has_goal_ = true;
-      recovery_server_->setMissionGoal(new_goal);
-      changeState("NewGoal", State::GENERATE_TRAJ);
+      const bool same_goal = has_goal_ && std::hypot(new_goal.pose.position.x - goal_.pose.position.x,
+                                            new_goal.pose.position.y - goal_.pose.position.y) <=
+                                            planner_->getTrajGoalTolerance();
+      if (!same_goal) {
+        goal_ = new_goal;
+        has_goal_ = true;
+        recovery_server_->setMissionGoal(new_goal);
+        changeState("NewGoal", State::GENERATE_TRAJ);
+      }
     }
   }
 
@@ -165,8 +170,10 @@ void MincoFsm::callMainFsmOnce()
     // goal_stop_published_ = false;
 
     const double now_s = planner_->nowSeconds();
+    const bool current_traj_safe = planner_->isTrajSafe();
+    const bool trajectory_expired = planner_->isTrajectoryTimeExpired(now_s);
 
-    bool need_replan = planner_->isTrajectoryTimeExpired(now_s) || !planner_->isTrajSafe();
+    bool need_replan = trajectory_expired || !current_traj_safe;
 
     // 强制高频重规划：1Hz刷新轨迹，避免轨迹“卡死”不更新。
     if (has_odom) {
@@ -183,8 +190,8 @@ void MincoFsm::callMainFsmOnce()
     }
 
     if (!planner_->ReplanLocal(current_pose)) {
-      // P0: If the old trajectory still has remaining time, keep following it.
-      if (!planner_->isTrajectoryTimeExpired(now_s)) {
+      // Keep following the old trajectory only while it is both safe and unexpired.
+      if (current_traj_safe && !trajectory_expired) {
         return;
       }
 
