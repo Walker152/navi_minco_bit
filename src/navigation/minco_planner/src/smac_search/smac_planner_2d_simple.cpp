@@ -52,6 +52,8 @@ void SmacPlanner2DSimple::setMap(const std::shared_ptr<rog_map::MapQueryInterfac
   size_y_ = map_->sizeY();
   planning_id_ = 0u;
   ensureSearchBuffers();
+  std::fill(esdf_cost_cache_id_.begin(), esdf_cost_cache_id_.end(), 0u);
+  std::fill(esdf_distance_cache_id_.begin(), esdf_distance_cache_id_.end(), 0u);
 }
 
 void SmacPlanner2DSimple::setESDFQuery(
@@ -59,6 +61,16 @@ void SmacPlanner2DSimple::setESDFQuery(
 {
   esdf_query_ = query;
   planning_id_ = 0u;
+  std::fill(esdf_cost_cache_id_.begin(), esdf_cost_cache_id_.end(), 0u);
+  std::fill(esdf_distance_cache_id_.begin(), esdf_distance_cache_id_.end(), 0u);
+}
+
+void SmacPlanner2DSimple::setCollisionDistance(double collision_distance)
+{
+  collision_distance_ = std::max(0.0, collision_distance);
+  planning_id_ = 0u;
+  std::fill(esdf_cost_cache_id_.begin(), esdf_cost_cache_id_.end(), 0u);
+  std::fill(esdf_distance_cache_id_.begin(), esdf_distance_cache_id_.end(), 0u);
 }
 
 void SmacPlanner2DSimple::configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node,
@@ -128,6 +140,8 @@ void SmacPlanner2DSimple::ensureSearchBuffers()
 
     esdf_cost_cache_.assign(size, 0.0f);
     esdf_cost_cache_id_.assign(size, 0u);
+    esdf_distance_cache_.assign(size, 0.0);
+    esdf_distance_cache_id_.assign(size, 0u);
   }
 }
 
@@ -158,22 +172,22 @@ void SmacPlanner2DSimple::logFailure(const std::string & reason,
     iterations);
 }
 
-float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my)
+bool SmacPlanner2DSimple::getESDFDistance(unsigned int mx, unsigned int my, double & distance)
 {
-  if (!use_esdf_cost_ || !map_ || !esdf_query_) {
-    return 0.0f;
-  }
-
-  if (mx >= size_x_ || my >= size_y_) {
-    return 0.0f;
+  distance = 0.0;
+  if (!map_ || !esdf_query_ || mx >= size_x_ || my >= size_y_) {
+    return false;
   }
 
   const uint64_t index =
     static_cast<uint64_t>(my) * static_cast<uint64_t>(size_x_) + static_cast<uint64_t>(mx);
-
   const size_t idx = static_cast<size_t>(index);
-  if (esdf_cost_cache_id_[idx] == planning_id_) {
-    return esdf_cost_cache_[idx];
+  if (idx >= esdf_distance_cache_.size() || idx >= esdf_distance_cache_id_.size()) {
+    return false;
+  }
+  if (esdf_distance_cache_id_[idx] == planning_id_) {
+    distance = esdf_distance_cache_[idx];
+    return std::isfinite(distance);
   }
 
   // Convert through the prior search map; dynamicQuery handles any further frame conversion.
@@ -183,12 +197,47 @@ float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my
 
   const auto result = esdf_query_->query(Eigen::Vector3d(wx, wy, 0.0));
   if (!result.ok || !std::isfinite(result.distance)) {
+    esdf_distance_cache_[idx] = std::numeric_limits<double>::quiet_NaN();
+    esdf_distance_cache_id_[idx] = planning_id_;
+    return false;
+  }
+
+  distance = result.distance;
+  esdf_distance_cache_[idx] = distance;
+  esdf_distance_cache_id_[idx] = planning_id_;
+  return true;
+}
+
+bool SmacPlanner2DSimple::isESDFCollision(unsigned int mx, unsigned int my)
+{
+  if (collision_distance_ <= 0.0) {
+    return false;
+  }
+  double distance = 0.0;
+  return getESDFDistance(mx, my, distance) && distance < collision_distance_;
+}
+
+float SmacPlanner2DSimple::getESDFPotentialCost(unsigned int mx, unsigned int my)
+{
+  if (!use_esdf_cost_ || !map_ || !esdf_query_ || mx >= size_x_ || my >= size_y_) {
+    return 0.0f;
+  }
+
+  const uint64_t index =
+    static_cast<uint64_t>(my) * static_cast<uint64_t>(size_x_) + static_cast<uint64_t>(mx);
+  const size_t idx = static_cast<size_t>(index);
+  if (esdf_cost_cache_id_[idx] == planning_id_) {
+    return esdf_cost_cache_[idx];
+  }
+
+  double distance = 0.0;
+  if (!getESDFDistance(mx, my, distance)) {
     esdf_cost_cache_[idx] = 0.0f;
     esdf_cost_cache_id_[idx] = planning_id_;
     return 0.0f;
   }
 
-  const double dist = std::max(0.0, result.distance);
+  const double dist = std::max(0.0, distance);
 
   const float normalized_potential =
     static_cast<float>(std::exp(-dist / static_cast<double>(esdf_decay_)));
@@ -258,6 +307,7 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
     std::fill(visited_.begin(), visited_.end(), 0u);
     std::fill(closed_.begin(), closed_.end(), 0u);
     std::fill(esdf_cost_cache_id_.begin(), esdf_cost_cache_id_.end(), 0u);
+    std::fill(esdf_distance_cache_id_.begin(), esdf_distance_cache_id_.end(), 0u);
     planning_id_ = 1u;
   }
 
@@ -285,9 +335,15 @@ bool SmacPlanner2DSimple::createPath(const unsigned int & start_x,
   const auto is_traversable = [this, charmap](const uint64_t index) -> bool {
     const unsigned char cost = charmap[static_cast<size_t>(index)];
     if (cost == nav2_costmap_2d::NO_INFORMATION) {
-      return allow_unknown_;
+      if (!allow_unknown_) {
+        return false;
+      }
+    } else if (cost >= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+      return false;
     }
-    return cost < nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+    const unsigned int mx = static_cast<unsigned int>(index % static_cast<uint64_t>(size_x_));
+    const unsigned int my = static_cast<unsigned int>(index / static_cast<uint64_t>(size_x_));
+    return !isESDFCollision(mx, my);
   };
 
   if (!is_traversable(goal_index)) {

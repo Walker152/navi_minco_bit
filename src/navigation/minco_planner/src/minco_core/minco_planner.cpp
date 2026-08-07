@@ -194,6 +194,7 @@ void MincoPlanner::rebuildModeDependentQueries()
   }
   if (astar_planner_) {
     astar_planner_->setMap(mode_context_->globalQuery());
+    astar_planner_->setESDFQuery(mode_context_->dynamicQuery());
   }
   if (smac_planner_) {
     smac_planner_->setMap(mode_context_->globalQuery());
@@ -508,6 +509,8 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   const unsigned int init_size_y = global_query ? global_query->sizeY() : 1U;
   astar_planner_ = std::make_unique<Astar>(init_size_x, init_size_y);
   astar_planner_->setMap(global_query);
+  astar_planner_->setESDFQuery(dynamic_query);
+  astar_planner_->setCollisionDistance(collision_dist);
 
   if (use_smac_) {
     smac_planner_ = std::make_unique<minco_planner::smac::SmacPlanner2DSimple>();
@@ -515,6 +518,7 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     smac_planner_->setParameters(allow_unknown_, 1000000, tolerance_);
     smac_planner_->setMap(global_query);
     smac_planner_->setESDFQuery(dynamic_query);
+    smac_planner_->setCollisionDistance(collision_dist);
   }
 
   global_path_searcher_ = std::make_unique<GlobalPathSearcher>();

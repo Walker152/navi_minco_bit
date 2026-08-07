@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -19,6 +20,8 @@ public:
 
   void setCostmap(const unsigned char * costmap, bool isROS = true, bool allow_unknown = true);
   void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map);
+  void setESDFQuery(const std::shared_ptr<rog_map::MapQueryInterface> & query);
+  void setCollisionDistance(double collision_distance);
   void setStart(int x, int y);
   void setGoal(int x, int y);
   bool calcPath(int nplan);
@@ -35,6 +38,7 @@ public:
 private:
   void updateCell(int n);
   void updateCellAstar(int n);
+  bool isDynamicCollision(int index);
 
   int nx, ny, ns;
   const unsigned char * costarr;
@@ -49,6 +53,9 @@ private:
   int goal[2];
   bool allow_unknown;
   std::shared_ptr<rog_map::MapQueryInterface> map_;
+  std::shared_ptr<rog_map::MapQueryInterface> esdf_query_;
+  double collision_distance_{0.0};
+  std::vector<int8_t> dynamic_collision_cache_;
 
   float curT;
   float priInc;

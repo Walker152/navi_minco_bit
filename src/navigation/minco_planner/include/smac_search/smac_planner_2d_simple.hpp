@@ -87,6 +87,7 @@ public:
 
   void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map);
   void setESDFQuery(const std::shared_ptr<rog_map::MapQueryInterface> & query);
+  void setCollisionDistance(double collision_distance);
 
   /**
    * @brief Create a path from start to goal
@@ -126,6 +127,8 @@ private:
    * @brief Compute ESDF-based potential cost for a grid cell index
    */
   float getESDFPotentialCost(unsigned int mx, unsigned int my);
+  bool getESDFDistance(unsigned int mx, unsigned int my, double & distance);
+  bool isESDFCollision(unsigned int mx, unsigned int my);
 
   /**
    * @brief Evaluate inflation traversal factor from costmap cell cost
@@ -162,10 +165,13 @@ private:
   float esdf_weight_{1.0f};
   float esdf_decay_{0.5f};
   float esdf_max_cost_{5.0f};
+  double collision_distance_{0.0};
 
   // Per-planning-iteration cache to avoid allocations in the search loop.
   std::vector<float> esdf_cost_cache_;
   std::vector<uint32_t> esdf_cost_cache_id_;
+  std::vector<double> esdf_distance_cache_;
+  std::vector<uint32_t> esdf_distance_cache_id_;
 
   // Search info
   SearchInfo search_info_;
