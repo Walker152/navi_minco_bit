@@ -65,8 +65,10 @@ private:
 
   Phase phase_ = Phase::WAITING;
   int retreat_count_ = 0;
+  int previous_enemy_outpost_health_ = -1;
   int previous_game_status_ = 0;
   bool pregame_reset_done_ = false;
+  bool stairs_resource_triggered_ = false;
   std::chrono::steady_clock::time_point retreat_start_time_{};
 };
 
@@ -165,6 +167,14 @@ class CheckTargetLocked : public BT::ConditionNode
 public:
   CheckTargetLocked(const std::string & name, const BT::NodeConfiguration & config);
   geometry_msgs::msg::Pose target_pose;
+  static BT::PortsList providedPorts();
+  BT::NodeStatus tick() override;
+};
+
+class CheckTargetArmorId : public BT::ConditionNode
+{
+public:
+  CheckTargetArmorId(const std::string & name, const BT::NodeConfiguration & config);
   static BT::PortsList providedPorts();
   BT::NodeStatus tick() override;
 };

@@ -33,6 +33,20 @@
                         stance="ENHANCED_DEFEND" />
         </ReactiveSequence>
 
+        <!-- 锁定2号装甲板且位于楼梯区域时，强化攻击可用即启用；
+             优先级紧随敌方防守区受击强化防御，条件不满足时回退现有姿态决策。 -->
+        <ReactiveSequence name="StairsTargetEnhancedAttackBranch">
+          <CheckTargetArmorId target_id="2"
+                              branch="StairsTargetEnhancedAttackBranch" />
+          <CheckInStairsZone branch="StairsTargetEnhancedAttackBranch" />
+          <CheckShouldEnhanceStance target_stance="ATTACK"
+                                    min_remaining_sec="1"
+                                    force_if_available="true"
+                                    branch="StairsTarget_EnhancedAttack" />
+          <ChangeStance name="ChangeStanceStairsTargetEnhancedAttack"
+                        stance="ENHANCED_ATTACK" />
+        </ReactiveSequence>
+
         <!-- 强化姿态专门分支:非隧道场景下,若操作手强化覆盖生效(override_active && 能量 && 未超时),
              直接产出强化姿态并返回 SUCCESS,自动分支不会 tick。
              优先级:高于自动分支,低于隧道分支。
@@ -42,11 +56,18 @@
           <ApplyManualStanceOverride name="ApplyManualEnhancedStance" />
         </Sequence>
 
-        <!-- 自动攻击前哨站撤退时，仅在每次撤退最初5秒请求强化防御姿态。 -->
-        <ReactiveSequence name="OutpostRetreatEnhancedDefendBranch">
-          <CheckOutpostAttackState name="CheckOutpostEnhancedDefendActive"
-                                   state="enhanced_defend"
-                                   branch="OutpostRetreatEnhancedDefendBranch" />
+        <!-- 前哨强化防御共用分支：保留每次撤退最初5秒；前哨RESPONSE目标下血量低于90%时，本局额外触发一次固定5秒。 -->
+        <ReactiveSequence name="OutpostEnhancedDefendBranch">
+          <Fallback name="OutpostEnhancedDefendTriggerSelector">
+            <CheckOutpostAttackState name="CheckOutpostRetreatEnhancedDefendActive"
+                                     state="enhanced_defend"
+                                     branch="OutpostEnhancedDefendBranch" />
+            <CheckOutpostLowHealthDefend name="CheckOutpostLowHealthDefend"
+                                         health_threshold="90"
+                                         hold_seconds="5.0"
+                                         goal_distance_threshold="0.5"
+                                         branch="OutpostEnhancedDefendBranch" />
+          </Fallback>
           <ChangeStance name="ChangeStanceOutpostRetreatEnhancedDefend"
                         stance="ENHANCED_DEFEND" />
         </ReactiveSequence>

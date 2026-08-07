@@ -51,6 +51,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckHighlandFallbackActive>("CheckHighlandFallbackActive");
   factory_.registerNodeType<CheckOwnOutpostAlive>("CheckOwnOutpostAlive");
   factory_.registerNodeType<CheckTargetLocked>("CheckTargetLocked");
+  factory_.registerNodeType<CheckTargetArmorId>("CheckTargetArmorId");
   factory_.registerBuilder<NavigateToPoseAction>(
     "NavigateToPoseAction", [](const std::string & name, const BT::NodeConfiguration & config) {
       return std::make_unique<NavigateToPoseAction>(name, "navigate_to_pose", config);
@@ -91,6 +92,7 @@ void SentryBTManager::registerNodes()
   // stance
   factory_.registerNodeType<CheckHeat>("CheckHeat");
   factory_.registerNodeType<CheckOutpostTarget>("CheckOutpostTarget");
+  factory_.registerNodeType<CheckOutpostLowHealthDefend>("CheckOutpostLowHealthDefend");
   factory_.registerNodeType<CheckEngagedStatus>("CheckEngagedStatus");
   factory_.registerNodeType<CheckHealth>("CheckHealth");
   factory_.registerNodeType<CheckEnemyAreaRecentlyHurt>("CheckEnemyAreaRecentlyHurt");
