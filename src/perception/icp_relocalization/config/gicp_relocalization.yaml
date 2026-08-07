@@ -2,8 +2,8 @@ gicp_relocalization_node:
   ros__parameters:
     # General Configuration
     mode: "initial_guess" # Options: "multi_guess", "initial_guess"
-    # target_pcd_file: "src/perception/icp_relocalization/pcd/cloudlab_processed_blue.pcd"
-    target_pcd_file: "src/perception/icp_relocalization/pcd/cloudlab_processed_red.pcd"
+    target_pcd_file: "src/perception/icp_relocalization/pcd/cloudlab_processed_blue.pcd"
+    # target_pcd_file: "src/perception/icp_relocalization/pcd/cloudlab_processed_red.pcd"
     # target_pcd_file: "src/perception/Point-LIO/PCD/scans_1.pcd"
     map_frame: "map"
     visualization_en: true
