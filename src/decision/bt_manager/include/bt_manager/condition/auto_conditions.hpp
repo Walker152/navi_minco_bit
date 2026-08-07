@@ -68,6 +68,7 @@ private:
   int previous_enemy_outpost_health_ = -1;
   int previous_game_status_ = 0;
   bool pregame_reset_done_ = false;
+  bool stairs_resource_triggered_ = false;
   std::chrono::steady_clock::time_point retreat_start_time_{};
 };
 

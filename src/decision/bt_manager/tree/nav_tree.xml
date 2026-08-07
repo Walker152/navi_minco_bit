@@ -12,6 +12,10 @@
                                   recovery_health_threshold="90"
                                   enhanced_defend_seconds="5.0"
                                   max_retreat_count="3"
+                                  trigger_min_remaining="330"
+                                  trigger_max_remaining="360"
+                                  health_threshold="50"
+                                  ammo_threshold="100"
                                   branch="OutpostAttackState" />
       </ForceSuccess>
       <!-- TEMP_DISABLED_HIGHLAND_GUARD: 暂停普通英雄守护的自动开启/关闭时间窗。
@@ -168,11 +172,11 @@
           </ReactiveFallback>
         </ReactiveSequence>
 
-        <!-- 自动前哨攻击在开局120秒后启用，并优先于通用40血撤退。 -->
+        <!-- 自动前哨在开局120秒后且台阶区资源条件已触发时启用，并优先于通用40血撤退。 -->
         <ReactiveSequence name="Priority1AutoOutpostAttack">
           <CheckGameTimeWindow name="CheckAutoOutpostAttackWindow"
                                min_remaining="0"
-                               max_remaining="300"
+                               max_remaining="360"
                                require_game_started="false"
                                branch="Priority1AutoOutpostAttack" />
           <CheckOutpostAttackState name="CheckAutoOutpostAttackActive"
@@ -304,27 +308,22 @@
           <ReactiveFallback name="PatrolSelector">
             <Sequence name="PatrolByTacticalMode">
               <CheckGameTimeWindow name="CheckPatrolNormalWindow"
-                                   min_remaining="301"
-                                   max_remaining="390"
+                                   min_remaining="330"
+                                   max_remaining="420"
                                    require_game_started="false"
                                    branch="Priority5TrackPatrol" />
-              <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
-                                                          patrol_branch_balanced="0"
-                                                          patrol_branch_offensive="0"/> -->
-              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="0" />
+              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="4" />
               <NavigateToPoseAction name="NavigatePatrolPoint" />
               <Wait name="WaitAtPatrolPoint" />
             </Sequence>
             <Sequence name="PatrolByTacticalMode">
               <CheckGameTimeWindow name="CheckPatrolAttackWindow"
                                    min_remaining="0"
-                                   max_remaining="300"
+                                   max_remaining="329"
                                    require_game_started="false"
                                    branch="Priority5TrackPatrol" />
-              <!-- <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch_defensive="0"
-                                                          patrol_branch_balanced="0"
-                                                          patrol_branch_offensive="0"/> -->
-              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="3" />
+              <!-- 0公路，1冲家，2高地，3守家，4冲家打前哨，5厕所 -->
+              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="1" />
               <NavigateToPoseAction name="NavigatePatrolPoint" />
               <Wait name="WaitAtPatrolPoint" />
             </Sequence>

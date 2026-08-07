@@ -298,6 +298,14 @@ BT::PortsList UpdateOutpostAttackState::providedPorts()
     BT::InputPort<double>(
       "enhanced_defend_seconds", 5.0, "Enhanced defend duration for each retreat"),
     BT::InputPort<int>("max_retreat_count", 3, "Maximum automatic outpost retreat count"),
+    BT::InputPort<int>(
+      "trigger_min_remaining", 0, "Minimum remaining match time for stairs trigger"),
+    BT::InputPort<int>(
+      "trigger_max_remaining", 300, "Maximum remaining match time for stairs trigger"),
+    BT::InputPort<float>(
+      "health_threshold", 60.0f, "Minimum health percentage for stairs trigger (exclusive)"),
+    BT::InputPort<int>(
+      "ammo_threshold", 100, "Minimum remaining ammo for stairs trigger (exclusive)"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging"),
   };
 }
@@ -313,12 +321,30 @@ BT::NodeStatus UpdateOutpostAttackState::tick()
   const double enhanced_defend_seconds =
     getInput<double>("enhanced_defend_seconds").value_or(5.0);
   const int max_retreat_count = getInput<int>("max_retreat_count").value_or(3);
+  const int trigger_min_remaining = getInput<int>("trigger_min_remaining").value_or(0);
+  const int trigger_max_remaining = getInput<int>("trigger_max_remaining").value_or(300);
+  const float health_threshold = getInput<float>("health_threshold").value_or(60.0f);
+  const int ammo_threshold = getInput<int>("ammo_threshold").value_or(100);
 
   const int game_status = blackboard->get<int>("game_status");
   const int game_time_remaining = blackboard->get<int>("game_time_remaining");
   const int enemy_outpost_health = blackboard->get<int>("enemy_outpost_health");
   const float health = blackboard->get<float>("health");
+  const int ammo = blackboard->get<int>("bullets_remaining");
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const auto now = std::chrono::steady_clock::now();
+
+  bool in_stairs_zone = false;
+  for (const auto & zone : stairs_zone) {
+    if (zone.contains({current_pose.position.x, current_pose.position.y, 0.0})) {
+      in_stairs_zone = true;
+      break;
+    }
+  }
+  const bool in_trigger_window = game_time_remaining >= trigger_min_remaining &&
+                                 game_time_remaining <= trigger_max_remaining;
+  const bool stairs_resource_condition =
+    in_stairs_zone && health > health_threshold && ammo > ammo_threshold;
 
   const bool pregame_reset = game_status != 4 && game_time_remaining >= 410;
   const bool new_match_started =
@@ -328,6 +354,7 @@ BT::NodeStatus UpdateOutpostAttackState::tick()
   if ((pregame_reset && !pregame_reset_done_) || new_match_started) {
     phase_ = Phase::WAITING;
     retreat_count_ = 0;
+    stairs_resource_triggered_ = false;
     previous_enemy_outpost_health_ = enemy_outpost_health;
     retreat_start_time_ = std::chrono::steady_clock::time_point{};
     blackboard->set<bool>("enemy_outpost_destroyed", false);
@@ -344,9 +371,17 @@ BT::NodeStatus UpdateOutpostAttackState::tick()
   if (outpost_rebuilt) {
     blackboard->set<bool>("enemy_outpost_destroyed", false);
     enemy_outpost_destroyed = false;
+    stairs_resource_triggered_ = false;
     if (phase_ == Phase::DONE) {
       phase_ = Phase::WAITING;
     }
+  }
+
+  if (
+    game_status == 4 && in_trigger_window && enemy_outpost_health > 0 &&
+    !enemy_outpost_destroyed && stairs_resource_condition)
+  {
+    stairs_resource_triggered_ = true;
   }
 
   if (game_status == 4) {
@@ -397,7 +432,8 @@ BT::NodeStatus UpdateOutpostAttackState::tick()
   bool retreat_active = false;
   bool enhanced_defend_active = false;
   if (game_status == 4) {
-    auto_attack_active = phase_ == Phase::AUTO_ATTACK;
+    auto_attack_active =
+      phase_ == Phase::AUTO_ATTACK && (!in_trigger_window || stairs_resource_triggered_);
     manual_attack_active = phase_ == Phase::DONE &&
                            !blackboard->get<bool>("enemy_outpost_destroyed");
     retreat_active = phase_ == Phase::RETREAT;
@@ -425,6 +461,11 @@ BT::NodeStatus UpdateOutpostAttackState::tick()
   }
   std::ostringstream oss;
   oss << "phase=" << phase_name << ", self_health=" << health
+      << ", ammo=" << ammo << ", in_stairs_zone=" << in_stairs_zone
+      << ", game_time_remaining=" << game_time_remaining
+      << ", in_trigger_window=" << in_trigger_window
+      << ", stairs_resource_condition=" << stairs_resource_condition
+      << ", stairs_resource_triggered=" << stairs_resource_triggered_
       << ", enemy_outpost_health=" << enemy_outpost_health
       << ", retreat_count=" << retreat_count_
       << ", enemy_outpost_destroyed=" << blackboard->get<bool>("enemy_outpost_destroyed");
