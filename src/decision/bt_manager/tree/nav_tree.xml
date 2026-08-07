@@ -12,10 +12,6 @@
                                   recovery_health_threshold="90"
                                   enhanced_defend_seconds="5.0"
                                   max_retreat_count="3"
-                                  trigger_min_remaining="330"
-                                  trigger_max_remaining="360"
-                                  health_threshold="60"
-                                  ammo_threshold="150"
                                   branch="OutpostAttackState" />
       </ForceSuccess>
       <!-- TEMP_DISABLED_HIGHLAND_GUARD: 暂停普通英雄守护的自动开启/关闭时间窗。
@@ -44,12 +40,13 @@
         </ReactiveSequence>
       </ForceSuccess>
       -->
-      <!-- 前80秒未上高地时锁存兜底状态。 -->
+      <!-- TEMP_DISABLED_HIGHLAND_GUARD: 暂停前80秒未上高地后的兜底状态锁存。 -->
       <ForceSuccess>
         <UpdateHighlandFallbackState name="UpdateHighlandFallbackState"
                                      cutoff_remaining="340"
                                      branch="HighlandFallbackState" />
       </ForceSuccess>
+     
       <ReactiveFallback name="NavPriorityRoot">
         <SubTree ID="TunnelRecoverySubTree"
                  __shared_blackboard="true"
@@ -65,7 +62,7 @@
           <NavigateToPoseAction name="NavigateOutpostHealthHome" />
         </ReactiveSequence>
 
-        <!-- 未成功上高地后的兜底导航。 -->
+        <!-- TEMP_DISABLED_HIGHLAND_GUARD: 暂停整条高地兜底导航，避免进入兜底后阻断原导航逻辑。 -->
         <ReactiveSequence name="HighlandFallbackLine">
           <CheckHighlandFallbackActive name="CheckHighlandFallbackActive"
                                        branch="HighlandFallbackLine" />
@@ -171,7 +168,7 @@
           </ReactiveFallback>
         </ReactiveSequence>
 
-        <!-- 自动前哨攻击在开局120秒后启用，并优先于通用50血撤退。 -->
+        <!-- 自动前哨攻击在开局120秒后启用，并优先于通用40血撤退。 -->
         <ReactiveSequence name="Priority1AutoOutpostAttack">
           <CheckGameTimeWindow name="CheckAutoOutpostAttackWindow"
                                min_remaining="0"
