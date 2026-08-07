@@ -12,8 +12,8 @@
                                   recovery_health_threshold="90"
                                   enhanced_defend_seconds="5.0"
                                   max_retreat_count="3"
-                                  trigger_min_remaining="330"
-                                  trigger_max_remaining="360"
+                                  trigger_min_remaining="401"
+                                  trigger_max_remaining="420"
                                   health_threshold="60"
                                   ammo_threshold="150"
                                   branch="OutpostAttackState" />
@@ -172,11 +172,11 @@
           </ReactiveFallback>
         </ReactiveSequence>
 
-        <!-- 自动前哨在开局60秒后且台阶区资源条件已触发时启用，并优先于通用40血撤退。 -->
+        <!-- 第二套战术：开局20秒厕所巡检，之后恢复普通自动前哨流程。 -->
         <ReactiveSequence name="Priority1AutoOutpostAttack">
           <CheckGameTimeWindow name="CheckAutoOutpostAttackWindow"
                                min_remaining="0"
-                               max_remaining="360"
+                               max_remaining="400"
                                require_game_started="false"
                                branch="Priority1AutoOutpostAttack" />
           <CheckOutpostAttackState name="CheckAutoOutpostAttackActive"
@@ -308,18 +308,18 @@
           <ReactiveFallback name="PatrolSelector">
             <Sequence name="PatrolByTacticalMode">
               <CheckGameTimeWindow name="CheckPatrolNormalWindow"
-                                   min_remaining="330"
+                                   min_remaining="401"
                                    max_remaining="420"
                                    require_game_started="false"
                                    branch="Priority5TrackPatrol" />
-              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="4" />
+              <SelectPatrolPoint name="SelectPatrolPoint" patrol_branch="5" />
               <NavigateToPoseAction name="NavigatePatrolPoint" />
               <Wait name="WaitAtPatrolPoint" />
             </Sequence>
             <Sequence name="PatrolByTacticalMode">
               <CheckGameTimeWindow name="CheckPatrolAttackWindow"
                                    min_remaining="0"
-                                   max_remaining="329"
+                                   max_remaining="400"
                                    require_game_started="false"
                                    branch="Priority5TrackPatrol" />
               <!-- 0公路，1冲家，2高地，3守家，4冲家打前哨，5厕所 -->
