@@ -39,7 +39,7 @@ public:
   BT::NodeStatus tick() override;
 };
 
-// 前哨目标低血量强化防御：RESPONSE + 前哨目标下血量低于阈值时，本局仅触发一次。
+// 前哨目标掉血强化防御：RESPONSE + 前哨目标下血量较基线下降阈值时，本局仅触发一次。
 class CheckOutpostLowHealthDefend : public BT::ConditionNode
 {
 public:
@@ -52,6 +52,8 @@ private:
   bool triggered_ = false;
   bool active_ = false;
   bool pregame_reset_done_ = false;
+  bool health_baseline_initialized_ = false;
+  float health_baseline_ = 100.0f;
   std::chrono::steady_clock::time_point active_start_time_{};
 };
 

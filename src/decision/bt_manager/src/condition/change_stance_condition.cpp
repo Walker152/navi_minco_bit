@@ -105,7 +105,7 @@ CheckOutpostLowHealthDefend::CheckOutpostLowHealthDefend(
 BT::PortsList CheckOutpostLowHealthDefend::providedPorts()
 {
   return {
-    BT::InputPort<float>("health_threshold", 90.0f, "Health threshold for one-shot defend"),
+    BT::InputPort<float>("health_drop_threshold", 5.0f, "Health drop from target baseline for one-shot defend"),
     BT::InputPort<double>("hold_seconds", 5.0, "Fixed enhanced-defend duration"),
     BT::InputPort<float>("goal_distance_threshold", 0.5f, "Enemy outpost goal threshold"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
@@ -114,7 +114,8 @@ BT::PortsList CheckOutpostLowHealthDefend::providedPorts()
 BT::NodeStatus CheckOutpostLowHealthDefend::tick()
 {
   const auto blackboard = config().blackboard;
-  const float health_threshold = getInput<float>("health_threshold").value_or(90.0f);
+  const float health_drop_threshold =
+    getInput<float>("health_drop_threshold").value_or(5.0f);
   const double hold_seconds = getInput<double>("hold_seconds").value_or(5.0);
   const float goal_distance_threshold =
     getInput<float>("goal_distance_threshold").value_or(0.5f);
@@ -126,6 +127,8 @@ BT::NodeStatus CheckOutpostLowHealthDefend::tick()
   if (pregame_reset && !pregame_reset_done_) {
     triggered_ = false;
     active_ = false;
+    health_baseline_initialized_ = false;
+    health_baseline_ = 100.0f;
     active_start_time_ = std::chrono::steady_clock::time_point{};
     pregame_reset_done_ = true;
   } else if (!pregame_reset) {
@@ -150,7 +153,16 @@ BT::NodeStatus CheckOutpostLowHealthDefend::tick()
     static_cast<double>(goal_distance_threshold);
   const bool outpost_response = current_mode == NavMode::RESPONSE && nav_goal_is_outpost;
 
-  if (!triggered_ && outpost_response && health < health_threshold) {
+  if (!outpost_response) {
+    health_baseline_initialized_ = false;
+  } else if (!health_baseline_initialized_) {
+    health_baseline_ = health;
+    health_baseline_initialized_ = true;
+  }
+
+  const float health_drop = health_baseline_ - health;
+  if (!triggered_ && outpost_response && health_baseline_initialized_ &&
+      health_drop >= health_drop_threshold) {
     triggered_ = true;
     active_ = true;
     active_start_time_ = now;
@@ -158,7 +170,8 @@ BT::NodeStatus CheckOutpostLowHealthDefend::tick()
   }
 
   std::ostringstream oss;
-  oss << "health=" << health << ", threshold=" << health_threshold
+  oss << "health=" << health << ", baseline=" << health_baseline_
+      << ", health_drop=" << health_drop << ", drop_threshold=" << health_drop_threshold
       << ", current_mode=" << current_mode << ", nav_goal_is_outpost=" << nav_goal_is_outpost
       << ", triggered=" << triggered_ << ", active_elapsed=" << active_elapsed
       << ", hold_seconds=" << hold_seconds;
