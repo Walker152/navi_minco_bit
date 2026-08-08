@@ -1,15 +1,7 @@
 <root main_tree_to_execute="StanceTree">
   <BehaviorTree ID="StanceTree">
     <ReactiveSequence name="StanceTreeRoot">
-      <ReactiveFallback name="YawPreparationSelector">
-        <!-- 赛前快速废弃：将 enabled 改为 false 并重启 bt_manager，原隧道节点即恢复为每拍执行。 -->
-        <EnemyFortYawOverride
-          name="EnemyFortYawOverride"
-          enabled="true"
-          exit_radius="4.5"
-          yaw_mode="1" />
-        <CheckTunnelDeformation />
-      </ReactiveFallback>
+      <CheckTunnelDeformation />
       <UpdateStanceDuration />
       
       <ReactiveFallback name="StancePriorityRoot">
@@ -62,14 +54,14 @@
           <ApplyManualStanceOverride name="ApplyManualEnhancedStance" />
         </Sequence>
 
-        <!-- 前哨强化防御共用分支：保留每次撤退最初5秒；前哨RESPONSE目标下血量低于90%时，本局额外触发一次固定5秒。 -->
+        <!-- 前哨强化防御共用分支：保留每次撤退最初5秒；前哨RESPONSE目标下血量较进入目标时下降5个百分点，本局额外触发一次固定5秒。 -->
         <ReactiveSequence name="OutpostEnhancedDefendBranch">
           <Fallback name="OutpostEnhancedDefendTriggerSelector">
             <CheckOutpostAttackState name="CheckOutpostRetreatEnhancedDefendActive"
                                      state="enhanced_defend"
                                      branch="OutpostEnhancedDefendBranch" />
             <CheckOutpostLowHealthDefend name="CheckOutpostLowHealthDefend"
-                                         health_threshold="90"
+                                         health_drop_threshold="5"
                                          hold_seconds="5.0"
                                          goal_distance_threshold="0.5"
                                          branch="OutpostEnhancedDefendBranch" />

@@ -109,7 +109,6 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<TunnelGyroAlignAction>("TunnelGyroAlignAction");
   factory_.registerNodeType<ChangeStance>("ChangeStance");
   factory_.registerNodeType<UpdateStanceDuration>("UpdateStanceDuration");
-  factory_.registerNodeType<EnemyFortYawOverride>("EnemyFortYawOverride");
   factory_.registerNodeType<CheckTunnelDeformation>("CheckTunnelDeformation");
   factory_.registerNodeType<CheckInEnemyFortZone>("CheckInEnemyFortZone");
   factory_.registerNodeType<CheckEnemyDefenseHealthDrop>("CheckEnemyDefenseHealthDrop");
