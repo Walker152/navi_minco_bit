@@ -39,8 +39,8 @@ inline std::array<Area_Square, 4> tunnel_zone = {
 inline std::array<TunnelRecoveryConfig, 4> tunnel_recovery_configs = {
   TunnelRecoveryConfig{-1.57f, 0.0f, 0.5f, false},   // Home Right Tunnel
   TunnelRecoveryConfig{1.57f, 0.0f, -0.5f, false},   // Enemy Right Tunnel
-  TunnelRecoveryConfig{0.0f, -0.5f, 0.0f, true},    // Home Left Tunnel
-  TunnelRecoveryConfig{3.14f, 0.5f, 0.0f, true},    // Enemy Left Tunnel
+  TunnelRecoveryConfig{0.0f, -0.5f, 0.0f, false},    // Home Left Tunnel
+  TunnelRecoveryConfig{3.14f, 0.5f, 0.0f, false},    // Enemy Left Tunnel
 };
 inline std::array<Area_Square, 2> stairs_zone{
   Area_Square{Point2D{9.4, 1.8}, Point2D{8.0, 0.2}},
