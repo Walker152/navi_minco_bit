@@ -7,6 +7,9 @@
 
 #include <glog/logging.h>
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include <list>
 #include <thread>
 #include <unordered_map>
@@ -62,6 +65,7 @@ public:
   {
     float resolution_ = 0.2;                        // ivox resolution
     float inv_resolution_ = 10.0;                   // inverse resolution
+    float point_resolution_ = 0.0;                  // map point voxel resolution
     NearbyType nearby_type_ = NearbyType::NEARBY6;  // nearby range
     std::size_t capacity_ = 1000000;                // capacity
   };
@@ -284,10 +288,15 @@ void IVox<dim, node_type, PointType>::AddPoints(const PointVector & points_to_ad
       Eigen::Matrix<float, dim, 1>(points_to_add[i].x, points_to_add[i].y, points_to_add[i].z));
     auto iter = grids_map_.find(key);
     if (iter == grids_map_.end()) {
-      PointType center;
-      center.getVector3fMap() = key.template cast<float>() * options_.resolution_;
+      PointType grid_origin;
+      grid_origin.getVector3fMap() = key.template cast<float>() * options_.resolution_;
 
-      grids_cache_.push_front({key, NodeType(center, options_.resolution_)});
+      if constexpr (node_type == IVoxNodeType::DEFAULT) {
+        grids_cache_.push_front(
+          {key, NodeType(grid_origin, options_.resolution_, options_.point_resolution_)});
+      } else {
+        grids_cache_.push_front({key, NodeType(grid_origin, options_.resolution_)});
+      }
       grids_map_.insert({key, grids_cache_.begin()});
 
       grids_cache_.front().second.InsertPoint(points_to_add[i]);
@@ -320,20 +329,37 @@ Eigen::Matrix<int, dim, 1> IVox<dim, node_type, PointType>::Pos2Grid_(
 template <int dim, IVoxNodeType node_type, typename PointType>
 std::vector<float> IVox<dim, node_type, PointType>::StatGridPoints() const
 {
-  int num = grids_cache_.size(), valid_num = 0, max = 0, min = 100000000;
-  int sum = 0, sum_square = 0;
-  for (auto & it : grids_cache_) {
-    int s = it.second.Size();
-    valid_num += s > 0;
-    max = s > max ? s : max;
-    min = s < min ? s : min;
-    sum += s;
-    sum_square += s * s;
+  const std::size_t grid_count = grids_cache_.size();
+  if (grid_count == 0) {
+    return std::vector<float>{0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
   }
-  float ave = float(sum) / num;
-  float stddev = num > 1 ? sqrt((float(sum_square) - num * ave * ave) / (num - 1)) : 0;
-  return std::vector<float>{
-    static_cast<float>(valid_num), ave, static_cast<float>(max), static_cast<float>(min), stddev};
+
+  std::size_t valid_grid_count = 0;
+  std::size_t max_points = 0;
+  std::size_t min_points = std::numeric_limits<std::size_t>::max();
+  double point_sum = 0.0;
+  double sum_square = 0.0;
+  for (const auto & grid : grids_cache_) {
+    const std::size_t point_count = grid.second.Size();
+    valid_grid_count += point_count > 0;
+    max_points = std::max(max_points, point_count);
+    min_points = std::min(min_points, point_count);
+    point_sum += static_cast<double>(point_count);
+    sum_square += static_cast<double>(point_count) * static_cast<double>(point_count);
+  }
+
+  const double average = point_sum / static_cast<double>(grid_count);
+  const double variance = grid_count > 1
+                            ? std::max(0.0,
+                                (sum_square - static_cast<double>(grid_count) * average * average) /
+                                  static_cast<double>(grid_count - 1))
+                            : 0.0;
+  const double standard_deviation = std::sqrt(variance);
+  return std::vector<float>{static_cast<float>(valid_grid_count),
+    static_cast<float>(average),
+    static_cast<float>(max_points),
+    static_cast<float>(min_points),
+    static_cast<float>(standard_deviation)};
 }
 
 }  // namespace faster_lio

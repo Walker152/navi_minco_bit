@@ -12,12 +12,8 @@ gnome-terminal -- bash -c "ros2 launch point_lio mixed_livox_pointlio_intra_proc
 sleep 5
 
 # ICP
-# gnome-terminal -- bash c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
-# sleep 1
-
-# Cloud Crop Filter
-# gnome-terminal -- bash -c "ros2 launch msg_convert cloud_registered_crop_filter.launch.py; exec bash"
-# sleep 1
+gnome-terminal -- bash -c "ros2 launch icp_relocalization gicp_relocalization.launch.py; exec bash"
+sleep 1
 
 # Navigation2
 gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"
@@ -52,9 +48,13 @@ ROSBAG_TOPICS=(
   /minco_control_points_vis
   /rog_map/layer_height_delta
   # /livox/lidar
+  # /livox/imu_192_168_1_122
   # /livox/imu_192_168_1_135
+  # /livox/lidar_192_168_1_122
+  # /livox/lidar_192_168_1_135
+
 )
-gnome-terminal -- bash -c "mkdir -p ~/rosbag && ros2 bag record -o ~/rosbag/$(date +%Y%m%d_%H%M%S) ${ROSBAG_TOPICS[*]}; exec bash"
+# gnome-terminal -- bash -c "mkdir -p ~/rosbag && ros2 bag record -o ~/rosbag/$(date +%Y%m%d_%H%M%S) ${ROSBAG_TOPICS[*]}; exec bash"
 
 # Foxglove
 # gnome-terminal -- bash -c "ros2 launch foxglove_bridge foxglove_bridge_launch.xml port:=8765; exec bash"

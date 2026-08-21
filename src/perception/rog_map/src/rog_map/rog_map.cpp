@@ -74,7 +74,10 @@ void ROGMap::init()
   performance_monitor_->configure(perf_cfg);
   MapRegistry::set(query_);
 
-  robot_state_.p = cfg_.fix_map_origin;
+  {
+    std::lock_guard<std::mutex> lock(robot_state_mutex_);
+    robot_state_.p = cfg_.fix_map_origin;
+  }
 
   if (cfg_.map_sliding_en) {
     slideAllMap(Vec3f(0, 0, 0));
@@ -97,7 +100,7 @@ void ROGMap::init()
     cur_pose.first = Vec3f(0, 0, 0);
     updateOccPointCloud(*pcd_map);
     if (cfg_.esdf_en) {
-      esdf_map_->updateESDF3D(robot_state_.p);
+      esdf_map_->updateESDF3D(cfg_.fix_map_origin);
     }
     refreshLayers();
     refreshQuery();
@@ -298,6 +301,7 @@ void ROGMap::updateMap(const PointCloud & cloud, const Pose & pose)
     return;
   }
 
+  updateRobotState(pose);
   updateMapInternal(cloud, pose);
 }
 
@@ -315,9 +319,6 @@ void ROGMap::updateMapInternal(const PointCloud & cloud, const Pose & pose)
     offset_world.z() = cfg_.map_center_offset.z();
     map_center_pos += offset_world;
   }
-  Pose map_center_pose = sensor_pose;
-  map_center_pose.first = map_center_pos;
-
   const auto total_start = std::chrono::steady_clock::now();
   const double update_stamp = getSystemWalltimeNow();
   static uint64_t update_sequence = 0;
@@ -325,14 +326,12 @@ void ROGMap::updateMapInternal(const PointCloud & cloud, const Pose & pose)
   const uint64_t projection_sequence_before = projection_sequence_;
   const uint64_t mask_sequence_before = mask_sequence_;
   const uint64_t field_sequence_before = field_sequence_;
-  updateRobotState(map_center_pose);
-  const double update_robot_state_ms = elapsedMs(total_start);
   const double now = getSystemWalltimeNow();
   setUpdateTime(now);
   updateProbMap(cloud, sensor_pose, map_center_pos);
   runtime_stats_.stamp = update_stamp;
   runtime_stats_.update_seq = static_cast<double>(this_update_sequence);
-  runtime_stats_.update_robot_state_time = update_robot_state_ms;
+  runtime_stats_.update_robot_state_time = 0.0;
   runtime_stats_.projection_sequence_delta =
     static_cast<double>(projection_sequence_ - projection_sequence_before);
   runtime_stats_.mask_sequence_delta = static_cast<double>(mask_sequence_ - mask_sequence_before);
@@ -348,7 +347,7 @@ void ROGMap::updateMapInternal(const PointCloud & cloud, const Pose & pose)
     runtime_stats_.decay_time = elapsedMs(decay_start);
   }
   if (decay_changed && cfg_.esdf_en) {
-    esdf_map_->updateESDF3D(robot_state_.p);
+    esdf_map_->updateESDF3D(map_center_pos);
   }
 
   const auto layers_start = std::chrono::steady_clock::now();
@@ -417,7 +416,6 @@ void ROGMap::refreshLayers()
   z_min = std::max(z_min, localMapMinIndex().z());
   z_max = std::min(z_max, localMapMaxIndex().z());
 
-  const std::vector<uint8_t> old_fused_mask = fused_projection_mask_;
   const ProjectionSlideResult slide_result = layer_->syncSlidingWindow(
     width, height, res, Eigen::Vector2i(min_id.x(), min_id.y()), origin, layer_cfg);
   const bool geometry_changed = slide_result.full_refresh_required;
@@ -581,18 +579,61 @@ void ROGMap::refreshLayers()
     runtime_stats_.projection_refresh_reason = "time_clear";
   }
 
-  PriorMapTransform2D prior_transform;
-  const PriorMapTransform2D * prior_transform_ptr = nullptr;
-  if (cfg_.prior_map_enable && prior_map_.loaded && getPriorMapTransform(prior_transform)) {
-    prior_transform_ptr = &prior_transform;
+  const bool prior_enabled = cfg_.prior_map_enable && prior_map_.loaded;
+  bool transform_initialized = false;
+  if (prior_enabled && !prior_map_.transform_ready) {
+    PriorMapTransform2D prior_transform;
+    if (getPriorMapTransform(prior_transform)) {
+      transform_initialized =
+        initializePriorMapTransformOnce(prior_map_, prior_transform);
+    }
   }
-  rebuildFusedProjection(prior_transform_ptr);
 
-  const auto & new_mask = fused_projection_mask_;
-  bool mask_changed = slide_result.window_moved || old_fused_mask.size() != new_mask.size();
-  if (!mask_changed) {
-    mask_changed = !std::equal(old_fused_mask.begin(), old_fused_mask.end(), new_mask.begin());
+  bool prior_changed = false;
+  if (prior_enabled) {
+    prior_changed = refreshPriorMapProjectionCache(prior_map_,
+      min_id.x(),
+      min_id.y(),
+      width,
+      height,
+      res,
+      origin.x(),
+      origin.y());
   }
+  const bool prior_visualization_invalid = prior_projection_mask_.size() != cell_count;
+  if (prior_changed || prior_visualization_invalid) {
+    if (prior_enabled && prior_map_.projection_cache_ready &&
+        prior_map_.cached_mask.size() == cell_count) {
+      prior_projection_mask_ = prior_map_.cached_mask;
+    } else {
+      prior_projection_mask_.assign(cell_count, 1U);
+    }
+  }
+  if (transform_initialized && prior_map_.projection_cache_ready) {
+    const auto occupied_count =
+      std::count(prior_map_.cached_mask.begin(), prior_map_.cached_mask.end(), 0U);
+    std::cout << "[PriorMap] initialized local projection cache "
+              << width << "x" << height << " at " << res
+              << " m/cell, occupied=" << occupied_count << std::endl;
+  }
+
+  const bool fused_buffer_invalid =
+    fused_projection_mask_.size() != layer_->mask().size() ||
+    fused_projection_values_.size() != layer_->values().size();
+  const bool need_fuse = layer_updated || prior_changed || fused_buffer_invalid;
+  bool mask_changed = false;
+  if (need_fuse) {
+    const std::vector<uint8_t> old_fused_mask = fused_projection_mask_;
+    rebuildFusedProjection(prior_enabled);
+    const auto & updated_mask = fused_projection_mask_;
+    mask_changed =
+      slide_result.window_moved || old_fused_mask.size() != updated_mask.size();
+    if (!mask_changed) {
+      mask_changed =
+        !std::equal(old_fused_mask.begin(), old_fused_mask.end(), updated_mask.begin());
+    }
+  }
+  const auto & new_mask = fused_projection_mask_;
   if (mask_changed) {
     ++mask_sequence_;
   }
@@ -760,7 +801,7 @@ void ROGMap::refreshLayers()
   runtime_stats_.field_sequence = static_cast<double>(field_sequence_);
 }
 
-void ROGMap::rebuildFusedProjection(const PriorMapTransform2D * transform)
+void ROGMap::rebuildFusedProjection(bool prior_enabled)
 {
   if (!layer_ || layer_->empty()) {
     fused_projection_mask_.clear();
@@ -769,20 +810,12 @@ void ROGMap::rebuildFusedProjection(const PriorMapTransform2D * transform)
     return;
   }
 
-  const PriorMapTransform2D * fused_transform =
-    (cfg_.prior_map_enable && prior_map_.loaded) ? transform : nullptr;
-  fusePriorMapProjection(prior_map_,
-    fused_transform,
-    layer_->width(),
-    layer_->height(),
-    layer_->resolution(),
-    layer_->origin().x(),
-    layer_->origin().y(),
+  fusePriorMapProjection(prior_enabled,
+    prior_map_,
     layer_->mask(),
     layer_->values(),
     fused_projection_mask_,
-    fused_projection_values_,
-    &prior_projection_mask_);
+    fused_projection_values_);
 }
 
 void ROGMap::refreshQuery()
@@ -845,15 +878,16 @@ void ROGMap::refreshQuery()
 
 RobotState ROGMap::getRobotState() const
 {
+  std::lock_guard<std::mutex> lock(robot_state_mutex_);
   return robot_state_;
 }
 
 void ROGMap::updateRobotState(const Pose & pose)
 {
+  std::lock_guard<std::mutex> lock(robot_state_mutex_);
   robot_state_.p = pose.first;
   robot_state_.q = pose.second;
   robot_state_.rcv_time = getSystemWalltimeNow();
   robot_state_.rcv = true;
   robot_state_.yaw = get_yaw_from_quaternion<double>(pose.second);
-  updateLocalBox(pose.first);
 }

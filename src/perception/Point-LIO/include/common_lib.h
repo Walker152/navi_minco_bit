@@ -12,6 +12,8 @@
 #include <queue>
 #include <sensor_msgs/msg/imu.hpp>
 
+#include "time_batching.h"
+
 using namespace std;
 using namespace Eigen;
 
@@ -113,29 +115,18 @@ T calc_dist(Eigen::Vector3d p1, PointType p2)
 }
 
 template <typename T>
-std::vector<int> time_compressing(const PointCloudXYZI::Ptr & point_cloud)
+std::vector<int> time_compressing(
+  const PointCloudXYZI::Ptr & point_cloud, double time_bin_ms = 0.0)
 {
-  int points_size = point_cloud->points.size();
-  int j = 0;
-  std::vector<int> time_seq;
-  // time_seq.clear();
-  time_seq.reserve(points_size);
-  for (int i = 0; i < points_size - 1; i++) {
-    j++;
-    if (point_cloud->points[i + 1].curvature > point_cloud->points[i].curvature) {
-      time_seq.emplace_back(j);
-      j = 0;
-    }
+  if (!point_cloud) {
+    return {};
   }
-  //   if (j == 0)
-  //   {
-  //     time_seq.emplace_back(1);
-  //   }
-  //   else
-  {
-    time_seq.emplace_back(j + 1);
-  }
-  return time_seq;
+
+  return point_lio::build_time_batches(
+    point_cloud->points.size(), time_bin_ms,
+    [&point_cloud](std::size_t index) {
+      return static_cast<double>(point_cloud->points[index].curvature);
+    });
 }
 
 /* comment

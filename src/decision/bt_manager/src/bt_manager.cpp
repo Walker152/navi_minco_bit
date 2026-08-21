@@ -42,9 +42,16 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<CheckManualOverride>("CheckManualOverride");
   factory_.registerNodeType<CheckOutpostSafeResponse>("CheckOutpostSafeResponse");
   factory_.registerNodeType<CheckOutpostRemained>("CheckOutpostRemained");
+  factory_.registerNodeType<UpdateOutpostAttackState>("UpdateOutpostAttackState");
+  factory_.registerNodeType<CheckOutpostAttackState>("CheckOutpostAttackState");
   factory_.registerNodeType<SetEnemyOutpostDestroyed>("SetEnemyOutpostDestroyed");
+  factory_.registerNodeType<CheckHeroGuardActive>("CheckHeroGuardActive");
+  factory_.registerNodeType<SetHeroGuardActive>("SetHeroGuardActive");
+  factory_.registerNodeType<UpdateHighlandFallbackState>("UpdateHighlandFallbackState");
+  factory_.registerNodeType<CheckHighlandFallbackActive>("CheckHighlandFallbackActive");
   factory_.registerNodeType<CheckOwnOutpostAlive>("CheckOwnOutpostAlive");
   factory_.registerNodeType<CheckTargetLocked>("CheckTargetLocked");
+  factory_.registerNodeType<CheckTargetArmorId>("CheckTargetArmorId");
   factory_.registerBuilder<NavigateToPoseAction>(
     "NavigateToPoseAction", [](const std::string & name, const BT::NodeConfiguration & config) {
       return std::make_unique<NavigateToPoseAction>(name, "navigate_to_pose", config);
@@ -85,14 +92,17 @@ void SentryBTManager::registerNodes()
   // stance
   factory_.registerNodeType<CheckHeat>("CheckHeat");
   factory_.registerNodeType<CheckOutpostTarget>("CheckOutpostTarget");
+  factory_.registerNodeType<CheckOutpostLowHealthDefend>("CheckOutpostLowHealthDefend");
   factory_.registerNodeType<CheckEngagedStatus>("CheckEngagedStatus");
   factory_.registerNodeType<CheckHealth>("CheckHealth");
+  factory_.registerNodeType<CheckEnemyAreaRecentlyHurt>("CheckEnemyAreaRecentlyHurt");
   factory_.registerNodeType<CheckTargetDistance>("CheckTargetDistance");
   factory_.registerNodeType<CheckCrossZoneTransition>("CheckCrossZoneTransition");
   factory_.registerNodeType<CheckCapacitorCapacity>("CheckCapacitorCapacity");
   factory_.registerNodeType<CheckStanceCooldown>("CheckStanceCooldown");
   factory_.registerNodeType<CheckStanceEffectLimit>("CheckStanceEffectLimit");
   factory_.registerNodeType<CheckManualStanceOverride>("CheckManualStanceOverride");
+  factory_.registerNodeType<CheckShouldEnhanceStance>("CheckShouldEnhanceStance");
   factory_.registerNodeType<ApplyManualStanceOverride>("ApplyManualStanceOverride");
   factory_.registerNodeType<CheckStanceRefreshRequired>("CheckStanceRefreshRequired");
   factory_.registerNodeType<SetGyroState>("SetGyroState");
@@ -101,6 +111,7 @@ void SentryBTManager::registerNodes()
   factory_.registerNodeType<UpdateStanceDuration>("UpdateStanceDuration");
   factory_.registerNodeType<CheckTunnelDeformation>("CheckTunnelDeformation");
   factory_.registerNodeType<CheckInEnemyFortZone>("CheckInEnemyFortZone");
+  factory_.registerNodeType<CheckEnemyDefenseHealthDrop>("CheckEnemyDefenseHealthDrop");
 
   // gimbal
   factory_.registerNodeType<CheckTargetVisible>("CheckTargetVisible");

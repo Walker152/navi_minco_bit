@@ -41,14 +41,21 @@ struct Point2D
 struct TunnelRecoveryConfig
 {
   float tunnel_pass_yaw_target_rad;  // Desired yaw when passing this tunnel, in radians
+  float recovery_vx_mps;             // Tunnel recovery velocity in the world x direction
+  float recovery_vy_mps;             // Tunnel recovery velocity in the world y direction
+  bool fixed_alignment;              // Use the configured yaw without selecting the opposite heading
 
   TunnelRecoveryConfig()
-  : tunnel_pass_yaw_target_rad(0.0f)
+  : tunnel_pass_yaw_target_rad(0.0f), recovery_vx_mps(0.0f), recovery_vy_mps(0.0f), fixed_alignment(false)
   {
   }
 
-  explicit TunnelRecoveryConfig(float tunnel_pass_yaw_target_rad_)
-  : tunnel_pass_yaw_target_rad(tunnel_pass_yaw_target_rad_)
+  TunnelRecoveryConfig(float tunnel_pass_yaw_target_rad_,
+    float recovery_vx_mps_,
+    float recovery_vy_mps_,
+    bool fixed_alignment_ = false)
+  : tunnel_pass_yaw_target_rad(tunnel_pass_yaw_target_rad_), recovery_vx_mps(recovery_vx_mps_),
+    recovery_vy_mps(recovery_vy_mps_), fixed_alignment(fixed_alignment_)
   {
   }
 };
@@ -222,7 +229,8 @@ typedef enum _NavGoal
   ENEMY_OUTPOST = 2,
   OWN_FORT = 3,
   ENEMY_FORT = 4,
-  OWN_OUTPOST = 5
+  OWN_OUTPOST = 5,
+  HERO_GUARD = 6
 } NavGoal;
 
 typedef enum _SentryStance

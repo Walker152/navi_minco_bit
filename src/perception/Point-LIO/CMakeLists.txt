@@ -92,6 +92,7 @@ set(POINT_LIO_MAPPING_SOURCES
   src/preprocess.cpp
   src/Estimator.cpp
   src/IMU_Processing.cpp
+  src/runtime_statistics.cpp
 )
 
 add_library(point_lio_component SHARED

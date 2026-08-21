@@ -107,6 +107,22 @@ flowchart LR
 | MincoMpcController | `/cmd_vel_mpc` | communication / 底盘 | MPC 发布的世界坐标系速度控制话题 |
 | bt_manager | Nav2 action / blackboard | Nav2、communication | 比赛策略和状态切换 |
 
+### 技术路径与性能路径
+
+本仓库文档把“算法如何工作”和“系统如何保持实时”分开描述：
+
+| 模块 | 技术方向 | 性能方向 |
+|---|---|---|
+| Livox Driver | 双雷达按时间窗配对、`back → front` 外参融合 | 同容器、`UniquePtr` 移动发布，避免大消息内部复制 |
+| Point-LIO | 预处理 → IMU 传播/去畸变 → 2 ms batch → iVox KNN → ESIKF | 定位点降采样、完整云独立链路、传感器时间 odom 限频、运行时 CSV |
+| ROGMap | raycast 概率占据 → 单柱投影 → 保守先验融合 → Signed ESDF | latest-state QoS、dirty column、可选并行 raycast、进程内查询、分阶段 CSV |
+| MincoPlanner | A*/SMAC → 局部裁剪 → 稀疏化 → 梯形/三角加减速 → MINCO | 限制前视与控制点规模、latest-state odom、可视化限深度、规划 CSV |
+| MincoMpcController | 参考构造 → 补偿 → 凝聚 QP → 速度输出 | 30 维控制量 QP、latest-state odom、深度 1 输出、控制 CSV |
+| Communication | 世界系速度/行为指令 → 姿态对齐 → 协议打包 | 独立 callback group、10 ms timer、可选串口/时间匹配 CSV |
+| BT Manager | 裁判/状态 → blackboard → 响应式策略树 | 10 Hz tick、状态转移日志、transient-local 区域 Marker |
+
+各模块 README 给出对应流程图、流程概述、技术方向、性能方向和当前不足。根 README 只维护跨模块契约，尤其是 QoS、frame、topic 和性能开关。
+
 ## ✨ 功能亮点
 
 ### ⚡ 1. 双雷达驱动侧融合与进程内传输
@@ -121,7 +137,7 @@ flowchart LR
 - `preprocess.blind_center` 将盲区球心从雷达原点移动到机器人关注中心，避免双雷达融合后仍围绕单雷达原点裁剪近场点。
 - 稠密点按时间戳进入有序队列，结合前后状态快照做分段前向运动补偿；过期、乱序和非有限点会被丢弃并计数，输出前统一变换到 `camera_init`。
 - `/cloud_registered_full` 使用 `SensorDataQoS().keep_last(1)`，让 ROGMap 优先消费最新帧，避免高负载时旧点云排队累积延迟。
-- 雷达回调与 LIO 处理线程解耦；点云输入、odom 发布、位姿更新、队列丢弃等统计可按周期聚合输出，避免逐点高频日志。
+- 雷达回调与 LIO 处理线程解耦；定位更新按当前 `2 ms` 时间窗 batch 处理，点云输入、odom 发布、EKF/iVox 和队列统计由总开关控制。
 - `/Laser_map` 支持按 `accumulated_map_publish_hz` 低频发布累计地图。
 
 ### 🗺️ 3. ROGMap 滑动中心、动态遗忘与地形语义
@@ -130,7 +146,7 @@ flowchart LR
 - `map_sliding.center_offset` 允许地图滑窗中心跟随机器人几何中心，而不是固定围绕 LIO 原点。
 - ProjectionLayer 根据单个 XY 柱内的占据高度跨度和垂直占据率，输出 `FREE / PASSABLE / OCCUPIED / UNKNOWN` 四类地形语义。
 - ProjectionLayer 支持保守先验合并：将 Nav2 YAML/PGM 先验地图变换到在线投影坐标系，先验中的占据栅格强制并入融合结果；该过程只增加硬障碍，不会用先验 free 清除在线障碍。
-- dirty-column 增量刷新、并行 Raycasting 和进程内地图查询减少全量遍历与 ROS 消息往返。
+- dirty-column 增量刷新、可选并行 Raycasting 和进程内地图查询减少全量遍历与 ROS 消息往返；当前比赛 YAML 默认关闭并行 raycast。
 - Signed ESDF 提供障碍外正距离、障碍内负距离和连续梯度，供搜索、优化和恢复共同使用。
 
 ### 🛤️ 4. PRIORMAP / EXPLORATION 双模式 MINCO 规划
@@ -138,7 +154,7 @@ flowchart LR
 - `PRIORMAP`：利用 Nav2 先验地图完成全局引导，ROGMap 负责局部动态约束和 ESDF 代价。
 - `EXPLORATION`：不依赖先验地图，直接在 ROGMap 有效边界内搜索。
 - 前端支持 Costmap 与 ROGMap ESDF 势场融合的 SMAC 风格搜索；中间层完成局部裁剪、视线稀疏化和角点修复。
-- 后端联合优化 MINCO 控制点与段时间，约束位置安全、速度、加速度和路径吸引，并支持热启动和持续重规划。
+- 后端联合优化 MINCO 控制点与段时间，以软代价表达位置安全、速度、加速度和路径吸引，并在发布前做离散硬校验；当前热启动包含实车跟随问题下的工程折中，详见 Planner README。
 
 ### 🎯 5. SE(2) MPC 与安全恢复闭环
 
@@ -183,10 +199,12 @@ flowchart LR
 
 - [MincoPlanner](src/navigation/minco_planner/README.md)
 - [MincoMpcController](src/navigation/minco_controller/README.md)
+- [Communication](src/navigation/communication/README.md)
 - [bt_manager](src/decision/bt_manager/README.md)
 - [Point-LIO](src/perception/Point-LIO/README.md)
 - [ROGMap / Projection / ESDF](src/perception/rog_map/README.md)
 - [Livox ROS Driver 2](src/perception/livox_ros_driver2/README.md)
+- [CloudLab 点云与地图编辑器](src/utils/pcd_trans/README.md)
 
 ## 🛠️ 安装与构建
 
@@ -196,8 +214,8 @@ flowchart LR
 - ROS 2 Humble Desktop
 - GCC / G++ 与 C++17
 - Livox-SDK2
-- Nav2、BehaviorTree.CPP v3、PCL、Eigen3、OpenMP、yaml-cpp、glog、fmt
-- 可选：OpenCV（地图工具）、STVL（Nav2 动态体素层）
+- Nav2、STVL、BehaviorTree.CPP v3、PCL、Eigen3、OpenMP、yaml-cpp、glog、fmt
+- 可选：OpenCV（地图工具）
 
 > [!NOTE]
 > 仓库已经包含 qpOASES third-party 回退实现。部分包的 `package.xml` 仍未覆盖所有系统依赖，`rosdep` 之后可能仍需按报错安装系统库。
@@ -205,15 +223,30 @@ flowchart LR
 ### 2. 安装 ROS 依赖
 
 ```bash
-source /opt/ros/humble/setup.bash
+# 本仓库以 Humble 为基线；如使用其他 ROS 2 版本，请提前设置 ROS_DISTRO
+export ROS_DISTRO="${ROS_DISTRO:-humble}"
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
 sudo apt update
 sudo apt install -y \
   python3-colcon-common-extensions python3-rosdep \
   libeigen3-dev libpcl-dev libyaml-cpp-dev libgoogle-glog-dev \
-  libunwind-dev libfmt-dev libopencv-dev \
-  ros-humble-navigation2 ros-humble-nav2-bringup \
-  ros-humble-behaviortree-cpp-v3 \
-  ros-humble-spatio-temporal-voxel-layer
+  libunwind-dev libfmt-dev libopencv-dev libomp-dev \
+  ros-${ROS_DISTRO}-backward-ros \
+  ros-${ROS_DISTRO}-pcl-ros \
+  ros-${ROS_DISTRO}-pcl-conversions \
+  ros-${ROS_DISTRO}-ament-cmake \
+  ros-${ROS_DISTRO}-ament-cmake-core \
+  ros-${ROS_DISTRO}-ament-cmake-auto \
+  ros-${ROS_DISTRO}-behaviortree-cpp-v3 \
+  ros-${ROS_DISTRO}-spatio-temporal-voxel-layer
+
+# 安装当前 ROS 2 发行版仓库中所有 nav* / nav2* 二进制包，排除调试符号包
+mapfile -t ros_nav_packages < <(
+  apt-cache pkgnames \
+    | grep -E "^ros-${ROS_DISTRO}-(nav|nav2)" \
+    | grep -v -- '-dbgsym$'
+)
+sudo apt install -y "${ros_nav_packages[@]}"
 
 sudo rosdep init  # 仅首次安装 rosdep 时执行
 rosdep update
@@ -222,7 +255,16 @@ rosdep install --from-paths src --ignore-src -r -y
 
 若 `sudo rosdep init` 提示已初始化，直接继续 `rosdep update`。
 
-### 3. 安装 Livox-SDK2
+### 3. 安装 small_gicp 与 Sophus
+
+`small_gicp` 和 `Sophus` 需要按照各自仓库的源码安装教程安装到系统路径：
+
+- [small_gicp 官方安装教程](https://github.com/koide3/small_gicp#installation)
+- [Sophus 官方源码构建说明](https://github.com/strasdat/Sophus#how-to-build-sophus-from-source)
+
+请安装 C++ 版本；不要用同名 Python 包代替。安装完成后再构建本工作空间。
+
+### 4. 安装 Livox-SDK2
 
 按照 [Livox-SDK2 官方说明](https://github.com/Livox-SDK/Livox-SDK2) 安装。典型流程如下：
 
@@ -235,13 +277,14 @@ make -j"$(nproc)"
 sudo make install
 ```
 
-### 4. 获取仓库并构建
+### 5. 获取仓库并构建
 
 ```bash
 git clone --branch rog_map_work --single-branch \
   https://github.com/Walker152/navi_minco_bit.git ~/2025-sentry-navi
 cd ~/2025-sentry-navi
-source /opt/ros/humble/setup.bash
+export ROS_DISTRO="${ROS_DISTRO:-humble}"
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
 ./build.bash
 source install/setup.bash
 ```
@@ -312,7 +355,7 @@ ros2 topic hz /livox/lidar
 
 ```yaml
 preprocess:
-  blind: 0.45
+  blind: 0.35
   blind_center_enable: true
   blind_center: [0.0, 0.20, 0.0]
 
@@ -436,7 +479,8 @@ scan_z_max_abs ≈ h_max - h_lidar
 
 ```bash
 cd ~/2025-sentry-navi
-source /opt/ros/humble/setup.bash
+export ROS_DISTRO="${ROS_DISTRO:-humble}"
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
 source install/setup.bash
 ```
 
@@ -561,7 +605,7 @@ ros2 launch point_lio single_livox_pointlio_intra_process.launch.py
 | `controller_frequency` | `100 Hz` | Nav2 控制服务器频率 |
 | `FollowPath.dt` | `0.05 s` | MPC 模型离散周期 |
 | `FollowPath.lookahead_time` | `0.5 s` | 预测时域 |
-| `FollowPath.control_delay_compensation` | `0.15 s` | 控制链路延迟前推 |
+| `FollowPath.control_delay_compensation` | `0.05 s` | 控制链路延迟前推 |
 | `FollowPath.lidar_offset_x/y` | `0.0 / -0.20 m` | 控制状态杆臂补偿 |
 | `FollowPath.lidar_roll_offset` | `0.1745 rad` | 安装滚转补偿 |
 | `FollowPath.vx/vy_min/max` | `±3.0 m/s` | 平移速度约束 |
@@ -615,6 +659,43 @@ map
 
 > [!NOTE]
 > 开启 intra-process 并不自动保证所有路径零拷贝；发布/订阅消息所有权、QoS 兼容性和组件是否处于同一容器同样关键。当前实现通过 UniquePtr 和同容器组合尽量减少点云复制。
+
+## 📡 特殊 QoS 配置
+
+以下只列出源码中显式偏离普通默认队列语义、或对跨模块匹配特别重要的 topic。未列出的接口不代表没有 QoS，需以实际源码和 `ros2 topic info --verbose` 为准。
+
+| Topic / 接口 | 发布 / 订阅侧 | 当前显式 QoS | 设计目的与注意事项 |
+|---|---|---|---|
+| Livox 点云输入 | Point-LIO 订阅 | `SensorDataQoS` + `UniquePtr` | 低延迟传感器流；Driver publisher 必须与其兼容 |
+| Livox IMU 输入 | Point-LIO 订阅 | `SensorDataQoS` | 低延迟 IMU；当前源码未显式扩大 depth |
+| `/cloud_registered_full` | Point-LIO 发布、ROGMap 订阅 | `SensorDataQoS().keep_last(1)`；订阅为 `UniquePtr` 且启用 intra-process | 大点云只保留最新帧，过载时丢旧帧 |
+| `/aft_mapped_to_init` | Planner、Controller、ROGMap、Communication 订阅 | `KeepLast(1) + best_effort + volatile` | latest-state odom，避免高频历史消息积压 |
+| `/opt_path` | Planner 发布 | `KeepLast(1)` | 只保留最近轨迹；Controller 订阅当前为 `SystemDefaultsQoS`，部署时需确认兼容 |
+| `/minco_candidate_path_vis`、`/astar_path_vis`、`/minco_control_points_vis` | Planner 发布 | `KeepLast(1) + transient_local` | RViz 后加入仍可取得最近诊断结果 |
+| `/opt_path_vis`、`/recover_path`、`/recover_goal` | Planner 发布 | `KeepLast(1)` | 避免可视化历史积压 |
+| `/rog_map/*` 可视化 | ROGMap 发布 | `KeepLast(1) + best_effort + volatile` | 调试数据不阻塞地图更新，RViz QoS 需匹配 best-effort |
+| `/mpc_predict_path`、`/mpc_real_path`、`/cmd_vel_mpc` | Controller 发布 | 深度 1 | 控制和预测只保留最近结果 |
+| `/sentry/area_markers` | BT Manager 发布 | `KeepLast(1) + reliable + transient_local` | 静态/低频区域 Marker 对后加入 RViz 可见 |
+| Nav2 静态地图订阅 | costmap/map saver | `map_subscribe_transient_local: true` | 获取 map server 最近发布的持久化地图 |
+
+> [!WARNING]
+> best-effort latest-state 适合 odom、点云和高频可视化，不适合必须逐条可靠送达的事件。修改任一端 QoS 前必须同时检查发布者、订阅者和 RViz/Nav2 的兼容性。
+
+## 📈 性能记录开关
+
+实时模块的 CSV 并非统一由一个全局开关控制：
+
+| 模块 | 总开关 | CSV / 默认路径 | 默认状态 |
+|---|---|---|---|
+| Point-LIO | `runtime_pos_log_enable` | `performance.csv`、IMU/状态日志；目录由 `runtime_log_path` 控制 | 关闭 |
+| ROGMap | `MincoPlanner.rog_map.performance.enable`，另有 detailed/summary 子开关 | `/tmp/rog_map_perf_detailed.csv`、`/tmp/rog_map_perf_summary.csv` | 聚合总开关开，CSV 关闭 |
+| MincoPlanner | `MincoPlanner.performance.enable` | `/tmp/minco_perf_detailed.csv` | 关闭 |
+| MincoMpcController | `FollowPath.performance.enable` | `/tmp/mpc_perf_detailed.csv` | 总开关/打印开启，detailed CSV 关闭 |
+| Communication | `communication.enable_performance_diagnostics` | `/tmp/communication_logs/sent_messages_*.csv` | 关闭 |
+| BT Manager | 无统一性能 CSV；使用 `bt_debug_*` 转移日志开关 | `logs/bt_transition.log` | 文件日志关闭 |
+| Livox Driver | 当前无统一性能 CSV | 使用 topic hz、时间戳和 Point-LIO 输入统计 | — |
+
+开启 detailed CSV 会增加计时、互斥和磁盘 IO。比赛运行时应先用终端 summary 或短时采样定位阶段，再按模块单独打开 CSV。
 
 ## 🔭 可视化与运行诊断
 
@@ -685,6 +766,11 @@ ros2 topic hz /cmd_vel_mpc
 - `camera_init → base_link` 平移偏置仍在 Point-LIO 源码中硬编码，车辆几何参数尚未完全统一到 YAML。
 - `start.bash` 假设 GNOME 桌面、固定工作空间路径和可用 sudo，不是通用服务管理器。
 - 仓库包含比赛验证逻辑和实验性模块；`dbscan_cluster`、部分恢复/裁剪分支默认未启用。
+- Planner 为补偿电控速度稳态跟踪误差，在误差门控超限时仍强制使用热启动速度/加速度；热启动位置取 odom，而不是旧轨迹期望位置，P/V/A 边界状态来源不一致。
+- 主 MINCO 优化没有安全走廊硬约束，总代价上限门控当前停用；ESDF/动力学为软代价，发布前采样校验只能拒绝候选，不能阻止极端情况下先产生畸形数值解。
+- 动态避障响应受点云/ROGMap 刷新、FSM 触发、旧轨迹复用和新轨迹接受共同影响，当前现场表现仍不够灵敏。
+- ROGMap ProjectionLayer 依赖雷达安装位置与地面点云覆盖，尚未实现坡面分割；堡垒与普通坡面的区分仍依赖先验地图和场景参数。
+- Point-LIO 的 2 ms batch 降低 ESIKF 更新频率，但 iVox KNN 仍按 batch 内点执行；DEFAULT 线性节点、体素点密度和邻域范围可能形成搜索瓶颈，当前还缺逐 KNN 延迟分布。
 
 ## 🤝 安全与贡献
 

@@ -30,6 +30,7 @@ Astar::Astar(unsigned int nx, unsigned int ny) : nx(nx), ny(ny), ns(nx * ny)
   curP = new int[ns];
   nextP = new int[ns];
   overP = new int[ns];
+  dynamic_collision_cache_.assign(static_cast<size_t>(ns), -1);
 
   costarr = NULL;
   start[0] = 0;
@@ -65,6 +66,48 @@ void Astar::setCostmap(const unsigned char * costmap, bool /*isROS*/, bool allow
 void Astar::setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map)
 {
   map_ = map;
+}
+
+void Astar::setESDFQuery(const std::shared_ptr<rog_map::MapQueryInterface> & query)
+{
+  esdf_query_ = query;
+  std::fill(dynamic_collision_cache_.begin(), dynamic_collision_cache_.end(), -1);
+}
+
+void Astar::setCollisionDistance(double collision_distance)
+{
+  collision_distance_ = std::max(0.0, collision_distance);
+  std::fill(dynamic_collision_cache_.begin(), dynamic_collision_cache_.end(), -1);
+}
+
+bool Astar::isDynamicCollision(int index)
+{
+  if (!map_ || !esdf_query_ || collision_distance_ <= 0.0 || index < 0 || index >= ns) {
+    return false;
+  }
+
+  const size_t cache_index = static_cast<size_t>(index);
+  if (cache_index >= dynamic_collision_cache_.size()) {
+    return false;
+  }
+  if (dynamic_collision_cache_[cache_index] >= 0) {
+    return dynamic_collision_cache_[cache_index] != 0;
+  }
+
+  const unsigned int mx = static_cast<unsigned int>(index % nx);
+  const unsigned int my = static_cast<unsigned int>(index / nx);
+  double wx = 0.0;
+  double wy = 0.0;
+  map_->mapToWorld(mx, my, wx, wy);
+  const auto result = esdf_query_->query(Eigen::Vector3d(wx, wy, 0.0));
+  if (!result.ok || !std::isfinite(result.distance)) {
+    dynamic_collision_cache_[cache_index] = 0;
+    return false;
+  }
+
+  const bool collision = result.distance < collision_distance_;
+  dynamic_collision_cache_[cache_index] = collision ? 1 : 0;
+  return collision;
 }
 
 void Astar::setStart(int x, int y)
@@ -114,6 +157,7 @@ void Astar::setSize(int nx, int ny)
   nextP = new int[ns];
   delete[] overP;
   overP = new int[ns];
+  dynamic_collision_cache_.assign(static_cast<size_t>(ns), -1);
 }
 
 void Astar::setupNavFn(bool /*keepit*/)
@@ -129,8 +173,12 @@ void Astar::setupNavFn(bool /*keepit*/)
   curPe = 0;
   nextPe = 0;
   overPe = 0;
+  std::fill(dynamic_collision_cache_.begin(), dynamic_collision_cache_.end(), -1);
 
   int goal_idx = goal[1] * nx + goal[0];
+  if (isDynamicCollision(goal_idx)) {
+    return;
+  }
   potarr[goal_idx] = 0.0;
 
   curP[curPe++] = goal_idx;
@@ -192,8 +240,9 @@ bool Astar::calcPath(int /*nplan*/)
     bool line_clear = true;
     while (x0 != x1 || y0 != y1) {
       int idx = y0 * static_cast<int>(nx) + x0;
-      if (idx >= 0 && idx < static_cast<int>(ns) && costarr[idx] >= COST_OBS_ROS &&
-          !(allow_unknown && costarr[idx] == 255)) {
+      if (idx >= 0 && idx < static_cast<int>(ns) &&
+          ((costarr[idx] >= COST_OBS_ROS && !(allow_unknown && costarr[idx] == 255)) ||
+            isDynamicCollision(idx))) {
         line_clear = false;
         break;
       }
@@ -256,7 +305,8 @@ bool Astar::propNavFnAstar(int cycles, std::function<bool()> cancelChecker)
 
           // 检查障碍物：如果是 UNKNOWN (255) 且不允许 unknown，则跳过
           // 如果是 LETHAL (254) 或 INSCRIBED (253)，则跳过
-          if (costarr[nc] >= COST_OBS_ROS && !(allow_unknown && costarr[nc] == 255))
+          if ((costarr[nc] >= COST_OBS_ROS && !(allow_unknown && costarr[nc] == 255)) ||
+              isDynamicCollision(nc))
             continue;
 
           if (new_pot < potarr[nc]) {

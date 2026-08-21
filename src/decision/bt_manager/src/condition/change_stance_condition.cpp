@@ -58,6 +58,7 @@ CheckOutpostTarget::CheckOutpostTarget(const std::string & name, const BT::NodeC
 BT::PortsList CheckOutpostTarget::providedPorts()
 {
   return {BT::InputPort<float>("goal_distance_threshold", 0.8f, "Goal close-to-outpost threshold"),
+    BT::InputPort<bool>("require_pitch_up", false, "Require gimbal pitch mode to be UP"),
     BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
 }
 
@@ -80,14 +81,104 @@ BT::NodeStatus CheckOutpostTarget::tick()
   const auto & outpost = nav_points[static_cast<size_t>(Sentry_BT::NavGoal::ENEMY_OUTPOST)];
   const bool nav_goal_is_outpost =
     std::hypot(nav_goal.x - outpost.x, nav_goal.y - outpost.y) <= static_cast<double>(dist_threshold);
-  const bool active = (attacking_outpost_mode && in_outpost_zone) && nav_goal_is_outpost;
+  const bool require_pitch_up = getInput<bool>("require_pitch_up").value_or(false);
+  const bool pitch_up = blackboard->get<PitchPos>("pitch_mode") == PitchPos::UP;
+  const bool active = attacking_outpost_mode && in_outpost_zone && nav_goal_is_outpost &&
+                      (!require_pitch_up || pitch_up);
 
   std::ostringstream oss;
   oss << "mode=" << current_mode << ", in_outpost_zone=" << in_outpost_zone
-      << ", nav_goal_is_outpost=" << nav_goal_is_outpost;
+      << ", nav_goal_is_outpost=" << nav_goal_is_outpost
+      << ", require_pitch_up=" << require_pitch_up << ", pitch_up=" << pitch_up;
   detail::logTransition(detail::TreeKind::STANCE, "CheckOutpostTarget", active, oss.str(), branch);
 
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckOutpostLowHealthDefend -------------------
+CheckOutpostLowHealthDefend::CheckOutpostLowHealthDefend(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckOutpostLowHealthDefend::providedPorts()
+{
+  return {
+    BT::InputPort<float>("health_drop_threshold", 5.0f, "Health drop from target baseline for one-shot defend"),
+    BT::InputPort<double>("hold_seconds", 5.0, "Fixed enhanced-defend duration"),
+    BT::InputPort<float>("goal_distance_threshold", 0.5f, "Enemy outpost goal threshold"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckOutpostLowHealthDefend::tick()
+{
+  const auto blackboard = config().blackboard;
+  const float health_drop_threshold =
+    getInput<float>("health_drop_threshold").value_or(5.0f);
+  const double hold_seconds = getInput<double>("hold_seconds").value_or(5.0);
+  const float goal_distance_threshold =
+    getInput<float>("goal_distance_threshold").value_or(0.5f);
+  const std::string branch = getInput<std::string>("branch").value_or("");
+
+  const int game_time_remaining = blackboard->get<int>("game_time_remaining");
+  const bool pregame_reset = game_time_remaining >= 410;
+
+  if (pregame_reset && !pregame_reset_done_) {
+    triggered_ = false;
+    active_ = false;
+    health_baseline_initialized_ = false;
+    health_baseline_ = 100.0f;
+    active_start_time_ = std::chrono::steady_clock::time_point{};
+    pregame_reset_done_ = true;
+  } else if (!pregame_reset) {
+    pregame_reset_done_ = false;
+  }
+
+  const auto now = std::chrono::steady_clock::now();
+  double active_elapsed = 0.0;
+  if (active_) {
+    active_elapsed = std::chrono::duration<double>(now - active_start_time_).count();
+    if (active_elapsed >= hold_seconds) {
+      active_ = false;
+    }
+  }
+
+  const float health = blackboard->get<float>("health");
+  const auto current_mode = blackboard->get<NavMode>("current_mode");
+  const Point2D nav_goal = blackboard->get<Point2D>("nav_goal");
+  const auto & outpost = nav_points[static_cast<size_t>(NavGoal::ENEMY_OUTPOST)];
+  const bool nav_goal_is_outpost =
+    std::hypot(nav_goal.x - outpost.x, nav_goal.y - outpost.y) <=
+    static_cast<double>(goal_distance_threshold);
+  const bool outpost_response = current_mode == NavMode::RESPONSE && nav_goal_is_outpost;
+
+  if (!outpost_response) {
+    health_baseline_initialized_ = false;
+  } else if (!health_baseline_initialized_) {
+    health_baseline_ = health;
+    health_baseline_initialized_ = true;
+  }
+
+  const float health_drop = health_baseline_ - health;
+  if (!triggered_ && outpost_response && health_baseline_initialized_ &&
+      health_drop >= health_drop_threshold) {
+    triggered_ = true;
+    active_ = true;
+    active_start_time_ = now;
+    active_elapsed = 0.0;
+  }
+
+  std::ostringstream oss;
+  oss << "health=" << health << ", baseline=" << health_baseline_
+      << ", health_drop=" << health_drop << ", drop_threshold=" << health_drop_threshold
+      << ", current_mode=" << current_mode << ", nav_goal_is_outpost=" << nav_goal_is_outpost
+      << ", triggered=" << triggered_ << ", active_elapsed=" << active_elapsed
+      << ", hold_seconds=" << hold_seconds;
+  detail::logTransition(
+    detail::TreeKind::STANCE, "CheckOutpostLowHealthDefend", active_, oss.str(), branch);
+
+  return active_ ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckEngagedStatus -------------------
@@ -148,6 +239,74 @@ BT::NodeStatus CheckHealth::tick()
   detail::logTransition(detail::TreeKind::STANCE, "CheckHealth", active, oss.str(), branch);
 
   return active ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckEnemyAreaRecentlyHurt -------------------
+CheckEnemyAreaRecentlyHurt::CheckEnemyAreaRecentlyHurt(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckEnemyAreaRecentlyHurt::providedPorts()
+{
+  return {BT::InputPort<double>("hold_seconds", 3.0, "Hold time after the latest health drop"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckEnemyAreaRecentlyHurt::tick()
+{
+  const auto blackboard = config().blackboard;
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const double hold_seconds = std::max(0.0, getInput<double>("hold_seconds").value_or(3.0));
+  const float health = blackboard->get<float>("health");
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
+  const bool in_enemy_area = enemy_defense_zone.contains(current_point);
+  const auto now = std::chrono::steady_clock::now();
+
+  // 该节点可能被更高优先级的隧道/手动分支短路。长时间未 tick 后只重建血量基线，
+  // 避免把被短路期间的历史掉血误判为刚刚受击。
+  constexpr double kMaxTickGapSeconds = 1.0;
+  const bool tick_gap_too_large =
+    initialized_ &&
+    std::chrono::duration<double>(now - last_tick_time_).count() > kMaxTickGapSeconds;
+  if (!initialized_ || tick_gap_too_large) {
+    initialized_ = true;
+    last_health_ = health;
+    last_tick_time_ = now;
+    hurt_window_active_ = false;
+    detail::logTransition(detail::TreeKind::STANCE, "CheckEnemyAreaRecentlyHurt", false,
+      tick_gap_too_large ? "reset baseline after tick gap" : "init health baseline", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  const float health_drop = last_health_ - health;
+  const bool health_dropped = health_drop > 1e-3f;
+  last_health_ = health;
+  last_tick_time_ = now;
+
+  if (health_dropped && in_enemy_area && health > 0.0f) {
+    last_hurt_time_ = now;
+    hurt_window_active_ = true;
+  }
+
+  double elapsed_since_hurt = 0.0;
+  if (hurt_window_active_) {
+    elapsed_since_hurt = std::chrono::duration<double>(now - last_hurt_time_).count();
+    if (!in_enemy_area || health <= 0.0f || elapsed_since_hurt >= hold_seconds) {
+      hurt_window_active_ = false;
+    }
+  }
+
+  std::ostringstream oss;
+  oss << "health=" << health << ", health_drop=" << health_drop
+      << ", in_enemy_area=" << in_enemy_area << ", elapsed=" << elapsed_since_hurt
+      << ", hold_seconds=" << hold_seconds;
+  detail::logTransition(
+    detail::TreeKind::STANCE, "CheckEnemyAreaRecentlyHurt", hurt_window_active_, oss.str(), branch);
+
+  return hurt_window_active_ ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckTargetDistance -------------------
@@ -503,7 +662,7 @@ BT::NodeStatus CheckInEnemyFortZone::tick()
   const std::string branch = getInput<std::string>("branch").value_or("");
   const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
   const Point2D p{current_pose.position.x, current_pose.position.y, 0.0};
-  const bool in_enemy_fort = enemy_fort_zone.contains(p);
+  const bool in_enemy_fort = enemy_fort_engage_zone.contains(p);
   // for test
   // const bool in_enemy_fort = enemy_fort_zone.contains(p);
 
@@ -513,6 +672,72 @@ BT::NodeStatus CheckInEnemyFortZone::tick()
   detail::logTransition(detail::TreeKind::STANCE, "CheckInEnemyFortZone", in_enemy_fort, oss.str(), branch);
 
   return in_enemy_fort ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
+}
+
+// ------------------- CheckEnemyDefenseHealthDrop -------------------
+CheckEnemyDefenseHealthDrop::CheckEnemyDefenseHealthDrop(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckEnemyDefenseHealthDrop::providedPorts()
+{
+  return {
+    BT::InputPort<double>("stable_seconds", 5.0, "Stable-health duration before response exits"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")};
+}
+
+BT::NodeStatus CheckEnemyDefenseHealthDrop::tick()
+{
+  const auto blackboard = config().blackboard;
+  const double stable_seconds = getInput<double>("stable_seconds").value_or(5.0);
+  const std::string branch = getInput<std::string>("branch").value_or("");
+  const float health = blackboard->get<float>("health");
+  const auto current_pose = blackboard->get<geometry_msgs::msg::Pose>("current_pose");
+  const Point2D current_point{current_pose.position.x, current_pose.position.y, 0.0};
+  const bool in_enemy_defense = enemy_defense_zone.contains(current_point);
+  const auto now = std::chrono::steady_clock::now();
+
+  // 首次 tick 仅建立血量基线，避免启动时误判为掉血。
+  if (!initialized_) {
+    initialized_ = true;
+    last_health_ = health;
+    last_health_drop_time_ = now;
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckEnemyDefenseHealthDrop", false, "init baseline", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  const bool health_dropped = (last_health_ - health) > 1e-3f;
+  last_health_ = health;
+
+  if (!in_enemy_defense) {
+    response_active_ = false;
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckEnemyDefenseHealthDrop", false,
+      "outside enemy_defense_zone", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  if (health_dropped) {
+    last_health_drop_time_ = now;
+    response_active_ = true;
+  }
+
+  double stable_duration = 0.0;
+  if (response_active_) {
+    stable_duration = std::chrono::duration<double>(now - last_health_drop_time_).count();
+    response_active_ = stable_duration < stable_seconds;
+  }
+
+  std::ostringstream oss;
+  oss << "health=" << health << ", health_dropped=" << health_dropped
+      << ", stable_duration=" << stable_duration << ", stable_seconds=" << stable_seconds;
+  detail::logTransition(
+    detail::TreeKind::STANCE, "CheckEnemyDefenseHealthDrop", response_active_, oss.str(), branch);
+
+  return response_active_ ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 // ------------------- CheckManualStanceOverride -------------------
@@ -576,7 +801,6 @@ BT::NodeStatus CheckManualStanceOverride::tick()
   }
   if (remaining_sec <= 0) {
     blackboard->set<bool>("manual_stance_override_active", false);
-    blackboard->set<ControlMode>("control_mode", ControlMode::AUTO);
     detail::logTransition(
       detail::TreeKind::STANCE, "CheckManualStanceOverride", false,
       "remaining_sec=" + std::to_string(remaining_sec) + " (timeout)", branch);
@@ -589,6 +813,123 @@ BT::NodeStatus CheckManualStanceOverride::tick()
       << ", remaining_sec=" << remaining_sec;
   detail::logTransition(detail::TreeKind::STANCE, "CheckManualStanceOverride", true, oss.str(), branch);
   return BT::NodeStatus::SUCCESS;
+}
+
+// ------------------- CheckShouldEnhanceStance -------------------
+CheckShouldEnhanceStance::CheckShouldEnhanceStance(
+  const std::string & name, const BT::NodeConfiguration & config)
+: BT::ConditionNode(name, config)
+{
+}
+
+BT::PortsList CheckShouldEnhanceStance::providedPorts()
+{
+  return {
+    BT::InputPort<std::string>("target_stance", "Target stance: ATTACK/DEFEND/MOVE"),
+    BT::InputPort<int>("accumulated_threshold", 170, "Accumulated time threshold for level-1 trigger (sec)"),
+    BT::InputPort<int>("fallback_game_time", 60, "Game time threshold for level-2 trigger (sec)"),
+    BT::InputPort<int>("min_remaining_sec", 1, "Minimum enhanced stance quota (sec)"),
+    BT::InputPort<bool>("force_if_available", false, "Enhance whenever energy and quota are available"),
+    BT::InputPort<std::string>("branch", "", "Branch/sequence tag for logging")
+  };
+}
+
+BT::NodeStatus CheckShouldEnhanceStance::tick()
+{
+  const auto blackboard = config().blackboard;
+  const std::string target = getInput<std::string>("target_stance").value_or("ATTACK");
+  const int acc_threshold = getInput<int>("accumulated_threshold").value_or(170);
+  const int fallback_time = getInput<int>("fallback_game_time").value_or(60);
+  const int min_remaining = getInput<int>("min_remaining_sec").value_or(1);
+  const bool force_if_available = getInput<bool>("force_if_available").value_or(false);
+  const std::string branch = getInput<std::string>("branch").value_or("");
+
+  // 1. 获取对应的累计时间和强化姿态名称
+  double accumulated_time = 0.0;
+  SentryStance enhanced_stance = SentryStance::ENHANCED_ATTACK;
+
+  if (target == "ATTACK") {
+    accumulated_time = blackboard->get<double>("attack_accumulated_time");
+    enhanced_stance = SentryStance::ENHANCED_ATTACK;
+  } else if (target == "DEFEND") {
+    accumulated_time = blackboard->get<double>("defend_accumulated_time");
+    enhanced_stance = SentryStance::ENHANCED_DEFEND;
+  } else if (target == "MOVE") {
+    accumulated_time = blackboard->get<double>("move_accumulated_time");
+    enhanced_stance = SentryStance::ENHANCED_MOVE;
+  }
+
+  // 2. 获取对应的强化配额
+  int remaining_time = 0;
+  switch (enhanced_stance) {
+  case SentryStance::ENHANCED_ATTACK:
+    remaining_time = blackboard->get<int>("enhanced_attack_remaining_time");
+    break;
+  case SentryStance::ENHANCED_DEFEND:
+    remaining_time = blackboard->get<int>("enhanced_defend_remaining_time");
+    break;
+  case SentryStance::ENHANCED_MOVE:
+    remaining_time = blackboard->get<int>("enhanced_move_remaining_time");
+    break;
+  default:
+    break;
+  }
+
+  // 3. 检查能量
+  const auto energy_ratio = blackboard->get<EnergyRatio>("energy_ratio");
+  if (energy_ratio == EnergyRatio::BELOW_1) {
+    detail::logTransition(
+      detail::TreeKind::STANCE, "CheckShouldEnhanceStance", false,
+      "target=" + target + ", energy_insufficient", branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  // 4. 检查配额
+  if (remaining_time < min_remaining) {
+    std::ostringstream oss;
+    oss << "target=" << target << ", quota_exhausted: remaining=" << remaining_time
+        << " < min=" << min_remaining;
+    detail::logTransition(detail::TreeKind::STANCE, "CheckShouldEnhanceStance", false, oss.str(), branch);
+    return BT::NodeStatus::FAILURE;
+  }
+
+  if (force_if_available) {
+    std::ostringstream oss;
+    oss << "target=" << target << ", should_enhance=true, quota=" << remaining_time
+        << ", trigger=forced_available";
+    detail::logTransition(detail::TreeKind::STANCE, "CheckShouldEnhanceStance", true, oss.str(), branch);
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  // 5. 触发条件判断（两级）
+  const int game_time_remaining = blackboard->get<int>("game_time_remaining");
+
+  // 一级触发：普通姿态累计快到 180s（效果降级前续命）
+  // 暂时禁用一级触发，只保留二级保底触发
+  // const bool level1_trigger = accumulated_time >= static_cast<double>(acc_threshold);
+  const bool level1_trigger = false;  // 暂时禁用
+
+  // 二级触发：比赛剩余 <= 保底时间，且配额 >= 5s（避免在最后几秒浪费开启）
+  const bool level2_trigger = (game_time_remaining <= fallback_time && remaining_time >= 5);
+
+  if (level1_trigger || level2_trigger) {
+    std::ostringstream oss;
+    oss << "target=" << target << ", should_enhance=true"
+        << ", accumulated=" << accumulated_time
+        << ", game_remaining=" << game_time_remaining
+        << ", quota=" << remaining_time
+        << ", trigger=" << (level1_trigger ? "L1(accumulated)" : "L2(fallback)");
+    detail::logTransition(detail::TreeKind::STANCE, "CheckShouldEnhanceStance", true, oss.str(), branch);
+    return BT::NodeStatus::SUCCESS;
+  }
+
+  std::ostringstream oss;
+  oss << "target=" << target << ", not_triggered"
+      << ", accumulated=" << accumulated_time << "/" << acc_threshold
+      << ", game_remaining=" << game_time_remaining << "/" << fallback_time
+      << ", quota=" << remaining_time;
+  detail::logTransition(detail::TreeKind::STANCE, "CheckShouldEnhanceStance", false, oss.str(), branch);
+  return BT::NodeStatus::FAILURE;
 }
 
 }  // namespace Sentry_BT

@@ -325,9 +325,9 @@ planner_server:
       lidar_offset_y: -0.20
       performance:
         enable: false
-        print_enable: true
+        print_enable: false
         detailed_csv_enable: false
-        odom_sub_debug_enable: true
+        odom_sub_debug_enable: false
         minco_csv_path: /tmp/minco_perf_detailed.csv
         print_period_sec: 1.0
         csv_flush_every_n: 30
@@ -353,8 +353,41 @@ planner_server:
           enable: true
           cloud_topic: /cloud_registered_full
           odom_topic: /aft_mapped_to_init
-          odom_timeout: 0.08
+          odom_timeout: 2.0
           update_period_ms: 20
+
+        # 入图前点云区域滤除；关闭时不创建过滤器，保持原始 ROGMap 数据链路。
+        cloud_filter:
+          enable: false
+          z_offset: -1.0
+          position_frame: map
+          filter_mode: transform_center   # transform_cloud | transform_center
+          remove_inside: true             # true: 删除框内点，false: 仅保留框内点
+          log_stats: false
+          stats_log_period_ms: 1000        # 0: 每帧输出
+          publish_visualization: true
+          visualization_topic: /cloud_registered_crop_filter/markers
+          visualization_period_ms: 200     # 0: 每帧发布
+          z_plane_size: 10.0
+          z_plane_thickness: 0.03
+          box_padding: 0.1
+          # positions.* 未配置或长度不一致时使用单框参数。
+          position:
+            x: 0.0
+            y: 0.0
+            z: 0.0
+          box_size:
+            x: 12.0
+            y: 6.0
+            z: 3.5
+          positions:
+            x: [15.6, 19.3, 13.4, 9.9]
+            y: [1.55, 12.9, 13.45, 2.1]
+            z: [0.2, 0.4, 0.2, 0.4]
+          box_sizes:
+            x: [0.8, 0.7, 0.8, 0.7]
+            y: [0.6, 0.4, 0.6, 0.4]
+            z: [0.1, 0.1, 0.1, 0.1]
 
         raycasting:
           enable: true
@@ -380,7 +413,7 @@ planner_server:
         decay:
           enable: true
           # [decay][s] 最后一次 hit 后保持 occupied 的最小时间；过短障碍闪烁，过长动态障碍残留。
-          keep_time: 0.8
+          keep_time: 0.5
           # [decay][s] 最后一次 hit 后强制衰减到 free 的最大时间；必须大于 keep_time。
           clear_time: 1.2
           # [decay][bool] 只维护活跃 cell 衰减列表；开启通常降低计算量，若列表维护异常会影响动态清除完整性。
@@ -392,7 +425,8 @@ planner_server:
           # 标准 Nav2 YAML/PGM 静态先验；启用后只增加二维硬障碍，不清除在线障碍。
           prior_map:
             enable: true
-            yaml_path: "src/navigation/navi2_bringup/maps/first_floor/first_floor_prior.yaml"
+            # yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior.yaml"
+            yaml_path: "src/navigation/navi2_bringup/maps/2026/rmuc2026_prior11.yaml"
             # 留空时使用 YAML 的 image 字段，并相对 YAML 所在目录解析。
             pgm_path: ""
             frame_id: map
@@ -417,12 +451,12 @@ planner_server:
           # 同一 XY 柱中最高与最低占据体素的垂直高度差 H。
           # 不超过该值时，分类为地面或坡面薄表面。
           # 这是差值，不是 ROGMap frame 中的绝对 Z 坐标。
-          surface_height_delta_max: 0.2
+          surface_height_delta_max: 0.25
 
           # [vertical height difference, m]
           # 判定竖直墙所需的最小单柱垂直高度差 H。
           # 这是差值，不是绝对 Z 坐标。
-          wall_height_delta_min: 0.40
+          wall_height_delta_min: 0.50
 
           # [dimensionless ratio, 0~1]
           # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
@@ -432,16 +466,16 @@ planner_server:
           # 可通行隧道所需的最小上下表面高度差。
           # 应包含机器人实际高度和安全余量。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_min: 0.25
+          tunnel_height_delta_min: 0.26
 
           # [vertical height difference, m]
           # 当前 RM 场景中允许识别为目标隧道的最大上下表面高度差。
           # 这是差值，不是绝对 Z 坐标。
-          tunnel_height_delta_max: 0.40
+          tunnel_height_delta_max: 0.6
 
           # [dimensionless ratio, 0~1]
           # 隧道上下表面之间的最大垂直占据率。
-          tunnel_occupancy_ratio_max: 0.45
+          tunnel_occupancy_ratio_max: 0.6
 
           # PASSABLE 在 value layer 中的代价值。
           passable_cost: 50
@@ -456,7 +490,7 @@ planner_server:
           obstacle_hold_time: 1.5
 
           mask_filter_en: true
-          fill_occ_min: 4
+          fill_occ_min: 8
           denoise_occ_max: 0
         field:
           enable: true
@@ -471,7 +505,7 @@ planner_server:
           update_rate: 20.0
 
         performance:
-          enable: true
+          enable: false
           detailed_csv_enable: false
           summary_csv_enable: false
           detailed_csv_path: /tmp/rog_map_perf_detailed.csv
@@ -483,7 +517,7 @@ planner_server:
           variant: ""
           # [performance][行] CSV flush 间隔；避免每行强制 flush 变成新瓶颈，节点退出时仍会关闭文件。
           csv_flush_every_n: 30
-          print_enable: false
+          print_enable: true
           # [performance][Hz] 性能摘要和 summary CSV 频率。
           summary_rate: 1.0
           # [performance][bool] 是否启用 dirty column 增量刷新；开启可减少 projection/field 全量刷新计算量。
@@ -516,15 +550,15 @@ planner_server:
         traj_goal_tolerance: 0.3
         enable_yaw_opt: true
         safe_dist: 0.35
-        collision_dist: 0.25
+        collision_dist: 0.2
         lookahead_dist: 6.0  # 前视距离,用于minco部分优化
         max_velocity: 3.0
         max_acceleration: 2.0
         max_yaw_dot: 5.0
         turn_angle_deadzone: 0.1
-        turn_angle_saturation: 1.0
-        min_turn_vel: 0.8
-        decay_power: 1.3
+        turn_angle_saturation: 0.8
+        min_turn_vel: 0.7
+        decay_power: 1.6
         time_allocation_iters: 15
         smooth_eps: 0.01
         integral_res: 16
