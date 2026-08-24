@@ -1,0 +1,3 @@
+[submodule "src/simulation"]
+	path = src/simulation
+	url = https://github.com/Walker152/nav-simulation.git
