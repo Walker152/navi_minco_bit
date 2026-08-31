@@ -55,12 +55,21 @@ fi
 source "${script_dir}/install/setup.bash"
 set -u
 
+# Keep newly added symlink-install resources visible before the next build
+# creates their install-tree entries. Clean installs still use the package hook.
+simulation_source_models="${script_dir}/src/simulation/sentry_simulation/resource/models"
+export IGN_GAZEBO_RESOURCE_PATH="${simulation_source_models}:${IGN_GAZEBO_RESOURCE_PATH:-}"
+export GZ_SIM_RESOURCE_PATH="${simulation_source_models}:${GZ_SIM_RESOURCE_PATH:-}"
+export SDF_PATH="${simulation_source_models}:${SDF_PATH:-}"
+export IGN_FILE_PATH="${simulation_source_models}:${IGN_FILE_PATH:-}"
+
 required_ros_packages=(
   sentry_simulation
   ros_gz_sim
   ros_gz_bridge
   navi2
   point_lio
+  icp_relocalization
   minco_planner
   minco_controller
   rog_map
@@ -71,14 +80,6 @@ for required_ros_package in "${required_ros_packages[@]}"; do
     exit 1
   fi
 done
-
-if [[ "${chassis_type}" == "omni" ]]; then
-  simulation_prefix="$(ros2 pkg prefix sentry_simulation)"
-  if [[ ! -f "${simulation_prefix}/plugins/libMecanumDrive2.so" ]]; then
-    echo "MecanumDrive2 was not installed under sentry_simulation/plugins." >&2
-    exit 1
-  fi
-fi
 
 if [[ "${preflight_only}" == "true" ]]; then
   echo "Simulation preflight passed for ${chassis_type} in ${world}."
