@@ -33,3 +33,9 @@ CLAUDE.md
 src/perception/Point-LIO/PCD/scans.pcd
 
 /src/perception/Point-LIO/Log/*.txt
+
+# Tests and local test artifacts
+test/
+tests/
+test_*
+*_test.*

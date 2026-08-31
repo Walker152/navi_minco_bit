@@ -39,6 +39,7 @@ repositories=("$repo_root")
 repository_labels=(".")
 uninitialized_submodules=()
 conflicted_submodules=()
+github_blob_limit_bytes=$((100 * 1024 * 1024))
 
 submodule_status="$(git -C "$repo_root" submodule status --recursive 2>/dev/null || true)"
 while IFS= read -r status_line; do
@@ -61,8 +62,10 @@ while IFS= read -r status_line; do
 
   submodule_repository="$repo_root/$submodule_path"
   if git -C "$submodule_repository" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    repositories+=("$submodule_repository")
-    repository_labels+=("$submodule_path")
+    # Recursive status lists parents before their nested children. Prepending
+    # therefore makes every child repository publish before its parent.
+    repositories=("$submodule_repository" "${repositories[@]}")
+    repository_labels=("$submodule_path" "${repository_labels[@]}")
   else
     uninitialized_submodules+=("$submodule_path")
   fi
@@ -88,6 +91,34 @@ remote_is_excluded() {
     fi
   done
   return 1
+}
+
+remote_is_github() {
+  local repository=$1
+  local remote=$2
+  local remote_url
+
+  remote_url="$(git -C "$repository" remote get-url "$remote" 2>/dev/null || true)"
+  [[ $remote_url == *github.com:* || $remote_url == *github.com/* ]]
+}
+
+find_oversized_outgoing_blobs() {
+  local repository=$1
+  local remote=$2
+  local local_sha=$3
+
+  git -C "$repository" rev-list --objects "$local_sha" --not --remotes="$remote" |
+    git -C "$repository" cat-file \
+      --batch-check='%(objecttype) %(objectsize) %(objectname) %(rest)' |
+    awk -v limit="$github_blob_limit_bytes" '
+      $1 == "blob" && $2 >= limit {
+        size = $2
+        object = $3
+        $1 = $2 = $3 = ""
+        sub(/^ +/, "")
+        printf "%s\t%s\t%s\n", size, object, $0
+      }
+    '
 }
 
 for excluded_name in "${excluded_remote_names[@]}"; do
@@ -162,15 +193,28 @@ successful_pushes=()
 up_to_date_branches=()
 skipped_branches=()
 failed_operations=()
+submodule_sync_incomplete=false
 
 for repository_index in "${!repositories[@]}"; do
   repository=${repositories[$repository_index]}
   repository_label=${repository_labels[$repository_index]}
+
+  if [ "$repository_label" = "." ] && [ "$submodule_sync_incomplete" = true ]; then
+    echo "错误：[.] 子仓库未全部同步，父仓库已跳过，避免发布不可获取的子模块提交。" >&2
+    failed_operations+=(".:(子仓库未同步，父仓库已跳过)")
+    continue
+  fi
+
+  repository_failure_count_before=${#failed_operations[@]}
+  repository_skip_count_before=${#skipped_branches[@]}
   mapfile -t branches < <(git -C "$repository" for-each-ref --format='%(refname:short)' refs/heads/)
   mapfile -t remotes < <(git -C "$repository" remote)
 
   if [ "${#branches[@]}" -eq 0 ]; then
     echo "警告：[$repository_label] 没有本地分支，已跳过。" >&2
+    if [ "$repository_label" != "." ]; then
+      submodule_sync_incomplete=true
+    fi
     continue
   fi
 
@@ -215,6 +259,33 @@ for repository_index in "${!repositories[@]}"; do
         push_reason="创建"
       fi
 
+      if remote_is_github "$repository" "$remote"; then
+        if ! oversized_blob_output="$(
+          find_oversized_outgoing_blobs "$repository" "$remote" "$local_sha"
+        )"; then
+          echo "错误：[$repository_label] $remote/$branch 大文件检查失败，已停止该推送。" >&2
+          failed_operations+=("$repository_label:$remote/$branch(大文件检查失败)")
+          continue
+        fi
+
+        oversized_blobs=()
+        if [ -n "$oversized_blob_output" ]; then
+          mapfile -t oversized_blobs <<<"$oversized_blob_output"
+        fi
+        if [ "${#oversized_blobs[@]}" -gt 0 ]; then
+          echo "错误：[$repository_label] $remote/$branch 的待推送历史包含 GitHub 不接受的 100 MiB 及以上文件：" >&2
+          for oversized_blob in "${oversized_blobs[@]}"; do
+            IFS=$'\t' read -r blob_size blob_object blob_path <<<"$oversized_blob"
+            blob_size_mib=$(( (blob_size + 1024 * 1024 - 1) / (1024 * 1024) ))
+            printf '    %s (%s MiB, %s)\n' \
+              "${blob_path:-<路径不可用>}" "$blob_size_mib" "$blob_object" >&2
+          done
+          echo "  [$branch] 已在上传前跳过；请清理历史或改用 Git LFS。" >&2
+          failed_operations+=("$repository_label:$remote/$branch(大文件)")
+          continue
+        fi
+      fi
+
       push_refspec="$branch_ref:refs/heads/$branch"
       echo "  [$branch] $push_reason推送。"
       if git -C "$repository" push "${push_options[@]}" "$remote" "$push_refspec"; then
@@ -225,6 +296,13 @@ for repository_index in "${!repositories[@]}"; do
       fi
     done
   done
+
+  if [ "$repository_label" != "." ] && {
+    [ "${#failed_operations[@]}" -gt "$repository_failure_count_before" ] ||
+      [ "${#skipped_branches[@]}" -gt "$repository_skip_count_before" ];
+  }; then
+    submodule_sync_incomplete=true
+  fi
 done
 
 echo
