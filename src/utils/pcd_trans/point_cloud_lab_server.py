@@ -9,12 +9,26 @@ import argparse
 import json
 import math
 import os
+import shutil
+import sys
 import tempfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote
 
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from point_cloud_processing import (
+    cluster_filter_points,
+    convert_step_to_points,
+    load_hws_mapping_dataset,
+    postprocess_points,
+    raycast_dynamic_filter,
+    reconstruct_mesh,
+    stats_header,
+)
 
 
 MAX_BODY_BYTES = 1024 * 1024 * 1024
@@ -68,7 +82,14 @@ def load_open3d():
 def open3d_capabilities():
     try:
         module = load_open3d()
-        return {"open3d": True, "backend": module.__name__}
+        return {
+            "open3d": True,
+            "backend": module.__name__,
+            "cluster_filter": True,
+            "offline_dynamic_filter": True,
+            "pointcloud_to_stl": True,
+            "step_to_pointcloud": shutil.which("freecadcmd") is not None,
+        }
     except RuntimeError as exc:
         return {"open3d": False, "error": str(exc)}
 
@@ -135,6 +156,85 @@ def normal_labels_bytes(payload, radius, max_neighbors, ground_max, slope_max, w
     return labels.tobytes()
 
 
+def cluster_filter_bytes(payload, eps, min_points, min_cluster_points, remove_noise=True):
+    points = decode_xyz_f32(payload)
+    kept, _, stats = cluster_filter_points(
+        points,
+        load_open3d(),
+        eps=float(eps),
+        min_points=int(min_points),
+        min_cluster_points=int(min_cluster_points),
+        remove_noise=bool(remove_noise),
+    )
+    return np.ascontiguousarray(kept, dtype="<f4").tobytes(), stats
+
+
+def pointcloud_to_stl_bytes(payload, options):
+    points = decode_xyz_f32(payload)
+    o3d = load_open3d()
+    mesh, stats, _ = reconstruct_mesh(points, o3d, options)
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".stl", delete=False) as handle:
+            temp_path = handle.name
+        if not o3d.io.write_triangle_mesh(
+            temp_path,
+            mesh,
+            write_ascii=False,
+            compressed=False,
+            write_vertex_normals=True,
+        ):
+            raise RuntimeError("Open3D 写出 STL 失败")
+        return Path(temp_path).read_bytes(), stats
+    finally:
+        if temp_path:
+            try:
+                os.unlink(temp_path)
+            except FileNotFoundError:
+                pass
+
+
+def offline_dynamic_filter(options):
+    o3d = load_open3d()
+    _, poses, frames = load_hws_mapping_dataset(options["data_path"], o3d)
+    kept, _, ray_stats = raycast_dynamic_filter(
+        poses,
+        frames,
+        voxel_resolution=float(options.get("voxel_resolution", 0.05)),
+        pass_through_threshold=int(options.get("pass_through_threshold", 2)),
+        ray_stride=int(options.get("ray_stride", 1)),
+        max_range=float(options.get("max_range", 0.0)),
+    )
+    filtered, post_stats = postprocess_points(
+        kept,
+        o3d,
+        voxel_size=float(options.get("downsample_leaf_size", 0.05)),
+        statistical_neighbors=int(options.get("statistical_neighbors", 20)),
+        statistical_std_ratio=float(options.get("statistical_std_ratio", 2.0)),
+        cluster_eps=float(options.get("cluster_eps", 0.0)),
+        cluster_min_points=int(options.get("cluster_min_points", 10)),
+        min_cluster_points=int(options.get("min_cluster_points", 0)),
+    )
+    stats = {**ray_stats, **post_stats, "output_points": len(filtered)}
+    return np.ascontiguousarray(filtered, dtype="<f4").tobytes(), stats
+
+
+def step_to_pointcloud_bytes(options):
+    worker_path = Path(__file__).with_name("step_to_mesh_freecad.py")
+    points, stats = convert_step_to_points(
+        options["step_path"],
+        load_open3d(),
+        worker_path=worker_path,
+        point_count=int(options.get("point_count", 1_000_000)),
+        unit_scale=float(options.get("unit_scale", 0.001)),
+        linear_deflection=float(options.get("linear_deflection", 5.0)),
+        angular_deflection=float(options.get("angular_deflection", 0.35)),
+        timeout_seconds=int(options.get("timeout_seconds", 7200)),
+        memory_limit_gb=float(options.get("memory_limit_gb", 6.0)),
+    )
+    return np.ascontiguousarray(points, dtype="<f4").tobytes(), stats
+
+
 class CloudLabRequestHandler(BaseHTTPRequestHandler):
     server_version = "CloudLabOpen3D/1.0"
 
@@ -147,8 +247,11 @@ class CloudLabRequestHandler(BaseHTTPRequestHandler):
         self.send_header(
             "Access-Control-Allow-Headers",
             "Content-Type, X-Filename, X-Nb-Neighbors, X-Std-Ratio, "
-            "X-Normal-Radius, X-Max-Neighbors, X-Ground-Max, X-Slope-Max, X-Wall-Min",
+            "X-Normal-Radius, X-Max-Neighbors, X-Ground-Max, X-Slope-Max, X-Wall-Min, "
+            "X-Cluster-Eps, X-Cluster-Min-Points, X-Min-Cluster-Points, X-Remove-Noise, "
+            "X-Mesh-Options",
         )
+        self.send_header("Access-Control-Expose-Headers", "X-CloudLab-Stats, Content-Disposition")
 
     def send_json(self, status, value):
         payload = json.dumps(value, ensure_ascii=False).encode("utf-8")
@@ -159,10 +262,12 @@ class CloudLabRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
-    def send_binary(self, payload):
+    def send_binary(self, payload, content_type="application/octet-stream", headers=None):
         self.send_response(200)
         self.cors_headers()
-        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Type", content_type)
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
@@ -212,6 +317,42 @@ class CloudLabRequestHandler(BaseHTTPRequestHandler):
                     self.headers.get("X-Slope-Max", "38"),
                     self.headers.get("X-Wall-Min", "70"),
                 )
+            elif self.path == "/cluster-filter":
+                result, stats = cluster_filter_bytes(
+                    payload,
+                    self.headers.get("X-Cluster-Eps", "0.20"),
+                    self.headers.get("X-Cluster-Min-Points", "10"),
+                    self.headers.get("X-Min-Cluster-Points", "100"),
+                    self.headers.get("X-Remove-Noise", "true").lower() in ("1", "true", "yes", "on"),
+                )
+                self.send_binary(result, headers={"X-CloudLab-Stats": stats_header(stats)})
+                return
+            elif self.path == "/pointcloud-to-stl":
+                try:
+                    options = json.loads(self.headers.get("X-Mesh-Options", "{}"))
+                except json.JSONDecodeError as exc:
+                    raise ValueError("X-Mesh-Options 必须是 JSON") from exc
+                result, stats = pointcloud_to_stl_bytes(payload, options)
+                preset = stats.get("preset", "mesh")
+                self.send_binary(
+                    result,
+                    content_type="model/stl",
+                    headers={
+                        "X-CloudLab-Stats": stats_header(stats),
+                        "Content-Disposition": f'attachment; filename="cloudlab_{preset}.stl"',
+                    },
+                )
+                return
+            elif self.path == "/offline-dynamic-filter":
+                options = json.loads(payload.decode("utf-8"))
+                result, stats = offline_dynamic_filter(options)
+                self.send_binary(result, headers={"X-CloudLab-Stats": stats_header(stats)})
+                return
+            elif self.path == "/step-to-pointcloud":
+                options = json.loads(payload.decode("utf-8"))
+                result, stats = step_to_pointcloud_bytes(options)
+                self.send_binary(result, headers={"X-CloudLab-Stats": stats_header(stats)})
+                return
             else:
                 self.send_json(404, {"error": "not found"})
                 return

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: ./simlation.bash [omni|diff] [rmuc_2024|rmul_2024|rmuc_2025|rmul_2025] [--headless] [--no-rviz] [--check]"
+  echo "Usage: ./simlation.bash [omni|diff] [rmuc_2024|rmul_2024|rmuc_2025|rmuc_2026|rmul_2025] [--headless] [--no-rviz] [--check]"
 }
 
 chassis_type="omni"
@@ -36,7 +36,7 @@ case "${chassis_type}" in
 esac
 
 case "${world}" in
-  rmuc_2024|rmul_2024|rmuc_2025|rmul_2025) ;;
+  rmuc_2024|rmul_2024|rmuc_2025|rmuc_2026|rmul_2025) ;;
   *) echo "Unsupported world: ${world}" >&2; usage >&2; exit 2 ;;
 esac
 
@@ -57,6 +57,8 @@ set -u
 
 # Keep newly added symlink-install resources visible before the next build
 # creates their install-tree entries. Clean installs still use the package hook.
+simulation_source_share="${script_dir}/src/simulation/sentry_simulation"
+export SENTRY_SIMULATION_SHARE="${simulation_source_share}"
 simulation_source_models="${script_dir}/src/simulation/sentry_simulation/resource/models"
 export IGN_GAZEBO_RESOURCE_PATH="${simulation_source_models}:${IGN_GAZEBO_RESOURCE_PATH:-}"
 export GZ_SIM_RESOURCE_PATH="${simulation_source_models}:${GZ_SIM_RESOURCE_PATH:-}"
