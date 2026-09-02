@@ -2,6 +2,7 @@
 
 #include "data_structure/base/trajectory.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -70,9 +71,36 @@ bool TrajectorySafetyChecker::checkTrajectory(const traj_opt::Trajectory & traj)
   if (!ensureQueryAvailable()) {
     return false;
   }
+  if (traj.empty()) {
+    return false;
+  }
 
   const double dur = traj.getTotalDuration();
-  for (double t = 0.0; t <= dur; t += sample_dt_) {
+  if (!std::isfinite(dur) || dur <= 1e-9) {
+    return false;
+  }
+
+  const double resolution = dynamic_query_->resolution();
+  const double max_velocity = traj.getMaxVelRate();
+  if (!std::isfinite(resolution) || resolution <= 1e-6 ||
+      !std::isfinite(max_velocity) || max_velocity < 0.0) {
+    return false;
+  }
+
+  const double spatial_dt = max_velocity > 1e-6 ? resolution / max_velocity : sample_dt_;
+  const double effective_dt = std::min(sample_dt_, spatial_dt);
+  if (!std::isfinite(effective_dt) || effective_dt <= 0.0) {
+    return false;
+  }
+
+  const double required_intervals = std::ceil(dur / effective_dt);
+  if (!std::isfinite(required_intervals) ||
+      required_intervals > static_cast<double>(std::numeric_limits<int>::max())) {
+    return false;
+  }
+  const int interval_count = std::max(1, static_cast<int>(required_intervals));
+  for (int i = 0; i <= interval_count; ++i) {
+    const double t = dur * static_cast<double>(i) / static_cast<double>(interval_count);
     if (!checkPoint(traj.getPos(t))) {
       return false;
     }

@@ -173,7 +173,7 @@ bool YawTrajOpt::optimize(const Eigen::Vector4d & istate_in,
   }
   }
   double max_yaw_rate = yaw_traj.getMaxVelRate();
-  if (max_yaw_rate > yaw_dot_max_ + 2.0) {
+  if (max_yaw_rate > yaw_dot_max_ + 0.5) {
     std::cout << "Yaw rate too large: " << max_yaw_rate << std::endl;
     return false;
   }

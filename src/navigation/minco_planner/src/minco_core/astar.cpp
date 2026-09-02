@@ -207,10 +207,17 @@ bool Astar::calcPath(int /*nplan*/)
     // 8-connected gradient descent
     int dx[8] = {1, 0, -1, 0, 1, 1, -1, -1};
     int dy[8] = {0, 1, 0, -1, 1, -1, 1, -1};
+    const int current_x = c % nx;
+    const int current_y = c / nx;
 
     for (int i = 0; i < 8; i++) {
-      int nc = c + dy[i] * nx + dx[i];
-      if (nc >= 0 && nc < ns && potarr[nc] < min_pot) {
+      const int next_x = current_x + dx[i];
+      const int next_y = current_y + dy[i];
+      if (next_x < 0 || next_x >= nx || next_y < 0 || next_y >= ny) {
+        continue;
+      }
+      const int nc = next_y * nx + next_x;
+      if (potarr[nc] < min_pot) {
         min_pot = potarr[nc];
         min_c = nc;
       }
@@ -296,25 +303,31 @@ bool Astar::propNavFnAstar(int cycles, std::function<bool()> cancelChecker)
       int dx[8] = {1, -1, 0, 0, 1, 1, -1, -1};
       int dy[8] = {0, 0, 1, -1, 1, -1, 1, -1};
       float dist[8] = {1.0, 1.0, 1.0, 1.0, 1.414, 1.414, 1.414, 1.414};
+      const int current_x = c % nx;
+      const int current_y = c / nx;
 
       for (int k = 0; k < 8; k++) {
-        int nc = c + dy[k] * nx + dx[k];
-        if (nc >= 0 && nc < ns) {
-          // 增加距离权重：对角线移动代价更高
-          float new_pot = potarr[c] + COST_NEUTRAL * dist[k] + costarr[nc] * COST_FACTOR * dist[k];
+        const int next_x = current_x + dx[k];
+        const int next_y = current_y + dy[k];
+        if (next_x < 0 || next_x >= nx || next_y < 0 || next_y >= ny) {
+          continue;
+        }
+        const int nc = next_y * nx + next_x;
 
-          // 检查障碍物：如果是 UNKNOWN (255) 且不允许 unknown，则跳过
-          // 如果是 LETHAL (254) 或 INSCRIBED (253)，则跳过
-          if ((costarr[nc] >= COST_OBS_ROS && !(allow_unknown && costarr[nc] == 255)) ||
-              isDynamicCollision(nc))
-            continue;
+        // 增加距离权重：对角线移动代价更高
+        float new_pot = potarr[c] + COST_NEUTRAL * dist[k] + costarr[nc] * COST_FACTOR * dist[k];
 
-          if (new_pot < potarr[nc]) {
-            potarr[nc] = new_pot;
-            if (!pending[nc]) {
-              nextP[nextPe++] = nc;
-              pending[nc] = true;
-            }
+        // 检查障碍物：如果是 UNKNOWN (255) 且不允许 unknown，则跳过
+        // 如果是 LETHAL (254) 或 INSCRIBED (253)，则跳过
+        if ((costarr[nc] >= COST_OBS_ROS && !(allow_unknown && costarr[nc] == 255)) ||
+            isDynamicCollision(nc))
+          continue;
+
+        if (new_pot < potarr[nc]) {
+          potarr[nc] = new_pot;
+          if (!pending[nc]) {
+            nextP[nextPe++] = nc;
+            pending[nc] = true;
           }
         }
       }

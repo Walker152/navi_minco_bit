@@ -60,7 +60,8 @@ LocalPathSeed LocalPathProcessor::buildSeed(
   Eigen::Vector3d global_goal(global_path.back().pose.position.x, global_path.back().pose.position.y, 0.0);
   Eigen::Vector3d cur_pos(current_pose.pose.position.x, current_pose.pose.position.y, 0.0);
 
-  seed.dense_path = extractLocalPath(global_path, cur_pos);
+  size_t global_start_index = 0U;
+  seed.dense_path = extractLocalPath(global_path, cur_pos, global_start_index);
   const bool clip_required =
     mode_context.mode() == PlannerMode::EXPLORATION || mode_context.clipSeedByRogBoundary();
   const bool clip_ok = clipLocalPathByRogBoundary(seed.dense_path, mode_context);
@@ -75,6 +76,7 @@ LocalPathSeed LocalPathProcessor::buildSeed(
     return seed;
   }
 
+  seed.global_end_index = global_start_index + seed.dense_path.size() - 1U;
   seed.local_end_is_goal = (global_goal - seed.dense_path.back()).head<2>().norm() <= traj_goal_tolerance_;
   seed.sparse_waypoints = utils::getSparseWaypoints(seed.dense_path,
     max_vel_,
@@ -88,9 +90,12 @@ LocalPathSeed LocalPathProcessor::buildSeed(
 }
 
 std::vector<Eigen::Vector3d> LocalPathProcessor::extractLocalPath(
-  const std::vector<geometry_msgs::msg::PoseStamped> & global_path, const Eigen::Vector3d & cur_pos) const
+  const std::vector<geometry_msgs::msg::PoseStamped> & global_path,
+  const Eigen::Vector3d & cur_pos,
+  size_t & global_start_index) const
 {
   std::vector<Eigen::Vector3d> local_segment;
+  global_start_index = 0U;
   if (global_path.empty()) {
     return local_segment;
   }
@@ -106,6 +111,7 @@ std::vector<Eigen::Vector3d> LocalPathProcessor::extractLocalPath(
       start_idx = i;
     }
   }
+  global_start_index = start_idx;
 
   double accum_dist = 0.0;
   local_segment.push_back(

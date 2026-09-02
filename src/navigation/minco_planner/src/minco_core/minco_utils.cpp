@@ -288,17 +288,6 @@ std::vector<Eigen::Vector3d> getSparseWaypoints(const std::vector<Eigen::Vector3
   for (size_t i = 1; i < path.size(); ++i) {
     double seg_len = (path[i] - path[i - 1]).head<2>().norm();
 
-    // Over-curvature penalty
-    if (i > 1) {
-      Eigen::Vector3d v1 = path[i] - path[i - 1];
-      Eigen::Vector3d v2 = path[i - 1] - path[i - 2];
-      if (v1.norm() > 1e-3 && v2.norm() > 1e-3) {
-        double dot = v1.normalized().dot(v2.normalized());
-        if (dot < 0.7) {
-          seg_len *= 2.0;
-        }
-      }
-    }
     accumulated_dist[i] = accumulated_dist[i - 1] + seg_len;
   }
   const double total_length = accumulated_dist.back();
@@ -522,7 +511,12 @@ double LimitLocalVel(const std::vector<Eigen::Vector3d> & sparse_path,
   return calCurvatureDecay(angle, global_vmax, deadzone, saturation, min_turn_vel, decay_power);
 }
 
-double ComputeNextSpeed(double v_curr, double seg_len, double remain_after, double amax, double local_vmax)
+double ComputeNextSpeed(double v_curr,
+  double seg_len,
+  double remain_after,
+  double amax,
+  double local_vmax,
+  double terminal_speed)
 {
   if (!(std::isfinite(v_curr) && v_curr >= 0.0)) {
     v_curr = 0.0;
@@ -537,9 +531,11 @@ double ComputeNextSpeed(double v_curr, double seg_len, double remain_after, doub
     v_next = std::min(v_next, local_vmax);
   }
 
-  const double v_cap_stop =
-    (remain_after > 1e-6) ? std::sqrt(std::max(0.0, 2.0 * a_safe * remain_after)) : 0.0;
-  v_next = std::min(v_next, v_cap_stop);
+  const double v_terminal =
+    (std::isfinite(terminal_speed) && terminal_speed > 0.0) ? terminal_speed : 0.0;
+  const double v_cap_terminal = std::sqrt(
+    std::max(0.0, v_terminal * v_terminal + 2.0 * a_safe * std::max(0.0, remain_after)));
+  v_next = std::min(v_next, v_cap_terminal);
 
   if (!std::isfinite(v_next) || v_next < 0.0) {
     return 0.0;

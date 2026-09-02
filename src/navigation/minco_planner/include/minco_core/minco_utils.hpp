@@ -46,7 +46,8 @@ double LimitLocalVel(const std::vector<Eigen::Vector3d> & sparse_path,
   double min_turn_vel,
   double decay_power);
 
-double ComputeNextSpeed(double v_curr, double seg_len, double remain_after, double amax, double local_vmax);
+double ComputeNextSpeed(
+  double v_curr, double seg_len, double remain_after, double amax, double local_vmax, double terminal_speed);
 
 double ComputeSegmentTime(
   double seg_len, double v_curr, double v_next, double local_vmax, double amax, double min_seg_time);

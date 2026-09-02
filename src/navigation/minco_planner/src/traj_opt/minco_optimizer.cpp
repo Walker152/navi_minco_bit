@@ -23,6 +23,7 @@ double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d> & waypoints,
   if (!setupProblemAndCheck(waypoints, start_state, end_state)) {
     cout << YELLOW << " -- [TrajOpt] Error in setup problem, force return." << RESET << endl;
     last_return_code_ = lbfgs::LBFGSERR_INVALIDPARAMETERS;
+    last_objective_total_ = INFINITY;
     return INFINITY;
   }
 
@@ -45,6 +46,8 @@ double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d> & waypoints,
     cout << opt_vars_.tailPVA << endl;
     cout << " -- Times: " << endl;
     cout << opt_vars_.times.transpose() << endl;
+    last_return_code_ = lbfgs::LBFGSERR_INVALIDPARAMETERS;
+    last_objective_total_ = INFINITY;
     return INFINITY;
   }
 
@@ -108,7 +111,8 @@ double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d> & waypoints,
     // 5'. Optimization failed
     minCostFunctional = INFINITY;
   }
-  return minCostFunctional + ret;
+  // Keep the objective and the L-BFGS status code as separate result channels.
+  return minCostFunctional;
 }
 
 double MincoOptimizer::costFunctional(void * ptr, const VecDf & x, VecDf & g)

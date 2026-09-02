@@ -991,7 +991,6 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     return finish(false, "COLLISION");
   }
   std::vector<Eigen::Vector3d> sparse_path = seed.sparse_waypoints;
-  const bool local_end_is_goal = seed.local_end_is_goal;
 
   std_msgs::msg::Header header_msg;
   header_msg.frame_id = output_frame_;
@@ -1064,41 +1063,6 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   end_state.setZero();
   end_state.col(0) = sparse_path.back();
 
-  // End state logic.
-  const double dist_to_goal = (end_state.col(0) - global_goal).head<2>().norm();
-  if (dist_to_goal > 1.0) {
-    Eigen::Vector3d tangent(1.0, 0.0, 0.0);
-    if (sparse_path.size() >= 2) {
-      tangent = sparse_path.back() - sparse_path[sparse_path.size() - 2];
-      tangent.z() = 0.0;
-      const double n = tangent.head<2>().norm();
-      if (n > 0.1) {
-        tangent /= n;
-      } else {
-        tangent = Eigen::Vector3d(1.0, 0.0, 0.0);
-      }
-    }
-    const double v_curr = std::max(0.0, start_state.col(1).head<2>().norm());
-    const double amax = std::max(0.0, minco_config.max_acc);
-    const double v_max_kinematic = std::sqrt(std::max(0.0, v_curr * v_curr + 2.0 * amax * dist_to_goal));
-    double local_end_vmax = minco_config.max_vel;
-    if (sparse_path.size() >= 3) {
-      local_end_vmax = utils::LimitLocalVel(sparse_path,
-        sparse_path.size() - 3,
-        minco_config.max_vel,
-        minco_config.turn_angle_deadzone,
-        minco_config.turn_angle_saturation,
-        minco_config.min_turn_vel,
-        minco_config.decay_power);
-    }
-    const double v_cmd = std::min({minco_config.max_vel, v_max_kinematic, dist_to_goal, local_end_vmax});
-    end_state.col(1) = tangent * v_cmd;
-    end_state.col(2).setZero();
-  } else {
-    end_state.col(1).setZero();
-    end_state.col(2).setZero();
-  }
-
   // Remove near-start redundant points from sparse_path.
   while (sparse_path.size() > 2) {
     if ((sparse_path[1] - start_state.col(0)).norm() < 0.2) {
@@ -1108,6 +1072,42 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     }
   }
 
+  Eigen::Vector3d tangent = sparse_path.back() - sparse_path[sparse_path.size() - 2U];
+  tangent.z() = 0.0;
+  const double tangent_norm = tangent.head<2>().norm();
+  if (tangent_norm > 0.1) {
+    tangent /= tangent_norm;
+  } else {
+    tangent = Eigen::Vector3d(1.0, 0.0, 0.0);
+  }
+
+  double local_length = 0.0;
+  for (size_t i = 1U; i < sparse_path.size(); ++i) {
+    local_length += (sparse_path[i] - sparse_path[i - 1U]).head<2>().norm();
+  }
+
+  const double global_vmax = std::max(0.0, minco_config.max_vel);
+  const double amax = std::max(1e-3, minco_config.max_acc);
+  const double v_curr = std::max(0.0, start_state.col(1).head<2>().norm());
+  const double v_reachable = std::sqrt(std::max(0.0, v_curr * v_curr + 2.0 * amax * local_length));
+  double end_speed = std::min(global_vmax, v_reachable);
+
+  const double dist_to_goal = (end_state.col(0) - global_goal).head<2>().norm();
+  const double brake_trigger_dist = global_vmax * global_vmax / (2.0 * amax);
+  // The straight-line distance is a lower bound on path length, so only inspect
+  // the global path suffix after entering the full-speed braking range.
+  if (dist_to_goal < brake_trigger_dist) {
+    double remaining_length = 0.0;
+    for (size_t i = seed.global_end_index + 1U; i < global_path_snapshot.size(); ++i) {
+      const auto & p0 = global_path_snapshot[i - 1U].pose.position;
+      const auto & p1 = global_path_snapshot[i].pose.position;
+      remaining_length += std::hypot(p1.x - p0.x, p1.y - p0.y);
+    }
+    const double v_brake = std::sqrt(std::max(0.0, 2.0 * amax * remaining_length));
+    end_speed = std::min(end_speed, v_brake);
+  }
+  end_state.col(1) = tangent * end_speed;
+
   // 7.5 Initial guess Ps/Ts for optimizer (all cases).
   const int N = static_cast<int>(sparse_path.size()) - 1;
   VecDf local_vmaxs(N);
@@ -1116,7 +1116,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     VecDf init_ts(N);
     PTAllocation(sparse_path,
       start_state,
-      local_end_is_goal,
+      end_speed,
       state,
       has_shifted_seed,
       shifted_waypoints,
@@ -1274,12 +1274,16 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     visualizer_->update(sparse_path, backup_traj, opt_traj, opt_duration, astar_path_msg);
   }
 
-  last_traj_ = opt_traj;
-  last_traj_.start_WT = rclcpp::Clock().now().seconds();
-  has_last_traj_ = true;
-  last_yaw_traj_ = yaw_traj;
-  last_yaw_traj_.start_WT = last_traj_.start_WT;
-  has_last_yaw_traj_ = true;
+  // Publish the position/yaw cache as one coherent snapshot for safety and hot-start readers.
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    last_traj_ = opt_traj;
+    last_traj_.start_WT = rclcpp::Clock().now().seconds();
+    has_last_traj_ = true;
+    last_yaw_traj_ = yaw_traj;
+    last_yaw_traj_.start_WT = last_traj_.start_WT;
+    has_last_yaw_traj_ = true;
+  }
 
   is_traj_safe_.store(true);
   return finish(true, "NONE");
@@ -1287,7 +1291,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
 void MincoPlanner::PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path,
   const Eigen::Matrix3d & start_state,
-  bool goal_reached,
+  double terminal_speed,
   PlanningState state,
   bool has_shifted_seed,
   const vec_Vec3f & shifted_waypoints,
@@ -1307,8 +1311,6 @@ void MincoPlanner::PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path
   const double global_vmax = std::max(0.0, minco_config.max_vel);
   const double amax = std::max(1e-3, minco_config.max_acc);
   const double kMinSegTime = 0.1;
-  const double kBrakeSafety = 1.2;
-  const double max_brake_dist = (global_vmax * global_vmax) / (2.0 * amax);
 
   local_vmaxs.resize(N);
   local_vmaxs.setConstant(global_vmax);
@@ -1362,27 +1364,18 @@ void MincoPlanner::PTAllocation(const std::vector<Eigen::Vector3d> & sparse_path
     v_curr = 0.0;
   }
 
-  const double local_goal_remain = goal_reached ? 0.0 : max_brake_dist;
   for (int i = 0; i < N; ++i) {
-    const bool is_last = (i == N - 1);
     const double L = seg_len[static_cast<size_t>(i)];
-    const double remain = remain_after[static_cast<size_t>(i)] + local_goal_remain;
+    const double remain = remain_after[static_cast<size_t>(i)];
 
     if (L <= 1e-6) {
       init_ts(i) = kMinSegTime;
       continue;
     }
 
-    if (is_last && goal_reached) {
-      const double t_stop = v_curr / amax;
-      const double t_dist = L / std::max(v_curr, 0.1);
-      init_ts(i) = std::max({kMinSegTime, t_dist, kBrakeSafety * t_stop});
-      v_curr = 0.0;
-      continue;
-    }
-
     const double local_vmax = local_vmax_vec[static_cast<size_t>(i)];
-    const double v_next = utils::ComputeNextSpeed(v_curr, L, remain, amax, local_vmax);
+    const double v_next =
+      utils::ComputeNextSpeed(v_curr, L, remain, amax, local_vmax, terminal_speed);
     init_ts(i) = utils::ComputeSegmentTime(L, v_curr, v_next, local_vmax, amax, kMinSegTime);
     v_curr = v_next;
   }
@@ -1573,7 +1566,7 @@ bool MincoPlanner::validateTrajectory(
 {
   last_validation_failure_reason_ = "KINEMATIC_VIOLATION";
   constexpr double kDt = 0.05;
-  constexpr double kSevereScale = 1.5;
+  constexpr double kSevereScale = 1.2;
 
   const double dur = traj.getTotalDuration();
   if (!(std::isfinite(dur) && dur > 1e-6)) {

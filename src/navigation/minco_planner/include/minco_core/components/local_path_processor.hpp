@@ -11,6 +11,7 @@ struct LocalPathSeed
 {
   bool valid{false};
   bool local_end_is_goal{false};
+  size_t global_end_index{0U};
   std::vector<Eigen::Vector3d> dense_path;
   std::vector<Eigen::Vector3d> sparse_waypoints;
   std::vector<double> local_magnitudes;
@@ -34,7 +35,8 @@ public:
 private:
   std::vector<Eigen::Vector3d> extractLocalPath(
     const std::vector<geometry_msgs::msg::PoseStamped> & global_path,
-    const Eigen::Vector3d & cur_pos) const;
+    const Eigen::Vector3d & cur_pos,
+    size_t & global_start_index) const;
 
   bool clipLocalPathByRogBoundary(
     std::vector<Eigen::Vector3d> & path, const PlannerModeContext & mode_context) const;
