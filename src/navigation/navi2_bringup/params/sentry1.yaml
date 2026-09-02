@@ -569,7 +569,6 @@ planner_server:
         penalty_weight_vel: 1500.0
         penalty_weight_acc: 1500.0
         penalty_weight_att: 100.0
-        penalty_weight_time_barrier: 50.0
       recovery_server:
         fail_threshold: 5
         cooldown_sec: 1.0

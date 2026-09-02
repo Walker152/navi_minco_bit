@@ -596,7 +596,6 @@ ros2 launch point_lio single_livox_pointlio_intra_process.launch.py
 | `minco_optimizer.penalty_weight_vel` | `1500.0` | 速度越界惩罚权重 |
 | `minco_optimizer.penalty_weight_acc` | `1500.0` | 加速度越界惩罚权重 |
 | `minco_optimizer.penalty_weight_att` | `100.0` | 轨迹对前端路径吸引项权重 |
-| `minco_optimizer.penalty_weight_time_barrier` | `50.0` | 极短轨迹段时间屏障惩罚权重 |
 
 ### MincoMpcController
 

@@ -453,17 +453,11 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
     node, prefix + "minco_optimizer.penalty_weight_att", rclcpp::ParameterValue(1000.0));
   node->get_parameter(prefix + "minco_optimizer.penalty_weight_att", penalty_weight_att);
 
-  double penalty_weight_time_barrier = 0.0;
-  nav2_util::declare_parameter_if_not_declared(
-    node, prefix + "minco_optimizer.penalty_weight_time_barrier", rclcpp::ParameterValue(100.0));
-  node->get_parameter(prefix + "minco_optimizer.penalty_weight_time_barrier", penalty_weight_time_barrier);
-
-  minco_config.penaltyWeights.resize(5);
+  minco_config.penaltyWeights.resize(4);
   minco_config.penaltyWeights(0) = penalty_weight_pos;
   minco_config.penaltyWeights(1) = penalty_weight_vel;
   minco_config.penaltyWeights(2) = penalty_weight_acc;
   minco_config.penaltyWeights(3) = penalty_weight_att;
-  minco_config.penaltyWeights(4) = penalty_weight_time_barrier;
 
   minco_config.magnitudeBounds.resize(3);
   minco_config.magnitudeBounds(0) = minco_config.safe_dist;
@@ -672,8 +666,6 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
   const std::string penalty_vel_param = name_ + ".minco_optimizer.penalty_weight_vel";
   const std::string penalty_acc_param = name_ + ".minco_optimizer.penalty_weight_acc";
   const std::string penalty_att_param = name_ + ".minco_optimizer.penalty_weight_att";
-  const std::string penalty_time_barrier_param = name_ + ".minco_optimizer.penalty_weight_time_barrier";
-
   double next_max_vel = minco_config.max_vel;
   double next_max_acc = minco_config.max_acc;
   double next_penalty_pos =
@@ -684,8 +676,6 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
     (minco_config.penaltyWeights.size() > 2) ? minco_config.penaltyWeights(2) : 10000.0;
   double next_penalty_att =
     (minco_config.penaltyWeights.size() > 3) ? minco_config.penaltyWeights(3) : 1000.0;
-  double next_penalty_time_barrier =
-    (minco_config.penaltyWeights.size() > 4) ? minco_config.penaltyWeights(4) : 100.0;
   bool optimizer_config_changed = false;
 
   for (const auto & param : parameters) {
@@ -738,8 +728,7 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
     }
 
     if (param_name == penalty_pos_param || param_name == penalty_vel_param ||
-        param_name == penalty_acc_param || param_name == penalty_att_param ||
-        param_name == penalty_time_barrier_param) {
+        param_name == penalty_acc_param || param_name == penalty_att_param) {
       double candidate = 0.0;
       if (!parse_numeric(candidate) || !std::isfinite(candidate) || candidate < 0.0) {
         result.successful = false;
@@ -754,10 +743,8 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
         next_penalty_vel = candidate;
       } else if (param_name == penalty_acc_param) {
         next_penalty_acc = candidate;
-      } else if (param_name == penalty_att_param) {
-        next_penalty_att = candidate;
       } else {
-        next_penalty_time_barrier = candidate;
+        next_penalty_att = candidate;
       }
 
       optimizer_config_changed = true;
@@ -769,12 +756,11 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
     minco_config.max_vel = next_max_vel;
     minco_config.max_acc = next_max_acc;
 
-    minco_config.penaltyWeights.resize(5);
+    minco_config.penaltyWeights.resize(4);
     minco_config.penaltyWeights(0) = next_penalty_pos;
     minco_config.penaltyWeights(1) = next_penalty_vel;
     minco_config.penaltyWeights(2) = next_penalty_acc;
     minco_config.penaltyWeights(3) = next_penalty_att;
-    minco_config.penaltyWeights(4) = next_penalty_time_barrier;
 
     minco_config.magnitudeBounds.resize(3);
     minco_config.magnitudeBounds(0) = minco_config.safe_dist;
@@ -789,14 +775,13 @@ rcl_interfaces::msg::SetParametersResult MincoPlanner::onSetParameters(
     }
 
     RCLCPP_INFO(logger_,
-      "[MincoPlanner] Updated optimizer params: vmax=%.3f, amax=%.3f, w=[%.3f %.3f %.3f %.3f %.3f]",
+      "[MincoPlanner] Updated optimizer params: vmax=%.3f, amax=%.3f, w=[%.3f %.3f %.3f %.3f]",
       minco_config.max_vel,
       minco_config.max_acc,
       minco_config.penaltyWeights(0),
       minco_config.penaltyWeights(1),
       minco_config.penaltyWeights(2),
-      minco_config.penaltyWeights(3),
-      minco_config.penaltyWeights(4));
+      minco_config.penaltyWeights(3));
   }
 
   return result;
@@ -915,9 +900,16 @@ bool MincoPlanner::PlanGlobalPath(
   }
   record_search_time();
 
-  std::lock_guard<std::mutex> path_lock(path_mutex_);
-  latest_global_path_ = std::move(planned_path);
-  return latest_global_path_.size() >= 2U;
+  bool path_valid = false;
+  {
+    std::lock_guard<std::mutex> path_lock(path_mutex_);
+    latest_global_path_ = std::move(planned_path);
+    path_valid = latest_global_path_.size() >= 2U;
+  }
+  if (local_path_processor_) {
+    local_path_processor_->resetProgress();
+  }
+  return path_valid;
 }
 
 bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose)
@@ -1403,8 +1395,13 @@ bool MincoPlanner::makePlan(const geometry_msgs::msg::Pose & start,
   if (!global_path_searcher_->makePlan(start, goal, *mode_context_, tolerance, cancel_checker, plan)) {
     return false;
   }
-  std::lock_guard<std::mutex> path_lock(path_mutex_);
-  latest_global_path_ = plan.poses;
+  {
+    std::lock_guard<std::mutex> path_lock(path_mutex_);
+    latest_global_path_ = plan.poses;
+  }
+  if (local_path_processor_) {
+    local_path_processor_->resetProgress();
+  }
   return true;
 }
 
