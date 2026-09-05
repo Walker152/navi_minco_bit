@@ -83,6 +83,16 @@ void MincoFsm::callMainFsmOnce()
       return;
     }
 
+    // A goal already inside the accepted position tolerance needs no new global path.
+    // Keep waiting for the existing motion to slow down before completing the goal.
+    if (planner_->checkGoalReached(current_pose, goal_)) {
+      if (planner_->getCurrentSpeed().head<2>().norm() < 0.3) {
+        has_goal_ = false;
+        changeState("GOAL_REACHED", State::WAIT_GOAL);
+      }
+      return;
+    }
+
     auto handle_generate_replan_failure = [this, &current_pose](
                                             const char * escape_reason, const char * emer_reason) {
       Eigen::Vector2d escape_vel;
@@ -147,7 +157,7 @@ void MincoFsm::callMainFsmOnce()
     }
 
     // 容差限停检测：到达终点且速度足够低
-    if (planner_->checkGoalReached(current_pose)) {
+    if (planner_->checkGoalReached(current_pose, goal_)) {
       // if (!goal_stop_published_) {
       //   planner_->publishEmergencyStop(current_pose);
       //   goal_stop_published_ = true;

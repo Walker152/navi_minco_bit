@@ -51,6 +51,7 @@ private:
   // --- Goal Lifecycle ---
   bool has_goal_{false};
   geometry_msgs::msg::PoseStamped goal_;
+  uint64_t goal_generation_{0};
 
   // --- Motion Tracking Cache ---
   bool has_last_pose_{false};

@@ -8,7 +8,8 @@ namespace minco_planner {
 class TrajectorySafetyChecker
 {
 public:
-  void configure(double safe_dist, double sample_dt, rclcpp::Logger logger);
+  void configure(
+    double safe_dist, double sample_dt, rclcpp::Clock::SharedPtr clock, rclcpp::Logger logger);
   void setQuery(std::shared_ptr<rog_map::MapQueryInterface> dynamic_query);
 
   bool checkPoint(const Eigen::Vector3d & pos) const;
@@ -22,6 +23,7 @@ private:
   std::shared_ptr<rog_map::MapQueryInterface> dynamic_query_;
   double safe_dist_{0.0};
   double sample_dt_{0.05};
+  rclcpp::Clock::SharedPtr clock_;
   rclcpp::Logger logger_{rclcpp::get_logger("TrajectorySafetyChecker")};
 };
 

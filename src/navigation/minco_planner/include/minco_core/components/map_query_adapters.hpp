@@ -36,6 +36,7 @@ public:
     std::shared_ptr<tf2_ros::Buffer> tf,
     std::string planning_frame,
     std::string rog_frame,
+    rclcpp::Clock::SharedPtr clock,
     rclcpp::Logger logger);
 
   bool worldToMap(double wx, double wy, unsigned int & mx, unsigned int & my) const override;
@@ -62,6 +63,7 @@ private:
   std::shared_ptr<tf2_ros::Buffer> tf_;
   std::string planning_frame_;
   std::string rog_frame_;
+  rclcpp::Clock::SharedPtr clock_;
   rclcpp::Logger logger_;
 };
 

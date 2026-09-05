@@ -31,12 +31,18 @@ bool isLineFree(const std::shared_ptr<rog_map::MapQueryInterface> & map,
 }  // namespace
 
 void LocalPathProcessor::configure(
-  double lookahead_dist, double max_vel, double max_acc, double traj_goal_tolerance, rclcpp::Logger logger)
+  double lookahead_dist,
+  double max_vel,
+  double max_acc,
+  double traj_goal_tolerance,
+  rclcpp::Clock::SharedPtr clock,
+  rclcpp::Logger logger)
 {
   lookahead_dist_ = lookahead_dist;
   max_vel_ = max_vel;
   max_acc_ = max_acc;
   traj_goal_tolerance_ = traj_goal_tolerance;
+  clock_ = std::move(clock);
   logger_ = logger;
 }
 
@@ -74,7 +80,7 @@ LocalPathSeed LocalPathProcessor::buildSeed(
   const bool clip_ok = clipLocalPathByRogBoundary(seed.dense_path, mode_context);
   if (clip_required && (!clip_ok || seed.dense_path.size() < 2U)) {
     RCLCPP_WARN_THROTTLE(logger_,
-      *rclcpp::Clock::make_shared(),
+      *clock_,
       2000,
       "[MincoPlanner] Local seed path is outside ROGMap boundary or too short after clipping.");
     return seed;
@@ -254,7 +260,7 @@ bool LocalPathProcessor::clipLocalPathByRogBoundary(
       if (i == 0U) {
         path.clear();
         RCLCPP_WARN_THROTTLE(logger_,
-          *rclcpp::Clock::make_shared(),
+          *clock_,
           2000,
           "[MincoPlanner] Local seed path starts outside ROGMap boundary; reject local replan seed.");
         return false;

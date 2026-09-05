@@ -35,6 +35,7 @@ public:
     const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
     nav2_costmap_2d::Costmap2DROS * costmap_ros,
     const std::shared_ptr<tf2_ros::Buffer> & tf,
+    rclcpp::Clock::SharedPtr clock,
     const rclcpp::Logger & logger);
 
   void rebuildQueries(const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
@@ -71,6 +72,7 @@ private:
   std::string map_frame_{"map"};
   std::string rog_frame_{"camera_init"};
   bool direct_odom_pose_{false};
+  rclcpp::Clock::SharedPtr clock_;
 
   std::shared_ptr<rog_map::MapQueryInterface> global_query_;
   std::shared_ptr<rog_map::MapQueryInterface> dynamic_query_;

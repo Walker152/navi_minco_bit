@@ -24,6 +24,7 @@ public:
     double max_vel,
     double max_acc,
     double traj_goal_tolerance,
+    rclcpp::Clock::SharedPtr clock,
     rclcpp::Logger logger);
 
   void updateLimits(double max_vel, double max_acc, double traj_goal_tolerance);
@@ -50,6 +51,7 @@ private:
   mutable std::mutex progress_mutex_;
   mutable bool has_progress_{false};
   mutable size_t last_start_index_{0U};
+  rclcpp::Clock::SharedPtr clock_;
   rclcpp::Logger logger_{rclcpp::get_logger("LocalPathProcessor")};
 };
 

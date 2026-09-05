@@ -8,10 +8,12 @@
 
 namespace minco_planner {
 
-void TrajectorySafetyChecker::configure(double safe_dist, double sample_dt, rclcpp::Logger logger)
+void TrajectorySafetyChecker::configure(
+  double safe_dist, double sample_dt, rclcpp::Clock::SharedPtr clock, rclcpp::Logger logger)
 {
   safe_dist_ = safe_dist;
   sample_dt_ = sample_dt > 1e-6 ? sample_dt : 0.05;
+  clock_ = std::move(clock);
   logger_ = logger;
 }
 
@@ -26,7 +28,7 @@ bool TrajectorySafetyChecker::ensureQueryAvailable() const
     return true;
   }
   RCLCPP_ERROR_THROTTLE(logger_,
-    *rclcpp::Clock::make_shared(),
+    *clock_,
     1000,
     "[MincoPlanner] ROGMap dynamic query is unavailable for trajectory safety check.");
   return false;
@@ -54,7 +56,7 @@ bool TrajectorySafetyChecker::checkPoint(const Eigen::Vector3d & pos) const
   const auto query = dynamic_query_->query(pos);
   if (!query.ok) {
     RCLCPP_WARN_THROTTLE(logger_,
-      *rclcpp::Clock::make_shared(),
+      *clock_,
       1000,
       "[MincoPlanner] Trajectory safety query failed: %s",
       rog_map::queryStatusName(query.status));
