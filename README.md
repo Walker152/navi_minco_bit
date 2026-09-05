@@ -172,7 +172,7 @@ flowchart LR
 ## 📦 仓库结构
 
 ```text
-2025-sentry-navi/
+2027-sentry-navi/
 ├── src/
 │   ├── decision/
 │   │   └── bt_manager/              # 行为树、比赛策略、blackboard
@@ -279,17 +279,28 @@ make -j"$(nproc)"
 sudo make install
 ```
 
-### 5. 获取仓库并构建
+### 5. 获取、更新仓库并构建
 
 ```bash
-git clone --branch rog_map_work --single-branch \
-  https://github.com/Walker152/navi_minco_bit.git ~/2025-sentry-navi
-cd ~/2025-sentry-navi
+git clone --branch develop --single-branch \
+  https://github.com/Walker152/navi_minco_bit.git ~/2027-sentry-navi
+cd ~/2027-sentry-navi
 export ROS_DISTRO="${ROS_DISTRO:-humble}"
 source "/opt/ros/${ROS_DISTRO}/setup.bash"
 ./build.bash
 source install/setup.bash
 ```
+
+已有工作空间更新时，先确认没有未保存的本地修改，再同步 `develop`：
+
+```bash
+cd ~/2027-sentry-navi
+git fetch personal --prune
+git checkout develop
+git pull --ff-only personal develop
+```
+
+如果本地仍保留旧的 `rog_map_work` 分支，请以 `develop` 为当前开发分支；历史重写或远程分支调整后，协作者应重新克隆工作空间。
 
 `build.bash` 会在 `MEM_LIMIT_GB` 内先串行构建高内存关键包，再并行构建其余包。可按机器内存调整：
 
@@ -298,7 +309,7 @@ MEM_LIMIT_GB=24 MEM_PER_WORKER_GB=2 ./build.bash
 ```
 
 > [!WARNING]
-> `start.bash` 当前固定执行 `cd ~/2025-sentry-navi`，若工作空间位于其他目录，请先修改该行。脚本还会打开多个 GNOME Terminal、启动 PTP sudo 命令并自动录制 rosbag，更适合实车桌面环境，不适合无界面服务器。
+> `start.bash` 当前固定执行 `cd ~/2027-sentry-navi`，若工作空间位于其他目录，请先修改该行。脚本还会打开多个 GNOME Terminal、启动 PTP sudo 命令并自动录制 rosbag，更适合实车桌面环境，不适合无界面服务器。
 
 ## ⚙️ 上车前关键配置
 
@@ -480,7 +491,7 @@ scan_z_max_abs ≈ h_max - h_lidar
 每个终端都先执行：
 
 ```bash
-cd ~/2025-sentry-navi
+cd ~/2027-sentry-navi
 export ROS_DISTRO="${ROS_DISTRO:-humble}"
 source "/opt/ros/${ROS_DISTRO}/setup.bash"
 source install/setup.bash
@@ -757,7 +768,7 @@ ros2 topic hz /cmd_vel_mpc
 <details>
 <summary><b>启动脚本找不到工作空间或无法在 SSH 中运行</b></summary>
 
-`start.bash` 固定进入 `~/2025-sentry-navi` 并依赖 `gnome-terminal`。修改工作空间路径，或按“分模块启动”在当前 shell / tmux 中运行各 launch。
+`start.bash` 固定进入 `~/2027-sentry-navi` 并依赖 `gnome-terminal`。修改工作空间路径，或按“分模块启动”在当前 shell / tmux 中运行各 launch。
 
 </details>
 
