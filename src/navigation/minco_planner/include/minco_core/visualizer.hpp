@@ -14,6 +14,8 @@ public:
   void configure(const nav2_util::LifecycleNode::WeakPtr & parent, const std::string & global_frame);
 
   void cleanup();
+  void activate();
+  void deactivate();
 
   void update(const std::vector<Eigen::Vector3d> & control_points,
     const traj_opt::Trajectory & backup_traj,

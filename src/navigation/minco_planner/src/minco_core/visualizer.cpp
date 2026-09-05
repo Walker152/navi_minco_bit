@@ -49,6 +49,21 @@ void Visualizer::configure(const nav2_util::LifecycleNode::WeakPtr & parent, con
   // 15Hz visualization timer
   visual_timer_ = node->create_wall_timer(
     std::chrono::milliseconds(66), std::bind(&Visualizer::visualTimerCallback, this));
+  visual_timer_->cancel();
+}
+
+void Visualizer::activate()
+{
+  if (visual_timer_) {
+    visual_timer_->reset();
+  }
+}
+
+void Visualizer::deactivate()
+{
+  if (visual_timer_) {
+    visual_timer_->cancel();
+  }
 }
 
 void Visualizer::cleanup()

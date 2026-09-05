@@ -2,11 +2,7 @@
 set -euo pipefail
 
 usage() {
-<<<<<<< HEAD
-  echo "Usage: ./simlation.bash [omni|diff] [rmuc_2024|rmul_2024|rmuc_2025|rmuc_2026|rmul_2025] [--headless] [--no-rviz] [--check]"
-=======
   echo "Usage: ./simlation.bash [omni|diff] [rmuc_2024|rmul_2024|rmuc_2025|rmul_2025] [--headless] [--no-rviz] [--check]"
->>>>>>> 5bb3d0360038ee273b50d17abd64110411478e90
 }
 
 chassis_type="omni"
@@ -40,11 +36,7 @@ case "${chassis_type}" in
 esac
 
 case "${world}" in
-<<<<<<< HEAD
-  rmuc_2024|rmul_2024|rmuc_2025|rmuc_2026|rmul_2025) ;;
-=======
   rmuc_2024|rmul_2024|rmuc_2025|rmul_2025) ;;
->>>>>>> 5bb3d0360038ee273b50d17abd64110411478e90
   *) echo "Unsupported world: ${world}" >&2; usage >&2; exit 2 ;;
 esac
 

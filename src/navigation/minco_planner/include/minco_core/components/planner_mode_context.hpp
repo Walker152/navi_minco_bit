@@ -41,6 +41,7 @@ public:
   void rebuildQueries(const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
     nav2_costmap_2d::Costmap2DROS * costmap_ros,
     const std::shared_ptr<tf2_ros::Buffer> & tf,
+    rclcpp::Clock::SharedPtr clock,
     const rclcpp::Logger & logger);
 
   PlannerMode mode() const { return mode_; }

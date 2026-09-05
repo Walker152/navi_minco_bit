@@ -8,6 +8,7 @@ void PlannerModeContext::configure(const PlannerModeParams & params,
   const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
   nav2_costmap_2d::Costmap2DROS * costmap_ros,
   const std::shared_ptr<tf2_ros::Buffer> & tf,
+  rclcpp::Clock::SharedPtr clock,
   const rclcpp::Logger & logger)
 {
   params_ = params;
@@ -43,12 +44,14 @@ void PlannerModeContext::configure(const PlannerModeParams & params,
     direct_odom_pose_ = true;
   }
 
-  rebuildQueries(raw_rog_query, costmap_ros, tf, logger);
+  clock_ = std::move(clock);
+  rebuildQueries(raw_rog_query, costmap_ros, tf, clock_, logger);
 }
 
 void PlannerModeContext::rebuildQueries(const std::shared_ptr<rog_map::MapQueryInterface> & raw_rog_query,
   nav2_costmap_2d::Costmap2DROS * costmap_ros,
   const std::shared_ptr<tf2_ros::Buffer> & tf,
+  rclcpp::Clock::SharedPtr clock,
   const rclcpp::Logger & logger)
 {
   if (mode_ == PlannerMode::PRIORMAP) {
@@ -57,7 +60,7 @@ void PlannerModeContext::rebuildQueries(const std::shared_ptr<rog_map::MapQueryI
       global_query_ = std::make_shared<Nav2CostmapQuery>(costmap_ros->getCostmap());
     }
     dynamic_query_ = raw_rog_query ? std::make_shared<FrameAwareRogQuery>(
-                                       raw_rog_query, tf, map_frame_, rog_frame_, logger)
+                                       raw_rog_query, tf, map_frame_, rog_frame_, clock, logger)
                                    : nullptr;
     sparsify_query_ = global_query_;
   } else {

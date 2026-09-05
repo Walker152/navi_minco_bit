@@ -145,9 +145,10 @@ FrameAwareRogQuery::FrameAwareRogQuery(std::shared_ptr<rog_map::MapQueryInterfac
   std::shared_ptr<tf2_ros::Buffer> tf,
   std::string planning_frame,
   std::string rog_frame,
+  rclcpp::Clock::SharedPtr clock,
   rclcpp::Logger logger)
 : raw_(std::move(raw)), tf_(std::move(tf)), planning_frame_(std::move(planning_frame)),
-  rog_frame_(std::move(rog_frame)), logger_(logger)
+  rog_frame_(std::move(rog_frame)), clock_(std::move(clock)), logger_(logger)
 {
 }
 
@@ -281,7 +282,7 @@ bool FrameAwareRogQuery::transformPlanningToRog(const Eigen::Vector3d & in, Eige
     return true;
   } catch (const tf2::TransformException & ex) {
     RCLCPP_WARN_THROTTLE(logger_,
-      *rclcpp::Clock::make_shared(),
+      *clock_,
       2000,
       "[MincoPlanner] TF %s -> %s failed for ROGMap dynamic query: %s",
       planning_frame_.c_str(),
@@ -306,7 +307,7 @@ bool FrameAwareRogQuery::transformRogToPlanning(const Eigen::Vector3d & in, Eige
     return true;
   } catch (const tf2::TransformException & ex) {
     RCLCPP_WARN_THROTTLE(logger_,
-      *rclcpp::Clock::make_shared(),
+      *clock_,
       2000,
       "[MincoPlanner] TF %s -> %s failed for ROGMap dynamic query: %s",
       rog_frame_.c_str(),

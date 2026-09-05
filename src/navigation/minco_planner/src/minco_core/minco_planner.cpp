@@ -186,7 +186,7 @@ void MincoPlanner::rebuildModeDependentQueries()
     return;
   }
 
-  mode_context_->rebuildQueries(rog_query_raw_, costmap_ros_.get(), tf_, logger_);
+  mode_context_->rebuildQueries(rog_query_raw_, costmap_ros_.get(), tf_, clock_, logger_);
   map_ = mode_context_->dynamicQuery();
 
   if (global_path_searcher_) {
@@ -229,7 +229,7 @@ void MincoPlanner::initPlannerMode(
   mode_params_.exploration_prefer_goal_direction = exploration_prefer_goal_direction_;
 
   mode_context_ = std::make_unique<PlannerModeContext>();
-  mode_context_->configure(mode_params_, rog_query_raw_, costmap_ros_.get(), tf_, logger_);
+  mode_context_->configure(mode_params_, rog_query_raw_, costmap_ros_.get(), tf_, clock_, logger_);
 
   planning_frame_ = mode_context_->planningFrame();
   output_frame_ = mode_context_->outputFrame();
@@ -268,6 +268,7 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
 
   auto node = parent.lock();
   logger_ = node->get_logger();
+  clock_ = node->get_clock();
 
   const std::string prefix = name_ + ".";
   configureMincoPerfLogging(node, prefix);
@@ -517,15 +518,15 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
 
   global_path_searcher_ = std::make_unique<GlobalPathSearcher>();
   global_path_searcher_->configure(
-    tf_, astar_planner_.get(), smac_planner_.get(), use_smac_, allow_unknown_, tolerance_, logger_);
+    tf_, astar_planner_.get(), smac_planner_.get(), use_smac_, allow_unknown_, tolerance_, clock_, logger_);
   global_path_searcher_->setQuery(global_query);
 
   local_path_processor_ = std::make_unique<LocalPathProcessor>();
   local_path_processor_->configure(
-    lookahead_dist_, minco_config.max_vel, minco_config.max_acc, traj_goal_tolerance_, logger_);
+    lookahead_dist_, minco_config.max_vel, minco_config.max_acc, traj_goal_tolerance_, clock_, logger_);
 
   safety_checker_ = std::make_unique<TrajectorySafetyChecker>();
-  safety_checker_->configure(collision_dist, 0.05, logger_);
+  safety_checker_->configure(collision_dist, 0.05, clock_, logger_);
   safety_checker_->setQuery(dynamic_query);
 
   opt_path_pub_ = node->create_publisher<ros_interfaces::msg::MpcPositionCommand>(
@@ -577,7 +578,7 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   // High-level FSM @ 20Hz.
   fsm_ = std::make_unique<MincoFsm>(planner_handle_, recovery_server_);
   fsm_timer_ = node->create_wall_timer(std::chrono::duration<double>(1.0 / 20.0), [this]() {
-    if (fsm_) {
+    if (active_.load() && fsm_) {
       fsm_->callMainFsmOnce();
     }
   });
@@ -585,6 +586,8 @@ void MincoPlanner::configure(const nav2_util::LifecycleNode::WeakPtr & parent,
   // Asynchronous safety monitor @ 20Hz.
   safety_timer_ = node->create_wall_timer(
     std::chrono::duration<double>(1.0 / 20.0), std::bind(&MincoPlanner::safetyTimerCallback, this));
+  fsm_timer_->cancel();
+  safety_timer_->cancel();
 
   on_set_parameters_callback_handle_ = node->add_on_set_parameters_callback(
     std::bind(&MincoPlanner::onSetParameters, this, std::placeholders::_1));
@@ -598,14 +601,35 @@ void MincoPlanner::setMap(const std::shared_ptr<rog_map::MapQueryInterface> & ma
 
 void MincoPlanner::activate()
 {
+  active_.store(true);
+  if (fsm_timer_) {
+    fsm_timer_->reset();
+  }
+  if (safety_timer_) {
+    safety_timer_->reset();
+  }
+  if (visualizer_) {
+    visualizer_->activate();
+  }
 }
 
 void MincoPlanner::deactivate()
 {
+  active_.store(false);
+  if (fsm_timer_) {
+    fsm_timer_->cancel();
+  }
+  if (safety_timer_) {
+    safety_timer_->cancel();
+  }
+  if (visualizer_) {
+    visualizer_->deactivate();
+  }
 }
 
 void MincoPlanner::cleanup()
 {
+  active_.store(false);
   planner_perf_monitor_.close();
 
   on_set_parameters_callback_handle_.reset();
@@ -841,7 +865,7 @@ nav_msgs::msg::Path MincoPlanner::createPlan(
   // Nav2 interface: createPlan() only sets the goal flag for MincoFSM.
   // It must NOT run A* or optimization here.
   nav_msgs::msg::Path path;
-  path.header.stamp = rclcpp::Clock().now();
+  path.header.stamp = clock_->now();
   path.header.frame_id = output_frame_;
 
   geometry_msgs::msg::PoseStamped normalized_start;
@@ -894,7 +918,8 @@ bool MincoPlanner::PlanGlobalPath(
     return false;
   }
   std::vector<geometry_msgs::msg::PoseStamped> planned_path;
-  if (!global_path_searcher_->plan(start, goal, *mode_context_, planned_path)) {
+  if (!global_path_searcher_->plan(
+        start, goal, *mode_context_, [this]() { return !active_.load(); }, planned_path)) {
     record_search_time();
     return false;
   }
@@ -914,12 +939,15 @@ bool MincoPlanner::PlanGlobalPath(
 
 bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose)
 {
+  if (!active_.load()) {
+    return false;
+  }
   const bool record_perf = planner_perf_monitor_.detailedCsvEnabled();
   const auto replan_start = record_perf ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
   std::optional<MincoPerfSample> perf;
   if (record_perf) {
     perf.emplace();
-    perf->stamp_ros = rclcpp::Clock().now().seconds();
+    perf->stamp_ros = clock_->now().seconds();
     perf->stamp_steady_ns = PlannerPerformanceMonitor::steadyNowNs();
     perf->planner_mode = mode_params_.planner_mode;
     std::lock_guard<std::mutex> perf_lock(perf_mutex_);
@@ -986,7 +1014,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
 
   std_msgs::msg::Header header_msg;
   header_msg.frame_id = output_frame_;
-  header_msg.stamp = rclcpp::Clock().now();
+  header_msg.stamp = clock_->now();
 
   // 4. Determine state (HOT/COLD).
   PlanningState state = PlanningState::COLD_START;
@@ -1013,7 +1041,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   VecDf shifted_durations;
   bool has_shifted_seed = false;
   if (state == PlanningState::HOT_START) {
-    const double now = rclcpp::Clock().now().seconds() + 0.005;  // small buffer
+    const double now = clock_->now().seconds() + 0.005;  // small buffer
     const double t_dur = now - last_traj_start_WT;
     {
       std::lock_guard<std::mutex> lock(mutex_);
@@ -1127,7 +1155,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     perf->local_search_time_ms =
       std::chrono::duration<double, std::milli>(opt_start_steady - replan_start).count();
   }
-  auto opt_start_time = rclcpp::Clock().now().seconds();
+  auto opt_start_time = clock_->now().seconds();
   double final_cost =
     minco_optimizer_->optimize(sparse_path, start_state, end_state, local_vmaxs, opt_traj);
   if (perf) {
@@ -1154,7 +1182,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     }
 
     if (has_last_traj && isTrajSafe()) {
-      if (!isTrajectoryTimeExpired(rclcpp::Clock().now().seconds())) {
+      if (!isTrajectoryTimeExpired(clock_->now().seconds())) {
         std::cout << YELLOW
                   << "[MincoPlanner] Last trajectory is still valid and safe. Continuing to execute it."
                   << RESET << std::endl;
@@ -1165,7 +1193,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     return finish(false, "OPTIMIZER_FAILED");
   }
 
-  auto opt_end_time = rclcpp::Clock().now().seconds();
+  auto opt_end_time = clock_->now().seconds();
   double opt_duration = opt_end_time - opt_start_time;
   std::cout << GREEN << "[MincoPlanner] Minco optimization time: "
             << opt_duration << " seconds, "
@@ -1259,7 +1287,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
     nav_msgs::msg::Path astar_path_msg;
     {
       std::lock_guard<std::mutex> path_lock(path_mutex_);
-      astar_path_msg.header.stamp = rclcpp::Clock().now();
+      astar_path_msg.header.stamp = clock_->now();
       astar_path_msg.header.frame_id = output_frame_;
       astar_path_msg.poses = latest_global_path_;
     }
@@ -1270,7 +1298,7 @@ bool MincoPlanner::ReplanLocal(const geometry_msgs::msg::PoseStamped & current_p
   {
     std::lock_guard<std::mutex> lock(mutex_);
     last_traj_ = opt_traj;
-    last_traj_.start_WT = rclcpp::Clock().now().seconds();
+    last_traj_.start_WT = clock_->now().seconds();
     has_last_traj_ = true;
     last_yaw_traj_ = yaw_traj;
     last_yaw_traj_.start_WT = last_traj_.start_WT;
@@ -1429,7 +1457,7 @@ MincoPlanner::PlanningState MincoPlanner::determinePlanningState(
     return PlanningState::COLD_START;
   }
 
-  double now = rclcpp::Clock().now().seconds() + 0.005;
+  double now = clock_->now().seconds() + 0.005;
   double t_dur = now - last_traj_.start_WT;
   if (t_dur <= 0.0 || t_dur >= last_traj_.getTotalDuration()) {
     std::cout << YELLOW << "[MincoPlanner] Hot Start Rejected: Invalid time duration (t_dur=" << t_dur
@@ -1669,6 +1697,9 @@ bool MincoPlanner::checkCollision(const traj_opt::Trajectory & traj)
 
 void MincoPlanner::safetyTimerCallback()
 {
+  if (!active_.load()) {
+    return;
+  }
   const bool safe = checkCollision();
   if (!safe) {
     is_traj_safe_.store(false);
@@ -1686,7 +1717,7 @@ void MincoPlanner::publishEmergencyStop(const geometry_msgs::msg::PoseStamped & 
 {
   std_msgs::msg::Header header_msg;
   header_msg.frame_id = output_frame_;
-  header_msg.stamp = rclcpp::Clock().now();
+  header_msg.stamp = clock_->now();
 
   Eigen::Matrix3d start_state;
   prepareColdStart(current_pose.pose, start_state, std::vector<Eigen::Vector3d>{});
@@ -1771,7 +1802,7 @@ void MincoPlanner::cancelGoal()
 
 double MincoPlanner::nowSeconds() const
 {
-  return rclcpp::Clock().now().seconds();
+  return clock_->now().seconds();
 }
 
 double MincoPlanner::getTrajectoryRemainTime() const
@@ -1810,7 +1841,7 @@ bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
   if (direct_odom_pose) {
     if (odom_pose.header.frame_id.empty()) {
       RCLCPP_WARN_THROTTLE(logger_,
-        *rclcpp::Clock::make_shared(),
+        *clock_,
         2000,
         "[MincoPlanner] EXPLORATION odom frame is empty, treating it as %s.",
         planning_frame_.c_str());
@@ -1822,7 +1853,7 @@ bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
 
   if (odom_pose.header.frame_id.empty()) {
     RCLCPP_WARN_THROTTLE(logger_,
-      *rclcpp::Clock::make_shared(),
+      *clock_,
       2000,
       "[MincoPlanner] PRIORMAP odom frame is empty, treating it as %s before transforming to %s.",
       rog_frame_.c_str(),
@@ -1838,7 +1869,7 @@ bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
 
   if (!tf_) {
     RCLCPP_WARN_THROTTLE(logger_,
-      *rclcpp::Clock::make_shared(),
+      *clock_,
       2000,
       "[MincoPlanner] Cannot transform PRIORMAP odom pose from %s to %s: TF buffer is null.",
       odom_pose.header.frame_id.c_str(),
@@ -1852,7 +1883,7 @@ bool MincoPlanner::getRobotPose(geometry_msgs::msg::PoseStamped & pose) const
     return true;
   } catch (const tf2::TransformException & ex) {
     RCLCPP_WARN_THROTTLE(logger_,
-      *rclcpp::Clock::make_shared(),
+      *clock_,
       2000,
       "[MincoPlanner] Failed to transform odom pose from %s to %s: %s",
       odom_pose.header.frame_id.c_str(),
@@ -1928,13 +1959,16 @@ double MincoPlanner::getEsdfDistance(const Eigen::Vector3d & pos) const
 void MincoPlanner::publishEscapeCommand(
   const geometry_msgs::msg::PoseStamped & current_pose, const Eigen::Vector2d & escape_vel)
 {
+  if (!active_.load()) {
+    return;
+  }
   if (visualizer_) {
     visualizer_->publishRecoveryDebug(current_pose, escape_vel, 0.5);
   }
 
   std_msgs::msg::Header header_msg;
   header_msg.frame_id = output_frame_;
-  header_msg.stamp = rclcpp::Clock().now();
+  header_msg.stamp = clock_->now();
   const double current_yaw = getCurrentYawFromOdom();
   utils::publishEscapeCommand(
     current_pose, escape_vel, current_yaw, opt_path_pub_, opt_trajectory_id_, header_msg);

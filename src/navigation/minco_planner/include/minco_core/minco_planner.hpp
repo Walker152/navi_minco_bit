@@ -38,12 +38,11 @@ public:
     const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal) override;
 
   bool PlanGlobalPath(const geometry_msgs::msg::PoseStamped & start,
-    const geometry_msgs::msg::PoseStamped & goal,
-    uint64_t goal_generation);
+    const geometry_msgs::msg::PoseStamped & goal);
 
   void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map);
 
-  bool ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose, uint64_t goal_generation);
+  bool ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose);
   bool makePlan(const geometry_msgs::msg::Pose & start,
     const geometry_msgs::msg::Pose & goal,
     double tolerance,
@@ -66,10 +65,7 @@ public:
   bool getRobotPose(geometry_msgs::msg::PoseStamped & pose) const;
   bool checkGoalReached(const geometry_msgs::msg::PoseStamped & current_pose,
     const geometry_msgs::msg::PoseStamped & goal) const;
-  bool consumePendingGoal(
-    geometry_msgs::msg::PoseStamped & goal_out, uint64_t & goal_generation_out);
-  bool consumePendingCancel(uint64_t & goal_generation_out);
-  bool isGoalGenerationCurrent(uint64_t goal_generation) const;
+  bool consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out);
   void cancelGoal();
   Eigen::Vector3d getCurrentSpeed() const;
   double getCurrentYawFromOdom() const;
@@ -208,15 +204,13 @@ private:
   std::vector<geometry_msgs::msg::PoseStamped> latest_global_path_;
   nav_msgs::msg::Odometry latest_odom_;
   geometry_msgs::msg::PoseStamped pending_goal_;
-  uint64_t pending_goal_generation_{0};
 
   bool has_last_traj_ = false;
   bool has_last_yaw_traj_ = false;
   bool has_pending_goal_{false};
-  bool has_pending_cancel_{false};
   bool has_latest_odom_{false};
-  std::atomic<uint64_t> goal_generation_{0};
   std::atomic_bool is_traj_safe_{true};
+  std::atomic_bool active_{false};
 
   std::mutex path_mutex_;
   std::mutex goal_mutex_;
