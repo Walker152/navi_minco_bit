@@ -238,8 +238,10 @@ sudo apt install -y \
   ros-${ROS_DISTRO}-ament-cmake-core \
   ros-${ROS_DISTRO}-ament-cmake-auto \
   ros-${ROS_DISTRO}-behaviortree-cpp-v3 \
-  ros-${ROS_DISTRO}-spatio-temporal-voxel-layer
-
+  ros-${ROS_DISTRO}-spatio-temporal-voxel-layer \
+  ros-${ROS_DISTRO}-nav2-behavior-tree
+# 安装仿真资源仓库依赖
+sudo apt install ros-humble-ros-gz ignition-fortress libignition-gazebo6-dev
 # 安装当前 ROS 2 发行版仓库中所有 nav* / nav2* 二进制包，排除调试符号包
 mapfile -t ros_nav_packages < <(
   apt-cache pkgnames \
