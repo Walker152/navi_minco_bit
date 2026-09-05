@@ -11,10 +11,10 @@
 ### 📌 第一次加入项目
 ```bash
 # 克隆项目
-git clone https://gitee.com/bitrm2020cv/2025-sentry-navi
+git clone https://gitee.com/bitrm2027navigation/2027-sentry-navi.git
 
 # 进入目录
-cd 2025-sentry-navi
+cd 2027-sentry-navi
 
 # ⚠️ 切换到 develop 分支 (严禁在 master 修改)
 git checkout develop
