@@ -166,6 +166,7 @@ void GlobalPathSearcher::configure(std::shared_ptr<tf2_ros::Buffer> tf,
   bool use_smac,
   bool allow_unknown,
   double tolerance,
+  rclcpp::Clock::SharedPtr clock,
   rclcpp::Logger logger)
 {
   tf_ = std::move(tf);
@@ -174,6 +175,7 @@ void GlobalPathSearcher::configure(std::shared_ptr<tf2_ros::Buffer> tf,
   use_smac_ = use_smac;
   allow_unknown_ = allow_unknown;
   tolerance_ = tolerance;
+  clock_ = std::move(clock);
   logger_ = logger;
 }
 
@@ -235,17 +237,19 @@ bool GlobalPathSearcher::normalizePoseToFrame(const geometry_msgs::msg::PoseStam
 bool GlobalPathSearcher::plan(const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal,
   const PlannerModeContext & mode_context,
+  std::function<bool()> cancel_checker,
   std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path)
 {
   if (mode_context.mode() == PlannerMode::PRIORMAP) {
-    return planPriorMap(start, goal, mode_context, latest_global_path);
+    return planPriorMap(start, goal, mode_context, cancel_checker, latest_global_path);
   }
-  return planExploration(start, goal, mode_context, latest_global_path);
+  return planExploration(start, goal, mode_context, cancel_checker, latest_global_path);
 }
 
 bool GlobalPathSearcher::planPriorMap(const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal,
   const PlannerModeContext & mode_context,
+  const std::function<bool()> & cancel_checker,
   std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path)
 {
   if (!astar_ || !mode_context.globalQuery()) {
@@ -263,12 +267,8 @@ bool GlobalPathSearcher::planPriorMap(const geometry_msgs::msg::PoseStamped & st
   }
 
   nav_msgs::msg::Path dummy;
-  dummy.header.stamp = rclcpp::Clock().now();
+  dummy.header.stamp = clock_->now();
   dummy.header.frame_id = mode_context.outputFrame();
-
-  std::function<bool()> cancel_checker = []() {
-    return !rclcpp::ok();
-  };
 
   return makePlanOnQuery(start_map.pose,
     goal_map.pose,
@@ -284,6 +284,7 @@ bool GlobalPathSearcher::planPriorMap(const geometry_msgs::msg::PoseStamped & st
 bool GlobalPathSearcher::planExploration(const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal,
   const PlannerModeContext & mode_context,
+  const std::function<bool()> & cancel_checker,
   std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path)
 {
   const auto query = mode_context.globalQuery();
@@ -300,10 +301,6 @@ bool GlobalPathSearcher::planExploration(const geometry_msgs::msg::PoseStamped &
         goal, mode_context.rogFrame(), mode_context.rogFrame(), "EXPLORATION goal", goal_rog)) {
     return false;
   }
-
-  std::function<bool()> cancel_checker = []() {
-    return !rclcpp::ok();
-  };
 
   unsigned int sx = 0;
   unsigned int sy = 0;
@@ -327,7 +324,7 @@ bool GlobalPathSearcher::planExploration(const geometry_msgs::msg::PoseStamped &
   }
   if (goal_traversable) {
     nav_msgs::msg::Path direct_plan;
-    direct_plan.header.stamp = rclcpp::Clock().now();
+    direct_plan.header.stamp = clock_->now();
     direct_plan.header.frame_id = mode_context.outputFrame();
     if (makePlanOnQuery(start_rog.pose,
           goal_rog.pose,
@@ -499,7 +496,7 @@ bool GlobalPathSearcher::planExploration(const geometry_msgs::msg::PoseStamped &
     double wy = 0.0;
     query->mapToWorld(x, y, wx, wy);
     geometry_msgs::msg::PoseStamped pose;
-    pose.header.stamp = rclcpp::Clock().now();
+    pose.header.stamp = clock_->now();
     pose.header.frame_id = mode_context.outputFrame();
     pose.pose.position.x = wx;
     pose.pose.position.y = wy;
@@ -540,7 +537,7 @@ bool GlobalPathSearcher::makePlanOnQuery(const geometry_msgs::msg::Pose & start,
   std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path)
 {
   plan.poses.clear();
-  plan.header.stamp = rclcpp::Clock().now();
+  plan.header.stamp = clock_->now();
   plan.header.frame_id = output_frame;
   if (!query) {
     RCLCPP_ERROR(

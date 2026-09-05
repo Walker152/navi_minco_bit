@@ -35,7 +35,7 @@ double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d> & waypoints,
   Eigen::Map<VecDf> tau(x.data(), opt_vars_.dim_t);
   Eigen::Map<VecDf> xi(x.data() + opt_vars_.dim_t, opt_vars_.dim_p);
   opt_vars_.local_magnitudes = local_magnitudes;
-  opt_vars_.penalty_log.resize(6);  // Energy, pos, vel, acc, attract, time_barrier
+  opt_vars_.penalty_log.resize(5);  // Energy, pos, vel, acc, attract
   opt_vars_.penalty_log.setZero();
 
   if (opt_vars_.times.minCoeff() < 1e-3) {
@@ -87,7 +87,6 @@ double MincoOptimizer::optimize(const std::vector<Eigen::Vector3d> & waypoints,
     cout << "\tVel: " << opt_vars_.penalty_log(2) << endl;
     cout << "\tAcc: " << opt_vars_.penalty_log(3) << endl;
     cout << "\tAttract: " << opt_vars_.penalty_log(4) << endl;
-    cout << "\tTime Barrier: " << opt_vars_.penalty_log(5) << endl;
     cout << "\tOptimized Time: " << opt_vars_.times.norm() << endl;
   }
 
@@ -164,6 +163,7 @@ double MincoOptimizer::costFunctional(void * ptr, const VecDf & x, VecDf & g)
   opt_vars_.penalty_log(0) = cost;
 
   // 5. Penalty terms (ESDF / vel / acc / attract)
+  const uint64_t query_failure_count_before = opt_vars_.query_failure_count;
   constraintsFunctional(times,
     minco_solver_->getCoeffs(),
     waypoint_attractor,
@@ -178,6 +178,10 @@ double MincoOptimizer::costFunctional(void * ptr, const VecDf & x, VecDf & g)
     partialGradByCoeffs,
     opt_vars_.penalty_log,
     opt_vars_.query_failure_count);
+  if (opt_vars_.query_failure_count != query_failure_count_before) {
+    g.setZero();
+    return INFINITY;
+  }
 
   // 6. Propagate gradients to points and times
   Mat3Df gradByPoints;
@@ -188,9 +192,6 @@ double MincoOptimizer::costFunctional(void * ptr, const VecDf & x, VecDf & g)
   cost += rho * times.sum();
   gradByTimes.array() += rho;
 
-  // 7.5 Kinematic Time Barrier
-  computeTimeBarrier(opt_vars_, times, magnitudeBounds, cost, gradByTimes, opt_vars_.penalty_log);
-
   // 8. Backprop time gradient (T -> tau)
   gcopter::propagateGradientTToTau(tau, gradByTimes, grad_tau);
 
@@ -199,54 +200,6 @@ double MincoOptimizer::costFunctional(void * ptr, const VecDf & x, VecDf & g)
   }
 
   return cost;
-}
-
-void MincoOptimizer::computeTimeBarrier(const OptVars & opt_vars,
-  const VecDf & times,
-  const VecDf & magnitudeBounds,
-  double & cost,
-  VecDf & gradByTimes,
-  VecDf & penalty_log)
-{
-  const int N = static_cast<int>(times.size());
-  const auto & w_barrier = opt_vars.penaltyWeights(4);  // Time barrier weight
-  // const double vmax_safe = std::max(1e-3, magnitudeBounds[1] * 0.6);
-  const double amax_safe = std::max(1e-3, magnitudeBounds[2]);
-  const double v_curr = opt_vars.headPVA.col(1).norm();
-  const double v_tail = opt_vars.tailPVA.col(1).norm();
-  const bool has_init_ps = (opt_vars.init_ps.size() == static_cast<size_t>(std::max(0, N - 1)));
-
-  for (int i = 0; i < N; ++i) {
-    const double t_i = times(i);
-    const double local_vmax = opt_vars.local_magnitudes(i);
-    const double vmax_safe = std::max(1e-3, local_vmax);
-    Eigen::Vector3d p_start = opt_vars.headPVA.col(0);
-    Eigen::Vector3d p_end = opt_vars.tailPVA.col(0);
-
-    if (i > 0) {
-      p_start =
-        has_init_ps ? opt_vars.init_ps[static_cast<size_t>(i - 1)] : opt_vars.waypoint_attractor.col(i);
-    }
-    if (i < N - 1) {
-      p_end =
-        has_init_ps ? opt_vars.init_ps[static_cast<size_t>(i)] : opt_vars.waypoint_attractor.col(i + 1);
-    }
-
-    const double dist = (p_end - p_start).norm();
-    double t_min = dist / vmax_safe;
-
-    if (i == N - 1 && v_tail < 0.1) {
-      t_min = std::max({t_min, v_curr / amax_safe, vmax_safe / amax_safe});
-    }
-
-    if (t_i < t_min) {
-      const double violation = t_min - t_i;
-      const double violation2 = violation * violation;
-      cost += w_barrier * violation2 * violation;
-      gradByTimes(i) += -3.0 * w_barrier * violation2;
-      penalty_log(5) = violation;
-    }
-  }
 }
 
 void MincoOptimizer::constraintsFunctional(const VecDf & T,

@@ -4,6 +4,7 @@
 #include "minco_core/header.hpp"
 #include "minco_core/performance/planner_performance_monitor.hpp"
 
+#include <atomic>
 #include <limits>
 
 namespace rog_map {
@@ -36,12 +37,13 @@ public:
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal) override;
 
-  bool PlanGlobalPath(
-    const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal);
+  bool PlanGlobalPath(const geometry_msgs::msg::PoseStamped & start,
+    const geometry_msgs::msg::PoseStamped & goal,
+    uint64_t goal_generation);
 
   void setMap(const std::shared_ptr<rog_map::MapQueryInterface> & map);
 
-  bool ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose);
+  bool ReplanLocal(const geometry_msgs::msg::PoseStamped & current_pose, uint64_t goal_generation);
   bool makePlan(const geometry_msgs::msg::Pose & start,
     const geometry_msgs::msg::Pose & goal,
     double tolerance,
@@ -62,8 +64,12 @@ public:
   bool isTrajectoryTimeExpired(double now_s) const;
   double getLookaheadDist() const { return lookahead_dist_; }
   bool getRobotPose(geometry_msgs::msg::PoseStamped & pose) const;
-  bool checkGoalReached(const geometry_msgs::msg::PoseStamped & current_pose);
-  bool consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out);
+  bool checkGoalReached(const geometry_msgs::msg::PoseStamped & current_pose,
+    const geometry_msgs::msg::PoseStamped & goal) const;
+  bool consumePendingGoal(
+    geometry_msgs::msg::PoseStamped & goal_out, uint64_t & goal_generation_out);
+  bool consumePendingCancel(uint64_t & goal_generation_out);
+  bool isGoalGenerationCurrent(uint64_t goal_generation) const;
   void cancelGoal();
   Eigen::Vector3d getCurrentSpeed() const;
   double getCurrentYawFromOdom() const;
@@ -145,6 +151,7 @@ private:
   rclcpp::TimerBase::SharedPtr fsm_timer_;
   rclcpp::TimerBase::SharedPtr safety_timer_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_parameters_callback_handle_;
+  rclcpp::Clock::SharedPtr clock_;
 
   // === TF & Costmap & Frames ===
   std::shared_ptr<tf2_ros::Buffer> tf_;
@@ -201,11 +208,14 @@ private:
   std::vector<geometry_msgs::msg::PoseStamped> latest_global_path_;
   nav_msgs::msg::Odometry latest_odom_;
   geometry_msgs::msg::PoseStamped pending_goal_;
+  uint64_t pending_goal_generation_{0};
 
   bool has_last_traj_ = false;
   bool has_last_yaw_traj_ = false;
   bool has_pending_goal_{false};
+  bool has_pending_cancel_{false};
   bool has_latest_odom_{false};
+  std::atomic<uint64_t> goal_generation_{0};
   std::atomic_bool is_traj_safe_{true};
 
   std::mutex path_mutex_;

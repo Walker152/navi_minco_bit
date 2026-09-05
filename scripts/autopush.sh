@@ -303,6 +303,58 @@ for repository_index in "${!repositories[@]}"; do
   }; then
     submodule_sync_incomplete=true
   fi
+
+  for remote in "${remotes[@]}"; do
+    if remote_is_excluded "$remote"; then
+      continue
+    fi
+
+    echo
+    echo "==> [$repository_label] 检查远端 $remote"
+    if ! git -C "$repository" fetch --prune --no-tags "$remote" \
+      "+refs/heads/*:refs/remotes/$remote/*"; then
+      echo "错误：[$repository_label] 无法刷新远端 $remote。" >&2
+      failed_operations+=("$repository_label:$remote(fetch)")
+      continue
+    fi
+
+    for branch in "${branches[@]}"; do
+      branch_ref="refs/heads/$branch"
+      remote_ref="refs/remotes/$remote/$branch"
+      local_sha="$(git -C "$repository" rev-parse --verify "$branch_ref")"
+
+      if remote_sha="$(git -C "$repository" show-ref --verify --hash "$remote_ref" 2>/dev/null)"; then
+        if [ "$local_sha" = "$remote_sha" ]; then
+          echo "  [$branch] 已是最新。"
+          up_to_date_branches+=("$repository_label:$remote/$branch")
+          continue
+        fi
+
+        if git -C "$repository" merge-base --is-ancestor "$remote_sha" "$local_sha"; then
+          push_reason="快进"
+        elif git -C "$repository" merge-base --is-ancestor "$local_sha" "$remote_sha"; then
+          echo "  [$branch] 远端领先，已跳过。" >&2
+          skipped_branches+=("$repository_label:$remote/$branch(远端领先)")
+          continue
+        else
+          echo "  [$branch] 本地与远端分叉，已跳过。" >&2
+          skipped_branches+=("$repository_label:$remote/$branch(分叉)")
+          continue
+        fi
+      else
+        push_reason="创建"
+      fi
+
+      push_refspec="$branch_ref:refs/heads/$branch"
+      echo "  [$branch] $push_reason推送。"
+      if git -C "$repository" push "${push_options[@]}" "$remote" "$push_refspec"; then
+        successful_pushes+=("$repository_label:$remote/$branch($push_reason)")
+      else
+        echo "错误：[$repository_label] $remote/$branch 推送失败。" >&2
+        failed_operations+=("$repository_label:$remote/$branch(push)")
+      fi
+    done
+  done
 done
 
 echo

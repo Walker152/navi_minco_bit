@@ -17,6 +17,7 @@ public:
     bool use_smac,
     bool allow_unknown,
     double tolerance,
+    rclcpp::Clock::SharedPtr clock,
     rclcpp::Logger logger);
 
   void setQuery(const std::shared_ptr<rog_map::MapQueryInterface> & global_query);
@@ -24,6 +25,7 @@ public:
   bool plan(const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
     const PlannerModeContext & mode_context,
+    std::function<bool()> cancel_checker,
     std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path);
 
   bool makePlan(const geometry_msgs::msg::Pose & start,
@@ -43,11 +45,13 @@ private:
   bool planPriorMap(const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
     const PlannerModeContext & mode_context,
+    const std::function<bool()> & cancel_checker,
     std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path);
 
   bool planExploration(const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
     const PlannerModeContext & mode_context,
+    const std::function<bool()> & cancel_checker,
     std::vector<geometry_msgs::msg::PoseStamped> & latest_global_path);
 
   bool makePlanOnQuery(const geometry_msgs::msg::Pose & start,
@@ -67,6 +71,7 @@ private:
   bool use_smac_{false};
   bool allow_unknown_{true};
   double tolerance_{0.5};
+  rclcpp::Clock::SharedPtr clock_;
   rclcpp::Logger logger_{rclcpp::get_logger("GlobalPathSearcher")};
 };
 

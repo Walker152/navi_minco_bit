@@ -24,9 +24,12 @@ public:
     double max_vel,
     double max_acc,
     double traj_goal_tolerance,
+    rclcpp::Clock::SharedPtr clock,
     rclcpp::Logger logger);
 
   void updateLimits(double max_vel, double max_acc, double traj_goal_tolerance);
+
+  void resetProgress();
 
   LocalPathSeed buildSeed(const std::vector<geometry_msgs::msg::PoseStamped> & global_path,
     const geometry_msgs::msg::PoseStamped & current_pose,
@@ -45,6 +48,10 @@ private:
   double max_vel_{2.0};
   double max_acc_{4.0};
   double traj_goal_tolerance_{0.5};
+  mutable std::mutex progress_mutex_;
+  mutable bool has_progress_{false};
+  mutable size_t last_start_index_{0U};
+  rclcpp::Clock::SharedPtr clock_;
   rclcpp::Logger logger_{rclcpp::get_logger("LocalPathProcessor")};
 };
 

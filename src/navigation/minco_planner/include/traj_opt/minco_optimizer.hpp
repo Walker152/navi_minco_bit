@@ -170,13 +170,6 @@ private:
     VecDf & penalty_log,
     uint64_t & query_failure_count);
 
-  static void computeTimeBarrier(const OptVars & opt_vars,
-    const VecDf & times,
-    const VecDf & magnitudeBounds,
-    double & cost,
-    VecDf & gradByTimes,
-    VecDf & penalty_log);
-
   // --- Time Reparameterization ---
   static void forwardT(const VecDf & tau, VecDf & T) { T = tau.array().exp(); }
   static void backwardT(const VecDf & T, VecDf & tau) { tau = T.array().log(); }
